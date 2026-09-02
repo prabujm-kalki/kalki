@@ -3,7 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "description": "Kalki Business Operating System",
-  "engines": { "node": ">=24 <25" },
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -27,15 +29,22 @@
     "zod": "4.5.4"
   },
   "devDependencies": {
-    "@playwright/test": "1.55.0",
+    "@playwright/test": "1.62.1",
     "@types/node": "24.0.0",
     "@types/pg": "8.15.5",
     "@types/react": "19.2.0",
     "@types/react-dom": "19.2.0",
-    "drizzle-kit": "0.31.4",
+    "drizzle-kit": "0.31.10",
     "eslint": "9.35.0",
     "eslint-config-next": "16.3.3",
     "typescript": "5.9.2",
-    "vitest": "3.2.4"
+    "vitest": "3.2.7"
+  },
+  "overrides": {
+    "drizzle-kit": {
+      "@esbuild-kit/core-utils": {
+        "esbuild": "^0.28.2"
+      }
+    }
   }
 }
