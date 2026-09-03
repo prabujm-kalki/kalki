@@ -435,6 +435,9 @@ async function loadDefinitionSnapshot(organizationId: string, definitionId: stri
     eq(workSituationDefinitions.organizationId, organizationId),
   ));
   if (!definition) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
+  if (!definition.isActive) {
+    throw new RolesWorkServiceError("Work definition is not active", "PREREQUISITE_NOT_SATISFIED");
+  }
   const [evidenceRequirement] = await db.select().from(workSituationEvidenceRequirements).where(and(
     eq(workSituationEvidenceRequirements.workSituationDefinitionId, definitionId),
     eq(workSituationEvidenceRequirements.organizationId, organizationId),

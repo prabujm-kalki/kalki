@@ -24,6 +24,7 @@ import {
   createWorkInstance,
   createWorkSituationDefinition,
   getWorkInstance,
+  getWorkSituationDefinitionForScope,
   listWorkInstances,
   RolesWorkServiceError,
   transitionWorkInstance,
@@ -380,5 +381,38 @@ describe("Work/Situation instance foundation", () => {
       code: "PREREQUISITE_NOT_SATISFIED",
       message: "Required verification cannot be satisfied because verification presence is not recorded",
     });
+  });
+
+  it("creates instances only from active definitions and does not rewrite existing instances after deactivation", async () => {
+    const definition = await createDefinition({ identifierSuffix: "ACTIVE" });
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(instance.id);
+    expect(instance.state).toBe("SEEN");
+
+    await db.update(workSituationDefinitions).set({ isActive: false }).where(eq(workSituationDefinitions.id, definition.id));
+
+    const configuration = await getWorkSituationDefinitionForScope({ id: authorizedUserId }, scope, definition.id);
+    expect(configuration.isActive).toBe(false);
+
+    await expect(createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    })).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Work definition is not active",
+    });
+
+    const acknowledged = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "ACKNOWLEDGED",
+    });
+    expect(acknowledged.state).toBe("ACKNOWLEDGED");
+    expect(acknowledged.definitionSnapshot).toEqual(instance.definitionSnapshot);
   });
 });
