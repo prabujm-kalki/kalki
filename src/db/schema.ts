@@ -341,9 +341,7 @@ export const systemAuthorities = pgTable("system_authorities", {
     .notNull()
     .references(() => authUsers.id, { onDelete: "cascade" }),
   authority: text("authority").notNull().default("OWNER").unique(),
-  createdAt: timestamp("created_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   check(
     "system_authorities_owner_only_check",
@@ -506,4 +504,27 @@ export const workInstanceVerificationPresences = pgTable("work_instance_verifica
   uniqueIndex("work_instance_verification_presences_instance_unique").on(table.workInstanceId),
   uniqueIndex("work_instance_verification_presences_organization_id_unique").on(table.organizationId, table.id),
   index("work_instance_verification_presences_organization_instance_idx").on(table.organizationId, table.workInstanceId),
+]);
+
+export const auditEvents = pgTable("audit_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id"),
+  actorUserId: text("actor_user_id").references(() => authUsers.id, { onDelete: "set null" }),
+  eventType: text("event_type").notNull(),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({
+    columns: [table.organizationId, table.locationId],
+    foreignColumns: [locations.organizationId, locations.id],
+    name: "audit_events_organization_location_fk",
+  }),
+  index("audit_events_organization_created_idx").on(table.organizationId, table.createdAt),
+  index("audit_events_organization_entity_idx").on(table.organizationId, table.entityType, table.entityId),
+  index("audit_events_organization_actor_idx").on(table.organizationId, table.actorUserId),
+  index("audit_events_organization_event_type_idx").on(table.organizationId, table.eventType),
 ]);
