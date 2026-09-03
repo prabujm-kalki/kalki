@@ -449,4 +449,47 @@ describe("Employee business-role assignment and additions", () => {
 
     await db.update(employees).set({ isActive: true }).where(eq(employees.id, employeeId));
   });
+
+  it("creates employee-specific additions only for active employees and keeps existing additions readable after deactivation", async () => {
+    const role = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "ADD-BASE",
+      name: "Addition baseline",
+      purpose: "Preserve baseline when additions are gated",
+      responsibilities: [{ responsibility: "Shared duty", actualWork: "Shared work", position: 10 }],
+    });
+    createdRoleIds.push(role!.id);
+    const assignment = await assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: role!.id });
+    createdAssignmentIds.push(assignment.id);
+    const addition = await createEmployeeResponsibilityAddition({ id: authorizedUserId }, {
+      ...scope,
+      responsibility: "Active-employee addition",
+      actualWork: "Additional work while active",
+      position: 40,
+    });
+    createdAdditionIds.push(addition.id);
+    const baselineBefore = await getRoleDefinition({ id: authorizedUserId }, { organizationId, locationId }, role!.id);
+
+    await db.update(employees).set({ isActive: false }).where(eq(employees.id, employeeId));
+
+    await expect(createEmployeeResponsibilityAddition({ id: authorizedUserId }, {
+      ...scope,
+      responsibility: "Inactive-employee addition",
+      actualWork: "Should not persist",
+      position: 50,
+    })).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Employee is not active",
+    });
+
+    await expect(
+      getEmployeeResponsibilityAddition({ id: authorizedUserId }, scope, addition.id),
+    ).resolves.toMatchObject({ id: addition.id, responsibility: "Active-employee addition", employeeId });
+
+    const baselineAfter = await getRoleDefinition({ id: authorizedUserId }, { organizationId, locationId }, role!.id);
+    expect(baselineAfter.responsibilities).toEqual(baselineBefore.responsibilities);
+
+    await db.update(employees).set({ isActive: true }).where(eq(employees.id, employeeId));
+  });
 });

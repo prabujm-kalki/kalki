@@ -337,7 +337,10 @@ export async function createEmployeeResponsibilityAddition(actor: Actor, input: 
   const parsed = employeeResponsibilityAdditionSchema.safeParse(input);
   if (!parsed.success) throw new RolesWorkServiceError("Invalid employee responsibility addition input", "INVALID_INPUT");
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
-  await requireEmployeeInScope(parsed.data);
+  const employee = await requireEmployeeInScope(parsed.data);
+  if (!employee.isActive) {
+    throw new RolesWorkServiceError("Employee is not active", "PREREQUISITE_NOT_SATISFIED");
+  }
   try {
     const [addition] = await db.insert(employeeResponsibilityAdditions).values({
       organizationId: parsed.data.organizationId,
