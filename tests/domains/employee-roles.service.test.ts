@@ -373,4 +373,45 @@ describe("Employee business-role assignment and additions", () => {
       code: "ACCESS_DENIED",
     });
   });
+
+  it("assigns employees only to active business roles and keeps existing assignments readable after deactivation", async () => {
+    const assignedRole = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "ASSIGNED-ROLE",
+      name: "Assigned role",
+      purpose: "Keep existing assignment after deactivation",
+    });
+    const inactiveRole = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "INACTIVE-ROLE",
+      name: "Inactive role",
+      purpose: "Reject new assignment when inactive",
+    });
+    createdRoleIds.push(assignedRole!.id, inactiveRole!.id);
+    const assignment = await assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: assignedRole!.id });
+    createdAssignmentIds.push(assignment.id);
+
+    await db.update(businessRoles).set({ isActive: false }).where(eq(businessRoles.id, assignedRole!.id));
+    await db.update(businessRoles).set({ isActive: false }).where(eq(businessRoles.id, inactiveRole!.id));
+
+    const configuration = await getRoleDefinition(
+      { id: authorizedUserId },
+      { organizationId, locationId },
+      inactiveRole!.id,
+    );
+    expect(configuration.isActive).toBe(false);
+
+    await expect(
+      assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: inactiveRole!.id }),
+    ).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Role definition is not active",
+    });
+
+    await expect(
+      getEmployeeRoleAssignment({ id: authorizedUserId }, scope, assignment.id),
+    ).resolves.toMatchObject({ id: assignment.id, roleId: assignedRole!.id, employeeId });
+  });
 });

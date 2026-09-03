@@ -277,11 +277,17 @@ export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRole
   if (!parsed.success) throw new RolesWorkServiceError("Invalid employee role assignment input", "INVALID_INPUT");
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
   await requireEmployeeInScope(parsed.data);
-  const [role] = await db.select({ id: businessRoles.id }).from(businessRoles).where(and(
+  const [role] = await db.select({
+    id: businessRoles.id,
+    isActive: businessRoles.isActive,
+  }).from(businessRoles).where(and(
     eq(businessRoles.id, parsed.data.roleId),
     eq(businessRoles.organizationId, parsed.data.organizationId),
   ));
   if (!role) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
+  if (!role.isActive) {
+    throw new RolesWorkServiceError("Role definition is not active", "PREREQUISITE_NOT_SATISFIED");
+  }
   try {
     const [assignment] = await db.insert(employeeRoleAssignments).values({
       organizationId: parsed.data.organizationId,
