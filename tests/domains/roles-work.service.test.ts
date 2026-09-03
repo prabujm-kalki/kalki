@@ -124,4 +124,20 @@ describe("Role and Work/Situation configuration services", () => {
     await expect(createWorkSituationDefinition({ id: authorizedUserId }, { ...scope, triggerCategory: "routine", title: "Invalid", description: "Invalid", reminderEscalationStages: [{ stage: "one", position: 10 }, { stage: "two", position: 10 }] })).rejects.toMatchObject({ code: "INVALID_INPUT" });
     await expect(createRoleDefinition(null, { ...scope, identifier: "NONE", name: "None", purpose: "No actor" })).rejects.toBeInstanceOf(RolesWorkServiceError);
   });
+
+  it("accepts only the approved Work/Situation trigger categories", async () => {
+    const eventBased = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope, triggerCategory: "event-based", title: "Event work", description: "Event-based work",
+    });
+    createdDefinitionIds.push(eventBased.id);
+    const orderTriggered = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope, triggerCategory: "item/order-triggered", title: "Order work", description: "Item or order work",
+    });
+    createdDefinitionIds.push(orderTriggered.id);
+    expect(eventBased.triggerCategory).toBe("event-based");
+    expect(orderTriggered.triggerCategory).toBe("item/order-triggered");
+    await expect(createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope, triggerCategory: "ad-hoc", title: "Invalid trigger", description: "Invalid trigger",
+    })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+  });
 });

@@ -416,9 +416,23 @@ export const employeeResponsibilityAdditions = pgTable("employee_responsibility_
   foreignKey({ columns: [table.organizationId, table.employeeId], foreignColumns: [employees.organizationId, employees.id], name: "employee_responsibility_additions_organization_employee_fk" }), uniqueIndex("employee_responsibility_additions_employee_position_unique").on(table.employeeId, table.position), index("employee_responsibility_additions_organization_employee_idx").on(table.organizationId, table.employeeId),
 ]);
 
+export const workSituationTriggerCategories = [
+  "routine",
+  "event-based",
+  "item/order-triggered",
+] as const;
+
 export const workSituationDefinitions = pgTable("work_situation_definitions", {
   id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull().references(() => organizations.id), triggerCategory: text("trigger_category").notNull(), title: text("title").notNull(), description: text("description").notNull(), severity: text("severity"), verificationConfig: jsonb("verification_config").notNull().default({}), evidenceConfig: jsonb("evidence_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [ uniqueIndex("work_situation_definitions_organization_id_unique").on(table.organizationId, table.id), index("work_situation_definitions_organization_active_idx").on(table.organizationId, table.isActive), index("work_situation_definitions_organization_trigger_idx").on(table.organizationId, table.triggerCategory) ]);
+}, (table) => [
+  uniqueIndex("work_situation_definitions_organization_id_unique").on(table.organizationId, table.id),
+  index("work_situation_definitions_organization_active_idx").on(table.organizationId, table.isActive),
+  index("work_situation_definitions_organization_trigger_idx").on(table.organizationId, table.triggerCategory),
+  check(
+    "work_situation_definitions_trigger_category_check",
+    sql`${table.triggerCategory} IN ('routine', 'event-based', 'item/order-triggered')`,
+  ),
+]);
 
 export const workSituationEvidenceRequirements = pgTable("work_situation_evidence_requirements", {
   id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), isRequired: boolean("is_required").notNull().default(false), metadata: jsonb("metadata").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

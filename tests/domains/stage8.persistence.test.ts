@@ -91,5 +91,11 @@ describe("Stage 8 persistence foundation", () => {
     await expect(db.insert(workInstances).values({ organizationId, workSituationDefinitionId: definitionId, state: "TODO" })).rejects.toBeDefined();
     await expect(db.insert(workInstances).values({ organizationId: otherOrganizationId, workSituationDefinitionId: definitionId, state: "SEEN" })).rejects.toBeDefined();
     await expect(db.insert(workSituationReminderEscalationStages).values({ organizationId, workSituationDefinitionId: definitionId, stage: "duplicate-position", position: 10 })).rejects.toBeDefined();
+    await expect(db.insert(workSituationDefinitions).values({
+      organizationId,
+      triggerCategory: "ad-hoc",
+      title: "Invalid trigger",
+      description: "Invalid trigger",
+    })).rejects.toBeDefined();
   });
 });

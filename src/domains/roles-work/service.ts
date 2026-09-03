@@ -17,6 +17,7 @@ import {
   workSituationDefinitions,
   workSituationEvidenceRequirements,
   workSituationReminderEscalationStages,
+  workSituationTriggerCategories,
 } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import {
@@ -53,7 +54,7 @@ const roleInputSchema = scopeSchema.extend({
 }).strict();
 
 const workDefinitionInputSchema = scopeSchema.extend({
-  triggerCategory: z.string().trim().min(1).max(100),
+  triggerCategory: z.enum(workSituationTriggerCategories),
   title: z.string().trim().min(1).max(300),
   description: z.string().trim().min(1).max(4000),
   severity: z.string().trim().min(1).max(100).nullable().optional(),

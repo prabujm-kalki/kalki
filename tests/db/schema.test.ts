@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { employees, locations, people } from "../../src/db/schema";
+import { employees, locations, people, workSituationDefinitions } from "../../src/db/schema";
 
 const peopleConfig = getTableConfig(people);
 const locationsConfig = getTableConfig(locations);
@@ -106,5 +106,23 @@ describe("employee foundation schema", () => {
 
     expect(uniqueIndexPosition).toBeGreaterThanOrEqual(0);
     expect(foreignKeyPosition).toBeGreaterThan(uniqueIndexPosition);
+  });
+});
+
+describe("work situation trigger category integrity", () => {
+  it("constrains trigger categories to the approved Work/Situations set", () => {
+    const workDefinitionConfig = getTableConfig(workSituationDefinitions);
+    const triggerCategoryCheck = workDefinitionConfig.checks.find(
+      (item) => item.name === "work_situation_definitions_trigger_category_check",
+    );
+    const triggerMigration = readFileSync(
+      resolve(process.cwd(), "drizzle/0009_certain_peter_quill.sql"),
+      "utf8",
+    );
+
+    expect(triggerCategoryCheck).toBeDefined();
+    expect(triggerMigration).toContain(
+      'work_situation_definitions_trigger_category_check" CHECK ("work_situation_definitions"."trigger_category" IN (\'routine\', \'event-based\', \'item/order-triggered\'))',
+    );
   });
 });

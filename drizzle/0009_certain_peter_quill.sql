@@ -1,0 +1,1 @@
+ALTER TABLE "work_situation_definitions" ADD CONSTRAINT "work_situation_definitions_trigger_category_check" CHECK ("work_situation_definitions"."trigger_category" IN ('routine', 'event-based', 'item/order-triggered'));
