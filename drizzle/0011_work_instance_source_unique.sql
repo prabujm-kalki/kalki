@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "work_instances_organization_definition_source_unique" ON "work_instances" USING btree ("organization_id","work_situation_definition_id","source_reference");

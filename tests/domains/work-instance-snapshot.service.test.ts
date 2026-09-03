@@ -181,6 +181,7 @@ describe("Work instance reminder and escalation snapshot foundation", () => {
       ...scope,
       workSituationDefinitionId: definition.id,
       instanceLocationId: locationId,
+      sourceReference: "event-reminder-change",
     });
     createdInstanceIds.push(instance.id);
 
@@ -223,6 +224,7 @@ describe("Work instance reminder and escalation snapshot foundation", () => {
       ...scope,
       workSituationDefinitionId: definition.id,
       instanceLocationId: locationId,
+      sourceReference: "order-transition",
     });
     createdInstanceIds.push(instance.id);
     const acknowledged = await transitionWorkInstance({ id: authorizedUserId }, {
@@ -329,6 +331,7 @@ describe("Work instance reminder and escalation snapshot foundation", () => {
       ...scope,
       workSituationDefinitionId: inactiveOnly.id,
       instanceLocationId: locationId,
+      sourceReference: "event-inactive-stages",
     });
     createdInstanceIds.push(emptySnapshotInstance.id);
     expect(

@@ -157,6 +157,11 @@ const createWorkInstanceSchema = scopeSchema.extend({
   sourceMetadata: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
+const generateWorkInstanceSchema = createWorkInstanceSchema.extend({
+  triggerCategory: z.enum(workSituationTriggerCategories),
+  sourceReference: z.string().trim().min(1).max(200),
+}).strict();
+
 const transitionWorkInstanceSchema = scopeSchema.extend({
   instanceId: z.string().uuid(),
   state: workInstanceStateSchema,
@@ -184,6 +189,7 @@ export type SetRoleKpiActiveInput = z.infer<typeof setRoleKpiActiveSchema>;
 export type SetRoleChecklistActiveInput = z.infer<typeof setRoleChecklistActiveSchema>;
 export type SetRoleChecklistItemActiveInput = z.infer<typeof setRoleChecklistItemActiveSchema>;
 export type CreateWorkInstanceInput = z.infer<typeof createWorkInstanceSchema>;
+export type GenerateWorkInstanceInput = z.infer<typeof generateWorkInstanceSchema>;
 export type TransitionWorkInstanceInput = z.infer<typeof transitionWorkInstanceSchema>;
 export type CreateWorkInstanceEvidencePresenceInput = z.infer<typeof workInstanceEvidencePresenceSchema>;
 export type CreateWorkInstanceVerificationPresenceInput = z.infer<typeof workInstanceVerificationPresenceSchema>;
@@ -809,12 +815,39 @@ async function getScopedWorkInstance(scope: z.infer<typeof scopeSchema>, instanc
   return instance;
 }
 
+async function findWorkInstanceBySource(input: {
+  organizationId: string;
+  workSituationDefinitionId: string;
+  sourceReference: string;
+}) {
+  const [instance] = await db.select().from(workInstances).where(and(
+    eq(workInstances.organizationId, input.organizationId),
+    eq(workInstances.workSituationDefinitionId, input.workSituationDefinitionId),
+    eq(workInstances.sourceReference, input.sourceReference),
+  ));
+  return instance ?? null;
+}
+
 export async function createWorkInstance(actor: Actor, input: CreateWorkInstanceInput) {
   requireActor(actor);
   const parsed = createWorkInstanceSchema.safeParse(input);
   if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance input", "INVALID_INPUT");
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
   const instanceLocationId = parsed.data.instanceLocationId === undefined ? null : parsed.data.instanceLocationId;
+  const sourceReference = parsed.data.sourceReference ?? null;
+  if (sourceReference) {
+    const existing = await findWorkInstanceBySource({
+      organizationId: parsed.data.organizationId,
+      workSituationDefinitionId: parsed.data.workSituationDefinitionId,
+      sourceReference,
+    });
+    if (existing) {
+      if (!workInstanceVisibleInScope(existing, parsed.data)) {
+        throw new RolesWorkServiceError("Work instance not found", "NOT_FOUND");
+      }
+      return existing;
+    }
+  }
   if (instanceLocationId && instanceLocationId !== parsed.data.locationId) {
     throw new RolesWorkServiceError("Instance location must match the authorized location", "ACCESS_DENIED");
   }
@@ -842,18 +875,60 @@ export async function createWorkInstance(actor: Actor, input: CreateWorkInstance
     parsed.data.organizationId,
     parsed.data.workSituationDefinitionId,
   );
-  const [instance] = await db.insert(workInstances).values({
-    organizationId: parsed.data.organizationId,
-    workSituationDefinitionId: parsed.data.workSituationDefinitionId,
-    locationId: instanceLocationId,
-    assignedEmployeeId: parsed.data.assignedEmployeeId ?? null,
-    sourceReference: parsed.data.sourceReference ?? null,
-    sourceMetadata: parsed.data.sourceMetadata ?? {},
-    definitionSnapshot,
-    state: "SEEN",
-    verificationConfig: definitionSnapshot.verificationConfig,
-  }).returning();
-  return instance;
+  if (definitionSnapshot.triggerCategory !== "routine" && !sourceReference) {
+    throw new RolesWorkServiceError(
+      "Source reference is required for event-based and item/order-triggered work",
+      "INVALID_INPUT",
+    );
+  }
+  try {
+    const [instance] = await db.insert(workInstances).values({
+      organizationId: parsed.data.organizationId,
+      workSituationDefinitionId: parsed.data.workSituationDefinitionId,
+      locationId: instanceLocationId,
+      assignedEmployeeId: parsed.data.assignedEmployeeId ?? null,
+      sourceReference,
+      sourceMetadata: parsed.data.sourceMetadata ?? {},
+      definitionSnapshot,
+      state: "SEEN",
+      verificationConfig: definitionSnapshot.verificationConfig,
+    }).returning();
+    return instance;
+  } catch (error) {
+    if (isUniqueViolation(error) && sourceReference) {
+      const raced = await findWorkInstanceBySource({
+        organizationId: parsed.data.organizationId,
+        workSituationDefinitionId: parsed.data.workSituationDefinitionId,
+        sourceReference,
+      });
+      if (raced && workInstanceVisibleInScope(raced, parsed.data)) return raced;
+      if (raced) throw new RolesWorkServiceError("Work instance not found", "NOT_FOUND");
+    }
+    throw error;
+  }
+}
+
+export async function generateWorkInstance(actor: Actor, input: GenerateWorkInstanceInput) {
+  requireActor(actor);
+  const parsed = generateWorkInstanceSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance generation input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  const [definition] = await db.select({
+    id: workSituationDefinitions.id,
+    triggerCategory: workSituationDefinitions.triggerCategory,
+  }).from(workSituationDefinitions).where(and(
+    eq(workSituationDefinitions.id, parsed.data.workSituationDefinitionId),
+    eq(workSituationDefinitions.organizationId, parsed.data.organizationId),
+  ));
+  if (!definition) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
+  const { triggerCategory, ...createInput } = parsed.data;
+  if (definition.triggerCategory !== triggerCategory) {
+    throw new RolesWorkServiceError(
+      "Work definition trigger category does not match the generation request",
+      "INVALID_INPUT",
+    );
+  }
+  return createWorkInstance(actor, createInput);
 }
 
 export async function getWorkInstance(actor: Actor, scope: z.infer<typeof scopeSchema>, instanceId: string) {
