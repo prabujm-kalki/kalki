@@ -1,0 +1,82 @@
+name: Kalki BOS Quality Gate
+
+on:
+  push:
+    branches:
+      - foundation
+  pull_request:
+    branches:
+      - foundation
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: kalki
+          POSTGRES_PASSWORD: kalki
+          POSTGRES_DB: kalki_bos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kalki -d kalki_bos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://kalki:kalki@localhost:5432/kalki_bos
+      BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
+      BETTER_AUTH_URL: http://localhost:3000
+      TMBILL_ENABLED: "false"
+      TMBILL_API_BASE_URL: ""
+      TMBILL_API_KEY: ""
+      AI_ENABLED: "false"
+      AI_PROVIDER: ""
+      AI_MODEL: ""
+      AI_API_KEY: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply migrations to clean PostgreSQL
+        run: npm run db:migrate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: E2E tests when a Playwright configuration exists
+        shell: bash
+        run: |
+          if [[ -f playwright.config.ts || -f playwright.config.js || -f playwright.config.mjs ]]; then
+            npx playwright install --with-deps chromium
+            npm run e2e
+          else
+            echo "No Playwright configuration is present; E2E remains an explicit verification gap."
+          fi
