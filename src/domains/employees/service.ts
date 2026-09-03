@@ -24,6 +24,24 @@ const employeeInputSchema = z.object({
   }),
 });
 
+const employeeUpdateSchema = z
+  .object({
+    jobTitle: z.string().trim().max(200).nullable().optional(),
+    isActive: z.boolean().optional(),
+    employmentEndDate: z.string().date().nullable().optional(),
+    person: z
+      .object({
+        firstName: z.string().trim().min(1).max(100).optional(),
+        lastName: z.string().trim().max(100).nullable().optional(),
+        displayName: z.string().trim().min(1).max(200).optional(),
+        phone: z.string().trim().max(50).nullable().optional(),
+        email: z.string().email().max(320).nullable().optional(),
+        dateOfBirth: z.string().date().nullable().optional(),
+      })
+      .optional(),
+  })
+  .strict();
+
 export type CreateEmployeeInput = z.infer<typeof employeeInputSchema>;
 
 export class EmployeeServiceError extends Error {
@@ -35,7 +53,8 @@ export class EmployeeServiceError extends Error {
       | "INVALID_INPUT"
       | "LOCATION_NOT_FOUND"
       | "EMPLOYEE_NOT_FOUND"
-      | "DUPLICATE_EMPLOYEE_CODE",
+      | "DUPLICATE_EMPLOYEE_CODE"
+      | "INVALID_LIFECYCLE_TRANSITION",
   ) {
     super(message);
     this.name = "EmployeeServiceError";
@@ -208,6 +227,94 @@ export async function getEmployee(actor: Actor, employeeId: string) {
     throw error;
   }
   return employee;
+}
+
+export type UpdateEmployeeInput = z.infer<typeof employeeUpdateSchema>;
+
+export async function updateEmployee(
+  actor: Actor,
+  employeeId: string,
+  input: UpdateEmployeeInput,
+) {
+  requireActor(actor);
+  if (!z.string().uuid().safeParse(employeeId).success) {
+    throw new EmployeeServiceError("Invalid employee id", "INVALID_INPUT");
+  }
+  const parsed = employeeUpdateSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new EmployeeServiceError("Invalid employee input", "INVALID_INPUT");
+  }
+  if (Object.keys(parsed.data).length === 0) {
+    throw new EmployeeServiceError("No employee changes supplied", "INVALID_INPUT");
+  }
+
+  const current = await selectEmployee(db, employeeId);
+  if (!current) {
+    throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
+  }
+  try {
+    await requireEmployeeAccess(
+      actor,
+      current.organizationId,
+      current.locationId,
+      employeePermissions.update,
+    );
+  } catch (error) {
+    if (error instanceof EmployeeServiceError && error.code === "ACCESS_DENIED") {
+      throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
+    }
+    throw error;
+  }
+
+  if (parsed.data.isActive === true && !current.isActive) {
+    throw new EmployeeServiceError(
+      "Inactive employees cannot be reactivated without lifecycle history",
+      "INVALID_LIFECYCLE_TRANSITION",
+    );
+  }
+  if (
+    parsed.data.employmentEndDate !== undefined &&
+    parsed.data.employmentEndDate !== current.employmentEndDate
+  ) {
+    if (current.employmentEndDate !== null) {
+      throw new EmployeeServiceError(
+        "Employment end date cannot be changed after separation",
+        "INVALID_LIFECYCLE_TRANSITION",
+      );
+    }
+    if (parsed.data.employmentEndDate && parsed.data.employmentEndDate < current.employmentStartDate) {
+      throw new EmployeeServiceError("Invalid employment dates", "INVALID_INPUT");
+    }
+  }
+  if (parsed.data.isActive === false && !parsed.data.employmentEndDate && !current.employmentEndDate) {
+    throw new EmployeeServiceError(
+      "Employment end date is required when deactivating an employee",
+      "INVALID_INPUT",
+    );
+  }
+
+  return db.transaction(async (tx) => {
+    const personChanges = parsed.data.person;
+    if (personChanges) {
+      await tx
+        .update(people)
+        .set({ ...personChanges, updatedAt: new Date() })
+        .where(eq(people.id, current.person.id));
+    }
+    const employeeChanges = {
+      ...(parsed.data.jobTitle !== undefined && { jobTitle: parsed.data.jobTitle }),
+      ...(parsed.data.isActive !== undefined && { isActive: parsed.data.isActive }),
+      ...(parsed.data.employmentEndDate !== undefined && {
+        employmentEndDate: parsed.data.employmentEndDate,
+      }),
+      updatedAt: new Date(),
+    };
+    await tx
+      .update(employees)
+      .set(employeeChanges)
+      .where(eq(employees.id, employeeId));
+    return selectEmployee(tx, employeeId);
+  });
 }
 
 export async function listEmployees(

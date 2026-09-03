@@ -24,6 +24,7 @@ import {
   createEmployee,
   EmployeeServiceError,
   getEmployee,
+  updateEmployee,
 } from "@/domains/employees/service";
 import { employeePermissions } from "@/lib/authorization-policy";
 
@@ -38,6 +39,7 @@ let createdOwnerUser = false;
 const roleId = randomUUID();
 const permissionId = randomUUID();
 const createPermissionId = randomUUID();
+const updatePermissionId = randomUUID();
 const testRunId = randomUUID().slice(0, 8);
 const createdEmployeeIds: string[] = [];
 const createdPersonIds: string[] = [];
@@ -102,6 +104,7 @@ beforeAll(async () => {
       inArray(permissions.code, [
         employeePermissions.read,
         employeePermissions.create,
+        employeePermissions.update,
       ]),
     );
   const readPermissionId =
@@ -110,12 +113,18 @@ beforeAll(async () => {
   const createEmployeePermissionId =
     existingPermissions.find((permission) => permission.code === employeePermissions.create)
       ?.id ?? createPermissionId;
+  const updateEmployeePermissionId =
+    existingPermissions.find((permission) => permission.code === employeePermissions.update)
+      ?.id ?? updatePermissionId;
   const missingPermissions = [
     !existingPermissions.some((permission) => permission.code === employeePermissions.read)
       ? { id: readPermissionId, code: employeePermissions.read, name: "Read employees" }
       : null,
     !existingPermissions.some((permission) => permission.code === employeePermissions.create)
       ? { id: createEmployeePermissionId, code: employeePermissions.create, name: "Create employees" }
+      : null,
+    !existingPermissions.some((permission) => permission.code === employeePermissions.update)
+      ? { id: updateEmployeePermissionId, code: employeePermissions.update, name: "Update employees" }
       : null,
   ].filter((permission): permission is { id: string; code: string; name: string } => permission !== null);
   if (missingPermissions.length > 0) {
@@ -130,6 +139,7 @@ beforeAll(async () => {
   await db.insert(rolePermissions).values([
     { roleId, permissionId: readPermissionId },
     { roleId, permissionId: createEmployeePermissionId },
+    { roleId, permissionId: updateEmployeePermissionId },
   ]);
   await db.insert(organizationMemberships).values([
     { userId: authorizedUserId, organizationId },
@@ -287,5 +297,80 @@ describe("Employee service", () => {
     const result = await getEmployee(ownerActor, ownerEmployee.id);
     expect(result.organizationId).toBe(secondOrganizationId);
     expect(result.locationId).toBe(secondLocationId);
+  });
+
+  it("updates an authorized employee profile without changing scope", async () => {
+    const created = await createEmployee(
+      authorizedActor,
+      employeeInput("PROFILE-001"),
+    );
+    createdEmployeeIds.push(created.id);
+    createdPersonIds.push(created.person.id);
+
+    const updated = await updateEmployee(authorizedActor, created.id, {
+      jobTitle: "Senior Operations Associate",
+      person: { displayName: "Updated Employee" },
+    });
+
+    expect(updated).toMatchObject({
+      id: created.id,
+      organizationId,
+      locationId,
+      jobTitle: "Senior Operations Associate",
+      person: { displayName: "Updated Employee" },
+    });
+  });
+
+  it("supports one-way deactivation and preserves the separation fact", async () => {
+    const created = await createEmployee(
+      authorizedActor,
+      employeeInput("LIFECYCLE-001"),
+    );
+    createdEmployeeIds.push(created.id);
+    createdPersonIds.push(created.person.id);
+
+    const inactive = await updateEmployee(authorizedActor, created.id, {
+      isActive: false,
+      employmentEndDate: "2026-09-03",
+    });
+    expect(inactive).toMatchObject({
+      isActive: false,
+      employmentEndDate: "2026-09-03",
+    });
+
+    await expect(
+      updateEmployee(authorizedActor, created.id, { isActive: true }),
+    ).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
+    await expect(
+      updateEmployee(authorizedActor, created.id, {
+        employmentEndDate: "2026-09-04",
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
+  });
+
+  it("denies unauthorized and cross-scope profile updates", async () => {
+    const created = await createEmployee(
+      authorizedActor,
+      employeeInput("UPDATE-DENY-001"),
+    );
+    createdEmployeeIds.push(created.id);
+    createdPersonIds.push(created.person.id);
+
+    await expect(
+      updateEmployee(deniedActor, created.id, { jobTitle: "Denied" }),
+    ).rejects.toMatchObject({ code: "EMPLOYEE_NOT_FOUND" });
+
+    const otherScopeEmployee = await createEmployee(ownerActor, {
+      ...employeeInput("UPDATE-CROSS-SCOPE-001"),
+      organizationId: secondOrganizationId,
+      locationId: secondLocationId,
+    });
+    createdEmployeeIds.push(otherScopeEmployee.id);
+    createdPersonIds.push(otherScopeEmployee.person.id);
+    await expect(
+      updateEmployee(authorizedActor, otherScopeEmployee.id, {
+        jobTitle: "Denied",
+      }),
+    ).rejects.toMatchObject({ code: "EMPLOYEE_NOT_FOUND" });
   });
 });

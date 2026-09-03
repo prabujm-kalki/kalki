@@ -5,6 +5,7 @@ import {
   EmployeeServiceError,
   getEmployee,
   listEmployees,
+  updateEmployee,
 } from "@/domains/employees/service";
 import { requireAuthenticatedUser } from "@/lib/authorization";
 
@@ -61,6 +62,25 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  const user = await requireAuthenticatedUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
+
+  const employeeId = new URL(request.url).searchParams.get("id");
+  if (!employeeId) {
+    return NextResponse.json({ error: "Employee id is required" }, { status: 400 });
+  }
+  try {
+    return NextResponse.json({
+      employee: await updateEmployee(user, employeeId, await request.json()),
+    });
+  } catch (error) {
+    return serviceErrorResponse(error);
+  }
+}
+
 function serviceErrorResponse(error: unknown) {
   if (!(error instanceof EmployeeServiceError)) throw error;
   const status =
@@ -72,6 +92,8 @@ function serviceErrorResponse(error: unknown) {
           ? 404
           : error.code === "DUPLICATE_EMPLOYEE_CODE"
             ? 409
+            : error.code === "INVALID_LIFECYCLE_TRANSITION"
+              ? 400
             : 403;
   return NextResponse.json({ error: error.message }, { status });
 }
