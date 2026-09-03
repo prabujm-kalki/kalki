@@ -25,8 +25,15 @@ export async function GET(request: Request) {
   }
   try {
     const instance = params.id ? await getWorkInstance(user, scope.data, params.id) : undefined;
+    const listQuery = {
+      ...scope.data,
+      ...(params.state ? { state: params.state } : {}),
+      ...(params.assignedEmployeeId ? { assignedEmployeeId: params.assignedEmployeeId } : {}),
+      ...(params.workSituationDefinitionId ? { workSituationDefinitionId: params.workSituationDefinitionId } : {}),
+      ...(params.sourceReference ? { sourceReference: params.sourceReference } : {}),
+    };
     return NextResponse.json(
-      instance ? { workInstance: instance } : { workInstances: await listWorkInstances(user, scope.data) },
+      instance ? { workInstance: instance } : { workInstances: await listWorkInstances(user, listQuery) },
     );
   } catch (error) {
     return serviceErrorResponse(error);
