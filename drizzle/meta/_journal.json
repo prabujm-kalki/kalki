@@ -8,6 +8,20 @@
       "when": 1788364005915,
       "tag": "0000_far_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788364788747,
+      "tag": "0001_famous_kid_colt",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788398715495,
+      "tag": "0002_closed_dakota_north",
+      "breakpoints": true
     }
   ]
 }

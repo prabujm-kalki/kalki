@@ -1,0 +1,3 @@
+CREATE UNIQUE INDEX "locations_organization_id_unique" ON "locations" USING btree ("organization_id","id");--> statement-breakpoint
+ALTER TABLE "employees" ADD CONSTRAINT "employees_organization_location_fk" FOREIGN KEY ("organization_id","location_id") REFERENCES "public"."locations"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "employees" ADD CONSTRAINT "employees_employment_dates_check" CHECK (employment_end_date IS NULL OR employment_end_date >= employment_start_date);
