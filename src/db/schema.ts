@@ -452,3 +452,21 @@ export const workInstanceEvidencePresences = pgTable("work_instance_evidence_pre
   uniqueIndex("work_instance_evidence_presences_organization_id_unique").on(table.organizationId, table.id),
   index("work_instance_evidence_presences_organization_instance_idx").on(table.organizationId, table.workInstanceId),
 ]);
+
+export const workInstanceVerificationPresences = pgTable("work_instance_verification_presences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  workInstanceId: uuid("work_instance_id").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({
+    columns: [table.organizationId, table.workInstanceId],
+    foreignColumns: [workInstances.organizationId, workInstances.id],
+    name: "work_instance_verification_presences_organization_instance_fk",
+  }),
+  uniqueIndex("work_instance_verification_presences_instance_unique").on(table.workInstanceId),
+  uniqueIndex("work_instance_verification_presences_organization_id_unique").on(table.organizationId, table.id),
+  index("work_instance_verification_presences_organization_instance_idx").on(table.organizationId, table.workInstanceId),
+]);

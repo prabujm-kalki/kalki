@@ -13,6 +13,7 @@ import {
   roleResponsibilities,
   workInstances,
   workInstanceEvidencePresences,
+  workInstanceVerificationPresences,
   workSituationDefinitions,
   workSituationEvidenceRequirements,
   workSituationReminderEscalationStages,
@@ -106,6 +107,10 @@ const workInstanceEvidencePresenceSchema = scopeSchema.extend({
   workInstanceId: z.string().uuid(),
 }).strict();
 
+const workInstanceVerificationPresenceSchema = scopeSchema.extend({
+  workInstanceId: z.string().uuid(),
+}).strict();
+
 export type CreateRoleDefinitionInput = z.infer<typeof roleInputSchema>;
 export type CreateWorkSituationDefinitionInput = z.infer<typeof workDefinitionInputSchema>;
 export type AssignEmployeeRoleInput = z.infer<typeof assignEmployeeRoleSchema>;
@@ -113,6 +118,7 @@ export type CreateEmployeeResponsibilityAdditionInput = z.infer<typeof employeeR
 export type CreateWorkInstanceInput = z.infer<typeof createWorkInstanceSchema>;
 export type TransitionWorkInstanceInput = z.infer<typeof transitionWorkInstanceSchema>;
 export type CreateWorkInstanceEvidencePresenceInput = z.infer<typeof workInstanceEvidencePresenceSchema>;
+export type CreateWorkInstanceVerificationPresenceInput = z.infer<typeof workInstanceVerificationPresenceSchema>;
 type Actor = { id: string } | null;
 
 export class RolesWorkServiceError extends Error {
@@ -557,10 +563,16 @@ export async function transitionWorkInstance(actor: Actor, input: TransitionWork
     }
   }
   if (parsed.data.state === "VERIFIED" && snapshotRequiresVerification(instance.definitionSnapshot, instance.verificationConfig)) {
-    throw new RolesWorkServiceError(
-      "Required verification cannot be satisfied because verification infrastructure is not implemented",
-      "PREREQUISITE_NOT_SATISFIED",
-    );
+    const [presence] = await db.select({ id: workInstanceVerificationPresences.id }).from(workInstanceVerificationPresences).where(and(
+      eq(workInstanceVerificationPresences.workInstanceId, instance.id),
+      eq(workInstanceVerificationPresences.organizationId, instance.organizationId),
+    ));
+    if (!presence) {
+      throw new RolesWorkServiceError(
+        "Required verification cannot be satisfied because verification presence is not recorded",
+        "PREREQUISITE_NOT_SATISFIED",
+      );
+    }
   }
   const [updated] = await db.update(workInstances).set({
     state: parsed.data.state,
@@ -608,5 +620,42 @@ export async function getWorkInstanceEvidencePresence(actor: Actor, scope: z.inf
   await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
   const presence = await loadWorkInstanceEvidencePresence(parsed.data.organizationId, parsed.data.workInstanceId);
   if (!presence) throw new RolesWorkServiceError("Work instance evidence presence not found", "NOT_FOUND");
+  return presence;
+}
+
+async function loadWorkInstanceVerificationPresence(organizationId: string, workInstanceId: string) {
+  const [presence] = await db.select().from(workInstanceVerificationPresences).where(and(
+    eq(workInstanceVerificationPresences.organizationId, organizationId),
+    eq(workInstanceVerificationPresences.workInstanceId, workInstanceId),
+  ));
+  return presence ?? null;
+}
+
+export async function createWorkInstanceVerificationPresence(actor: Actor, input: CreateWorkInstanceVerificationPresenceInput) {
+  requireActor(actor);
+  const parsed = workInstanceVerificationPresenceSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance verification presence input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  const instance = await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
+  try {
+    const [presence] = await db.insert(workInstanceVerificationPresences).values({
+      organizationId: instance.organizationId,
+      workInstanceId: instance.id,
+    }).returning();
+    return presence;
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Verification presence already exists for this work instance", "DUPLICATE_RECORD");
+    throw error;
+  }
+}
+
+export async function getWorkInstanceVerificationPresence(actor: Actor, scope: z.infer<typeof workInstanceVerificationPresenceSchema>) {
+  requireActor(actor);
+  const parsed = workInstanceVerificationPresenceSchema.safeParse(scope);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance verification presence request", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.read);
+  await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
+  const presence = await loadWorkInstanceVerificationPresence(parsed.data.organizationId, parsed.data.workInstanceId);
+  if (!presence) throw new RolesWorkServiceError("Work instance verification presence not found", "NOT_FOUND");
   return presence;
 }

@@ -13,18 +13,17 @@ import {
   permissions,
   rolePermissions,
   roles,
-  workInstanceEvidencePresences,
   workInstances,
+  workInstanceVerificationPresences,
   workSituationDefinitions,
   workSituationEvidenceRequirements,
   workSituationReminderEscalationStages,
 } from "@/db/schema";
 import {
   createWorkInstance,
-  createWorkInstanceEvidencePresence,
+  createWorkInstanceVerificationPresence,
   createWorkSituationDefinition,
-  getWorkInstanceEvidencePresence,
-  RolesWorkServiceError,
+  getWorkInstanceVerificationPresence,
   transitionWorkInstance,
 } from "@/domains/roles-work/service";
 import { employeePermissions } from "@/lib/authorization-policy";
@@ -34,8 +33,8 @@ const otherOrganizationId = randomUUID();
 const locationId = randomUUID();
 const sameOrgOtherLocationId = randomUUID();
 const otherOrgLocationId = randomUUID();
-const authorizedUserId = `evidence-presence-authorized-${randomUUID()}`;
-const deniedUserId = `evidence-presence-denied-${randomUUID()}`;
+const authorizedUserId = `verification-presence-authorized-${randomUUID()}`;
+const deniedUserId = `verification-presence-denied-${randomUUID()}`;
 const authorizationRoleId = randomUUID();
 const createdDefinitionIds: string[] = [];
 const createdInstanceIds: string[] = [];
@@ -54,38 +53,42 @@ async function insertUser(id: string) {
   });
 }
 
-async function createDefinition(suffix: string, options?: { evidenceRequired?: boolean; verificationRequired?: boolean }) {
+async function createDefinition(suffix: string, options?: { verificationRequired?: boolean }) {
   const definition = await createWorkSituationDefinition({ id: authorizedUserId }, {
     ...scope,
     triggerCategory: "routine",
-    title: `Evidence ${suffix}`,
+    title: `Verification ${suffix}`,
     description: `Definition ${suffix}`,
-    evidenceRequired: options?.evidenceRequired ?? false,
     verificationRequired: options?.verificationRequired ?? false,
   });
   createdDefinitionIds.push(definition.id);
   return definition;
 }
 
-async function createInstance(definitionId: string, instanceLocationId?: string | null) {
+async function createInstance(definitionId: string, instanceLocationId: string | null = locationId) {
   const instance = await createWorkInstance({ id: authorizedUserId }, {
     ...scope,
     workSituationDefinitionId: definitionId,
-    ...(instanceLocationId === undefined ? {} : { instanceLocationId }),
+    instanceLocationId,
   });
   createdInstanceIds.push(instance.id);
   return instance;
 }
 
+async function reachCompleted(instanceId: string) {
+  await transitionWorkInstance({ id: authorizedUserId }, { ...scope, instanceId, state: "ACKNOWLEDGED" });
+  return transitionWorkInstance({ id: authorizedUserId }, { ...scope, instanceId, state: "COMPLETED" });
+}
+
 beforeAll(async () => {
   await db.insert(organizations).values([
-    { id: organizationId, name: "Evidence presence organization", code: `EP-${organizationId.slice(0, 8)}` },
-    { id: otherOrganizationId, name: "Other evidence presence organization", code: `EP-${otherOrganizationId.slice(0, 8)}` },
+    { id: organizationId, name: "Verification presence organization", code: `VP-${organizationId.slice(0, 8)}` },
+    { id: otherOrganizationId, name: "Other verification presence organization", code: `VP-${otherOrganizationId.slice(0, 8)}` },
   ]);
   await db.insert(locations).values([
-    { id: locationId, organizationId, name: "Evidence presence location", code: "EP-LOC" },
-    { id: sameOrgOtherLocationId, organizationId, name: "Same org other location", code: "EP-LOC-2" },
-    { id: otherOrgLocationId, organizationId: otherOrganizationId, name: "Other org location", code: "EP-OTHER" },
+    { id: locationId, organizationId, name: "Verification presence location", code: "VP-LOC" },
+    { id: sameOrgOtherLocationId, organizationId, name: "Same org other location", code: "VP-LOC-2" },
+    { id: otherOrgLocationId, organizationId: otherOrganizationId, name: "Other org location", code: "VP-OTHER" },
   ]);
   await Promise.all([insertUser(authorizedUserId), insertUser(deniedUserId)]);
   const needed = [employeePermissions.read, employeePermissions.create, employeePermissions.update];
@@ -97,8 +100,8 @@ beforeAll(async () => {
   const allPermissions = await db.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, needed));
   await db.insert(roles).values({
     id: authorizationRoleId,
-    code: `EP-ADMIN-${authorizationRoleId.slice(0, 8)}`,
-    name: "Evidence presence administrator",
+    code: `VP-ADMIN-${authorizationRoleId.slice(0, 8)}`,
+    name: "Verification presence administrator",
   });
   await db.insert(rolePermissions).values(allPermissions.map((permission) => ({ roleId: authorizationRoleId, permissionId: permission.id })));
   await db.insert(organizationMemberships).values([
@@ -116,10 +119,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const presenceId of createdPresenceIds) {
-    await db.delete(workInstanceEvidencePresences).where(eq(workInstanceEvidencePresences.id, presenceId));
+    await db.delete(workInstanceVerificationPresences).where(eq(workInstanceVerificationPresences.id, presenceId));
   }
   for (const instanceId of createdInstanceIds) {
-    await db.delete(workInstanceEvidencePresences).where(eq(workInstanceEvidencePresences.workInstanceId, instanceId));
+    await db.delete(workInstanceVerificationPresences).where(eq(workInstanceVerificationPresences.workInstanceId, instanceId));
     await db.delete(workInstances).where(eq(workInstances.id, instanceId));
   }
   for (const definitionId of createdDefinitionIds) {
@@ -143,13 +146,13 @@ afterAll(async () => {
   await db.delete(organizations).where(eq(organizations.id, otherOrganizationId));
 });
 
-describe("Work instance evidence presence foundation", () => {
+describe("Work instance verification presence foundation", () => {
   it("rejects unauthenticated and unauthorized presence operations", async () => {
-    await expect(createWorkInstanceEvidencePresence(null, {
+    await expect(createWorkInstanceVerificationPresence(null, {
       ...scope,
       workInstanceId: randomUUID(),
     })).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
-    await expect(getWorkInstanceEvidencePresence({ id: deniedUserId }, {
+    await expect(getWorkInstanceVerificationPresence({ id: deniedUserId }, {
       ...scope,
       workInstanceId: randomUUID(),
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
@@ -157,17 +160,14 @@ describe("Work instance evidence presence foundation", () => {
 
   it("creates and reads a same-organization presence for a scoped instance", async () => {
     const definition = await createDefinition("SAME");
-    const instance = await createInstance(definition.id, locationId);
-    const presence = await createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    const instance = await createInstance(definition.id);
+    const presence = await createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       ...scope,
       workInstanceId: instance.id,
     });
     createdPresenceIds.push(presence.id);
-    expect(presence).toMatchObject({
-      organizationId,
-      workInstanceId: instance.id,
-    });
-    await expect(getWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    expect(presence).toMatchObject({ organizationId, workInstanceId: instance.id });
+    await expect(getWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       ...scope,
       workInstanceId: instance.id,
     })).resolves.toMatchObject({ id: presence.id, workInstanceId: instance.id });
@@ -175,17 +175,17 @@ describe("Work instance evidence presence foundation", () => {
 
   it("denies cross-organization and wrong-location presence access", async () => {
     const definition = await createDefinition("SCOPE");
-    const instance = await createInstance(definition.id, locationId);
-    await expect(createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    const instance = await createInstance(definition.id);
+    await expect(createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       ...otherOrgScope,
       workInstanceId: instance.id,
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
-    await expect(getWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    await expect(getWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       organizationId,
       locationId: sameOrgOtherLocationId,
       workInstanceId: instance.id,
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
-    await expect(createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    await expect(createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       organizationId,
       locationId: sameOrgOtherLocationId,
       workInstanceId: instance.id,
@@ -194,125 +194,23 @@ describe("Work instance evidence presence foundation", () => {
 
   it("rejects a second presence for the same work instance", async () => {
     const definition = await createDefinition("DUP");
-    const instance = await createInstance(definition.id, locationId);
-    const presence = await createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    const instance = await createInstance(definition.id);
+    const presence = await createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       ...scope,
       workInstanceId: instance.id,
     });
     createdPresenceIds.push(presence.id);
-    await expect(createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    await expect(createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       ...scope,
       workInstanceId: instance.id,
     })).rejects.toMatchObject({ code: "DUPLICATE_RECORD" });
   });
 
-  it("blocks COMPLETED without presence and allows COMPLETED after valid presence", async () => {
-    const definition = await createDefinition("GATE", { evidenceRequired: true });
-    const instance = await createInstance(definition.id, locationId);
-    await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "ACKNOWLEDGED",
-    });
-    await expect(transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "COMPLETED",
-    })).rejects.toMatchObject({
-      code: "PREREQUISITE_NOT_SATISFIED",
-      message: "Mandatory evidence cannot be satisfied because evidence presence is not recorded",
-    });
-    const presence = await createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
-      ...scope,
-      workInstanceId: instance.id,
-    });
-    createdPresenceIds.push(presence.id);
-    const completed = await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "COMPLETED",
-    });
+  it("blocks VERIFIED without presence and allows VERIFIED after valid presence", async () => {
+    const definition = await createDefinition("GATE", { verificationRequired: true });
+    const instance = await createInstance(definition.id);
+    const completed = await reachCompleted(instance.id);
     expect(completed.state).toBe("COMPLETED");
-  });
-
-  it("does not require presence when evidence is not required", async () => {
-    const definition = await createDefinition("OPTIONAL");
-    const instance = await createInstance(definition.id, locationId);
-    await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "ACKNOWLEDGED",
-    });
-    const completed = await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "COMPLETED",
-    });
-    expect(completed.state).toBe("COMPLETED");
-  });
-
-  it("uses the instance snapshot after the live definition starts requiring evidence", async () => {
-    const definition = await createDefinition("SNAP");
-    const instance = await createInstance(definition.id, locationId);
-    await db.update(workSituationDefinitions).set({
-      evidenceConfig: { isRequired: true },
-    }).where(eq(workSituationDefinitions.id, definition.id));
-    await db.update(workSituationEvidenceRequirements).set({ isRequired: true }).where(
-      eq(workSituationEvidenceRequirements.workSituationDefinitionId, definition.id),
-    );
-    await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "ACKNOWLEDGED",
-    });
-    const completed = await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "COMPLETED",
-    });
-    expect(completed.state).toBe("COMPLETED");
-    expect(completed.definitionSnapshot).toMatchObject({ evidenceRequired: false });
-  });
-
-  it("does not let one instance presence satisfy another instance", async () => {
-    const definition = await createDefinition("ISOLATE", { evidenceRequired: true });
-    const first = await createInstance(definition.id, locationId);
-    const second = await createInstance(definition.id, locationId);
-    const presence = await createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
-      ...scope,
-      workInstanceId: first.id,
-    });
-    createdPresenceIds.push(presence.id);
-    await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: second.id,
-      state: "ACKNOWLEDGED",
-    });
-    await expect(transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: second.id,
-      state: "COMPLETED",
-    })).rejects.toMatchObject({ code: "PREREQUISITE_NOT_SATISFIED" });
-  });
-
-  it("keeps the verification gate fail-closed and unchanged", async () => {
-    const definition = await createDefinition("VERIF", { verificationRequired: true });
-    const instance = await createInstance(definition.id, locationId);
-    await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "ACKNOWLEDGED",
-    });
-    await transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "COMPLETED",
-    });
-    await expect(transitionWorkInstance({ id: authorizedUserId }, {
-      ...scope,
-      instanceId: instance.id,
-      state: "VERIFIED",
-    })).rejects.toBeInstanceOf(RolesWorkServiceError);
     await expect(transitionWorkInstance({ id: authorizedUserId }, {
       ...scope,
       instanceId: instance.id,
@@ -321,5 +219,63 @@ describe("Work instance evidence presence foundation", () => {
       code: "PREREQUISITE_NOT_SATISFIED",
       message: "Required verification cannot be satisfied because verification presence is not recorded",
     });
+    expect(completed.state).not.toBe("VERIFIED");
+    const presence = await createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
+      ...scope,
+      workInstanceId: instance.id,
+    });
+    createdPresenceIds.push(presence.id);
+    const verified = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "VERIFIED",
+    });
+    expect(verified.state).toBe("VERIFIED");
+    expect(verified.state).not.toBe("COMPLETED");
+  });
+
+  it("does not require presence when verification is not required", async () => {
+    const definition = await createDefinition("OPTIONAL");
+    const instance = await createInstance(definition.id);
+    await reachCompleted(instance.id);
+    const verified = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "VERIFIED",
+    });
+    expect(verified.state).toBe("VERIFIED");
+  });
+
+  it("uses the instance snapshot after the live definition starts requiring verification", async () => {
+    const definition = await createDefinition("SNAP");
+    const instance = await createInstance(definition.id);
+    await db.update(workSituationDefinitions).set({
+      verificationConfig: { isRequired: true },
+    }).where(eq(workSituationDefinitions.id, definition.id));
+    await reachCompleted(instance.id);
+    const verified = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "VERIFIED",
+    });
+    expect(verified.state).toBe("VERIFIED");
+    expect(verified.definitionSnapshot).toMatchObject({ verificationRequired: false });
+  });
+
+  it("does not let one instance presence satisfy another instance", async () => {
+    const definition = await createDefinition("ISOLATE", { verificationRequired: true });
+    const first = await createInstance(definition.id);
+    const second = await createInstance(definition.id);
+    const presence = await createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
+      ...scope,
+      workInstanceId: first.id,
+    });
+    createdPresenceIds.push(presence.id);
+    await reachCompleted(second.id);
+    await expect(transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: second.id,
+      state: "VERIFIED",
+    })).rejects.toMatchObject({ code: "PREREQUISITE_NOT_SATISFIED" });
   });
 });

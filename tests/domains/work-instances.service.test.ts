@@ -378,7 +378,7 @@ describe("Work/Situation instance foundation", () => {
       state: "VERIFIED",
     })).rejects.toMatchObject({
       code: "PREREQUISITE_NOT_SATISFIED",
-      message: "Required verification cannot be satisfied because verification infrastructure is not implemented",
+      message: "Required verification cannot be satisfied because verification presence is not recorded",
     });
   });
 });
