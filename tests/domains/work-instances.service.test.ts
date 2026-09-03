@@ -350,7 +350,7 @@ describe("Work/Situation instance foundation", () => {
       state: "COMPLETED",
     })).rejects.toMatchObject({
       code: "PREREQUISITE_NOT_SATISFIED",
-      message: "Mandatory evidence cannot be satisfied because evidence storage is not implemented",
+      message: "Mandatory evidence cannot be satisfied because evidence presence is not recorded",
     });
 
     const verificationDefinition = await createDefinition({

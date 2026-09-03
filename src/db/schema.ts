@@ -431,5 +431,24 @@ export const workSituationReminderEscalationStages = pgTable("work_situation_rem
 export const workInstances = pgTable("work_instances", {
   id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), locationId: uuid("location_id"), assignedEmployeeId: uuid("assigned_employee_id"), sourceReference: text("source_reference"), sourceMetadata: jsonb("source_metadata").notNull().default({}), definitionSnapshot: jsonb("definition_snapshot").notNull().default({}), state: text("state").notNull().default("SEEN"), verificationConfig: jsonb("verification_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
+  uniqueIndex("work_instances_organization_id_unique").on(table.organizationId, table.id),
   foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_instances_organization_definition_fk" }), foreignKey({ columns: [table.organizationId, table.locationId], foreignColumns: [locations.organizationId, locations.id], name: "work_instances_organization_location_fk" }), foreignKey({ columns: [table.organizationId, table.assignedEmployeeId], foreignColumns: [employees.organizationId, employees.id], name: "work_instances_organization_assigned_employee_fk" }), check("work_instances_state_check", sql`${table.state} IN ('SEEN', 'ACKNOWLEDGED', 'COMPLETED', 'VERIFIED')`), index("work_instances_organization_state_idx").on(table.organizationId, table.state), index("work_instances_assigned_employee_state_idx").on(table.assignedEmployeeId, table.state), index("work_instances_definition_idx").on(table.workSituationDefinitionId),
+]);
+
+export const workInstanceEvidencePresences = pgTable("work_instance_evidence_presences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  workInstanceId: uuid("work_instance_id").notNull(),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({
+    columns: [table.organizationId, table.workInstanceId],
+    foreignColumns: [workInstances.organizationId, workInstances.id],
+    name: "work_instance_evidence_presences_organization_instance_fk",
+  }),
+  uniqueIndex("work_instance_evidence_presences_instance_unique").on(table.workInstanceId),
+  uniqueIndex("work_instance_evidence_presences_organization_id_unique").on(table.organizationId, table.id),
+  index("work_instance_evidence_presences_organization_instance_idx").on(table.organizationId, table.workInstanceId),
 ]);

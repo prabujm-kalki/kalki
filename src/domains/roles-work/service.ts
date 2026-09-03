@@ -12,6 +12,7 @@ import {
   roleKpiDefinitions,
   roleResponsibilities,
   workInstances,
+  workInstanceEvidencePresences,
   workSituationDefinitions,
   workSituationEvidenceRequirements,
   workSituationReminderEscalationStages,
@@ -101,12 +102,17 @@ const transitionWorkInstanceSchema = scopeSchema.extend({
   state: workInstanceStateSchema,
 }).strict();
 
+const workInstanceEvidencePresenceSchema = scopeSchema.extend({
+  workInstanceId: z.string().uuid(),
+}).strict();
+
 export type CreateRoleDefinitionInput = z.infer<typeof roleInputSchema>;
 export type CreateWorkSituationDefinitionInput = z.infer<typeof workDefinitionInputSchema>;
 export type AssignEmployeeRoleInput = z.infer<typeof assignEmployeeRoleSchema>;
 export type CreateEmployeeResponsibilityAdditionInput = z.infer<typeof employeeResponsibilityAdditionSchema>;
 export type CreateWorkInstanceInput = z.infer<typeof createWorkInstanceSchema>;
 export type TransitionWorkInstanceInput = z.infer<typeof transitionWorkInstanceSchema>;
+export type CreateWorkInstanceEvidencePresenceInput = z.infer<typeof workInstanceEvidencePresenceSchema>;
 type Actor = { id: string } | null;
 
 export class RolesWorkServiceError extends Error {
@@ -539,10 +545,16 @@ export async function transitionWorkInstance(actor: Actor, input: TransitionWork
     );
   }
   if (parsed.data.state === "COMPLETED" && snapshotRequiresEvidence(instance.definitionSnapshot)) {
-    throw new RolesWorkServiceError(
-      "Mandatory evidence cannot be satisfied because evidence storage is not implemented",
-      "PREREQUISITE_NOT_SATISFIED",
-    );
+    const [presence] = await db.select({ id: workInstanceEvidencePresences.id }).from(workInstanceEvidencePresences).where(and(
+      eq(workInstanceEvidencePresences.workInstanceId, instance.id),
+      eq(workInstanceEvidencePresences.organizationId, instance.organizationId),
+    ));
+    if (!presence) {
+      throw new RolesWorkServiceError(
+        "Mandatory evidence cannot be satisfied because evidence presence is not recorded",
+        "PREREQUISITE_NOT_SATISFIED",
+      );
+    }
   }
   if (parsed.data.state === "VERIFIED" && snapshotRequiresVerification(instance.definitionSnapshot, instance.verificationConfig)) {
     throw new RolesWorkServiceError(
@@ -560,4 +572,41 @@ export async function transitionWorkInstance(actor: Actor, input: TransitionWork
   )).returning();
   if (!updated) throw new RolesWorkServiceError(`Invalid transition from ${currentState} to ${parsed.data.state}`, "INVALID_TRANSITION");
   return updated;
+}
+
+async function loadWorkInstanceEvidencePresence(organizationId: string, workInstanceId: string) {
+  const [presence] = await db.select().from(workInstanceEvidencePresences).where(and(
+    eq(workInstanceEvidencePresences.organizationId, organizationId),
+    eq(workInstanceEvidencePresences.workInstanceId, workInstanceId),
+  ));
+  return presence ?? null;
+}
+
+export async function createWorkInstanceEvidencePresence(actor: Actor, input: CreateWorkInstanceEvidencePresenceInput) {
+  requireActor(actor);
+  const parsed = workInstanceEvidencePresenceSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance evidence presence input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  const instance = await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
+  try {
+    const [presence] = await db.insert(workInstanceEvidencePresences).values({
+      organizationId: instance.organizationId,
+      workInstanceId: instance.id,
+    }).returning();
+    return presence;
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Evidence presence already exists for this work instance", "DUPLICATE_RECORD");
+    throw error;
+  }
+}
+
+export async function getWorkInstanceEvidencePresence(actor: Actor, scope: z.infer<typeof workInstanceEvidencePresenceSchema>) {
+  requireActor(actor);
+  const parsed = workInstanceEvidencePresenceSchema.safeParse(scope);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance evidence presence request", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.read);
+  await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
+  const presence = await loadWorkInstanceEvidencePresence(parsed.data.organizationId, parsed.data.workInstanceId);
+  if (!presence) throw new RolesWorkServiceError("Work instance evidence presence not found", "NOT_FOUND");
+  return presence;
 }
