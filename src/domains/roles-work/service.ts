@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -6,10 +6,12 @@ import {
   employeeResponsibilityAdditions,
   employeeRoleAssignments,
   employees,
+  locations,
   roleChecklistItems,
   roleChecklists,
   roleKpiDefinitions,
   roleResponsibilities,
+  workInstances,
   workSituationDefinitions,
   workSituationEvidenceRequirements,
   workSituationReminderEscalationStages,
@@ -75,16 +77,49 @@ const employeeResponsibilityAdditionSchema = employeeScopeSchema.extend({
   position: z.number().int(),
 }).strict();
 
+const workInstanceStates = ["SEEN", "ACKNOWLEDGED", "COMPLETED", "VERIFIED"] as const;
+const workInstanceStateSchema = z.enum(workInstanceStates);
+const allowedWorkInstanceTransitions: Record<
+  (typeof workInstanceStates)[number],
+  (typeof workInstanceStates)[number] | null
+> = {
+  SEEN: "ACKNOWLEDGED",
+  ACKNOWLEDGED: "COMPLETED",
+  COMPLETED: "VERIFIED",
+  VERIFIED: null,
+};
+
+const createWorkInstanceSchema = scopeSchema.extend({
+  workSituationDefinitionId: z.string().uuid(),
+  instanceLocationId: z.string().uuid().nullable().optional(),
+  assignedEmployeeId: z.string().uuid().nullable().optional(),
+  sourceReference: z.string().trim().min(1).max(200).nullable().optional(),
+}).strict();
+
+const transitionWorkInstanceSchema = scopeSchema.extend({
+  instanceId: z.string().uuid(),
+  state: workInstanceStateSchema,
+}).strict();
+
 export type CreateRoleDefinitionInput = z.infer<typeof roleInputSchema>;
 export type CreateWorkSituationDefinitionInput = z.infer<typeof workDefinitionInputSchema>;
 export type AssignEmployeeRoleInput = z.infer<typeof assignEmployeeRoleSchema>;
 export type CreateEmployeeResponsibilityAdditionInput = z.infer<typeof employeeResponsibilityAdditionSchema>;
+export type CreateWorkInstanceInput = z.infer<typeof createWorkInstanceSchema>;
+export type TransitionWorkInstanceInput = z.infer<typeof transitionWorkInstanceSchema>;
 type Actor = { id: string } | null;
 
 export class RolesWorkServiceError extends Error {
   constructor(
     message: string,
-    public readonly code: "AUTHENTICATION_REQUIRED" | "ACCESS_DENIED" | "INVALID_INPUT" | "NOT_FOUND" | "DUPLICATE_RECORD",
+    public readonly code:
+      | "AUTHENTICATION_REQUIRED"
+      | "ACCESS_DENIED"
+      | "INVALID_INPUT"
+      | "NOT_FOUND"
+      | "DUPLICATE_RECORD"
+      | "INVALID_TRANSITION"
+      | "PREREQUISITE_NOT_SATISFIED",
   ) {
     super(message);
     this.name = "RolesWorkServiceError";
@@ -347,4 +382,182 @@ export async function getEffectiveEmployeeRole(actor: Actor, scope: z.infer<type
     assignedRoles,
     employeeResponsibilityAdditions: additions,
   };
+}
+
+function isRequiredFlag(value: unknown) {
+  return typeof value === "object" && value !== null && "isRequired" in value && value.isRequired === true;
+}
+
+function workInstanceVisibleInScope(
+  instance: { organizationId: string; locationId: string | null },
+  scope: z.infer<typeof scopeSchema>,
+) {
+  if (instance.organizationId !== scope.organizationId) return false;
+  return instance.locationId === null || instance.locationId === scope.locationId;
+}
+
+async function requireAssignedEmployee(input: {
+  organizationId: string;
+  assignedEmployeeId: string;
+  instanceLocationId: string | null;
+}) {
+  const [employee] = await db.select({
+    id: employees.id,
+    organizationId: employees.organizationId,
+    locationId: employees.locationId,
+  }).from(employees).where(and(
+    eq(employees.id, input.assignedEmployeeId),
+    eq(employees.organizationId, input.organizationId),
+  ));
+  if (!employee) throw new RolesWorkServiceError("Employee not found in organization", "NOT_FOUND");
+  if (input.instanceLocationId && employee.locationId !== input.instanceLocationId) {
+    throw new RolesWorkServiceError("Employee is not in the instance location", "NOT_FOUND");
+  }
+  return employee;
+}
+
+async function loadDefinitionSnapshot(organizationId: string, definitionId: string) {
+  const [definition] = await db.select().from(workSituationDefinitions).where(and(
+    eq(workSituationDefinitions.id, definitionId),
+    eq(workSituationDefinitions.organizationId, organizationId),
+  ));
+  if (!definition) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
+  const [evidenceRequirement] = await db.select().from(workSituationEvidenceRequirements).where(and(
+    eq(workSituationEvidenceRequirements.workSituationDefinitionId, definitionId),
+    eq(workSituationEvidenceRequirements.organizationId, organizationId),
+  ));
+  return {
+    workSituationDefinitionId: definition.id,
+    triggerCategory: definition.triggerCategory,
+    title: definition.title,
+    description: definition.description,
+    severity: definition.severity,
+    verificationConfig: definition.verificationConfig,
+    evidenceConfig: definition.evidenceConfig,
+    metadata: definition.metadata,
+    evidenceRequired: evidenceRequirement?.isRequired === true || isRequiredFlag(definition.evidenceConfig),
+    verificationRequired: isRequiredFlag(definition.verificationConfig),
+    capturedAt: new Date().toISOString(),
+  };
+}
+
+function snapshotRequiresEvidence(snapshot: unknown) {
+  if (typeof snapshot !== "object" || snapshot === null) return false;
+  const record = snapshot as { evidenceRequired?: unknown; evidenceConfig?: unknown };
+  return record.evidenceRequired === true || isRequiredFlag(record.evidenceConfig);
+}
+
+function snapshotRequiresVerification(snapshot: unknown, verificationConfig: unknown) {
+  if (isRequiredFlag(verificationConfig)) return true;
+  if (typeof snapshot !== "object" || snapshot === null) return false;
+  const record = snapshot as { verificationRequired?: unknown; verificationConfig?: unknown };
+  return record.verificationRequired === true || isRequiredFlag(record.verificationConfig);
+}
+
+async function getScopedWorkInstance(scope: z.infer<typeof scopeSchema>, instanceId: string) {
+  const [instance] = await db.select().from(workInstances).where(and(
+    eq(workInstances.id, instanceId),
+    eq(workInstances.organizationId, scope.organizationId),
+  ));
+  if (!instance || !workInstanceVisibleInScope(instance, scope)) {
+    throw new RolesWorkServiceError("Work instance not found", "NOT_FOUND");
+  }
+  return instance;
+}
+
+export async function createWorkInstance(actor: Actor, input: CreateWorkInstanceInput) {
+  requireActor(actor);
+  const parsed = createWorkInstanceSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  const instanceLocationId = parsed.data.instanceLocationId === undefined ? null : parsed.data.instanceLocationId;
+  if (instanceLocationId && instanceLocationId !== parsed.data.locationId) {
+    throw new RolesWorkServiceError("Instance location must match the authorized location", "ACCESS_DENIED");
+  }
+  if (instanceLocationId) {
+    const [location] = await db.select({ id: locations.id }).from(locations).where(and(
+      eq(locations.id, instanceLocationId),
+      eq(locations.organizationId, parsed.data.organizationId),
+    ));
+    if (!location) throw new RolesWorkServiceError("Location not found in organization", "NOT_FOUND");
+  }
+  if (parsed.data.assignedEmployeeId) {
+    await requireAssignedEmployee({
+      organizationId: parsed.data.organizationId,
+      assignedEmployeeId: parsed.data.assignedEmployeeId,
+      instanceLocationId,
+    });
+  }
+  const definitionSnapshot = await loadDefinitionSnapshot(
+    parsed.data.organizationId,
+    parsed.data.workSituationDefinitionId,
+  );
+  const [instance] = await db.insert(workInstances).values({
+    organizationId: parsed.data.organizationId,
+    workSituationDefinitionId: parsed.data.workSituationDefinitionId,
+    locationId: instanceLocationId,
+    assignedEmployeeId: parsed.data.assignedEmployeeId ?? null,
+    sourceReference: parsed.data.sourceReference ?? null,
+    definitionSnapshot,
+    state: "SEEN",
+    verificationConfig: definitionSnapshot.verificationConfig,
+  }).returning();
+  return instance;
+}
+
+export async function getWorkInstance(actor: Actor, scope: z.infer<typeof scopeSchema>, instanceId: string) {
+  requireActor(actor);
+  if (!scopeSchema.safeParse(scope).success || !z.string().uuid().safeParse(instanceId).success) {
+    throw new RolesWorkServiceError("Invalid work instance request", "INVALID_INPUT");
+  }
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  return getScopedWorkInstance(scope, instanceId);
+}
+
+export async function listWorkInstances(actor: Actor, scope: z.infer<typeof scopeSchema>) {
+  requireActor(actor);
+  if (!scopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid work instance scope", "INVALID_INPUT");
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  return db.select().from(workInstances).where(and(
+    eq(workInstances.organizationId, scope.organizationId),
+    or(eq(workInstances.locationId, scope.locationId), isNull(workInstances.locationId)),
+  )).orderBy(asc(workInstances.createdAt));
+}
+
+export async function transitionWorkInstance(actor: Actor, input: TransitionWorkInstanceInput) {
+  requireActor(actor);
+  const parsed = transitionWorkInstanceSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance transition", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const instance = await getScopedWorkInstance(parsed.data, parsed.data.instanceId);
+  const currentState = workInstanceStateSchema.parse(instance.state);
+  const allowedNext = allowedWorkInstanceTransitions[currentState];
+  if (!allowedNext || parsed.data.state !== allowedNext) {
+    throw new RolesWorkServiceError(
+      `Invalid transition from ${currentState} to ${parsed.data.state}`,
+      "INVALID_TRANSITION",
+    );
+  }
+  if (parsed.data.state === "COMPLETED" && snapshotRequiresEvidence(instance.definitionSnapshot)) {
+    throw new RolesWorkServiceError(
+      "Mandatory evidence cannot be satisfied because evidence storage is not implemented",
+      "PREREQUISITE_NOT_SATISFIED",
+    );
+  }
+  if (parsed.data.state === "VERIFIED" && snapshotRequiresVerification(instance.definitionSnapshot, instance.verificationConfig)) {
+    throw new RolesWorkServiceError(
+      "Required verification cannot be satisfied because verification infrastructure is not implemented",
+      "PREREQUISITE_NOT_SATISFIED",
+    );
+  }
+  const [updated] = await db.update(workInstances).set({
+    state: parsed.data.state,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(workInstances.id, instance.id),
+    eq(workInstances.organizationId, parsed.data.organizationId),
+    eq(workInstances.state, currentState),
+  )).returning();
+  if (!updated) throw new RolesWorkServiceError(`Invalid transition from ${currentState} to ${parsed.data.state}`, "INVALID_TRANSITION");
+  return updated;
 }
