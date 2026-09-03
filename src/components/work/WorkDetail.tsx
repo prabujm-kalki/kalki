@@ -164,13 +164,13 @@ export function WorkDetail({ instanceId }: { instanceId: string }) {
               rows={5}
               value={verificationMetadata}
               onChange={(event) => setVerificationMetadata(event.target.value)}
-              disabled={pending || !canCreate}
+              disabled={pending || !canUpdate}
             />
           </label>
           <button
             type="button"
             className="action-button"
-            disabled={pending || !canCreate}
+            disabled={pending || !canUpdate}
             onClick={() => void run(async () => apiSend("/api/work-instance-verification-presences", "POST", {
               ...scope,
               workInstanceId: instance.id,
