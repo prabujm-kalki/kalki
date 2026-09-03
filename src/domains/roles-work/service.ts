@@ -395,7 +395,7 @@ export async function getEffectiveEmployeeRole(actor: Actor, scope: z.infer<type
   const assignedRoles: Array<NonNullable<Awaited<ReturnType<typeof roleDetail>>>> = [];
   for (const assignment of assignments) {
     const role = await roleDetail(assignment.roleId, scope.organizationId);
-    if (role) assignedRoles.push(role);
+    if (role?.isActive) assignedRoles.push(role);
   }
   const additions = await db.select().from(employeeResponsibilityAdditions).where(and(
     eq(employeeResponsibilityAdditions.organizationId, scope.organizationId),

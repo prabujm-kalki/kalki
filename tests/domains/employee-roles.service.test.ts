@@ -492,4 +492,51 @@ describe("Employee business-role assignment and additions", () => {
 
     await db.update(employees).set({ isActive: true }).where(eq(employees.id, employeeId));
   });
+
+  it("omits inactive assigned role baselines from the effective view without hiding the assignment record", async () => {
+    const activeRole = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "EFF-ACTIVE",
+      name: "Effective active role",
+      purpose: "Remain in the effective baseline",
+      responsibilities: [{ responsibility: "Active duty", actualWork: "Active work", position: 10 }],
+    });
+    const inactiveRole = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "EFF-INACTIVE",
+      name: "Effective inactive role",
+      purpose: "Leave the effective baseline when deactivated",
+      responsibilities: [{ responsibility: "Inactive duty", actualWork: "Inactive work", position: 10 }],
+    });
+    createdRoleIds.push(activeRole!.id, inactiveRole!.id);
+    const activeAssignment = await assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: activeRole!.id });
+    const inactiveAssignment = await assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: inactiveRole!.id });
+    createdAssignmentIds.push(activeAssignment.id, inactiveAssignment.id);
+
+    await db.update(businessRoles).set({ isActive: false }).where(eq(businessRoles.id, inactiveRole!.id));
+
+    const configuration = await getRoleDefinition(
+      { id: authorizedUserId },
+      { organizationId, locationId },
+      inactiveRole!.id,
+    );
+    expect(configuration.isActive).toBe(false);
+
+    const effective = await getEffectiveEmployeeRole({ id: authorizedUserId }, scope);
+    expect(effective.assignments.map((item) => item.roleId)).toEqual(
+      expect.arrayContaining([activeRole!.id, inactiveRole!.id]),
+    );
+    expect(effective.assignedRoles.map((item) => item.id)).toContain(activeRole!.id);
+    expect(effective.assignedRoles.map((item) => item.id)).not.toContain(inactiveRole!.id);
+    expect(effective.assignedRoles.find((item) => item.id === activeRole!.id)).toMatchObject({
+      identifier: "EFF-ACTIVE",
+      responsibilities: [{ responsibility: "Active duty" }],
+    });
+
+    await expect(
+      getEmployeeRoleAssignment({ id: authorizedUserId }, scope, inactiveAssignment.id),
+    ).resolves.toMatchObject({ id: inactiveAssignment.id, roleId: inactiveRole!.id, employeeId });
+  });
 });
