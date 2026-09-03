@@ -36,6 +36,13 @@
       "when": 1788403272206,
       "tag": "0004_omniscient_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788409821479,
+      "tag": "0006_loving_butterfly",
+      "breakpoints": true
     }
   ]
 }

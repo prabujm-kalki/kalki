@@ -4,6 +4,8 @@ import {
   date,
   foreignKey,
   index,
+  integer,
+  jsonb,
   pgTable,
   primaryKey,
   text,
@@ -118,6 +120,10 @@ export const employees = pgTable(
     uniqueIndex("employees_organization_code_unique").on(
       table.organizationId,
       table.employeeCode,
+    ),
+    uniqueIndex("employees_organization_id_unique").on(
+      table.organizationId,
+      table.id,
     ),
     foreignKey({
       columns: [table.organizationId, table.locationId],
@@ -343,4 +349,87 @@ export const systemAuthorities = pgTable("system_authorities", {
     "system_authorities_owner_only_check",
     sql`${table.authority} = 'OWNER'`,
   ),
+]);
+
+// Business roles describe expected work and remain separate from authorization
+// roles, which grant application permissions.
+export const businessRoles = pgTable(
+  "business_roles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    identifier: text("identifier").notNull(),
+    name: text("name").notNull(),
+    purpose: text("purpose").notNull(),
+    authorityConfig: jsonb("authority_config").notNull().default({}),
+    baselineConfig: jsonb("baseline_config").notNull().default({}),
+    metadata: jsonb("metadata").notNull().default({}),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("business_roles_organization_identifier_unique").on(table.organizationId, table.identifier),
+    uniqueIndex("business_roles_organization_name_unique").on(table.organizationId, table.name),
+    uniqueIndex("business_roles_organization_id_unique").on(table.organizationId, table.id),
+    index("business_roles_organization_active_idx").on(table.organizationId, table.isActive),
+  ],
+);
+
+export const roleResponsibilities = pgTable("role_responsibilities", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), roleId: uuid("role_id").notNull(), responsibility: text("responsibility").notNull(), actualWork: text("actual_work").notNull(), position: integer("position").notNull(), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.roleId], foreignColumns: [businessRoles.organizationId, businessRoles.id], name: "role_responsibilities_organization_role_fk" }),
+  uniqueIndex("role_responsibilities_role_position_unique").on(table.roleId, table.position), index("role_responsibilities_organization_role_idx").on(table.organizationId, table.roleId),
+]);
+
+export const roleKpiDefinitions = pgTable("role_kpi_definitions", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), roleId: uuid("role_id").notNull(), name: text("name").notNull(), description: text("description").notNull(), configuration: jsonb("configuration").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.roleId], foreignColumns: [businessRoles.organizationId, businessRoles.id], name: "role_kpi_definitions_organization_role_fk" }),
+  uniqueIndex("role_kpi_definitions_role_name_unique").on(table.roleId, table.name), index("role_kpi_definitions_organization_role_idx").on(table.organizationId, table.roleId),
+]);
+
+export const roleChecklists = pgTable("role_checklists", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), roleId: uuid("role_id").notNull(), name: text("name").notNull(), description: text("description"), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.roleId], foreignColumns: [businessRoles.organizationId, businessRoles.id], name: "role_checklists_organization_role_fk" }),
+  uniqueIndex("role_checklists_role_name_unique").on(table.roleId, table.name), uniqueIndex("role_checklists_organization_id_unique").on(table.organizationId, table.id), index("role_checklists_organization_role_idx").on(table.organizationId, table.roleId),
+]);
+
+export const roleChecklistItems = pgTable("role_checklist_items", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), checklistId: uuid("checklist_id").notNull(), definition: text("definition").notNull(), position: integer("position").notNull(), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.checklistId], foreignColumns: [roleChecklists.organizationId, roleChecklists.id], name: "role_checklist_items_organization_checklist_fk" }),
+  uniqueIndex("role_checklist_items_checklist_position_unique").on(table.checklistId, table.position), index("role_checklist_items_organization_checklist_idx").on(table.organizationId, table.checklistId),
+]);
+
+export const employeeRoleAssignments = pgTable("employee_role_assignments", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), employeeId: uuid("employee_id").notNull(), roleId: uuid("role_id").notNull(), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.employeeId], foreignColumns: [employees.organizationId, employees.id], name: "employee_role_assignments_organization_employee_fk" }), foreignKey({ columns: [table.organizationId, table.roleId], foreignColumns: [businessRoles.organizationId, businessRoles.id], name: "employee_role_assignments_organization_role_fk" }), uniqueIndex("employee_role_assignments_employee_role_unique").on(table.employeeId, table.roleId), index("employee_role_assignments_organization_employee_active_idx").on(table.organizationId, table.employeeId, table.isActive),
+]);
+
+export const employeeResponsibilityAdditions = pgTable("employee_responsibility_additions", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), employeeId: uuid("employee_id").notNull(), responsibility: text("responsibility").notNull(), actualWork: text("actual_work").notNull(), position: integer("position").notNull(), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.employeeId], foreignColumns: [employees.organizationId, employees.id], name: "employee_responsibility_additions_organization_employee_fk" }), uniqueIndex("employee_responsibility_additions_employee_position_unique").on(table.employeeId, table.position), index("employee_responsibility_additions_organization_employee_idx").on(table.organizationId, table.employeeId),
+]);
+
+export const workSituationDefinitions = pgTable("work_situation_definitions", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull().references(() => organizations.id), triggerCategory: text("trigger_category").notNull(), title: text("title").notNull(), description: text("description").notNull(), severity: text("severity"), verificationConfig: jsonb("verification_config").notNull().default({}), evidenceConfig: jsonb("evidence_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [ uniqueIndex("work_situation_definitions_organization_id_unique").on(table.organizationId, table.id), index("work_situation_definitions_organization_active_idx").on(table.organizationId, table.isActive), index("work_situation_definitions_organization_trigger_idx").on(table.organizationId, table.triggerCategory) ]);
+
+export const workSituationEvidenceRequirements = pgTable("work_situation_evidence_requirements", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), isRequired: boolean("is_required").notNull().default(false), metadata: jsonb("metadata").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [ foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_situation_evidence_requirements_organization_definition_fk" }), uniqueIndex("work_situation_evidence_requirements_definition_unique").on(table.workSituationDefinitionId) ]);
+
+export const workSituationReminderEscalationStages = pgTable("work_situation_reminder_escalation_stages", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), stage: text("stage").notNull(), position: integer("position").notNull(), configuration: jsonb("configuration").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [ foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_situation_reminder_escalation_stages_organization_definition_fk" }), uniqueIndex("work_situation_reminder_escalation_stages_definition_position_unique").on(table.workSituationDefinitionId, table.position), uniqueIndex("work_situation_reminder_escalation_stages_definition_stage_unique").on(table.workSituationDefinitionId, table.stage), index("work_situation_reminder_escalation_stages_organization_definition_idx").on(table.organizationId, table.workSituationDefinitionId) ]);
+
+export const workInstances = pgTable("work_instances", {
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), locationId: uuid("location_id"), assignedEmployeeId: uuid("assigned_employee_id"), sourceReference: text("source_reference"), sourceMetadata: jsonb("source_metadata").notNull().default({}), definitionSnapshot: jsonb("definition_snapshot").notNull().default({}), state: text("state").notNull().default("SEEN"), verificationConfig: jsonb("verification_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_instances_organization_definition_fk" }), foreignKey({ columns: [table.organizationId, table.locationId], foreignColumns: [locations.organizationId, locations.id], name: "work_instances_organization_location_fk" }), foreignKey({ columns: [table.organizationId, table.assignedEmployeeId], foreignColumns: [employees.organizationId, employees.id], name: "work_instances_organization_assigned_employee_fk" }), check("work_instances_state_check", sql`${table.state} IN ('SEEN', 'ACKNOWLEDGED', 'COMPLETED', 'VERIFIED')`), index("work_instances_organization_state_idx").on(table.organizationId, table.state), index("work_instances_assigned_employee_state_idx").on(table.assignedEmployeeId, table.state), index("work_instances_definition_idx").on(table.workSituationDefinitionId),
 ]);
