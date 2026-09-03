@@ -39,6 +39,7 @@ const roleInputSchema = scopeSchema.extend({
     responsibility: z.string().trim().min(1).max(2000),
     actualWork: z.string().trim().min(1).max(4000),
     position: z.number().int(),
+    workSituationDefinitionId: z.string().uuid().nullable().optional(),
   })).default([]),
   kpis: z.array(z.object({
     name: z.string().trim().min(1).max(200),
@@ -121,6 +122,12 @@ const setRoleResponsibilityActiveSchema = setRoleChildActiveSchema.extend({
   responsibilityId: z.string().uuid(),
 }).strict();
 
+const setRoleResponsibilityWorkDefinitionSchema = scopeSchema.extend({
+  roleId: z.string().uuid(),
+  responsibilityId: z.string().uuid(),
+  workSituationDefinitionId: z.string().uuid().nullable(),
+}).strict();
+
 const setRoleKpiActiveSchema = setRoleChildActiveSchema.extend({
   kpiId: z.string().uuid(),
 }).strict();
@@ -185,6 +192,7 @@ export type SetWorkSituationReminderEscalationStageActiveInput = z.infer<typeof 
 export type SetWorkSituationDefinitionConfigurationInput = z.infer<typeof setWorkSituationDefinitionConfigurationSchema>;
 export type SetEmployeeResponsibilityAdditionActiveInput = z.infer<typeof setEmployeeResponsibilityAdditionActiveSchema>;
 export type SetRoleResponsibilityActiveInput = z.infer<typeof setRoleResponsibilityActiveSchema>;
+export type SetRoleResponsibilityWorkDefinitionInput = z.infer<typeof setRoleResponsibilityWorkDefinitionSchema>;
 export type SetRoleKpiActiveInput = z.infer<typeof setRoleKpiActiveSchema>;
 export type SetRoleChecklistActiveInput = z.infer<typeof setRoleChecklistActiveSchema>;
 export type SetRoleChecklistItemActiveInput = z.infer<typeof setRoleChecklistItemActiveSchema>;
@@ -288,6 +296,50 @@ async function roleDetail(roleId: string, organizationId: string) {
   return { ...role, responsibilities, kpis, checklists: checklists.map((checklist) => ({ ...checklist, items: items.filter((item) => item.checklistId === checklist.id) })) };
 }
 
+async function requireOrganizationWorkDefinition(
+  organizationId: string,
+  workSituationDefinitionId: string,
+  requireActive: boolean,
+) {
+  const [definition] = await db.select({
+    id: workSituationDefinitions.id,
+    title: workSituationDefinitions.title,
+    triggerCategory: workSituationDefinitions.triggerCategory,
+    severity: workSituationDefinitions.severity,
+    isActive: workSituationDefinitions.isActive,
+  }).from(workSituationDefinitions).where(and(
+    eq(workSituationDefinitions.id, workSituationDefinitionId),
+    eq(workSituationDefinitions.organizationId, organizationId),
+  ));
+  if (!definition) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
+  if (requireActive && !definition.isActive) {
+    throw new RolesWorkServiceError("Work definition is not active", "PREREQUISITE_NOT_SATISFIED");
+  }
+  return definition;
+}
+
+async function loadExpectedWorkSituationDefinitions(
+  organizationId: string,
+  assignedRoles: Array<NonNullable<Awaited<ReturnType<typeof roleDetail>>>>,
+) {
+  const definitionIds = [...new Set(
+    assignedRoles.flatMap((role) => role.responsibilities
+      .map((item) => item.workSituationDefinitionId)
+      .filter((id): id is string => typeof id === "string")),
+  )];
+  if (definitionIds.length === 0) return [];
+  return db.select({
+    id: workSituationDefinitions.id,
+    title: workSituationDefinitions.title,
+    triggerCategory: workSituationDefinitions.triggerCategory,
+    severity: workSituationDefinitions.severity,
+    isActive: workSituationDefinitions.isActive,
+  }).from(workSituationDefinitions).where(and(
+    eq(workSituationDefinitions.organizationId, organizationId),
+    inArray(workSituationDefinitions.id, definitionIds),
+  )).orderBy(asc(workSituationDefinitions.title));
+}
+
 function activeConfiguration<T extends { isActive: boolean }>(records: T[]) {
   return records.filter((record) => record.isActive);
 }
@@ -311,10 +363,27 @@ export async function createRoleDefinition(actor: Actor, input: CreateRoleDefini
   validateDistinctPositions(parsed.data.responsibilities);
   for (const checklist of parsed.data.checklists) validateDistinctPositions(checklist.items);
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  const referencedDefinitionIds = [...new Set(
+    parsed.data.responsibilities
+      .map((item) => item.workSituationDefinitionId)
+      .filter((id): id is string => typeof id === "string"),
+  )];
+  for (const definitionId of referencedDefinitionIds) {
+    await requireOrganizationWorkDefinition(parsed.data.organizationId, definitionId, true);
+  }
   try {
     const roleId = await db.transaction(async (tx) => {
       const [role] = await tx.insert(businessRoles).values({ organizationId: parsed.data.organizationId, identifier: parsed.data.identifier, name: parsed.data.name, purpose: parsed.data.purpose }).returning({ id: businessRoles.id });
-      if (parsed.data.responsibilities.length) await tx.insert(roleResponsibilities).values(parsed.data.responsibilities.map((item) => ({ ...item, organizationId: parsed.data.organizationId, roleId: role.id })));
+      if (parsed.data.responsibilities.length) {
+        await tx.insert(roleResponsibilities).values(parsed.data.responsibilities.map((item) => ({
+          organizationId: parsed.data.organizationId,
+          roleId: role.id,
+          responsibility: item.responsibility,
+          actualWork: item.actualWork,
+          position: item.position,
+          workSituationDefinitionId: item.workSituationDefinitionId ?? null,
+        })));
+      }
       if (parsed.data.kpis.length) await tx.insert(roleKpiDefinitions).values(parsed.data.kpis.map((item) => ({ ...item, organizationId: parsed.data.organizationId, roleId: role.id })));
       for (const checklist of parsed.data.checklists) {
         const [createdChecklist] = await tx.insert(roleChecklists).values({ organizationId: parsed.data.organizationId, roleId: role.id, name: checklist.name, description: checklist.description ?? null }).returning({ id: roleChecklists.id });
@@ -504,6 +573,26 @@ export async function setRoleResponsibilityActive(actor: Actor, input: SetRoleRe
   await requireScopeAccess(actor, parsed.data, employeePermissions.update);
   const [updated] = await db.update(roleResponsibilities).set({
     isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(roleResponsibilities.id, parsed.data.responsibilityId),
+    eq(roleResponsibilities.roleId, parsed.data.roleId),
+    eq(roleResponsibilities.organizationId, parsed.data.organizationId),
+  )).returning({ id: roleResponsibilities.id });
+  if (!updated) throw new RolesWorkServiceError("Role responsibility not found", "NOT_FOUND");
+  return requireRoleDetail(parsed.data.roleId, parsed.data.organizationId);
+}
+
+export async function setRoleResponsibilityWorkDefinition(actor: Actor, input: SetRoleResponsibilityWorkDefinitionInput) {
+  requireActor(actor);
+  const parsed = setRoleResponsibilityWorkDefinitionSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid role responsibility work definition input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  if (parsed.data.workSituationDefinitionId) {
+    await requireOrganizationWorkDefinition(parsed.data.organizationId, parsed.data.workSituationDefinitionId, true);
+  }
+  const [updated] = await db.update(roleResponsibilities).set({
+    workSituationDefinitionId: parsed.data.workSituationDefinitionId,
     updatedAt: new Date(),
   }).where(and(
     eq(roleResponsibilities.id, parsed.data.responsibilityId),
@@ -712,6 +801,7 @@ export async function getEffectiveEmployeeRole(actor: Actor, scope: z.infer<type
     assignments,
     assignedRoles,
     employeeResponsibilityAdditions: additions,
+    expectedWorkSituationDefinitions: await loadExpectedWorkSituationDefinitions(scope.organizationId, assignedRoles),
   };
 }
 

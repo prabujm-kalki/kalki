@@ -42,11 +42,11 @@ afterAll(async () => {
   await db.delete(workInstances).where(eq(workInstances.workSituationDefinitionId, definitionId));
   await db.delete(workSituationReminderEscalationStages).where(eq(workSituationReminderEscalationStages.workSituationDefinitionId, definitionId));
   await db.delete(workSituationEvidenceRequirements).where(eq(workSituationEvidenceRequirements.workSituationDefinitionId, definitionId));
-  await db.delete(workSituationDefinitions).where(eq(workSituationDefinitions.id, definitionId));
   await db.delete(roleChecklistItems).where(eq(roleChecklistItems.organizationId, organizationId));
   await db.delete(roleChecklists).where(eq(roleChecklists.roleId, roleId));
   await db.delete(roleKpiDefinitions).where(eq(roleKpiDefinitions.roleId, roleId));
   await db.delete(roleResponsibilities).where(eq(roleResponsibilities.roleId, roleId));
+  await db.delete(workSituationDefinitions).where(eq(workSituationDefinitions.id, definitionId));
   await db.delete(employeeResponsibilityAdditions).where(eq(employeeResponsibilityAdditions.employeeId, employeeId));
   await db.delete(businessRoles).where(eq(businessRoles.id, roleId));
   await db.delete(employees).where(eq(employees.id, employeeId));
@@ -97,5 +97,19 @@ describe("Stage 8 persistence foundation", () => {
       title: "Invalid trigger",
       description: "Invalid trigger",
     })).rejects.toBeDefined();
+
+    await db.update(roleResponsibilities).set({ workSituationDefinitionId: definitionId }).where(eq(roleResponsibilities.roleId, roleId));
+    const [linked] = await db.select().from(roleResponsibilities).where(eq(roleResponsibilities.roleId, roleId));
+    expect(linked.workSituationDefinitionId).toBe(definitionId);
+    const foreignDefinitionId = randomUUID();
+    await db.insert(workSituationDefinitions).values({
+      id: foreignDefinitionId,
+      organizationId: otherOrganizationId,
+      triggerCategory: "routine",
+      title: "Foreign",
+      description: "Foreign work",
+    });
+    await expect(db.update(roleResponsibilities).set({ workSituationDefinitionId: foreignDefinitionId }).where(eq(roleResponsibilities.roleId, roleId))).rejects.toBeDefined();
+    await db.delete(workSituationDefinitions).where(eq(workSituationDefinitions.id, foreignDefinitionId));
   });
 });

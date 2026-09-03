@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createRoleDefinition, getRoleDefinition, listRoleDefinitions, RolesWorkServiceError, setBusinessRoleActive, setRoleChecklistActive, setRoleChecklistItemActive, setRoleKpiActive, setRoleResponsibilityActive } from "@/domains/roles-work/service";
+import { createRoleDefinition, getRoleDefinition, listRoleDefinitions, RolesWorkServiceError, setBusinessRoleActive, setRoleChecklistActive, setRoleChecklistItemActive, setRoleKpiActive, setRoleResponsibilityActive, setRoleResponsibilityWorkDefinition } from "@/domains/roles-work/service";
 import { requireAuthenticatedUser } from "@/lib/authorization";
 
 const scopeSchema = z.object({ organizationId: z.string().uuid(), locationId: z.string().uuid() });
@@ -56,6 +56,20 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ role: await setRoleKpiActive(user, { ...scope, kpiId: body.kpiId }) });
     }
     if (typeof body.responsibilityId === "string") {
+      if (Object.prototype.hasOwnProperty.call(body, "workSituationDefinitionId")) {
+        if (typeof body.isActive === "boolean") {
+          return NextResponse.json({ error: "Role responsibility status and work definition reference cannot be updated together" }, { status: 400 });
+        }
+        return NextResponse.json({
+          role: await setRoleResponsibilityWorkDefinition(user, {
+            organizationId: scope.organizationId,
+            locationId: scope.locationId,
+            roleId,
+            responsibilityId: body.responsibilityId,
+            workSituationDefinitionId: body.workSituationDefinitionId === null ? null : String(body.workSituationDefinitionId ?? ""),
+          }),
+        });
+      }
       return NextResponse.json({ role: await setRoleResponsibilityActive(user, { ...scope, responsibilityId: body.responsibilityId }) });
     }
     return NextResponse.json({

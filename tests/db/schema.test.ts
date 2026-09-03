@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { employees, locations, people, workSituationDefinitions, workSituationReminderEscalationStages } from "../../src/db/schema";
+import { employees, locations, people, roleResponsibilities, workSituationDefinitions, workSituationReminderEscalationStages } from "../../src/db/schema";
 
 const peopleConfig = getTableConfig(people);
 const locationsConfig = getTableConfig(locations);
@@ -141,6 +141,32 @@ describe("work situation reminder stage integrity", () => {
     expect(stageCheck).toBeDefined();
     expect(stageMigration).toContain(
       'work_situation_reminder_escalation_stages_stage_check" CHECK ("work_situation_reminder_escalation_stages"."stage" IN (\'due_notification\', \'reminder\', \'strong_reminder\', \'final_reminder\', \'escalation\', \'verification\', \'exception_escalation\'))',
+    );
+  });
+});
+
+describe("role responsibility work definition integrity", () => {
+  it("keeps the optional Work/Situation reference organization-scoped", () => {
+    const responsibilityConfig = getTableConfig(roleResponsibilities);
+    const workDefinitionForeignKey = responsibilityConfig.foreignKeys.find(
+      (foreignKey) =>
+        foreignKey.reference().name === "role_responsibilities_organization_work_definition_fk",
+    );
+    const responsibilityMigration = readFileSync(
+      resolve(process.cwd(), "drizzle/0012_role_responsibility_work_definition.sql"),
+      "utf8",
+    );
+
+    expect(responsibilityConfig.columns.map((column) => column.name)).toContain("work_situation_definition_id");
+    expect(workDefinitionForeignKey).toBeDefined();
+    expect(
+      workDefinitionForeignKey?.reference().columns.map((column) => column.name),
+    ).toEqual(["organization_id", "work_situation_definition_id"]);
+    expect(
+      workDefinitionForeignKey?.reference().foreignColumns.map((column) => column.name),
+    ).toEqual(["organization_id", "id"]);
+    expect(responsibilityMigration).toContain(
+      'ADD CONSTRAINT "role_responsibilities_organization_work_definition_fk" FOREIGN KEY ("organization_id","work_situation_definition_id") REFERENCES "public"."work_situation_definitions"("organization_id","id")',
     );
   });
 });

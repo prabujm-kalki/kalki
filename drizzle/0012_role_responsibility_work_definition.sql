@@ -1,0 +1,3 @@
+ALTER TABLE "role_responsibilities" ADD COLUMN "work_situation_definition_id" uuid;--> statement-breakpoint
+ALTER TABLE "role_responsibilities" ADD CONSTRAINT "role_responsibilities_organization_work_definition_fk" FOREIGN KEY ("organization_id","work_situation_definition_id") REFERENCES "public"."work_situation_definitions"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "role_responsibilities_organization_work_definition_idx" ON "role_responsibilities" USING btree ("organization_id","work_situation_definition_id");

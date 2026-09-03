@@ -78,6 +78,13 @@
       "when": 1788438228709,
       "tag": "0011_work_instance_source_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788439468078,
+      "tag": "0012_role_responsibility_work_definition",
+      "breakpoints": true
     }
   ]
 }
