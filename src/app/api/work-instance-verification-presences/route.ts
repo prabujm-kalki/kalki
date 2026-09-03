@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  createWorkInstanceVerificationPresence,
+  captureVerification,
+  validateEvidenceMetadata,
+} from "@/domains/evidence/service";
+import {
   getWorkInstanceVerificationPresence,
   RolesWorkServiceError,
 } from "@/domains/roles-work/service";
@@ -35,8 +38,10 @@ export async function POST(request: Request) {
   const user = await requireAuthenticatedUser(request);
   if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
   try {
+    const body = await request.json();
+    validateEvidenceMetadata(body?.metadata);
     return NextResponse.json(
-      { verificationPresence: await createWorkInstanceVerificationPresence(user, await request.json()) },
+      { verificationPresence: await captureVerification(user, body) },
       { status: 201 },
     );
   } catch (error) {
