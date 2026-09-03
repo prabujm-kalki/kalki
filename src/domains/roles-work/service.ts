@@ -451,6 +451,7 @@ async function loadDefinitionSnapshot(organizationId: string, definitionId: stri
   }).from(workSituationReminderEscalationStages).where(and(
     eq(workSituationReminderEscalationStages.workSituationDefinitionId, definitionId),
     eq(workSituationReminderEscalationStages.organizationId, organizationId),
+    eq(workSituationReminderEscalationStages.isActive, true),
   )).orderBy(asc(workSituationReminderEscalationStages.position));
   return {
     workSituationDefinitionId: definition.id,

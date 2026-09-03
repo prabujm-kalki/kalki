@@ -22,6 +22,7 @@ import {
   createWorkInstance,
   createWorkSituationDefinition,
   getWorkInstance,
+  getWorkSituationDefinitionForScope,
   transitionWorkInstance,
 } from "@/domains/roles-work/service";
 import { employeePermissions } from "@/lib/authorization-policy";
@@ -251,5 +252,85 @@ describe("Work instance reminder and escalation snapshot foundation", () => {
       ...scope,
       workSituationDefinitionId: definition.id,
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+  });
+
+  it("assigns only active reminder and escalation stages into the instance snapshot", async () => {
+    const definition = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Mixed reminder stages",
+      description: "Mixed reminder stages",
+      reminderEscalationStages: [
+        { stage: "due_notification", position: 10 },
+        { stage: "reminder", position: 20 },
+        { stage: "strong_reminder", position: 30 },
+        { stage: "escalation", position: 40 },
+      ],
+    });
+    createdDefinitionIds.push(definition.id);
+    await db.update(workSituationReminderEscalationStages).set({ isActive: false }).where(and(
+      eq(workSituationReminderEscalationStages.workSituationDefinitionId, definition.id),
+      eq(workSituationReminderEscalationStages.stage, "strong_reminder"),
+    ));
+
+    const configuration = await getWorkSituationDefinitionForScope({ id: authorizedUserId }, scope, definition.id);
+    expect(configuration.reminderEscalationStages.map((stage) => ({
+      stage: stage.stage,
+      isActive: stage.isActive,
+    }))).toEqual([
+      { stage: "due_notification", isActive: true },
+      { stage: "reminder", isActive: true },
+      { stage: "strong_reminder", isActive: false },
+      { stage: "escalation", isActive: true },
+    ]);
+
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(instance.id);
+    expect(
+      (instance.definitionSnapshot as { reminderEscalationStages: Array<{ stage: string; position: number; isActive: boolean }> }).reminderEscalationStages,
+    ).toEqual([
+      expect.objectContaining({ stage: "due_notification", position: 10, isActive: true }),
+      expect.objectContaining({ stage: "reminder", position: 20, isActive: true }),
+      expect.objectContaining({ stage: "escalation", position: 40, isActive: true }),
+    ]);
+
+    await db.update(workSituationReminderEscalationStages).set({ isActive: true }).where(and(
+      eq(workSituationReminderEscalationStages.workSituationDefinitionId, definition.id),
+      eq(workSituationReminderEscalationStages.stage, "strong_reminder"),
+    ));
+    await db.update(workSituationReminderEscalationStages).set({ isActive: false }).where(and(
+      eq(workSituationReminderEscalationStages.workSituationDefinitionId, definition.id),
+      eq(workSituationReminderEscalationStages.stage, "reminder"),
+    ));
+
+    const reread = await getWorkInstance({ id: authorizedUserId }, scope, instance.id);
+    expect(
+      (reread.definitionSnapshot as { reminderEscalationStages: Array<{ stage: string }> }).reminderEscalationStages.map((stage) => stage.stage),
+    ).toEqual(["due_notification", "reminder", "escalation"]);
+
+    const inactiveOnly = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "event-based",
+      title: "Inactive reminder stages",
+      description: "Inactive reminder stages",
+      reminderEscalationStages: [{ stage: "due_notification", position: 10 }],
+    });
+    createdDefinitionIds.push(inactiveOnly.id);
+    await db.update(workSituationReminderEscalationStages).set({ isActive: false }).where(
+      eq(workSituationReminderEscalationStages.workSituationDefinitionId, inactiveOnly.id),
+    );
+    const emptySnapshotInstance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: inactiveOnly.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(emptySnapshotInstance.id);
+    expect(
+      (emptySnapshotInstance.definitionSnapshot as { reminderEscalationStages: unknown[] }).reminderEscalationStages,
+    ).toEqual([]);
   });
 });
