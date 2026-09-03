@@ -17,7 +17,7 @@ import {
   workSituationEvidenceRequirements,
 } from "@/db/schema";
 import { captureEvidence, captureVerification } from "@/domains/evidence/service";
-import { createWorkInstance, createWorkSituationDefinition } from "@/domains/roles-work/service";
+import { createWorkInstance, createWorkSituationDefinition, transitionWorkInstance } from "@/domains/roles-work/service";
 
 const organizationId = randomUUID();
 const otherOrganizationId = randomUUID();
@@ -101,6 +101,12 @@ describe("evidence capture", () => {
     });
     createdInstanceIds.push(instance.id);
 
+    await expect(captureVerification({ id: userId }, {
+      ...scope,
+      workInstanceId: instance.id,
+      metadata: { result: "too-early" },
+    })).rejects.toMatchObject({ code: "PREREQUISITE_NOT_SATISFIED" });
+
     const first = await captureEvidence({ id: userId }, {
       ...scope,
       workInstanceId: instance.id,
@@ -121,6 +127,9 @@ describe("evidence capture", () => {
       eq(workInstanceEvidencePresences.workInstanceId, instance.id),
     ));
     expect(stored).toMatchObject({ id: first.id, metadata: { note: "corrected capture", reference: "EV-002" } });
+
+    await transitionWorkInstance({ id: userId }, { ...scope, instanceId: instance.id, state: "ACKNOWLEDGED" });
+    await transitionWorkInstance({ id: userId }, { ...scope, instanceId: instance.id, state: "COMPLETED" });
 
     const verification = await captureVerification({ id: userId }, {
       ...scope,
