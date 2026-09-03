@@ -414,4 +414,39 @@ describe("Employee business-role assignment and additions", () => {
       getEmployeeRoleAssignment({ id: authorizedUserId }, scope, assignment.id),
     ).resolves.toMatchObject({ id: assignment.id, roleId: assignedRole!.id, employeeId });
   });
+
+  it("assigns roles only to active employees and keeps existing assignments readable after deactivation", async () => {
+    const assignedRole = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "EMP-ASSIGNED",
+      name: "Employee assigned role",
+      purpose: "Keep existing assignment after employee deactivation",
+    });
+    const nextRole = await createRoleDefinition({ id: authorizedUserId }, {
+      organizationId,
+      locationId,
+      identifier: "EMP-NEXT",
+      name: "Next employee role",
+      purpose: "Reject new assignment when employee is inactive",
+    });
+    createdRoleIds.push(assignedRole!.id, nextRole!.id);
+    const assignment = await assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: assignedRole!.id });
+    createdAssignmentIds.push(assignment.id);
+
+    await db.update(employees).set({ isActive: false }).where(eq(employees.id, employeeId));
+
+    await expect(
+      assignEmployeeRole({ id: authorizedUserId }, { ...scope, roleId: nextRole!.id }),
+    ).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Employee is not active",
+    });
+
+    await expect(
+      getEmployeeRoleAssignment({ id: authorizedUserId }, scope, assignment.id),
+    ).resolves.toMatchObject({ id: assignment.id, roleId: assignedRole!.id, employeeId });
+
+    await db.update(employees).set({ isActive: true }).where(eq(employees.id, employeeId));
+  });
 });

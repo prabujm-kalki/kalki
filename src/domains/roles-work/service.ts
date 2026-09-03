@@ -163,6 +163,7 @@ async function requireEmployeeInScope(scope: z.infer<typeof employeeScopeSchema>
     id: employees.id,
     organizationId: employees.organizationId,
     locationId: employees.locationId,
+    isActive: employees.isActive,
   }).from(employees).where(and(
     eq(employees.id, scope.employeeId),
     eq(employees.organizationId, scope.organizationId),
@@ -276,7 +277,10 @@ export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRole
   const parsed = assignEmployeeRoleSchema.safeParse(input);
   if (!parsed.success) throw new RolesWorkServiceError("Invalid employee role assignment input", "INVALID_INPUT");
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
-  await requireEmployeeInScope(parsed.data);
+  const employee = await requireEmployeeInScope(parsed.data);
+  if (!employee.isActive) {
+    throw new RolesWorkServiceError("Employee is not active", "PREREQUISITE_NOT_SATISFIED");
+  }
   const [role] = await db.select({
     id: businessRoles.id,
     isActive: businessRoles.isActive,
