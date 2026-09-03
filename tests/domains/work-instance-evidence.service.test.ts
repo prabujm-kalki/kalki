@@ -26,6 +26,7 @@ import {
   getWorkInstance,
   getWorkInstanceEvidencePresence,
   RolesWorkServiceError,
+  setWorkSituationDefinitionConfiguration,
   transitionWorkInstance,
 } from "@/domains/roles-work/service";
 import { employeePermissions } from "@/lib/authorization-policy";
@@ -268,12 +269,12 @@ describe("Work instance evidence presence foundation", () => {
   it("uses the instance snapshot after the live definition starts requiring evidence", async () => {
     const definition = await createDefinition("SNAP");
     const instance = await createInstance(definition.id, locationId);
-    await db.update(workSituationDefinitions).set({
-      evidenceConfig: { isRequired: true },
-    }).where(eq(workSituationDefinitions.id, definition.id));
-    await db.update(workSituationEvidenceRequirements).set({ isRequired: true }).where(
-      eq(workSituationEvidenceRequirements.workSituationDefinitionId, definition.id),
-    );
+    const configured = await setWorkSituationDefinitionConfiguration({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      evidenceRequired: true,
+    });
+    expect(configured.evidenceRequirements[0].isRequired).toBe(true);
     await transitionWorkInstance({ id: authorizedUserId }, {
       ...scope,
       instanceId: instance.id,

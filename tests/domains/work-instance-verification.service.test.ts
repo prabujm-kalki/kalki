@@ -25,6 +25,7 @@ import {
   createWorkSituationDefinition,
   getWorkInstance,
   getWorkInstanceVerificationPresence,
+  setWorkSituationDefinitionConfiguration,
   transitionWorkInstance,
 } from "@/domains/roles-work/service";
 import { employeePermissions } from "@/lib/authorization-policy";
@@ -267,9 +268,11 @@ describe("Work instance verification presence foundation", () => {
   it("uses the instance snapshot after the live definition starts requiring verification", async () => {
     const definition = await createDefinition("SNAP");
     const instance = await createInstance(definition.id);
-    await db.update(workSituationDefinitions).set({
-      verificationConfig: { isRequired: true },
-    }).where(eq(workSituationDefinitions.id, definition.id));
+    await setWorkSituationDefinitionConfiguration({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      verificationRequired: true,
+    });
     await reachCompleted(instance.id);
     const verified = await transitionWorkInstance({ id: authorizedUserId }, {
       ...scope,

@@ -98,6 +98,16 @@ const setWorkSituationReminderEscalationStageActiveSchema = configurationActiveS
   stageId: z.string().uuid(),
 }).strict();
 
+const setWorkSituationDefinitionConfigurationSchema = scopeSchema.extend({
+  workSituationDefinitionId: z.string().uuid(),
+  evidenceRequired: z.boolean().optional(),
+  verificationRequired: z.boolean().optional(),
+  severity: z.string().trim().min(1).max(100).nullable().optional(),
+}).strict().refine(
+  (data) => data.evidenceRequired !== undefined || data.verificationRequired !== undefined || data.severity !== undefined,
+  { message: "Work definition configuration requires an evidence, verification, or severity change" },
+);
+
 const setEmployeeResponsibilityAdditionActiveSchema = employeeScopeSchema.extend({
   additionId: z.string().uuid(),
   isActive: z.boolean(),
@@ -167,6 +177,7 @@ export type CreateEmployeeResponsibilityAdditionInput = z.infer<typeof employeeR
 export type SetBusinessRoleActiveInput = z.infer<typeof setBusinessRoleActiveSchema>;
 export type SetWorkSituationDefinitionActiveInput = z.infer<typeof setWorkSituationDefinitionActiveSchema>;
 export type SetWorkSituationReminderEscalationStageActiveInput = z.infer<typeof setWorkSituationReminderEscalationStageActiveSchema>;
+export type SetWorkSituationDefinitionConfigurationInput = z.infer<typeof setWorkSituationDefinitionConfigurationSchema>;
 export type SetEmployeeResponsibilityAdditionActiveInput = z.infer<typeof setEmployeeResponsibilityAdditionActiveSchema>;
 export type SetRoleResponsibilityActiveInput = z.infer<typeof setRoleResponsibilityActiveSchema>;
 export type SetRoleKpiActiveInput = z.infer<typeof setRoleKpiActiveSchema>;
@@ -400,6 +411,47 @@ export async function setWorkSituationDefinitionActive(actor: Actor, input: SetW
     eq(workSituationDefinitions.id, parsed.data.workSituationDefinitionId),
     eq(workSituationDefinitions.organizationId, parsed.data.organizationId),
   )).returning({ id: workSituationDefinitions.id });
+  if (!updated) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
+  return getWorkSituationDefinition(actor, parsed.data, updated.id, employeePermissions.update);
+}
+
+export async function setWorkSituationDefinitionConfiguration(actor: Actor, input: SetWorkSituationDefinitionConfigurationInput) {
+  requireActor(actor);
+  const parsed = setWorkSituationDefinitionConfigurationSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work definition configuration input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const updated = await db.transaction(async (tx) => {
+    const values: {
+      evidenceConfig?: { isRequired: boolean };
+      verificationConfig?: { isRequired: boolean };
+      severity?: string | null;
+      updatedAt: Date;
+    } = { updatedAt: new Date() };
+    if (parsed.data.evidenceRequired !== undefined) {
+      values.evidenceConfig = { isRequired: parsed.data.evidenceRequired };
+    }
+    if (parsed.data.verificationRequired !== undefined) {
+      values.verificationConfig = { isRequired: parsed.data.verificationRequired };
+    }
+    if (parsed.data.severity !== undefined) {
+      values.severity = parsed.data.severity;
+    }
+    const [definition] = await tx.update(workSituationDefinitions).set(values).where(and(
+      eq(workSituationDefinitions.id, parsed.data.workSituationDefinitionId),
+      eq(workSituationDefinitions.organizationId, parsed.data.organizationId),
+    )).returning({ id: workSituationDefinitions.id });
+    if (!definition) return null;
+    if (parsed.data.evidenceRequired !== undefined) {
+      await tx.update(workSituationEvidenceRequirements).set({
+        isRequired: parsed.data.evidenceRequired,
+        updatedAt: new Date(),
+      }).where(and(
+        eq(workSituationEvidenceRequirements.workSituationDefinitionId, definition.id),
+        eq(workSituationEvidenceRequirements.organizationId, parsed.data.organizationId),
+      ));
+    }
+    return definition;
+  });
   if (!updated) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
   return getWorkSituationDefinition(actor, parsed.data, updated.id, employeePermissions.update);
 }

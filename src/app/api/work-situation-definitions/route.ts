@@ -6,6 +6,7 @@ import {
   listWorkSituationDefinitions,
   RolesWorkServiceError,
   setWorkSituationDefinitionActive,
+  setWorkSituationDefinitionConfiguration,
   setWorkSituationReminderEscalationStageActive,
 } from "@/domains/roles-work/service";
 import { requireAuthenticatedUser } from "@/lib/authorization";
@@ -38,23 +39,43 @@ export async function PATCH(request: Request) {
   if (!workSituationDefinitionId) return NextResponse.json({ error: "Work definition id is required" }, { status: 400 });
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const scope = {
-      organizationId: String(body.organizationId ?? ""),
-      locationId: String(body.locationId ?? ""),
-      isActive: body.isActive as boolean,
-    };
+    const organizationId = String(body.organizationId ?? "");
+    const locationId = String(body.locationId ?? "");
     if (typeof body.reminderEscalationStageId === "string") {
       return NextResponse.json({
         reminderEscalationStage: await setWorkSituationReminderEscalationStageActive(user, {
-          ...scope,
+          organizationId,
+          locationId,
+          isActive: body.isActive as boolean,
           workSituationDefinitionId,
           stageId: body.reminderEscalationStageId,
         }),
       });
     }
+    const hasOperationalConfiguration =
+      typeof body.evidenceRequired === "boolean"
+      || typeof body.verificationRequired === "boolean"
+      || Object.prototype.hasOwnProperty.call(body, "severity");
+    if (hasOperationalConfiguration && typeof body.isActive === "boolean") {
+      return NextResponse.json({ error: "Work definition status and operational configuration cannot be updated together" }, { status: 400 });
+    }
+    if (hasOperationalConfiguration) {
+      return NextResponse.json({
+        workSituationDefinition: await setWorkSituationDefinitionConfiguration(user, {
+          organizationId,
+          locationId,
+          workSituationDefinitionId,
+          ...(typeof body.evidenceRequired === "boolean" ? { evidenceRequired: body.evidenceRequired } : {}),
+          ...(typeof body.verificationRequired === "boolean" ? { verificationRequired: body.verificationRequired } : {}),
+          ...(Object.prototype.hasOwnProperty.call(body, "severity") ? { severity: body.severity as string | null } : {}),
+        }),
+      });
+    }
     return NextResponse.json({
       workSituationDefinition: await setWorkSituationDefinitionActive(user, {
-        ...scope,
+        organizationId,
+        locationId,
+        isActive: body.isActive as boolean,
         workSituationDefinitionId,
       }),
     });

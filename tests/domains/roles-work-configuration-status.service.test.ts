@@ -47,6 +47,7 @@ import {
   setRoleKpiActive,
   setRoleResponsibilityActive,
   setWorkSituationDefinitionActive,
+  setWorkSituationDefinitionConfiguration,
   setWorkSituationReminderEscalationStageActive,
   transitionWorkInstance,
 } from "@/domains/roles-work/service";
@@ -170,6 +171,7 @@ describe("Role and Work/Situation configuration status lifecycle", () => {
   it("rejects unauthenticated configuration status updates", async () => {
     await expect(setBusinessRoleActive(null, { ...scope, roleId: randomUUID(), isActive: false })).rejects.toBeInstanceOf(RolesWorkServiceError);
     await expect(setWorkSituationDefinitionActive(null, { ...scope, workSituationDefinitionId: randomUUID(), isActive: false })).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
+    await expect(setWorkSituationDefinitionConfiguration(null, { ...scope, workSituationDefinitionId: randomUUID(), evidenceRequired: true })).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
   });
 
   it("updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work", async () => {
@@ -382,6 +384,109 @@ describe("Role and Work/Situation configuration status lifecycle", () => {
       ...otherOrgScope,
       workSituationDefinitionId: definition.id,
       isActive: true,
+    })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+  });
+
+  it("updates live evidence, verification, and severity without rewriting existing instance snapshots", async () => {
+    const definition = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Configurable work",
+      description: "Configurable work",
+      severity: "normal",
+      reminderEscalationStages: [{ stage: "due_notification", position: 10 }],
+    });
+    createdDefinitionIds.push(definition.id);
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(instance.id);
+    expect(instance.definitionSnapshot).toMatchObject({
+      evidenceRequired: false,
+      verificationRequired: false,
+      severity: "normal",
+    });
+    await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "ACKNOWLEDGED",
+    });
+
+    await expect(setWorkSituationDefinitionConfiguration({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+    })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    const configured = await setWorkSituationDefinitionConfiguration({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      evidenceRequired: true,
+      verificationRequired: true,
+      severity: "high",
+    });
+    expect(configured.severity).toBe("high");
+    expect(configured.evidenceConfig).toEqual({ isRequired: true });
+    expect(configured.verificationConfig).toEqual({ isRequired: true });
+    expect(configured.evidenceRequirements[0].isRequired).toBe(true);
+
+    const reread = await getWorkInstance({ id: authorizedUserId }, scope, instance.id);
+    expect(reread.definitionSnapshot).toEqual(instance.definitionSnapshot);
+    const completed = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "COMPLETED",
+    });
+    expect(completed.state).toBe("COMPLETED");
+    expect(completed.definitionSnapshot).toMatchObject({ evidenceRequired: false, verificationRequired: false, severity: "normal" });
+    const verified = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "VERIFIED",
+    });
+    expect(verified.state).toBe("VERIFIED");
+
+    const laterInstance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(laterInstance.id);
+    expect(laterInstance.definitionSnapshot).toMatchObject({
+      evidenceRequired: true,
+      verificationRequired: true,
+      severity: "high",
+    });
+    await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: laterInstance.id,
+      state: "ACKNOWLEDGED",
+    });
+    await expect(transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: laterInstance.id,
+      state: "COMPLETED",
+    })).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Mandatory evidence cannot be satisfied because evidence presence is not recorded",
+    });
+
+    const cleared = await setWorkSituationDefinitionConfiguration({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      severity: null,
+    });
+    expect(cleared.severity).toBeNull();
+    expect(cleared.evidenceRequirements[0].isRequired).toBe(true);
+    await expect(setWorkSituationDefinitionConfiguration({ id: deniedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      evidenceRequired: false,
+    })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    await expect(setWorkSituationDefinitionConfiguration({ id: authorizedUserId }, {
+      ...otherOrgScope,
+      workSituationDefinitionId: definition.id,
+      verificationRequired: false,
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
 });
