@@ -1,10 +1,14 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { workInstanceEvidencePresences, workInstanceVerificationPresences } from "@/db/schema";
 import {
-  createWorkInstanceEvidencePresence,
-  createWorkInstanceVerificationPresence,
+  workInstanceEvidencePresences,
+  workInstanceVerificationPresences,
+  workInstances,
+} from "@/db/schema";
+import { authorizeEmployeeOperation } from "@/lib/authorization";
+import { employeePermissions } from "@/lib/authorization-policy";
+import {
   type CreateWorkInstanceEvidencePresenceInput,
   type CreateWorkInstanceVerificationPresenceInput,
   RolesWorkServiceError,
@@ -43,45 +47,80 @@ export function validateEvidenceMetadata(metadata: unknown): EvidenceMetadata {
   return parsed.data;
 }
 
+function requireActor(actor: Actor): asserts actor is { id: string } {
+  if (!actor) throw new RolesWorkServiceError("Authentication required", "AUTHENTICATION_REQUIRED");
+}
+
+async function requireEvidenceScopeAccess(actor: { id: string }, scope: z.infer<typeof scopeSchema>) {
+  const allowed = await authorizeEmployeeOperation({
+    userId: actor.id,
+    organizationId: scope.organizationId,
+    locationId: scope.locationId,
+    permission: employeePermissions.create,
+  });
+  if (!allowed) throw new RolesWorkServiceError("Access denied", "ACCESS_DENIED");
+}
+
+async function requireVisibleWorkInstance(scope: z.infer<typeof scopeSchema>) {
+  const [instance] = await db.select({
+    id: workInstances.id,
+    organizationId: workInstances.organizationId,
+    locationId: workInstances.locationId,
+  }).from(workInstances).where(and(
+    eq(workInstances.id, scope.workInstanceId),
+    eq(workInstances.organizationId, scope.organizationId),
+  ));
+  if (!instance || (instance.locationId !== null && instance.locationId !== scope.locationId)) {
+    throw new RolesWorkServiceError("Work instance not found", "NOT_FOUND");
+  }
+  return instance;
+}
+
 export async function captureEvidence(actor: Actor, input: EvidenceCaptureInput) {
+  requireActor(actor);
   const parsed = scopeSchema.extend({ metadata: metadataSchema.optional() }).safeParse(input);
   if (!parsed.success) {
     throw new RolesWorkServiceError("Invalid evidence capture input", "INVALID_INPUT");
   }
   const metadata = validateEvidenceMetadata(parsed.data.metadata);
-  const presence = await createWorkInstanceEvidencePresence(actor, {
-    organizationId: parsed.data.organizationId,
-    locationId: parsed.data.locationId,
-    workInstanceId: parsed.data.workInstanceId,
-  });
-  const [updated] = await db.update(workInstanceEvidencePresences).set({
+  await requireEvidenceScopeAccess(actor, parsed.data);
+  const instance = await requireVisibleWorkInstance(parsed.data);
+  const [presence] = await db.insert(workInstanceEvidencePresences).values({
+    organizationId: instance.organizationId,
+    workInstanceId: instance.id,
     metadata,
-  }).where(and(
-    eq(workInstanceEvidencePresences.id, presence.id),
-    eq(workInstanceEvidencePresences.organizationId, parsed.data.organizationId),
-    eq(workInstanceEvidencePresences.workInstanceId, parsed.data.workInstanceId),
-  )).returning();
-  return updated ?? presence;
+  }).onConflictDoUpdate({
+    target: workInstanceEvidencePresences.workInstanceId,
+    set: {
+      metadata,
+      updatedAt: new Date(),
+    },
+  }).returning();
+  if (!presence) throw new RolesWorkServiceError("Evidence could not be recorded", "PREREQUISITE_NOT_SATISFIED");
+  return presence;
 }
 
 export async function captureVerification(actor: Actor, input: VerificationCaptureInput) {
+  requireActor(actor);
   const parsed = scopeSchema.extend({ metadata: metadataSchema.optional() }).safeParse(input);
   if (!parsed.success) {
     throw new RolesWorkServiceError("Invalid verification capture input", "INVALID_INPUT");
   }
   const metadata = validateEvidenceMetadata(parsed.data.metadata);
-  const presence = await createWorkInstanceVerificationPresence(actor, {
-    organizationId: parsed.data.organizationId,
-    locationId: parsed.data.locationId,
-    workInstanceId: parsed.data.workInstanceId,
-  });
-  const [updated] = await db.update(workInstanceVerificationPresences).set({
+  await requireEvidenceScopeAccess(actor, parsed.data);
+  const instance = await requireVisibleWorkInstance(parsed.data);
+  const [presence] = await db.insert(workInstanceVerificationPresences).values({
+    organizationId: instance.organizationId,
+    workInstanceId: instance.id,
     metadata,
     updatedAt: new Date(),
-  }).where(and(
-    eq(workInstanceVerificationPresences.id, presence.id),
-    eq(workInstanceVerificationPresences.organizationId, parsed.data.organizationId),
-    eq(workInstanceVerificationPresences.workInstanceId, parsed.data.workInstanceId),
-  )).returning();
-  return updated ?? presence;
+  }).onConflictDoUpdate({
+    target: workInstanceVerificationPresences.workInstanceId,
+    set: {
+      metadata,
+      updatedAt: new Date(),
+    },
+  }).returning();
+  if (!presence) throw new RolesWorkServiceError("Verification could not be recorded", "PREREQUISITE_NOT_SATISFIED");
+  return presence;
 }
