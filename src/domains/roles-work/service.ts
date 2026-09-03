@@ -7,6 +7,7 @@ import {
   employeeRoleAssignments,
   employees,
   locations,
+  people,
   roleChecklistItems,
   roleChecklists,
   roleKpiDefinitions,
@@ -920,10 +921,19 @@ async function requireOrganizationWorkDefinitionRecord(organizationId: string, w
   return definition;
 }
 
+type AssignedEmployeeView = {
+  id: string;
+  employeeCode: string;
+  locationId: string;
+  isActive: boolean;
+  person: { displayName: string };
+};
+
 function composeWorkInstanceOperationalView(
   instance: typeof workInstances.$inferSelect,
   evidencePresence: typeof workInstanceEvidencePresences.$inferSelect | null,
   verificationPresence: typeof workInstanceVerificationPresences.$inferSelect | null,
+  assignedEmployee: AssignedEmployeeView | null,
 ) {
   const currentState = workInstanceStateSchema.parse(instance.state);
   const allowedNextState = allowedWorkInstanceTransitions[currentState];
@@ -936,6 +946,7 @@ function composeWorkInstanceOperationalView(
       : allowedNextState !== null;
   return {
     ...instance,
+    assignedEmployee,
     evidencePresence,
     verificationPresence,
     evidenceRequired,
@@ -945,13 +956,38 @@ function composeWorkInstanceOperationalView(
   };
 }
 
+async function loadAssignedEmployeesById(organizationId: string, employeeIds: string[]) {
+  const uniqueIds = [...new Set(employeeIds)];
+  if (uniqueIds.length === 0) return new Map<string, AssignedEmployeeView>();
+  const rows = await db.select({
+    id: employees.id,
+    employeeCode: employees.employeeCode,
+    locationId: employees.locationId,
+    isActive: employees.isActive,
+    displayName: people.displayName,
+  }).from(employees).innerJoin(people, eq(people.id, employees.personId)).where(and(
+    eq(employees.organizationId, organizationId),
+    inArray(employees.id, uniqueIds),
+  ));
+  return new Map(rows.map((row) => [row.id, {
+    id: row.id,
+    employeeCode: row.employeeCode,
+    locationId: row.locationId,
+    isActive: row.isActive,
+    person: { displayName: row.displayName },
+  }]));
+}
+
 async function attachWorkInstanceOperationalViews(
   organizationId: string,
   instances: Array<typeof workInstances.$inferSelect>,
 ) {
   if (instances.length === 0) return [];
   const instanceIds = instances.map((instance) => instance.id);
-  const [evidenceRows, verificationRows] = await Promise.all([
+  const assignedEmployeeIds = instances
+    .map((instance) => instance.assignedEmployeeId)
+    .filter((id): id is string => typeof id === "string");
+  const [evidenceRows, verificationRows, assignedEmployees] = await Promise.all([
     db.select().from(workInstanceEvidencePresences).where(and(
       eq(workInstanceEvidencePresences.organizationId, organizationId),
       inArray(workInstanceEvidencePresences.workInstanceId, instanceIds),
@@ -960,6 +996,7 @@ async function attachWorkInstanceOperationalViews(
       eq(workInstanceVerificationPresences.organizationId, organizationId),
       inArray(workInstanceVerificationPresences.workInstanceId, instanceIds),
     )),
+    loadAssignedEmployeesById(organizationId, assignedEmployeeIds),
   ]);
   const evidenceByInstanceId = new Map(evidenceRows.map((row) => [row.workInstanceId, row]));
   const verificationByInstanceId = new Map(verificationRows.map((row) => [row.workInstanceId, row]));
@@ -967,6 +1004,7 @@ async function attachWorkInstanceOperationalViews(
     instance,
     evidenceByInstanceId.get(instance.id) ?? null,
     verificationByInstanceId.get(instance.id) ?? null,
+    instance.assignedEmployeeId ? assignedEmployees.get(instance.assignedEmployeeId) ?? null : null,
   ));
 }
 

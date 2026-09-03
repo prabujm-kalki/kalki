@@ -1,0 +1,204 @@
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: #f4f1ea;
+  color: #1c1914;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  line-height: 1.45;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: #163f73;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-header,
+.app-main,
+.auth-card {
+  width: min(1080px, calc(100% - 2rem));
+  margin: 0 auto;
+}
+
+.app-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 1.25rem 0 1rem;
+  border-bottom: 1px solid #d8d0c3;
+}
+
+.app-header h1,
+.page-title {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.app-header p,
+.muted {
+  margin: 0.2rem 0 0;
+  color: #5c564c;
+}
+
+.app-main {
+  padding: 1.25rem 0 3rem;
+}
+
+.stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.toolbar,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.panel {
+  background: #fffdf8;
+  border: 1px solid #d8d0c3;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.work-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.work-link,
+.action-button,
+.secondary-button,
+.scope-select {
+  border: 1px solid #b7ae9f;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.work-link {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.85rem 1rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.work-link:hover,
+.action-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled) {
+  border-color: #163f73;
+}
+
+.action-button,
+.secondary-button {
+  padding: 0.45rem 0.85rem;
+  cursor: pointer;
+}
+
+.action-button {
+  background: #163f73;
+  color: #fff;
+  border-color: #163f73;
+}
+
+.action-button:disabled,
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scope-select,
+.auth-card input {
+  padding: 0.45rem 0.6rem;
+  min-width: min(100%, 18rem);
+}
+
+.pill {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: #ece6da;
+  font-size: 0.8rem;
+}
+
+.status {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+}
+
+.status-error {
+  background: #f8e3df;
+  border: 1px solid #c96b5d;
+}
+
+.status-empty,
+.status-loading {
+  background: #efeae0;
+  border: 1px solid #d8d0c3;
+}
+
+.definition dt {
+  font-size: 0.8rem;
+  color: #5c564c;
+  margin-top: 0.7rem;
+}
+
+.definition dd {
+  margin: 0.15rem 0 0;
+}
+
+.filter-button {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid #b7ae9f;
+  background: #fff;
+  cursor: pointer;
+}
+
+.filter-button[data-active="true"] {
+  background: #163f73;
+  color: #fff;
+  border-color: #163f73;
+}
+
+.auth-card {
+  margin-top: 4rem;
+  padding: 1.5rem;
+}
+
+.auth-card form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 640px) {
+  .app-header,
+  .toolbar {
+    align-items: stretch;
+  }
+
+  .scope-select,
+  .action-button,
+  .secondary-button {
+    width: 100%;
+  }
+}

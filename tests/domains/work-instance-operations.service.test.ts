@@ -210,7 +210,14 @@ describe("Work instance operational query and visibility", () => {
     const snapshot = assignedOpening.definitionSnapshot;
 
     const byEmployee = await listWorkInstances({ id: authorizedUserId }, { ...scope, assignedEmployeeId: employeeId });
-    expect(byEmployee.map((item) => item.id)).toEqual([assignedOpening.id]);
+    expect(byEmployee).toEqual([expect.objectContaining({
+      id: assignedOpening.id,
+      assignedEmployee: expect.objectContaining({
+        id: employeeId,
+        employeeCode: "WO-EMP",
+        person: { displayName: "Ops Worker" },
+      }),
+    })]);
     const byDefinition = await listWorkInstances({ id: authorizedUserId }, { ...scope, workSituationDefinitionId: closing.id });
     expect(byDefinition.map((item) => item.id)).toEqual([generatedClosing.id]);
     const bySource = await listWorkInstances({ id: authorizedUserId }, { ...scope, sourceReference: "ops-closing-generated" });
