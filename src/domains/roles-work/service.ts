@@ -16,6 +16,7 @@ import {
   workInstanceVerificationPresences,
   workSituationDefinitions,
   workSituationEvidenceRequirements,
+  workSituationReminderEscalationStageIdentifiers,
   workSituationReminderEscalationStages,
   workSituationTriggerCategories,
 } from "@/db/schema";
@@ -61,7 +62,7 @@ const workDefinitionInputSchema = scopeSchema.extend({
   evidenceRequired: z.boolean().default(false),
   verificationRequired: z.boolean().default(false),
   reminderEscalationStages: z.array(z.object({
-    stage: z.string().trim().min(1).max(100),
+    stage: z.enum(workSituationReminderEscalationStageIdentifiers),
     position: z.number().int(),
   })).default([]),
 }).strict();
@@ -101,6 +102,30 @@ const setEmployeeResponsibilityAdditionActiveSchema = employeeScopeSchema.extend
   additionId: z.string().uuid(),
   isActive: z.boolean(),
 }).strict();
+
+const setRoleChildActiveSchema = configurationActiveSchema.extend({
+  roleId: z.string().uuid(),
+}).strict();
+
+const setRoleResponsibilityActiveSchema = setRoleChildActiveSchema.extend({
+  responsibilityId: z.string().uuid(),
+}).strict();
+
+const setRoleKpiActiveSchema = setRoleChildActiveSchema.extend({
+  kpiId: z.string().uuid(),
+}).strict();
+
+const setRoleChecklistActiveSchema = setRoleChildActiveSchema.extend({
+  checklistId: z.string().uuid(),
+}).strict();
+
+const setRoleChecklistItemActiveSchema = setRoleChildActiveSchema.extend({
+  checklistItemId: z.string().uuid(),
+}).strict();
+
+const reminderEscalationStageOrder = Object.fromEntries(
+  workSituationReminderEscalationStageIdentifiers.map((stage, index) => [stage, index]),
+) as Record<(typeof workSituationReminderEscalationStageIdentifiers)[number], number>;
 
 const workInstanceStates = ["SEEN", "ACKNOWLEDGED", "COMPLETED", "VERIFIED"] as const;
 const workInstanceStateSchema = z.enum(workInstanceStates);
@@ -143,6 +168,10 @@ export type SetBusinessRoleActiveInput = z.infer<typeof setBusinessRoleActiveSch
 export type SetWorkSituationDefinitionActiveInput = z.infer<typeof setWorkSituationDefinitionActiveSchema>;
 export type SetWorkSituationReminderEscalationStageActiveInput = z.infer<typeof setWorkSituationReminderEscalationStageActiveSchema>;
 export type SetEmployeeResponsibilityAdditionActiveInput = z.infer<typeof setEmployeeResponsibilityAdditionActiveSchema>;
+export type SetRoleResponsibilityActiveInput = z.infer<typeof setRoleResponsibilityActiveSchema>;
+export type SetRoleKpiActiveInput = z.infer<typeof setRoleKpiActiveSchema>;
+export type SetRoleChecklistActiveInput = z.infer<typeof setRoleChecklistActiveSchema>;
+export type SetRoleChecklistItemActiveInput = z.infer<typeof setRoleChecklistItemActiveSchema>;
 export type CreateWorkInstanceInput = z.infer<typeof createWorkInstanceSchema>;
 export type TransitionWorkInstanceInput = z.infer<typeof transitionWorkInstanceSchema>;
 export type CreateWorkInstanceEvidencePresenceInput = z.infer<typeof workInstanceEvidencePresenceSchema>;
@@ -203,6 +232,30 @@ function validateDistinctPositions(records: Array<{ position: number }>) {
   if (new Set(records.map((record) => record.position)).size !== records.length) {
     throw new RolesWorkServiceError("Positions must be unique within their definition", "INVALID_INPUT");
   }
+}
+
+function validateReminderEscalationStages(
+  stages: Array<{ stage: (typeof workSituationReminderEscalationStageIdentifiers)[number]; position: number }>,
+) {
+  validateDistinctPositions(stages);
+  if (new Set(stages.map((stage) => stage.stage)).size !== stages.length) {
+    throw new RolesWorkServiceError("Reminder stages must be unique within their definition", "INVALID_INPUT");
+  }
+  const ordered = [...stages].sort((left, right) => left.position - right.position);
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (reminderEscalationStageOrder[ordered[index].stage] <= reminderEscalationStageOrder[ordered[index - 1].stage]) {
+      throw new RolesWorkServiceError(
+        "Reminder stages must follow the approved reminder and escalation sequence",
+        "INVALID_INPUT",
+      );
+    }
+  }
+}
+
+async function requireRoleDetail(roleId: string, organizationId: string) {
+  const role = await roleDetail(roleId, organizationId);
+  if (!role) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
+  return role;
 }
 
 async function roleDetail(roleId: string, organizationId: string) {
@@ -279,15 +332,20 @@ export async function createWorkSituationDefinition(actor: Actor, input: CreateW
   requireActor(actor);
   const parsed = workDefinitionInputSchema.safeParse(input);
   if (!parsed.success) throw new RolesWorkServiceError("Invalid work definition input", "INVALID_INPUT");
-  validateDistinctPositions(parsed.data.reminderEscalationStages);
+  validateReminderEscalationStages(parsed.data.reminderEscalationStages);
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
-  const definitionId = await db.transaction(async (tx) => {
-    const [definition] = await tx.insert(workSituationDefinitions).values({ organizationId: parsed.data.organizationId, triggerCategory: parsed.data.triggerCategory, title: parsed.data.title, description: parsed.data.description, severity: parsed.data.severity ?? null, verificationConfig: { isRequired: parsed.data.verificationRequired }, evidenceConfig: { isRequired: parsed.data.evidenceRequired } }).returning({ id: workSituationDefinitions.id });
-    await tx.insert(workSituationEvidenceRequirements).values({ organizationId: parsed.data.organizationId, workSituationDefinitionId: definition.id, isRequired: parsed.data.evidenceRequired });
-    if (parsed.data.reminderEscalationStages.length) await tx.insert(workSituationReminderEscalationStages).values(parsed.data.reminderEscalationStages.map((item) => ({ ...item, organizationId: parsed.data.organizationId, workSituationDefinitionId: definition.id })));
-    return definition.id;
-  });
-  return getWorkSituationDefinition(actor, parsed.data, definitionId, employeePermissions.create);
+  try {
+    const definitionId = await db.transaction(async (tx) => {
+      const [definition] = await tx.insert(workSituationDefinitions).values({ organizationId: parsed.data.organizationId, triggerCategory: parsed.data.triggerCategory, title: parsed.data.title, description: parsed.data.description, severity: parsed.data.severity ?? null, verificationConfig: { isRequired: parsed.data.verificationRequired }, evidenceConfig: { isRequired: parsed.data.evidenceRequired } }).returning({ id: workSituationDefinitions.id });
+      await tx.insert(workSituationEvidenceRequirements).values({ organizationId: parsed.data.organizationId, workSituationDefinitionId: definition.id, isRequired: parsed.data.evidenceRequired });
+      if (parsed.data.reminderEscalationStages.length) await tx.insert(workSituationReminderEscalationStages).values(parsed.data.reminderEscalationStages.map((item) => ({ ...item, organizationId: parsed.data.organizationId, workSituationDefinitionId: definition.id })));
+      return definition.id;
+    });
+    return getWorkSituationDefinition(actor, parsed.data, definitionId, employeePermissions.create);
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Reminder stage already exists in work definition", "DUPLICATE_RECORD");
+    throw error;
+  }
 }
 
 async function getWorkSituationDefinition(actor: { id: string }, scope: z.infer<typeof scopeSchema>, definitionId: string, permission: EmployeePermission = employeePermissions.read) {
@@ -327,9 +385,7 @@ export async function setBusinessRoleActive(actor: Actor, input: SetBusinessRole
     eq(businessRoles.organizationId, parsed.data.organizationId),
   )).returning({ id: businessRoles.id });
   if (!updated) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
-  const role = await roleDetail(updated.id, parsed.data.organizationId);
-  if (!role) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
-  return role;
+  return requireRoleDetail(updated.id, parsed.data.organizationId);
 }
 
 export async function setWorkSituationDefinitionActive(actor: Actor, input: SetWorkSituationDefinitionActiveInput) {
@@ -381,6 +437,84 @@ export async function setEmployeeResponsibilityAdditionActive(actor: Actor, inpu
   )).returning();
   if (!updated) throw new RolesWorkServiceError("Employee responsibility addition not found", "NOT_FOUND");
   return updated;
+}
+
+export async function setRoleResponsibilityActive(actor: Actor, input: SetRoleResponsibilityActiveInput) {
+  requireActor(actor);
+  const parsed = setRoleResponsibilityActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid role responsibility configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [updated] = await db.update(roleResponsibilities).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(roleResponsibilities.id, parsed.data.responsibilityId),
+    eq(roleResponsibilities.roleId, parsed.data.roleId),
+    eq(roleResponsibilities.organizationId, parsed.data.organizationId),
+  )).returning({ id: roleResponsibilities.id });
+  if (!updated) throw new RolesWorkServiceError("Role responsibility not found", "NOT_FOUND");
+  return requireRoleDetail(parsed.data.roleId, parsed.data.organizationId);
+}
+
+export async function setRoleKpiActive(actor: Actor, input: SetRoleKpiActiveInput) {
+  requireActor(actor);
+  const parsed = setRoleKpiActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid role KPI configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [updated] = await db.update(roleKpiDefinitions).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(roleKpiDefinitions.id, parsed.data.kpiId),
+    eq(roleKpiDefinitions.roleId, parsed.data.roleId),
+    eq(roleKpiDefinitions.organizationId, parsed.data.organizationId),
+  )).returning({ id: roleKpiDefinitions.id });
+  if (!updated) throw new RolesWorkServiceError("Role KPI definition not found", "NOT_FOUND");
+  return requireRoleDetail(parsed.data.roleId, parsed.data.organizationId);
+}
+
+export async function setRoleChecklistActive(actor: Actor, input: SetRoleChecklistActiveInput) {
+  requireActor(actor);
+  const parsed = setRoleChecklistActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid role checklist configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [updated] = await db.update(roleChecklists).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(roleChecklists.id, parsed.data.checklistId),
+    eq(roleChecklists.roleId, parsed.data.roleId),
+    eq(roleChecklists.organizationId, parsed.data.organizationId),
+  )).returning({ id: roleChecklists.id });
+  if (!updated) throw new RolesWorkServiceError("Role checklist not found", "NOT_FOUND");
+  return requireRoleDetail(parsed.data.roleId, parsed.data.organizationId);
+}
+
+export async function setRoleChecklistItemActive(actor: Actor, input: SetRoleChecklistItemActiveInput) {
+  requireActor(actor);
+  const parsed = setRoleChecklistItemActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid role checklist item configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [item] = await db.select({ id: roleChecklistItems.id }).from(roleChecklistItems).innerJoin(
+    roleChecklists,
+    and(
+      eq(roleChecklists.id, roleChecklistItems.checklistId),
+      eq(roleChecklists.organizationId, roleChecklistItems.organizationId),
+    ),
+  ).where(and(
+    eq(roleChecklistItems.id, parsed.data.checklistItemId),
+    eq(roleChecklistItems.organizationId, parsed.data.organizationId),
+    eq(roleChecklists.roleId, parsed.data.roleId),
+  ));
+  if (!item) throw new RolesWorkServiceError("Role checklist item not found", "NOT_FOUND");
+  await db.update(roleChecklistItems).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(roleChecklistItems.id, parsed.data.checklistItemId),
+    eq(roleChecklistItems.organizationId, parsed.data.organizationId),
+  ));
+  return requireRoleDetail(parsed.data.roleId, parsed.data.organizationId);
 }
 
 export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRoleInput) {

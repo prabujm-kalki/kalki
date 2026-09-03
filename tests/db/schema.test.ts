@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { employees, locations, people, workSituationDefinitions } from "../../src/db/schema";
+import { employees, locations, people, workSituationDefinitions, workSituationReminderEscalationStages } from "../../src/db/schema";
 
 const peopleConfig = getTableConfig(people);
 const locationsConfig = getTableConfig(locations);
@@ -123,6 +123,24 @@ describe("work situation trigger category integrity", () => {
     expect(triggerCategoryCheck).toBeDefined();
     expect(triggerMigration).toContain(
       'work_situation_definitions_trigger_category_check" CHECK ("work_situation_definitions"."trigger_category" IN (\'routine\', \'event-based\', \'item/order-triggered\'))',
+    );
+  });
+});
+
+describe("work situation reminder stage integrity", () => {
+  it("constrains reminder and escalation stages to the approved framework sequence", () => {
+    const reminderStageConfig = getTableConfig(workSituationReminderEscalationStages);
+    const stageCheck = reminderStageConfig.checks.find(
+      (item) => item.name === "work_situation_reminder_escalation_stages_stage_check",
+    );
+    const stageMigration = readFileSync(
+      resolve(process.cwd(), "drizzle/0010_work_situation_reminder_stages.sql"),
+      "utf8",
+    );
+
+    expect(stageCheck).toBeDefined();
+    expect(stageMigration).toContain(
+      'work_situation_reminder_escalation_stages_stage_check" CHECK ("work_situation_reminder_escalation_stages"."stage" IN (\'due_notification\', \'reminder\', \'strong_reminder\', \'final_reminder\', \'escalation\', \'verification\', \'exception_escalation\'))',
     );
   });
 });

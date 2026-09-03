@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createRoleDefinition, getRoleDefinition, listRoleDefinitions, RolesWorkServiceError, setBusinessRoleActive } from "@/domains/roles-work/service";
+import { createRoleDefinition, getRoleDefinition, listRoleDefinitions, RolesWorkServiceError, setBusinessRoleActive, setRoleChecklistActive, setRoleChecklistItemActive, setRoleKpiActive, setRoleResponsibilityActive } from "@/domains/roles-work/service";
 import { requireAuthenticatedUser } from "@/lib/authorization";
 
 const scopeSchema = z.object({ organizationId: z.string().uuid(), locationId: z.string().uuid() });
@@ -31,13 +31,35 @@ export async function PATCH(request: Request) {
   if (!roleId) return NextResponse.json({ error: "Role definition id is required" }, { status: 400 });
   try {
     const body = (await request.json()) as Record<string, unknown>;
+    const scope = {
+      organizationId: String(body.organizationId ?? ""),
+      locationId: String(body.locationId ?? ""),
+      roleId,
+      isActive: body.isActive as boolean,
+    };
+    const childKeys = [
+      typeof body.responsibilityId === "string" ? "responsibilityId" : null,
+      typeof body.kpiId === "string" ? "kpiId" : null,
+      typeof body.checklistId === "string" ? "checklistId" : null,
+      typeof body.checklistItemId === "string" ? "checklistItemId" : null,
+    ].filter((key) => key !== null);
+    if (childKeys.length > 1) {
+      return NextResponse.json({ error: "Role configuration status can update one child at a time" }, { status: 400 });
+    }
+    if (typeof body.checklistItemId === "string") {
+      return NextResponse.json({ role: await setRoleChecklistItemActive(user, { ...scope, checklistItemId: body.checklistItemId }) });
+    }
+    if (typeof body.checklistId === "string") {
+      return NextResponse.json({ role: await setRoleChecklistActive(user, { ...scope, checklistId: body.checklistId }) });
+    }
+    if (typeof body.kpiId === "string") {
+      return NextResponse.json({ role: await setRoleKpiActive(user, { ...scope, kpiId: body.kpiId }) });
+    }
+    if (typeof body.responsibilityId === "string") {
+      return NextResponse.json({ role: await setRoleResponsibilityActive(user, { ...scope, responsibilityId: body.responsibilityId }) });
+    }
     return NextResponse.json({
-      role: await setBusinessRoleActive(user, {
-        organizationId: String(body.organizationId ?? ""),
-        locationId: String(body.locationId ?? ""),
-        roleId,
-        isActive: body.isActive as boolean,
-      }),
+      role: await setBusinessRoleActive(user, scope),
     });
   } catch (error) { return serviceErrorResponse(error); }
 }

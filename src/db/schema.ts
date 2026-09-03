@@ -422,6 +422,16 @@ export const workSituationTriggerCategories = [
   "item/order-triggered",
 ] as const;
 
+export const workSituationReminderEscalationStageIdentifiers = [
+  "due_notification",
+  "reminder",
+  "strong_reminder",
+  "final_reminder",
+  "escalation",
+  "verification",
+  "exception_escalation",
+] as const;
+
 export const workSituationDefinitions = pgTable("work_situation_definitions", {
   id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull().references(() => organizations.id), triggerCategory: text("trigger_category").notNull(), title: text("title").notNull(), description: text("description").notNull(), severity: text("severity"), verificationConfig: jsonb("verification_config").notNull().default({}), evidenceConfig: jsonb("evidence_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -440,7 +450,16 @@ export const workSituationEvidenceRequirements = pgTable("work_situation_evidenc
 
 export const workSituationReminderEscalationStages = pgTable("work_situation_reminder_escalation_stages", {
   id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), stage: text("stage").notNull(), position: integer("position").notNull(), configuration: jsonb("configuration").notNull().default({}), isActive: boolean("is_active").notNull().default(true), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (table) => [ foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_situation_reminder_escalation_stages_organization_definition_fk" }), uniqueIndex("work_situation_reminder_escalation_stages_definition_position_unique").on(table.workSituationDefinitionId, table.position), uniqueIndex("work_situation_reminder_escalation_stages_definition_stage_unique").on(table.workSituationDefinitionId, table.stage), index("work_situation_reminder_escalation_stages_organization_definition_idx").on(table.organizationId, table.workSituationDefinitionId) ]);
+}, (table) => [
+  foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_situation_reminder_escalation_stages_organization_definition_fk" }),
+  uniqueIndex("work_situation_reminder_escalation_stages_definition_position_unique").on(table.workSituationDefinitionId, table.position),
+  uniqueIndex("work_situation_reminder_escalation_stages_definition_stage_unique").on(table.workSituationDefinitionId, table.stage),
+  index("work_situation_reminder_escalation_stages_organization_definition_idx").on(table.organizationId, table.workSituationDefinitionId),
+  check(
+    "work_situation_reminder_escalation_stages_stage_check",
+    sql`${table.stage} IN ('due_notification', 'reminder', 'strong_reminder', 'final_reminder', 'escalation', 'verification', 'exception_escalation')`,
+  ),
+]);
 
 export const workInstances = pgTable("work_instances", {
   id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), locationId: uuid("location_id"), assignedEmployeeId: uuid("assigned_employee_id"), sourceReference: text("source_reference"), sourceMetadata: jsonb("source_metadata").notNull().default({}), definitionSnapshot: jsonb("definition_snapshot").notNull().default({}), state: text("state").notNull().default("SEEN"), verificationConfig: jsonb("verification_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

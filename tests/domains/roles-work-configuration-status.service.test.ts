@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import {
@@ -42,6 +42,10 @@ import {
   RolesWorkServiceError,
   setBusinessRoleActive,
   setEmployeeResponsibilityAdditionActive,
+  setRoleChecklistActive,
+  setRoleChecklistItemActive,
+  setRoleKpiActive,
+  setRoleResponsibilityActive,
   setWorkSituationDefinitionActive,
   setWorkSituationReminderEscalationStageActive,
   transitionWorkInstance,
@@ -198,14 +202,22 @@ describe("Role and Work/Situation configuration status lifecycle", () => {
     });
     createdAdditionIds.push(activeAddition.id, inactiveAddition.id);
 
-    await db.update(roleResponsibilities).set({ isActive: false }).where(and(
-      eq(roleResponsibilities.roleId, role!.id),
-      eq(roleResponsibilities.responsibility, "Inactive duty"),
-    ));
-    await db.update(roleChecklistItems).set({ isActive: false }).where(and(
-      eq(roleChecklistItems.organizationId, organizationId),
-      eq(roleChecklistItems.definition, "Skip later"),
-    ));
+    const inactiveResponsibility = role!.responsibilities.find((item) => item.responsibility === "Inactive duty");
+    const skipItem = role!.checklists[0].items.find((item) => item.definition === "Skip later");
+    expect(inactiveResponsibility).toBeDefined();
+    expect(skipItem).toBeDefined();
+    await setRoleResponsibilityActive({ id: authorizedUserId }, {
+      ...scope,
+      roleId: role!.id,
+      responsibilityId: inactiveResponsibility!.id,
+      isActive: false,
+    });
+    await setRoleChecklistItemActive({ id: authorizedUserId }, {
+      ...scope,
+      roleId: role!.id,
+      checklistItemId: skipItem!.id,
+      isActive: false,
+    });
     await setEmployeeResponsibilityAdditionActive({ id: authorizedUserId }, {
       ...employeeScope,
       additionId: inactiveAddition.id,
@@ -255,6 +267,49 @@ describe("Role and Work/Situation configuration status lifecycle", () => {
       roleId: role!.id,
       isActive: true,
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+
+    const kpi = role!.kpis[0];
+    const checklist = role!.checklists[0];
+    await setRoleKpiActive({ id: authorizedUserId }, {
+      ...scope,
+      roleId: role!.id,
+      kpiId: kpi.id,
+      isActive: false,
+    });
+    await setRoleChecklistActive({ id: authorizedUserId }, {
+      ...scope,
+      roleId: role!.id,
+      checklistId: checklist.id,
+      isActive: false,
+    });
+    await setBusinessRoleActive({ id: authorizedUserId }, { ...scope, roleId: role!.id, isActive: true });
+    const afterChildDeactivation = await getEffectiveEmployeeRole({ id: authorizedUserId }, employeeScope);
+    const assignedAfterChildren = afterChildDeactivation.assignedRoles.find((item) => item.id === role!.id);
+    expect(assignedAfterChildren?.kpis).toEqual([]);
+    expect(assignedAfterChildren?.checklists).toEqual([]);
+    const configurationAfterChildren = await getRoleDefinition({ id: authorizedUserId }, scope, role!.id);
+    expect(configurationAfterChildren.kpis).toHaveLength(1);
+    expect(configurationAfterChildren.kpis[0].isActive).toBe(false);
+    expect(configurationAfterChildren.checklists).toHaveLength(1);
+    expect(configurationAfterChildren.checklists[0].isActive).toBe(false);
+    await expect(setRoleResponsibilityActive({ id: deniedUserId }, {
+      ...scope,
+      roleId: role!.id,
+      responsibilityId: inactiveResponsibility!.id,
+      isActive: true,
+    })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    await expect(setRoleChecklistItemActive({ id: authorizedUserId }, {
+      ...otherOrgScope,
+      roleId: role!.id,
+      checklistItemId: skipItem!.id,
+      isActive: true,
+    })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    await expect(setRoleKpiActive({ id: authorizedUserId }, {
+      ...scope,
+      roleId: role!.id,
+      kpiId: randomUUID(),
+      isActive: false,
+    })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("updates work definition and reminder stage status without rewriting existing instance snapshots", async () => {

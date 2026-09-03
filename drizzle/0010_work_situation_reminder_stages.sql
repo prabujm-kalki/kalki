@@ -1,0 +1,1 @@
+ALTER TABLE "work_situation_reminder_escalation_stages" ADD CONSTRAINT "work_situation_reminder_escalation_stages_stage_check" CHECK ("work_situation_reminder_escalation_stages"."stage" IN ('due_notification', 'reminder', 'strong_reminder', 'final_reminder', 'escalation', 'verification', 'exception_escalation'));

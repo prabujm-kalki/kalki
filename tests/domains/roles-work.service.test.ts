@@ -125,6 +125,61 @@ describe("Role and Work/Situation configuration services", () => {
     await expect(createRoleDefinition(null, { ...scope, identifier: "NONE", name: "None", purpose: "No actor" })).rejects.toBeInstanceOf(RolesWorkServiceError);
   });
 
+  it("accepts only the approved reminder and escalation sequence", async () => {
+    const definition = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Framework stages",
+      description: "Framework stages",
+      reminderEscalationStages: [
+        { stage: "due_notification", position: 10 },
+        { stage: "strong_reminder", position: 20 },
+        { stage: "verification", position: 30 },
+        { stage: "exception_escalation", position: 40 },
+      ],
+    });
+    createdDefinitionIds.push(definition.id);
+    expect(definition.reminderEscalationStages.map((stage) => stage.stage)).toEqual([
+      "due_notification",
+      "strong_reminder",
+      "verification",
+      "exception_escalation",
+    ]);
+    await expect(createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Unknown stage",
+      description: "Unknown stage",
+      reminderEscalationStages: [{ stage: "ad-hoc", position: 10 }] as never,
+    })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Out of order",
+      description: "Out of order",
+      reminderEscalationStages: [
+        { stage: "escalation", position: 10 },
+        { stage: "reminder", position: 20 },
+      ],
+    })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: "Reminder stages must follow the approved reminder and escalation sequence",
+    });
+    await expect(createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Duplicate stage",
+      description: "Duplicate stage",
+      reminderEscalationStages: [
+        { stage: "reminder", position: 10 },
+        { stage: "reminder", position: 20 },
+      ],
+    })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: "Reminder stages must be unique within their definition",
+    });
+  });
+
   it("accepts only the approved Work/Situation trigger categories", async () => {
     const eventBased = await createWorkSituationDefinition({ id: authorizedUserId }, {
       ...scope, triggerCategory: "event-based", title: "Event work", description: "Event-based work",
