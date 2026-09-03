@@ -415,4 +415,46 @@ describe("Work/Situation instance foundation", () => {
     expect(acknowledged.state).toBe("ACKNOWLEDGED");
     expect(acknowledged.definitionSnapshot).toEqual(instance.definitionSnapshot);
   });
+
+  it("persists create-time source metadata without rewriting it on later transitions", async () => {
+    const definition = await createDefinition({ identifierSuffix: "SOURCE" });
+    const sourceMetadata = {
+      triggerCategory: "routine",
+      origin: "manual-assignment",
+    };
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+      sourceReference: "opening-checklist",
+      sourceMetadata,
+    });
+    createdInstanceIds.push(instance.id);
+    expect(instance).toMatchObject({
+      sourceReference: "opening-checklist",
+      sourceMetadata,
+    });
+
+    const omitted = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+    });
+    createdInstanceIds.push(omitted.id);
+    expect(omitted.sourceMetadata).toEqual({});
+
+    await expect(createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      sourceMetadata: ["not-an-object"],
+    } as never)).rejects.toMatchObject({ code: "INVALID_INPUT" });
+
+    const acknowledged = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "ACKNOWLEDGED",
+    });
+    expect(acknowledged.sourceReference).toBe("opening-checklist");
+    expect(acknowledged.sourceMetadata).toEqual(sourceMetadata);
+    expect(acknowledged.definitionSnapshot).toEqual(instance.definitionSnapshot);
+  });
 });

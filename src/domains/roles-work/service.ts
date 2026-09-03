@@ -97,6 +97,7 @@ const createWorkInstanceSchema = scopeSchema.extend({
   instanceLocationId: z.string().uuid().nullable().optional(),
   assignedEmployeeId: z.string().uuid().nullable().optional(),
   sourceReference: z.string().trim().min(1).max(200).nullable().optional(),
+  sourceMetadata: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
 const transitionWorkInstanceSchema = scopeSchema.extend({
@@ -524,6 +525,7 @@ export async function createWorkInstance(actor: Actor, input: CreateWorkInstance
     locationId: instanceLocationId,
     assignedEmployeeId: parsed.data.assignedEmployeeId ?? null,
     sourceReference: parsed.data.sourceReference ?? null,
+    sourceMetadata: parsed.data.sourceMetadata ?? {},
     definitionSnapshot,
     state: "SEEN",
     verificationConfig: definitionSnapshot.verificationConfig,
