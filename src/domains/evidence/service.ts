@@ -51,12 +51,16 @@ function requireActor(actor: Actor): asserts actor is { id: string } {
   if (!actor) throw new RolesWorkServiceError("Authentication required", "AUTHENTICATION_REQUIRED");
 }
 
-async function requireEvidenceScopeAccess(actor: { id: string }, scope: z.infer<typeof scopeSchema>) {
+async function requireEvidenceScopeAccess(
+  actor: { id: string },
+  scope: z.infer<typeof scopeSchema>,
+  permission: typeof employeePermissions.create | typeof employeePermissions.update,
+) {
   const allowed = await authorizeEmployeeOperation({
     userId: actor.id,
     organizationId: scope.organizationId,
     locationId: scope.locationId,
-    permission: employeePermissions.create,
+    permission,
   });
   if (!allowed) throw new RolesWorkServiceError("Access denied", "ACCESS_DENIED");
 }
@@ -66,6 +70,7 @@ async function requireVisibleWorkInstance(scope: z.infer<typeof scopeSchema>) {
     id: workInstances.id,
     organizationId: workInstances.organizationId,
     locationId: workInstances.locationId,
+    state: workInstances.state,
   }).from(workInstances).where(and(
     eq(workInstances.id, scope.workInstanceId),
     eq(workInstances.organizationId, scope.organizationId),
@@ -83,8 +88,11 @@ export async function captureEvidence(actor: Actor, input: EvidenceCaptureInput)
     throw new RolesWorkServiceError("Invalid evidence capture input", "INVALID_INPUT");
   }
   const metadata = validateEvidenceMetadata(parsed.data.metadata);
-  await requireEvidenceScopeAccess(actor, parsed.data);
+  await requireEvidenceScopeAccess(actor, parsed.data, employeePermissions.create);
   const instance = await requireVisibleWorkInstance(parsed.data);
+  if (instance.state === "VERIFIED") {
+    throw new RolesWorkServiceError("Evidence cannot be changed after work is verified", "PREREQUISITE_NOT_SATISFIED");
+  }
   const [presence] = await db.insert(workInstanceEvidencePresences).values({
     organizationId: instance.organizationId,
     workInstanceId: instance.id,
@@ -107,8 +115,11 @@ export async function captureVerification(actor: Actor, input: VerificationCaptu
     throw new RolesWorkServiceError("Invalid verification capture input", "INVALID_INPUT");
   }
   const metadata = validateEvidenceMetadata(parsed.data.metadata);
-  await requireEvidenceScopeAccess(actor, parsed.data);
+  await requireEvidenceScopeAccess(actor, parsed.data, employeePermissions.update);
   const instance = await requireVisibleWorkInstance(parsed.data);
+  if (instance.state !== "COMPLETED") {
+    throw new RolesWorkServiceError("Verification can only be recorded after work is completed", "PREREQUISITE_NOT_SATISFIED");
+  }
   const [presence] = await db.insert(workInstanceVerificationPresences).values({
     organizationId: instance.organizationId,
     workInstanceId: instance.id,
