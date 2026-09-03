@@ -438,6 +438,15 @@ async function loadDefinitionSnapshot(organizationId: string, definitionId: stri
     eq(workSituationEvidenceRequirements.workSituationDefinitionId, definitionId),
     eq(workSituationEvidenceRequirements.organizationId, organizationId),
   ));
+  const reminderEscalationStages = await db.select({
+    stage: workSituationReminderEscalationStages.stage,
+    position: workSituationReminderEscalationStages.position,
+    configuration: workSituationReminderEscalationStages.configuration,
+    isActive: workSituationReminderEscalationStages.isActive,
+  }).from(workSituationReminderEscalationStages).where(and(
+    eq(workSituationReminderEscalationStages.workSituationDefinitionId, definitionId),
+    eq(workSituationReminderEscalationStages.organizationId, organizationId),
+  )).orderBy(asc(workSituationReminderEscalationStages.position));
   return {
     workSituationDefinitionId: definition.id,
     triggerCategory: definition.triggerCategory,
@@ -449,6 +458,7 @@ async function loadDefinitionSnapshot(organizationId: string, definitionId: stri
     metadata: definition.metadata,
     evidenceRequired: evidenceRequirement?.isRequired === true || isRequiredFlag(definition.evidenceConfig),
     verificationRequired: isRequiredFlag(definition.verificationConfig),
+    reminderEscalationStages,
     capturedAt: new Date().toISOString(),
   };
 }
