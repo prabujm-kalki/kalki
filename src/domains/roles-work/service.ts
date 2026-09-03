@@ -80,6 +80,28 @@ const employeeResponsibilityAdditionSchema = employeeScopeSchema.extend({
   position: z.number().int(),
 }).strict();
 
+const configurationActiveSchema = scopeSchema.extend({
+  isActive: z.boolean(),
+}).strict();
+
+const setBusinessRoleActiveSchema = configurationActiveSchema.extend({
+  roleId: z.string().uuid(),
+}).strict();
+
+const setWorkSituationDefinitionActiveSchema = configurationActiveSchema.extend({
+  workSituationDefinitionId: z.string().uuid(),
+}).strict();
+
+const setWorkSituationReminderEscalationStageActiveSchema = configurationActiveSchema.extend({
+  workSituationDefinitionId: z.string().uuid(),
+  stageId: z.string().uuid(),
+}).strict();
+
+const setEmployeeResponsibilityAdditionActiveSchema = employeeScopeSchema.extend({
+  additionId: z.string().uuid(),
+  isActive: z.boolean(),
+}).strict();
+
 const workInstanceStates = ["SEEN", "ACKNOWLEDGED", "COMPLETED", "VERIFIED"] as const;
 const workInstanceStateSchema = z.enum(workInstanceStates);
 const allowedWorkInstanceTransitions: Record<
@@ -117,6 +139,10 @@ export type CreateRoleDefinitionInput = z.infer<typeof roleInputSchema>;
 export type CreateWorkSituationDefinitionInput = z.infer<typeof workDefinitionInputSchema>;
 export type AssignEmployeeRoleInput = z.infer<typeof assignEmployeeRoleSchema>;
 export type CreateEmployeeResponsibilityAdditionInput = z.infer<typeof employeeResponsibilityAdditionSchema>;
+export type SetBusinessRoleActiveInput = z.infer<typeof setBusinessRoleActiveSchema>;
+export type SetWorkSituationDefinitionActiveInput = z.infer<typeof setWorkSituationDefinitionActiveSchema>;
+export type SetWorkSituationReminderEscalationStageActiveInput = z.infer<typeof setWorkSituationReminderEscalationStageActiveSchema>;
+export type SetEmployeeResponsibilityAdditionActiveInput = z.infer<typeof setEmployeeResponsibilityAdditionActiveSchema>;
 export type CreateWorkInstanceInput = z.infer<typeof createWorkInstanceSchema>;
 export type TransitionWorkInstanceInput = z.infer<typeof transitionWorkInstanceSchema>;
 export type CreateWorkInstanceEvidencePresenceInput = z.infer<typeof workInstanceEvidencePresenceSchema>;
@@ -192,6 +218,22 @@ async function roleDetail(roleId: string, organizationId: string) {
   return { ...role, responsibilities, kpis, checklists: checklists.map((checklist) => ({ ...checklist, items: items.filter((item) => item.checklistId === checklist.id) })) };
 }
 
+function activeConfiguration<T extends { isActive: boolean }>(records: T[]) {
+  return records.filter((record) => record.isActive);
+}
+
+function effectiveRoleBaseline(role: NonNullable<Awaited<ReturnType<typeof roleDetail>>>) {
+  return {
+    ...role,
+    responsibilities: activeConfiguration(role.responsibilities),
+    kpis: activeConfiguration(role.kpis),
+    checklists: activeConfiguration(role.checklists).map((checklist) => ({
+      ...checklist,
+      items: activeConfiguration(checklist.items),
+    })),
+  };
+}
+
 export async function createRoleDefinition(actor: Actor, input: CreateRoleDefinitionInput) {
   requireActor(actor);
   const parsed = roleInputSchema.safeParse(input);
@@ -248,7 +290,7 @@ export async function createWorkSituationDefinition(actor: Actor, input: CreateW
   return getWorkSituationDefinition(actor, parsed.data, definitionId, employeePermissions.create);
 }
 
-async function getWorkSituationDefinition(actor: { id: string }, scope: z.infer<typeof scopeSchema>, definitionId: string, permission: "employee:read" | "employee:create" = employeePermissions.read) {
+async function getWorkSituationDefinition(actor: { id: string }, scope: z.infer<typeof scopeSchema>, definitionId: string, permission: EmployeePermission = employeePermissions.read) {
   await requireScopeAccess(actor, scope, permission);
   const [definition] = await db.select().from(workSituationDefinitions).where(and(eq(workSituationDefinitions.id, definitionId), eq(workSituationDefinitions.organizationId, scope.organizationId)));
   if (!definition) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
@@ -270,6 +312,75 @@ export async function listWorkSituationDefinitions(actor: Actor, scope: z.infer<
   if (!scopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid work definition scope", "INVALID_INPUT");
   await requireScopeAccess(actor, scope, employeePermissions.read);
   return db.select().from(workSituationDefinitions).where(eq(workSituationDefinitions.organizationId, scope.organizationId)).orderBy(asc(workSituationDefinitions.title));
+}
+
+export async function setBusinessRoleActive(actor: Actor, input: SetBusinessRoleActiveInput) {
+  requireActor(actor);
+  const parsed = setBusinessRoleActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid role configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [updated] = await db.update(businessRoles).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(businessRoles.id, parsed.data.roleId),
+    eq(businessRoles.organizationId, parsed.data.organizationId),
+  )).returning({ id: businessRoles.id });
+  if (!updated) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
+  const role = await roleDetail(updated.id, parsed.data.organizationId);
+  if (!role) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
+  return role;
+}
+
+export async function setWorkSituationDefinitionActive(actor: Actor, input: SetWorkSituationDefinitionActiveInput) {
+  requireActor(actor);
+  const parsed = setWorkSituationDefinitionActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid work definition configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [updated] = await db.update(workSituationDefinitions).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(workSituationDefinitions.id, parsed.data.workSituationDefinitionId),
+    eq(workSituationDefinitions.organizationId, parsed.data.organizationId),
+  )).returning({ id: workSituationDefinitions.id });
+  if (!updated) throw new RolesWorkServiceError("Work definition not found", "NOT_FOUND");
+  return getWorkSituationDefinition(actor, parsed.data, updated.id, employeePermissions.update);
+}
+
+export async function setWorkSituationReminderEscalationStageActive(actor: Actor, input: SetWorkSituationReminderEscalationStageActiveInput) {
+  requireActor(actor);
+  const parsed = setWorkSituationReminderEscalationStageActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid reminder stage configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  const [updated] = await db.update(workSituationReminderEscalationStages).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(workSituationReminderEscalationStages.id, parsed.data.stageId),
+    eq(workSituationReminderEscalationStages.workSituationDefinitionId, parsed.data.workSituationDefinitionId),
+    eq(workSituationReminderEscalationStages.organizationId, parsed.data.organizationId),
+  )).returning();
+  if (!updated) throw new RolesWorkServiceError("Reminder stage not found", "NOT_FOUND");
+  return updated;
+}
+
+export async function setEmployeeResponsibilityAdditionActive(actor: Actor, input: SetEmployeeResponsibilityAdditionActiveInput) {
+  requireActor(actor);
+  const parsed = setEmployeeResponsibilityAdditionActiveSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid employee addition configuration status input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  await requireEmployeeInScope(parsed.data);
+  const [updated] = await db.update(employeeResponsibilityAdditions).set({
+    isActive: parsed.data.isActive,
+    updatedAt: new Date(),
+  }).where(and(
+    eq(employeeResponsibilityAdditions.id, parsed.data.additionId),
+    eq(employeeResponsibilityAdditions.organizationId, parsed.data.organizationId),
+    eq(employeeResponsibilityAdditions.employeeId, parsed.data.employeeId),
+  )).returning();
+  if (!updated) throw new RolesWorkServiceError("Employee responsibility addition not found", "NOT_FOUND");
+  return updated;
 }
 
 export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRoleInput) {
@@ -395,11 +506,12 @@ export async function getEffectiveEmployeeRole(actor: Actor, scope: z.infer<type
   const assignedRoles: Array<NonNullable<Awaited<ReturnType<typeof roleDetail>>>> = [];
   for (const assignment of assignments) {
     const role = await roleDetail(assignment.roleId, scope.organizationId);
-    if (role?.isActive) assignedRoles.push(role);
+    if (role?.isActive) assignedRoles.push(effectiveRoleBaseline(role));
   }
   const additions = await db.select().from(employeeResponsibilityAdditions).where(and(
     eq(employeeResponsibilityAdditions.organizationId, scope.organizationId),
     eq(employeeResponsibilityAdditions.employeeId, scope.employeeId),
+    eq(employeeResponsibilityAdditions.isActive, true),
   )).orderBy(asc(employeeResponsibilityAdditions.position));
   return {
     employeeId: employee.id,
