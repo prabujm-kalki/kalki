@@ -14,6 +14,8 @@ export type SessionContext = {
   scopes: SessionScope[];
 };
 
+export type EvidenceMetadata = Record<string, unknown>;
+
 export type AssignedEmployeeView = {
   id: string;
   employeeCode: string;
@@ -37,8 +39,8 @@ export type WorkInstanceView = {
   };
   evidenceRequired: boolean;
   verificationRequired: boolean;
-  evidencePresence: { id: string } | null;
-  verificationPresence: { id: string } | null;
+  evidencePresence: { id: string; metadata?: EvidenceMetadata; createdAt?: string } | null;
+  verificationPresence: { id: string; metadata?: EvidenceMetadata; createdAt?: string; updatedAt?: string } | null;
   allowedNextState: "ACKNOWLEDGED" | "COMPLETED" | "VERIFIED" | null;
   nextTransitionReady: boolean;
 };
