@@ -1,0 +1,1 @@
+ALTER TABLE "system_authorities" ADD CONSTRAINT "system_authorities_owner_only_check" CHECK ("system_authorities"."authority" = 'OWNER');

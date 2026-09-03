@@ -22,6 +22,20 @@
       "when": 1788398715495,
       "tag": "0002_closed_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788403241642,
+      "tag": "0003_typical_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788403272206,
+      "tag": "0004_omniscient_multiple_man",
+      "breakpoints": true
     }
   ]
 }
