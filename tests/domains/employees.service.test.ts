@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import {
