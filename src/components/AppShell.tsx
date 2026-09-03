@@ -104,6 +104,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               </select>
             </label>
             <Link href={selected ? `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/work"}>Work queue</Link>
+            {session.isOwner && selected ? (
+              <Link href={`/audit?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}>Audit</Link>
+            ) : null}
             <button type="button" className="secondary-button" onClick={() => void signOut()}>Sign out</button>
           </div>
         </header>
