@@ -507,11 +507,17 @@ export async function createWorkInstance(actor: Actor, input: CreateWorkInstance
     throw new RolesWorkServiceError("Instance location must match the authorized location", "ACCESS_DENIED");
   }
   if (instanceLocationId) {
-    const [location] = await db.select({ id: locations.id }).from(locations).where(and(
+    const [location] = await db.select({
+      id: locations.id,
+      isActive: locations.isActive,
+    }).from(locations).where(and(
       eq(locations.id, instanceLocationId),
       eq(locations.organizationId, parsed.data.organizationId),
     ));
     if (!location) throw new RolesWorkServiceError("Location not found in organization", "NOT_FOUND");
+    if (!location.isActive) {
+      throw new RolesWorkServiceError("Instance location is not active", "PREREQUISITE_NOT_SATISFIED");
+    }
   }
   if (parsed.data.assignedEmployeeId) {
     await requireAssignedEmployee({

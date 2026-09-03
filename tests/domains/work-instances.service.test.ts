@@ -301,6 +301,46 @@ describe("Work/Situation instance foundation", () => {
     await db.update(employees).set({ isActive: true }).where(eq(employees.id, employeeId));
   });
 
+  it("creates located instances only at active locations and does not rewrite existing located work after deactivation", async () => {
+    const definition = await createDefinition({ identifierSuffix: "LOCACTIVE" });
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(instance.id);
+    expect(instance.locationId).toBe(locationId);
+
+    await db.update(locations).set({ isActive: false }).where(eq(locations.id, locationId));
+
+    await expect(createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    })).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Instance location is not active",
+    });
+
+    const unlocated = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+    });
+    createdInstanceIds.push(unlocated.id);
+    expect(unlocated.locationId).toBeNull();
+
+    const acknowledged = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "ACKNOWLEDGED",
+    });
+    expect(acknowledged.state).toBe("ACKNOWLEDGED");
+    expect(acknowledged.locationId).toBe(locationId);
+    expect(acknowledged.definitionSnapshot).toEqual(instance.definitionSnapshot);
+
+    await db.update(locations).set({ isActive: true }).where(eq(locations.id, locationId));
+  });
+
   it("allows only SEEN to ACKNOWLEDGED to COMPLETED to VERIFIED", async () => {
     const definition = await createDefinition({ identifierSuffix: "LIFE" });
     const instance = await createWorkInstance({ id: authorizedUserId }, {
