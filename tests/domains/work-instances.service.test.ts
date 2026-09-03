@@ -258,6 +258,49 @@ describe("Work/Situation instance foundation", () => {
     })).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
+  it("assigns new instances only to active employees and does not rewrite existing assigned work after deactivation", async () => {
+    const definition = await createDefinition({ identifierSuffix: "EMPACTIVE" });
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+      assignedEmployeeId: employeeId,
+    });
+    createdInstanceIds.push(instance.id);
+    expect(instance.assignedEmployeeId).toBe(employeeId);
+
+    await db.update(employees).set({ isActive: false }).where(eq(employees.id, employeeId));
+
+    await expect(createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+      assignedEmployeeId: employeeId,
+    })).rejects.toMatchObject({
+      code: "PREREQUISITE_NOT_SATISFIED",
+      message: "Assigned employee is not active",
+    });
+
+    const unassigned = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(unassigned.id);
+    expect(unassigned.assignedEmployeeId).toBeNull();
+
+    const acknowledged = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "ACKNOWLEDGED",
+    });
+    expect(acknowledged.state).toBe("ACKNOWLEDGED");
+    expect(acknowledged.assignedEmployeeId).toBe(employeeId);
+    expect(acknowledged.definitionSnapshot).toEqual(instance.definitionSnapshot);
+
+    await db.update(employees).set({ isActive: true }).where(eq(employees.id, employeeId));
+  });
+
   it("allows only SEEN to ACKNOWLEDGED to COMPLETED to VERIFIED", async () => {
     const definition = await createDefinition({ identifierSuffix: "LIFE" });
     const instance = await createWorkInstance({ id: authorizedUserId }, {

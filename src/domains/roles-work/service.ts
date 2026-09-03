@@ -419,11 +419,15 @@ async function requireAssignedEmployee(input: {
     id: employees.id,
     organizationId: employees.organizationId,
     locationId: employees.locationId,
+    isActive: employees.isActive,
   }).from(employees).where(and(
     eq(employees.id, input.assignedEmployeeId),
     eq(employees.organizationId, input.organizationId),
   ));
   if (!employee) throw new RolesWorkServiceError("Employee not found in organization", "NOT_FOUND");
+  if (!employee.isActive) {
+    throw new RolesWorkServiceError("Assigned employee is not active", "PREREQUISITE_NOT_SATISFIED");
+  }
   if (input.instanceLocationId && employee.locationId !== input.instanceLocationId) {
     throw new RolesWorkServiceError("Employee is not in the instance location", "NOT_FOUND");
   }
