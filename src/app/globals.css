@@ -79,6 +79,28 @@ input {
   padding: 1rem;
 }
 
+.panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
+.code-block {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid #d8d0c3;
+  border-radius: 6px;
+  background: #f4f1ea;
+  font: 0.82rem/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
 .work-list {
   display: grid;
   gap: 0.75rem;
