@@ -201,6 +201,7 @@ describe("Work/Situation instance foundation", () => {
       title: "Work SNAP",
       evidenceRequired: false,
       verificationRequired: false,
+      definitionUpdatedAt: definition.updatedAt.toISOString(),
     });
 
     await db.update(workSituationDefinitions).set({ title: "Changed later" }).where(eq(workSituationDefinitions.id, definition.id));

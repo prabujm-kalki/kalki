@@ -23,6 +23,7 @@ import {
   createWorkInstance,
   createWorkInstanceEvidencePresence,
   createWorkSituationDefinition,
+  getWorkInstance,
   getWorkInstanceEvidencePresence,
   RolesWorkServiceError,
   transitionWorkInstance,
@@ -149,10 +150,10 @@ describe("Work instance evidence presence foundation", () => {
       ...scope,
       workInstanceId: randomUUID(),
     })).rejects.toMatchObject({ code: "AUTHENTICATION_REQUIRED" });
-    await expect(getWorkInstanceEvidencePresence({ id: deniedUserId }, {
+    await expect(createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
       ...scope,
-      workInstanceId: randomUUID(),
-    })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+      workInstanceId: "not-a-uuid",
+    })).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
   it("creates and reads a same-organization presence for a scoped instance", async () => {
@@ -192,7 +193,7 @@ describe("Work instance evidence presence foundation", () => {
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
 
-  it("rejects a second presence for the same work instance", async () => {
+  it("records evidence presence idempotently without rewriting the instance snapshot", async () => {
     const definition = await createDefinition("DUP");
     const instance = await createInstance(definition.id, locationId);
     const presence = await createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
@@ -200,10 +201,23 @@ describe("Work instance evidence presence foundation", () => {
       workInstanceId: instance.id,
     });
     createdPresenceIds.push(presence.id);
-    await expect(createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
+    const replay = await createWorkInstanceEvidencePresence({ id: authorizedUserId }, {
       ...scope,
       workInstanceId: instance.id,
-    })).rejects.toMatchObject({ code: "DUPLICATE_RECORD" });
+    });
+    expect(replay).toMatchObject({
+      id: presence.id,
+      organizationId,
+      workInstanceId: instance.id,
+    });
+    expect(replay.createdAt).toEqual(presence.createdAt);
+    const rows = await db.select().from(workInstanceEvidencePresences).where(
+      eq(workInstanceEvidencePresences.workInstanceId, instance.id),
+    );
+    expect(rows).toHaveLength(1);
+    const reread = await getWorkInstance({ id: authorizedUserId }, scope, instance.id);
+    expect(reread.definitionSnapshot).toEqual(instance.definitionSnapshot);
+    expect(reread.state).toBe("SEEN");
   });
 
   it("blocks COMPLETED without presence and allows COMPLETED after valid presence", async () => {

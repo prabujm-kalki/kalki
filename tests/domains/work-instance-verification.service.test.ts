@@ -23,6 +23,7 @@ import {
   createWorkInstance,
   createWorkInstanceVerificationPresence,
   createWorkSituationDefinition,
+  getWorkInstance,
   getWorkInstanceVerificationPresence,
   transitionWorkInstance,
 } from "@/domains/roles-work/service";
@@ -156,6 +157,10 @@ describe("Work instance verification presence foundation", () => {
       ...scope,
       workInstanceId: randomUUID(),
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
+    await expect(createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
+      ...scope,
+      workInstanceId: "not-a-uuid",
+    })).rejects.toMatchObject({ code: "INVALID_INPUT" });
   });
 
   it("creates and reads a same-organization presence for a scoped instance", async () => {
@@ -192,7 +197,7 @@ describe("Work instance verification presence foundation", () => {
     })).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
 
-  it("rejects a second presence for the same work instance", async () => {
+  it("records verification presence idempotently without rewriting the instance snapshot", async () => {
     const definition = await createDefinition("DUP");
     const instance = await createInstance(definition.id);
     const presence = await createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
@@ -200,10 +205,23 @@ describe("Work instance verification presence foundation", () => {
       workInstanceId: instance.id,
     });
     createdPresenceIds.push(presence.id);
-    await expect(createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
+    const replay = await createWorkInstanceVerificationPresence({ id: authorizedUserId }, {
       ...scope,
       workInstanceId: instance.id,
-    })).rejects.toMatchObject({ code: "DUPLICATE_RECORD" });
+    });
+    expect(replay).toMatchObject({
+      id: presence.id,
+      organizationId,
+      workInstanceId: instance.id,
+    });
+    expect(replay.createdAt).toEqual(presence.createdAt);
+    const rows = await db.select().from(workInstanceVerificationPresences).where(
+      eq(workInstanceVerificationPresences.workInstanceId, instance.id),
+    );
+    expect(rows).toHaveLength(1);
+    const reread = await getWorkInstance({ id: authorizedUserId }, scope, instance.id);
+    expect(reread.definitionSnapshot).toEqual(instance.definitionSnapshot);
+    expect(reread.state).toBe("SEEN");
   });
 
   it("blocks VERIFIED without presence and allows VERIFIED after valid presence", async () => {

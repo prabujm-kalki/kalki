@@ -24,6 +24,7 @@ import {
   getWorkInstance,
   getWorkSituationDefinitionForScope,
   transitionWorkInstance,
+  setWorkSituationDefinitionActive,
 } from "@/domains/roles-work/service";
 import { employeePermissions } from "@/lib/authorization-policy";
 
@@ -155,6 +156,7 @@ describe("Work instance reminder and escalation snapshot foundation", () => {
 
     expect(instance.definitionSnapshot).toMatchObject({
       workSituationDefinitionId: definition.id,
+      definitionUpdatedAt: definition.updatedAt.toISOString(),
       reminderEscalationStages: [
         { stage: "due_notification", position: 10, isActive: true },
         { stage: "reminder", position: 20, isActive: true },
@@ -332,5 +334,41 @@ describe("Work instance reminder and escalation snapshot foundation", () => {
     expect(
       (emptySnapshotInstance.definitionSnapshot as { reminderEscalationStages: unknown[] }).reminderEscalationStages,
     ).toEqual([]);
+  });
+
+  it("preserves the captured definition version after later configuration status changes", async () => {
+    const definition = await createWorkSituationDefinition({ id: authorizedUserId }, {
+      ...scope,
+      triggerCategory: "routine",
+      title: "Versioned work",
+      description: "Versioned work",
+      reminderEscalationStages: [{ stage: "due_notification", position: 10 }],
+    });
+    createdDefinitionIds.push(definition.id);
+    const instance = await createWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      instanceLocationId: locationId,
+    });
+    createdInstanceIds.push(instance.id);
+    const capturedVersion = (instance.definitionSnapshot as { definitionUpdatedAt: string }).definitionUpdatedAt;
+    expect(capturedVersion).toBe(definition.updatedAt.toISOString());
+
+    await setWorkSituationDefinitionActive({ id: authorizedUserId }, {
+      ...scope,
+      workSituationDefinitionId: definition.id,
+      isActive: false,
+    });
+    const live = await getWorkSituationDefinitionForScope({ id: authorizedUserId }, scope, definition.id);
+    expect(live.updatedAt.toISOString()).not.toBe(capturedVersion);
+    const reread = await getWorkInstance({ id: authorizedUserId }, scope, instance.id);
+    expect(reread.definitionSnapshot).toEqual(instance.definitionSnapshot);
+    expect((reread.definitionSnapshot as { definitionUpdatedAt: string }).definitionUpdatedAt).toBe(capturedVersion);
+    const acknowledged = await transitionWorkInstance({ id: authorizedUserId }, {
+      ...scope,
+      instanceId: instance.id,
+      state: "ACKNOWLEDGED",
+    });
+    expect(acknowledged.definitionSnapshot).toEqual(instance.definitionSnapshot);
   });
 });

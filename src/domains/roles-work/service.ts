@@ -728,6 +728,7 @@ async function loadDefinitionSnapshot(organizationId: string, definitionId: stri
     evidenceRequired: evidenceRequirement?.isRequired === true || isRequiredFlag(definition.evidenceConfig),
     verificationRequired: isRequiredFlag(definition.verificationConfig),
     reminderEscalationStages,
+    definitionUpdatedAt: definition.updatedAt.toISOString(),
     capturedAt: new Date().toISOString(),
   };
 }
@@ -880,22 +881,31 @@ async function loadWorkInstanceEvidencePresence(organizationId: string, workInst
   return presence ?? null;
 }
 
+async function ensureWorkInstanceEvidencePresence(organizationId: string, workInstanceId: string) {
+  const existing = await loadWorkInstanceEvidencePresence(organizationId, workInstanceId);
+  if (existing) return existing;
+  try {
+    const [presence] = await db.insert(workInstanceEvidencePresences).values({
+      organizationId,
+      workInstanceId,
+    }).returning();
+    return presence;
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const raced = await loadWorkInstanceEvidencePresence(organizationId, workInstanceId);
+      if (raced) return raced;
+    }
+    throw error;
+  }
+}
+
 export async function createWorkInstanceEvidencePresence(actor: Actor, input: CreateWorkInstanceEvidencePresenceInput) {
   requireActor(actor);
   const parsed = workInstanceEvidencePresenceSchema.safeParse(input);
   if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance evidence presence input", "INVALID_INPUT");
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
   const instance = await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
-  try {
-    const [presence] = await db.insert(workInstanceEvidencePresences).values({
-      organizationId: instance.organizationId,
-      workInstanceId: instance.id,
-    }).returning();
-    return presence;
-  } catch (error) {
-    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Evidence presence already exists for this work instance", "DUPLICATE_RECORD");
-    throw error;
-  }
+  return ensureWorkInstanceEvidencePresence(instance.organizationId, instance.id);
 }
 
 export async function getWorkInstanceEvidencePresence(actor: Actor, scope: z.infer<typeof workInstanceEvidencePresenceSchema>) {
@@ -917,22 +927,31 @@ async function loadWorkInstanceVerificationPresence(organizationId: string, work
   return presence ?? null;
 }
 
+async function ensureWorkInstanceVerificationPresence(organizationId: string, workInstanceId: string) {
+  const existing = await loadWorkInstanceVerificationPresence(organizationId, workInstanceId);
+  if (existing) return existing;
+  try {
+    const [presence] = await db.insert(workInstanceVerificationPresences).values({
+      organizationId,
+      workInstanceId,
+    }).returning();
+    return presence;
+  } catch (error) {
+    if (isUniqueViolation(error)) {
+      const raced = await loadWorkInstanceVerificationPresence(organizationId, workInstanceId);
+      if (raced) return raced;
+    }
+    throw error;
+  }
+}
+
 export async function createWorkInstanceVerificationPresence(actor: Actor, input: CreateWorkInstanceVerificationPresenceInput) {
   requireActor(actor);
   const parsed = workInstanceVerificationPresenceSchema.safeParse(input);
   if (!parsed.success) throw new RolesWorkServiceError("Invalid work instance verification presence input", "INVALID_INPUT");
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
   const instance = await getScopedWorkInstance(parsed.data, parsed.data.workInstanceId);
-  try {
-    const [presence] = await db.insert(workInstanceVerificationPresences).values({
-      organizationId: instance.organizationId,
-      workInstanceId: instance.id,
-    }).returning();
-    return presence;
-  } catch (error) {
-    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Verification presence already exists for this work instance", "DUPLICATE_RECORD");
-    throw error;
-  }
+  return ensureWorkInstanceVerificationPresence(instance.organizationId, instance.id);
 }
 
 export async function getWorkInstanceVerificationPresence(actor: Actor, scope: z.infer<typeof workInstanceVerificationPresenceSchema>) {
