@@ -3,6 +3,9 @@ import { z } from "zod";
 import { db } from "@/db";
 import {
   businessRoles,
+  employeeResponsibilityAdditions,
+  employeeRoleAssignments,
+  employees,
   roleChecklistItems,
   roleChecklists,
   roleKpiDefinitions,
@@ -12,7 +15,10 @@ import {
   workSituationReminderEscalationStages,
 } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
-import { employeePermissions } from "@/lib/authorization-policy";
+import {
+  employeePermissions,
+  type EmployeePermission,
+} from "@/lib/authorization-policy";
 
 const scopeSchema = z.object({
   organizationId: z.string().uuid(),
@@ -55,8 +61,24 @@ const workDefinitionInputSchema = scopeSchema.extend({
   })).default([]),
 }).strict();
 
+const employeeScopeSchema = scopeSchema.extend({
+  employeeId: z.string().uuid(),
+}).strict();
+
+const assignEmployeeRoleSchema = employeeScopeSchema.extend({
+  roleId: z.string().uuid(),
+}).strict();
+
+const employeeResponsibilityAdditionSchema = employeeScopeSchema.extend({
+  responsibility: z.string().trim().min(1).max(2000),
+  actualWork: z.string().trim().min(1).max(4000),
+  position: z.number().int(),
+}).strict();
+
 export type CreateRoleDefinitionInput = z.infer<typeof roleInputSchema>;
 export type CreateWorkSituationDefinitionInput = z.infer<typeof workDefinitionInputSchema>;
+export type AssignEmployeeRoleInput = z.infer<typeof assignEmployeeRoleSchema>;
+export type CreateEmployeeResponsibilityAdditionInput = z.infer<typeof employeeResponsibilityAdditionSchema>;
 type Actor = { id: string } | null;
 
 export class RolesWorkServiceError extends Error {
@@ -76,10 +98,29 @@ function requireActor(actor: Actor): asserts actor is { id: string } {
 async function requireScopeAccess(
   actor: { id: string },
   scope: z.infer<typeof scopeSchema>,
-  permission: "employee:read" | "employee:create",
+  permission: EmployeePermission,
 ) {
   const allowed = await authorizeEmployeeOperation({ userId: actor.id, ...scope, permission });
   if (!allowed) throw new RolesWorkServiceError("Access denied", "ACCESS_DENIED");
+}
+
+function isUniqueViolation(error: unknown) {
+  const databaseError = error as { code?: string; cause?: { code?: string } };
+  return databaseError.code === "23505" || databaseError.cause?.code === "23505";
+}
+
+async function requireEmployeeInScope(scope: z.infer<typeof employeeScopeSchema>) {
+  const [employee] = await db.select({
+    id: employees.id,
+    organizationId: employees.organizationId,
+    locationId: employees.locationId,
+  }).from(employees).where(and(
+    eq(employees.id, scope.employeeId),
+    eq(employees.organizationId, scope.organizationId),
+    eq(employees.locationId, scope.locationId),
+  ));
+  if (!employee) throw new RolesWorkServiceError("Employee not found in organization location", "NOT_FOUND");
+  return employee;
 }
 
 function validateDistinctPositions(records: Array<{ position: number }>) {
@@ -121,8 +162,7 @@ export async function createRoleDefinition(actor: Actor, input: CreateRoleDefini
     });
     return roleDetail(roleId, parsed.data.organizationId);
   } catch (error) {
-    const databaseError = error as { code?: string; cause?: { code?: string } };
-    if (databaseError.code === "23505" || databaseError.cause?.code === "23505") throw new RolesWorkServiceError("Role identifier or name already exists in organization", "DUPLICATE_RECORD");
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Role identifier or name already exists in organization", "DUPLICATE_RECORD");
     throw error;
   }
 }
@@ -180,4 +220,131 @@ export async function listWorkSituationDefinitions(actor: Actor, scope: z.infer<
   if (!scopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid work definition scope", "INVALID_INPUT");
   await requireScopeAccess(actor, scope, employeePermissions.read);
   return db.select().from(workSituationDefinitions).where(eq(workSituationDefinitions.organizationId, scope.organizationId)).orderBy(asc(workSituationDefinitions.title));
+}
+
+export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRoleInput) {
+  requireActor(actor);
+  const parsed = assignEmployeeRoleSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid employee role assignment input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireEmployeeInScope(parsed.data);
+  const [role] = await db.select({ id: businessRoles.id }).from(businessRoles).where(and(
+    eq(businessRoles.id, parsed.data.roleId),
+    eq(businessRoles.organizationId, parsed.data.organizationId),
+  ));
+  if (!role) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
+  try {
+    const [assignment] = await db.insert(employeeRoleAssignments).values({
+      organizationId: parsed.data.organizationId,
+      employeeId: parsed.data.employeeId,
+      roleId: parsed.data.roleId,
+    }).returning();
+    return assignment;
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Employee already has this business role assignment", "DUPLICATE_RECORD");
+    throw error;
+  }
+}
+
+export async function getEmployeeRoleAssignment(actor: Actor, scope: z.infer<typeof employeeScopeSchema>, assignmentId: string) {
+  requireActor(actor);
+  if (!employeeScopeSchema.safeParse(scope).success || !z.string().uuid().safeParse(assignmentId).success) {
+    throw new RolesWorkServiceError("Invalid employee role assignment request", "INVALID_INPUT");
+  }
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireEmployeeInScope(scope);
+  const [assignment] = await db.select().from(employeeRoleAssignments).where(and(
+    eq(employeeRoleAssignments.id, assignmentId),
+    eq(employeeRoleAssignments.organizationId, scope.organizationId),
+    eq(employeeRoleAssignments.employeeId, scope.employeeId),
+  ));
+  if (!assignment) throw new RolesWorkServiceError("Employee role assignment not found", "NOT_FOUND");
+  return assignment;
+}
+
+export async function listEmployeeRoleAssignments(actor: Actor, scope: z.infer<typeof employeeScopeSchema>) {
+  requireActor(actor);
+  if (!employeeScopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid employee role assignment scope", "INVALID_INPUT");
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireEmployeeInScope(scope);
+  return db.select().from(employeeRoleAssignments).where(and(
+    eq(employeeRoleAssignments.organizationId, scope.organizationId),
+    eq(employeeRoleAssignments.employeeId, scope.employeeId),
+  )).orderBy(asc(employeeRoleAssignments.createdAt));
+}
+
+export async function createEmployeeResponsibilityAddition(actor: Actor, input: CreateEmployeeResponsibilityAdditionInput) {
+  requireActor(actor);
+  const parsed = employeeResponsibilityAdditionSchema.safeParse(input);
+  if (!parsed.success) throw new RolesWorkServiceError("Invalid employee responsibility addition input", "INVALID_INPUT");
+  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireEmployeeInScope(parsed.data);
+  try {
+    const [addition] = await db.insert(employeeResponsibilityAdditions).values({
+      organizationId: parsed.data.organizationId,
+      employeeId: parsed.data.employeeId,
+      responsibility: parsed.data.responsibility,
+      actualWork: parsed.data.actualWork,
+      position: parsed.data.position,
+    }).returning();
+    return addition;
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Employee addition position already exists", "DUPLICATE_RECORD");
+    throw error;
+  }
+}
+
+export async function getEmployeeResponsibilityAddition(actor: Actor, scope: z.infer<typeof employeeScopeSchema>, additionId: string) {
+  requireActor(actor);
+  if (!employeeScopeSchema.safeParse(scope).success || !z.string().uuid().safeParse(additionId).success) {
+    throw new RolesWorkServiceError("Invalid employee responsibility addition request", "INVALID_INPUT");
+  }
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireEmployeeInScope(scope);
+  const [addition] = await db.select().from(employeeResponsibilityAdditions).where(and(
+    eq(employeeResponsibilityAdditions.id, additionId),
+    eq(employeeResponsibilityAdditions.organizationId, scope.organizationId),
+    eq(employeeResponsibilityAdditions.employeeId, scope.employeeId),
+  ));
+  if (!addition) throw new RolesWorkServiceError("Employee responsibility addition not found", "NOT_FOUND");
+  return addition;
+}
+
+export async function listEmployeeResponsibilityAdditions(actor: Actor, scope: z.infer<typeof employeeScopeSchema>) {
+  requireActor(actor);
+  if (!employeeScopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid employee responsibility addition scope", "INVALID_INPUT");
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireEmployeeInScope(scope);
+  return db.select().from(employeeResponsibilityAdditions).where(and(
+    eq(employeeResponsibilityAdditions.organizationId, scope.organizationId),
+    eq(employeeResponsibilityAdditions.employeeId, scope.employeeId),
+  )).orderBy(asc(employeeResponsibilityAdditions.position));
+}
+
+export async function getEffectiveEmployeeRole(actor: Actor, scope: z.infer<typeof employeeScopeSchema>) {
+  requireActor(actor);
+  if (!employeeScopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid effective role request", "INVALID_INPUT");
+  await requireScopeAccess(actor, scope, employeePermissions.read);
+  const employee = await requireEmployeeInScope(scope);
+  const assignments = await db.select().from(employeeRoleAssignments).where(and(
+    eq(employeeRoleAssignments.organizationId, scope.organizationId),
+    eq(employeeRoleAssignments.employeeId, scope.employeeId),
+  )).orderBy(asc(employeeRoleAssignments.createdAt));
+  const assignedRoles: Array<NonNullable<Awaited<ReturnType<typeof roleDetail>>>> = [];
+  for (const assignment of assignments) {
+    const role = await roleDetail(assignment.roleId, scope.organizationId);
+    if (role) assignedRoles.push(role);
+  }
+  const additions = await db.select().from(employeeResponsibilityAdditions).where(and(
+    eq(employeeResponsibilityAdditions.organizationId, scope.organizationId),
+    eq(employeeResponsibilityAdditions.employeeId, scope.employeeId),
+  )).orderBy(asc(employeeResponsibilityAdditions.position));
+  return {
+    employeeId: employee.id,
+    organizationId: employee.organizationId,
+    locationId: employee.locationId,
+    assignments,
+    assignedRoles,
+    employeeResponsibilityAdditions: additions,
+  };
 }
