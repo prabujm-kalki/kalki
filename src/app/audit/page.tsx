@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { AppShell, useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet } from "@/lib/api";
@@ -20,23 +20,24 @@ type AuditEvent = {
 
 function AuditContent() {
   const { selected, session } = useSessionView();
-  const [events, setEvents] = useState<AuditEvent[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [events, setEvents] = useState<{ requestKey: string; items: AuditEvent[] } | null>(null);
+  const [error, setError] = useState<{ requestKey: string; message: string } | null>(null);
 
   useEffect(() => {
     if (!selected || !session.isOwner) return;
+    const requestKey = `${selected.organizationId}:${selected.locationId}`;
     let cancelled = false;
-    setEvents(null);
-    setError(null);
     const params = new URLSearchParams({
       organizationId: selected.organizationId,
       locationId: selected.locationId,
       limit: "50",
     });
     apiGet<{ auditEvents: AuditEvent[] }>(`/api/audit-events?${params.toString()}`).then((payload) => {
-      if (!cancelled) setEvents(payload.auditEvents);
+      if (cancelled) return;
+      setError(null);
+      setEvents({ requestKey, items: payload.auditEvents });
     }).catch((caught) => {
-      if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load audit history");
+      if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load audit history" });
     });
     return () => {
       cancelled = true;
@@ -45,8 +46,9 @@ function AuditContent() {
 
   if (!session.isOwner) return <StatusMessage tone="error">Audit history is restricted to the system owner.</StatusMessage>;
   if (!selected) return <StatusMessage tone="empty">Select an organization location to view its audit history.</StatusMessage>;
-  if (error) return <StatusMessage tone="error">{error}</StatusMessage>;
-  if (!events) return <StatusMessage tone="loading">Loading audit history…</StatusMessage>;
+  const requestKey = `${selected.organizationId}:${selected.locationId}`;
+  if (error?.requestKey === requestKey) return <StatusMessage tone="error">{error.message}</StatusMessage>;
+  if (!events || events.requestKey !== requestKey) return <StatusMessage tone="loading">Loading audit history…</StatusMessage>;
 
   return (
     <section className="panel">
@@ -56,13 +58,13 @@ function AuditContent() {
           <h2>Audit history</h2>
           <p>Append-only operational history for the selected organization and location.</p>
         </div>
-        <span className="muted">Showing {events.length} event{events.length === 1 ? "" : "s"}</span>
+        <span className="muted">Showing {events.items.length} event{events.items.length === 1 ? "" : "s"}</span>
       </div>
-      {events.length === 0 ? (
+      {events.items.length === 0 ? (
         <StatusMessage tone="empty">No audit events have been recorded for this scope yet.</StatusMessage>
       ) : (
         <div className="stack">
-          {events.map((event) => (
+          {events.items.map((event) => (
             <article className="panel" key={event.id}>
               <div className="panel-header">
                 <div>
@@ -82,5 +84,9 @@ function AuditContent() {
 }
 
 export default function AuditPage() {
-  return <AppShell><AuditContent /></AppShell>;
+  return (
+    <Suspense fallback={<main className="app-main"><StatusMessage tone="loading">Loading audit history…</StatusMessage></main>}>
+      <AppShell><AuditContent /></AppShell>
+    </Suspense>
+  );
 }
