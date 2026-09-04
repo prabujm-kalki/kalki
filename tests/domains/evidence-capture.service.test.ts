@@ -4,12 +4,10 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import {
-  authUsers,
   employees,
   locations,
   organizations,
   people,
-  systemAuthorities,
   workInstanceEvidencePresences,
   workInstanceVerificationPresences,
   workInstances,
@@ -18,21 +16,23 @@ import {
 } from "@/db/schema";
 import { captureEvidence, captureVerification } from "@/domains/evidence/service";
 import { createWorkInstance, createWorkSituationDefinition, transitionWorkInstance } from "@/domains/roles-work/service";
+import { ensureSystemOwner } from "../helpers/system-owner";
 
 const organizationId = randomUUID();
 const otherOrganizationId = randomUUID();
 const locationId = randomUUID();
 const otherLocationId = randomUUID();
-const userId = `evidence-owner-${randomUUID()}`;
 const personId = randomUUID();
 const employeeId = randomUUID();
 const createdDefinitionIds: string[] = [];
 const createdInstanceIds: string[] = [];
+let userId = "";
 
 const scope = { organizationId, locationId };
 const otherScope = { organizationId: otherOrganizationId, locationId: otherLocationId };
 
 beforeAll(async () => {
+  userId = (await ensureSystemOwner()).userId;
   await db.insert(organizations).values([
     { id: organizationId, name: "Evidence organization", code: `EV-${organizationId.slice(0, 8)}` },
     { id: otherOrganizationId, name: "Other evidence organization", code: `EV-${otherOrganizationId.slice(0, 8)}` },
@@ -50,15 +50,6 @@ beforeAll(async () => {
     employeeCode: "EV-EMP",
     employmentStartDate: "2026-09-03",
   });
-  await db.insert(authUsers).values({
-    id: userId,
-    name: "Evidence Owner",
-    email: `${userId}@example.invalid`,
-    emailVerified: true,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-  await db.insert(systemAuthorities).values({ userId, authority: "OWNER" });
 });
 
 afterAll(async () => {
@@ -71,10 +62,8 @@ afterAll(async () => {
     await db.delete(workSituationEvidenceRequirements).where(eq(workSituationEvidenceRequirements.workSituationDefinitionId, definitionId));
     await db.delete(workSituationDefinitions).where(eq(workSituationDefinitions.id, definitionId));
   }
-  await db.delete(systemAuthorities).where(eq(systemAuthorities.userId, userId));
   await db.delete(employees).where(eq(employees.id, employeeId));
   await db.delete(people).where(eq(people.id, personId));
-  await db.delete(authUsers).where(eq(authUsers.id, userId));
   await db.delete(locations).where(eq(locations.id, locationId));
   await db.delete(locations).where(eq(locations.id, otherLocationId));
   await db.delete(organizations).where(eq(organizations.id, organizationId));

@@ -170,3 +170,17 @@ describe("role responsibility work definition integrity", () => {
     );
   });
 });
+
+describe("audit event append-only integrity", () => {
+  it("registers update and delete protection in the audit foundation migration", () => {
+    const auditMigration = readFileSync(
+      resolve(process.cwd(), "drizzle/0013_audit_events_foundation.sql"),
+      "utf8",
+    );
+
+    expect(auditMigration).toContain('CREATE TRIGGER "audit_events_append_only_update"');
+    expect(auditMigration).toContain('CREATE TRIGGER "audit_events_append_only_delete"');
+    expect(auditMigration).toContain("RAISE EXCEPTION 'audit_events are append-only'");
+    expect(auditMigration).not.toContain("DISABLE TRIGGER");
+  });
+});

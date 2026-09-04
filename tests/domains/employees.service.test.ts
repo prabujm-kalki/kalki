@@ -18,7 +18,6 @@ import {
   people,
   rolePermissions,
   roles,
-  systemAuthorities,
 } from "@/db/schema";
 import {
   createEmployee,
@@ -27,6 +26,7 @@ import {
   updateEmployee,
 } from "@/domains/employees/service";
 import { employeePermissions } from "@/lib/authorization-policy";
+import { ensureSystemOwner } from "../helpers/system-owner";
 
 const organizationId = randomUUID();
 const secondOrganizationId = randomUUID();
@@ -34,8 +34,7 @@ const locationId = randomUUID();
 const secondLocationId = randomUUID();
 const authorizedUserId = `employee-test-authorized-${randomUUID()}`;
 const deniedUserId = `employee-test-denied-${randomUUID()}`;
-let ownerUserId = `employee-test-owner-${randomUUID()}`;
-let createdOwnerUser = false;
+let ownerUserId = "";
 const roleId = randomUUID();
 const permissionId = randomUUID();
 const createPermissionId = randomUUID();
@@ -82,20 +81,11 @@ beforeAll(async () => {
     { id: locationId, organizationId, name: "Test Location", code: "TEST-LOC" },
     { id: secondLocationId, organizationId: secondOrganizationId, name: "Other Location", code: "OTHER-LOC" },
   ]);
-  const existingOwner = await db
-    .select({ userId: systemAuthorities.userId })
-    .from(systemAuthorities)
-    .where(eq(systemAuthorities.authority, "OWNER"));
-  if (existingOwner[0]) {
-    ownerUserId = existingOwner[0].userId;
-  } else {
-    createdOwnerUser = true;
-  }
+  ownerUserId = (await ensureSystemOwner()).userId;
   ownerActor.id = ownerUserId;
   await Promise.all([
     insertUser(authorizedUserId),
     insertUser(deniedUserId),
-    ...(createdOwnerUser ? [insertUser(ownerUserId)] : []),
   ]);
   const existingPermissions = await db
     .select({ id: permissions.id, code: permissions.code })
@@ -159,9 +149,6 @@ beforeAll(async () => {
     organizationId,
     roleId,
   });
-  if (createdOwnerUser) {
-    await db.insert(systemAuthorities).values({ userId: ownerUserId });
-  }
 });
 
 afterAll(async () => {
@@ -184,18 +171,12 @@ afterAll(async () => {
   await db.delete(locationMemberships).where(eq(locationMemberships.userId, deniedUserId));
   await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, authorizedUserId));
   await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, deniedUserId));
-  if (createdOwnerUser) {
-    await db.delete(systemAuthorities).where(eq(systemAuthorities.userId, ownerUserId));
-  }
   await db.delete(authSessions).where(eq(authSessions.userId, authorizedUserId));
   await db.delete(authAccounts).where(eq(authAccounts.userId, authorizedUserId));
   await db.delete(authUsers).where(
     eq(authUsers.id, authorizedUserId),
   );
   await db.delete(authUsers).where(eq(authUsers.id, deniedUserId));
-  if (createdOwnerUser) {
-    await db.delete(authUsers).where(eq(authUsers.id, ownerUserId));
-  }
   await db.delete(locations).where(eq(locations.id, locationId));
   await db.delete(locations).where(eq(locations.id, secondLocationId));
   await db.delete(organizations).where(eq(organizations.id, organizationId));

@@ -1,21 +1,23 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
-import { auditEvents, authUsers, locations, organizations, systemAuthorities } from "@/db/schema";
+import { auditEvents, authUsers, locations, organizations } from "@/db/schema";
 import { AuditQueryError, listAuditEvents } from "@/domains/audit/query";
+import { ensureSystemOwner } from "../helpers/system-owner";
 
 const organizationId = randomUUID();
 const otherOrganizationId = randomUUID();
 const locationId = randomUUID();
 const otherLocationId = randomUUID();
-const ownerUserId = `audit-owner-${randomUUID()}`;
 const deniedUserId = `audit-denied-${randomUUID()}`;
 
 const scope = { organizationId, locationId };
+let ownerUserId = "";
 
 beforeAll(async () => {
+  ownerUserId = (await ensureSystemOwner()).userId;
   await db.insert(organizations).values([
     { id: organizationId, name: "Audit query organization", code: `AQ-${organizationId.slice(0, 8)}` },
     { id: otherOrganizationId, name: "Other audit organization", code: `AQ-${otherOrganizationId.slice(0, 8)}` },
@@ -24,11 +26,14 @@ beforeAll(async () => {
     { id: locationId, organizationId, name: "Audit query location", code: "AQ-LOC" },
     { id: otherLocationId, organizationId: otherOrganizationId, name: "Other audit location", code: "AQ-OTHER" },
   ]);
-  await db.insert(authUsers).values([
-    { id: ownerUserId, name: "Audit Owner", email: `${ownerUserId}@example.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() },
-    { id: deniedUserId, name: "Audit Denied", email: `${deniedUserId}@example.invalid`, emailVerified: true, createdAt: new Date(), updatedAt: new Date() },
-  ]);
-  await db.insert(systemAuthorities).values({ userId: ownerUserId, authority: "OWNER" });
+  await db.insert(authUsers).values({
+    id: deniedUserId,
+    name: "Audit Denied",
+    email: `${deniedUserId}@example.invalid`,
+    emailVerified: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
   await db.insert(auditEvents).values([
     {
       organizationId,
@@ -52,7 +57,7 @@ beforeAll(async () => {
     },
     {
       organizationId,
-      locationId: locationId,
+      locationId,
       actorUserId: ownerUserId,
       eventType: "work",
       action: "completed",
@@ -74,15 +79,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db.delete(auditEvents).where(eq(auditEvents.organizationId, organizationId));
-  await db.delete(auditEvents).where(eq(auditEvents.organizationId, otherOrganizationId));
-  await db.delete(systemAuthorities).where(eq(systemAuthorities.userId, ownerUserId));
-  await db.delete(authUsers).where(and(eq(authUsers.id, ownerUserId)));
-  await db.delete(authUsers).where(and(eq(authUsers.id, deniedUserId)));
-  await db.delete(locations).where(eq(locations.id, locationId));
-  await db.delete(locations).where(eq(locations.id, otherLocationId));
-  await db.delete(organizations).where(eq(organizations.id, organizationId));
-  await db.delete(organizations).where(eq(organizations.id, otherOrganizationId));
+  await db.delete(authUsers).where(eq(authUsers.id, deniedUserId));
 });
 
 describe("audit query boundary", () => {
@@ -126,4 +123,22 @@ describe("audit query boundary", () => {
       expect(error).toBeInstanceOf(AuditQueryError);
     }
   });
+
+  it("keeps recorded audit events append-only", async () => {
+    await expect(db.delete(auditEvents).where(eq(auditEvents.organizationId, organizationId))).rejects.toSatisfy(
+      isAppendOnlyLedgerRejection,
+    );
+    await expect(
+      db.update(auditEvents).set({ action: "tampered" }).where(eq(auditEvents.organizationId, organizationId)),
+    ).rejects.toSatisfy(isAppendOnlyLedgerRejection);
+  });
 });
+
+function isAppendOnlyLedgerRejection(error: unknown) {
+  const cause = error instanceof Error && "cause" in error ? error.cause : undefined;
+  const inspected = [
+    error instanceof Error ? error.message : String(error),
+    cause instanceof Error ? cause.message : cause ? String(cause) : "",
+  ].join("\n");
+  return inspected.includes("audit_events are append-only");
+}
