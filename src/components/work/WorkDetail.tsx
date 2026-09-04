@@ -4,6 +4,17 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
+import { WorkEvidencePanel } from "@/components/work/WorkEvidencePanel";
+import { WorkLifecycleActions } from "@/components/work/WorkLifecycleActions";
+import { WorkRelatedAudit } from "@/components/work/WorkRelatedAudit";
+import { WorkVerificationPanel } from "@/components/work/WorkVerificationPanel";
+import {
+  assignedLabel,
+  hasSourceMetadata,
+  snapshotTitle,
+  triggerLabel,
+  workStateLabel,
+} from "@/components/work/presentation";
 import type { WorkInstanceView } from "@/components/work/types";
 import { apiGet, apiSend } from "@/lib/api";
 import { employeePermissions } from "@/lib/authorization-policy";
@@ -12,25 +23,18 @@ function snapshot(instance: WorkInstanceView) {
   return instance.definitionSnapshot;
 }
 
-function parseMetadata(value: string) {
-  if (!value.trim()) return {};
-  const parsed = JSON.parse(value);
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-    throw new Error("Metadata must be a JSON object.");
-  }
-  return parsed;
-}
-
 export function WorkDetail({ instanceId }: { instanceId: string }) {
   const router = useRouter();
-  const { selected } = useSessionView();
-  const [instance, setInstance] = useState<WorkInstanceView | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { selected, session } = useSessionView();
+  const [instance, setInstance] = useState<{ requestKey: string; value: WorkInstanceView } | null>(null);
+  const [error, setError] = useState<{ requestKey: string; message: string } | null>(null);
   const [pending, setPending] = useState(false);
-  const [evidenceMetadata, setEvidenceMetadata] = useState("{}");
-  const [verificationMetadata, setVerificationMetadata] = useState("{}");
+  const [evidenceNote, setEvidenceNote] = useState("");
+  const [evidenceReference, setEvidenceReference] = useState("");
+  const [verificationNote, setVerificationNote] = useState("");
   const canCreate = selected?.permissions.includes(employeePermissions.create) ?? false;
   const canUpdate = selected?.permissions.includes(employeePermissions.update) ?? false;
+  const requestKey = selected ? `${selected.organizationId}:${selected.locationId}:${instanceId}` : instanceId;
 
   const requestInstance = useCallback(async () => {
     if (!selected) throw new Error("Select an organization location to view work.");
@@ -47,173 +51,133 @@ export function WorkDetail({ instanceId }: { instanceId: string }) {
     if (!selected) return;
     let cancelled = false;
     requestInstance().then((next) => {
-      if (!cancelled) {
-        setInstance(next);
-        setError(null);
-      }
+      if (cancelled) return;
+      setError(null);
+      setInstance({ requestKey, value: next });
     }).catch((caught) => {
-      if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load work");
+      if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load work" });
     });
     return () => {
       cancelled = true;
     };
-  }, [requestInstance, selected]);
+  }, [requestInstance, requestKey, selected]);
 
   async function run(action: () => Promise<unknown>) {
     setPending(true);
     setError(null);
     try {
       await action();
-      setInstance(await requestInstance());
+      const next = await requestInstance();
+      setInstance({ requestKey, value: next });
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to update work");
+      setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to update work" });
     } finally {
       setPending(false);
     }
   }
 
   if (!selected) return <StatusMessage tone="empty">Select an organization location to view work.</StatusMessage>;
-  if (error && !instance) return <StatusMessage tone="error">{error}</StatusMessage>;
-  if (!instance) return <StatusMessage tone="loading">Loading work…</StatusMessage>;
+  if (error?.requestKey === requestKey && (!instance || instance.requestKey !== requestKey)) {
+    return <StatusMessage tone="error">{error.message}</StatusMessage>;
+  }
+  if (!instance || instance.requestKey !== requestKey) return <StatusMessage tone="loading">Loading work…</StatusMessage>;
 
-  const scope = { organizationId: selected.organizationId, locationId: selected.locationId };
-  const definition = snapshot(instance);
+  const current = instance.value;
+  const definition = snapshot(current);
+  const reminderStages = definition.reminderEscalationStages ?? [];
+  const queueHref = `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}`;
 
   return (
     <div className="stack">
-      <button type="button" className="secondary-button" onClick={() => router.push(`/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}>
+      <button type="button" className="secondary-button" onClick={() => router.push(queueHref)}>
         Back to queue
       </button>
-      {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
+      {error?.requestKey === requestKey ? <StatusMessage tone="error">{error.message}</StatusMessage> : null}
+
       <section className="panel">
-        <h2 className="page-title">{definition.title ?? "Work instance"}</h2>
-        <p><span className="pill">{instance.state}</span></p>
-        <p className="muted">{definition.description}</p>
+        <div className="panel-header">
+          <div>
+            <p className="muted">Work operations</p>
+            <h2 className="page-title">{snapshotTitle(current)}</h2>
+            <p className="muted">{selected.organizationName} · {selected.locationName}</p>
+          </div>
+          <span className="pill" data-state={current.state}>{workStateLabel(current.state)}</span>
+        </div>
+        {definition.description ? <p>{definition.description}</p> : null}
         <dl className="definition">
-          <dt>Assigned employee</dt>
-          <dd>
-            {instance.assignedEmployee
-              ? `${instance.assignedEmployee.person.displayName} (${instance.assignedEmployee.employeeCode})`
-              : instance.assignedEmployeeId ?? "Unassigned"}
-          </dd>
-          <dt>Source</dt>
-          <dd>{instance.sourceReference ?? "None"}</dd>
+          <dt>Assigned</dt>
+          <dd>{assignedLabel(current)}</dd>
           <dt>Trigger</dt>
-          <dd>{definition.triggerCategory ?? "Unknown"}</dd>
+          <dd>{triggerLabel(definition.triggerCategory)}</dd>
           <dt>Severity</dt>
           <dd>{definition.severity ?? "Not configured"}</dd>
-          <dt>Evidence</dt>
-          <dd>{instance.evidenceRequired ? (instance.evidencePresence ? "Required and recorded" : "Required and not recorded") : "Not required"}</dd>
-          <dt>Verification</dt>
-          <dd>{instance.verificationRequired ? (instance.verificationPresence ? "Required and recorded" : "Required and not recorded") : "Not required"}</dd>
-          <dt>Next transition</dt>
+          <dt>Source</dt>
+          <dd>{current.sourceReference ?? "None"}</dd>
+          <dt>Opened</dt>
+          <dd>{new Date(current.createdAt).toLocaleString()}</dd>
+          <dt>Reminder / escalation configuration</dt>
           <dd>
-            {instance.allowedNextState ?? "None"}
-            {instance.allowedNextState ? (instance.nextTransitionReady ? " — ready" : " — blocked by a required gate") : ""}
-          </dd>
-          <dt>Frozen reminder / escalation stages</dt>
-          <dd>
-            {(definition.reminderEscalationStages ?? []).length === 0
-              ? "None captured"
-              : definition.reminderEscalationStages!.map((stage) => stage.stage).join(" → ")}
+            {reminderStages.length === 0
+              ? "None captured on this snapshot. Timing and delivery are not part of this slice."
+              : reminderStages.map((stage) => stage.stage.replace(/_/g, " ")).join(" → ")}
           </dd>
         </dl>
-      </section>
-
-      {instance.allowedNextState === "COMPLETED" && instance.evidenceRequired && !instance.evidencePresence ? (
-        <section className="panel stack">
-          <div>
-            <h3>Evidence capture</h3>
-            <p className="muted">Record metadata for the evidence boundary. Actual file storage remains a separate implementation boundary.</p>
-          </div>
-          <label className="field">
-            <span>Evidence metadata (JSON object)</span>
-            <textarea
-              aria-label="Evidence metadata"
-              rows={5}
-              value={evidenceMetadata}
-              onChange={(event) => setEvidenceMetadata(event.target.value)}
-              disabled={pending || !canCreate}
-            />
-          </label>
-          <button
-            type="button"
-            className="action-button"
-            disabled={pending || !canCreate}
-            onClick={() => void run(async () => apiSend("/api/work-instance-evidence-presences", "POST", {
-              ...scope,
-              workInstanceId: instance.id,
-              metadata: parseMetadata(evidenceMetadata),
-            }))}
-          >
-            Record evidence
-          </button>
-        </section>
-      ) : null}
-
-      {instance.allowedNextState === "VERIFIED" && instance.verificationRequired && !instance.verificationPresence ? (
-        <section className="panel stack">
-          <div>
-            <h3>Verification capture</h3>
-            <p className="muted">Record verification metadata before the work can enter VERIFIED.</p>
-          </div>
-          <label className="field">
-            <span>Verification metadata (JSON object)</span>
-            <textarea
-              aria-label="Verification metadata"
-              rows={5}
-              value={verificationMetadata}
-              onChange={(event) => setVerificationMetadata(event.target.value)}
-              disabled={pending || !canUpdate}
-            />
-          </label>
-          <button
-            type="button"
-            className="action-button"
-            disabled={pending || !canUpdate}
-            onClick={() => void run(async () => apiSend("/api/work-instance-verification-presences", "POST", {
-              ...scope,
-              workInstanceId: instance.id,
-              metadata: parseMetadata(verificationMetadata),
-            }))}
-          >
-            Record verification
-          </button>
-        </section>
-      ) : null}
-
-      <section className="toolbar">
-        {instance.allowedNextState === "ACKNOWLEDGED" ? (
-          <button
-            type="button"
-            className="action-button"
-            disabled={pending || !canUpdate || !instance.nextTransitionReady}
-            onClick={() => void run(() => apiSend("/api/work-instances?id=" + instance.id, "PATCH", { ...scope, state: "ACKNOWLEDGED" }))}
-          >
-            Acknowledge
-          </button>
-        ) : null}
-        {instance.allowedNextState === "COMPLETED" ? (
-          <button
-            type="button"
-            className="action-button"
-            disabled={pending || !canUpdate || !instance.nextTransitionReady}
-            onClick={() => void run(() => apiSend("/api/work-instances?id=" + instance.id, "PATCH", { ...scope, state: "COMPLETED" }))}
-          >
-            Complete
-          </button>
-        ) : null}
-        {instance.allowedNextState === "VERIFIED" ? (
-          <button
-            type="button"
-            className="action-button"
-            disabled={pending || !canUpdate || !instance.nextTransitionReady}
-            onClick={() => void run(() => apiSend("/api/work-instances?id=" + instance.id, "PATCH", { ...scope, state: "VERIFIED" }))}
-          >
-            Verify
-          </button>
+        {hasSourceMetadata(current.sourceMetadata) ? (
+          <pre className="code-block">{JSON.stringify(current.sourceMetadata, null, 2)}</pre>
         ) : null}
       </section>
+
+      <WorkEvidencePanel
+        instance={current}
+        note={evidenceNote}
+        reference={evidenceReference}
+        pending={pending}
+        canCreate={canCreate}
+        onNoteChange={setEvidenceNote}
+        onReferenceChange={setEvidenceReference}
+        onRecord={() => void run(async () => apiSend("/api/work-instance-evidence-presences", "POST", {
+          organizationId: selected.organizationId,
+          locationId: selected.locationId,
+          workInstanceId: current.id,
+          metadata: {
+            note: evidenceNote.trim(),
+            ...(evidenceReference.trim() ? { reference: evidenceReference.trim() } : {}),
+          },
+        }))}
+      />
+
+      <WorkVerificationPanel
+        instance={current}
+        note={verificationNote}
+        pending={pending}
+        canUpdate={canUpdate}
+        onNoteChange={setVerificationNote}
+        onRecord={() => void run(async () => apiSend("/api/work-instance-verification-presences", "POST", {
+          organizationId: selected.organizationId,
+          locationId: selected.locationId,
+          workInstanceId: current.id,
+          metadata: { note: verificationNote.trim() },
+        }))}
+      />
+
+      <WorkLifecycleActions
+        instance={current}
+        pending={pending}
+        canUpdate={canUpdate}
+        onTransition={(state) => run(() => apiSend("/api/work-instances?id=" + current.id, "PATCH", {
+          organizationId: selected.organizationId,
+          locationId: selected.locationId,
+          state,
+        }))}
+      />
+
+      {session.isOwner ? (
+        <WorkRelatedAudit
+          organizationId={selected.organizationId}
+          locationId={selected.locationId}
+          instanceId={current.id}
+        />
+      ) : null}
     </div>
   );
 }

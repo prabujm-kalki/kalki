@@ -67,7 +67,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     const next = new URLSearchParams();
     next.set("organizationId", nextOrganizationId);
     next.set("locationId", nextLocationId);
-    router.push(`/work?${next.toString()}`);
+    const nextPath = pathname.startsWith("/work/") || pathname === "/work" ? "/work" : pathname;
+    router.push(`${nextPath}?${next.toString()}`);
   }
 
   async function signOut() {
@@ -83,8 +84,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="app-shell">
         <header className="app-header">
           <div>
-            <p className="muted">Kalki BOS</p>
-            <h1>Work operations</h1>
+            <p className="muted">Operations</p>
+            <h1>Kalki BOS</h1>
             <p>{session.user.email ?? session.user.name ?? session.user.id}</p>
           </div>
           <div className="toolbar">
@@ -103,9 +104,21 @@ export function AppShell({ children }: { children: ReactNode }) {
                 ))}
               </select>
             </label>
-            <Link href={selected ? `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/work"}>Work queue</Link>
+            <Link
+              className="nav-link"
+              data-active={pathname === "/work" || pathname.startsWith("/work/")}
+              href={selected ? `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/work"}
+            >
+              Work
+            </Link>
             {session.isOwner && selected ? (
-              <Link href={`/audit?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}>Audit</Link>
+              <Link
+                className="nav-link"
+                data-active={pathname === "/audit"}
+                href={`/audit?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
+              >
+                Audit
+              </Link>
             ) : null}
             <button type="button" className="secondary-button" onClick={() => void signOut()}>Sign out</button>
           </div>

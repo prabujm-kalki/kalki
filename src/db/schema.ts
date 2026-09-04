@@ -171,6 +171,7 @@ export const authAccounts = pgTable("account", {
   userId: text("user_id")
     .notNull()
     .references(() => authUsers.id, { onDelete: "cascade" }),
+  issuer: text("issuer"),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
   idToken: text("id_token"),

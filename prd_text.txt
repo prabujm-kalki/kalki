@@ -1,0 +1,357 @@
+KALKI BOSPROJECT REQUIREMENTS DOCUMENT (PRD)
+Antigravity IDE Initialization & Long-Term Engineering Specification
+Version PRD v1.0 | 4 September 2026 | Architecture / Requirements Baseline
+Purpose: initialize a separate engineering agent/IDE with the complete Kalki BOS vision, architecture, functional requirements, data model, security controls, integrations, pilot constraints, and development rules. Quality and correctness are non-negotiable.
+1. Executive Summary
+Kalki BOS (Kalki Business Operating System) is a long-term internal operating system for the Kalki group of businesses. It is intended to become the operational source of truth across people, work, purchasing, inventory, finance, assets, sales, customer intelligence, owner decision support, and AI-assisted operations. It must be stable, configurable, secure, auditable, user-friendly, and expandable for 10+ years.
+Prefer configuration over hard-coded business rules.
+Preserve historical truth; never silently overwrite financial, sales, inventory, employee, task or audit history.
+Enforce organization and branch/location isolation.
+Owner experience should emphasize exceptions, decisions, risks and opportunities rather than routine noise.
+AI assists; it never self-authorizes consequential actions.
+2. Current Business and Pilot
+Kalki Family Restaurant — Avalpoondurai.
+Kalki Department Store — Avalpoondurai.
+Kalki Multicuisine Restaurant — Anakalpalayam/Anaikul Palayam; location naming must be configurable, not hard-coded.
+Future businesses and branches must be supported.
+Pilot branch: Anakul Palayam; pilot start 1 September 2026.
+Synthetic employee: TEST-001 — Kalki Test Employee; role Pilot Operations User.
+TMBill OFF during pilot; synthetic/manual sales only; no real customer data.
+POS/billing is future scope; reserve interfaces and offline-capable synchronization architecture.
+3. Non-Negotiable Engineering Rules
+Inspect repository and existing architecture first; never blindly recreate/overwrite.
+For every bounded step: implement → verify against requirements, dependencies, security and data integrity → correct → verify again → commit.
+Continue automatically through safe deterministic work; stop only for genuine blocker/access/business decision.
+Never mark a gate passed without actual execution evidence.
+No silent technology substitutions or downgrades.
+No secrets, real Aadhaar, real customer data or production data in Git.
+Deny-by-default, server-side authorization.
+Use idempotency/concurrency controls for external events and balance-changing operations.
+Use append-only/reversal/versioned events where historical truth matters.
+4. Technology and System Architecture
+Modular monolith.
+Next.js 16.3.3 + React 19.2.7 + TypeScript.
+Node.js 24 LTS.
+PostgreSQL 17.11.
+Drizzle ORM + Drizzle Kit.
+Zod validation.
+Better Auth authentication foundation plus Kalki authorization layer.
+Vitest + Playwright.
+Docker/WSL-compatible PostgreSQL for local development.
+Provider-neutral object-storage abstraction for documents/evidence.
+Provider-neutral AI, notification and external-integration adapters.
+Next.js provides web UI and API boundary at pilot stage; no separate backend service unless deliberately approved.
+5. Frontend Architecture and Specificity
+5.1 Principles
+Responsive desktop/tablet/mobile UI; operational workflows must work well on phones.
+Role/branch-aware navigation, while security remains server-side.
+Visible organization/branch context.
+Reusable forms, tables, filters, approval flows, task/evidence components, status indicators, notifications and audit views.
+Clear validation, loading/error/empty states and confirmation for consequential actions.
+Minimize repetitive entry through templates, vendor catalogues, suggested values and schedules.
+Do not unnecessarily expose sensitive information.
+5.2 Main UI areas
+Owner Command Center.
+Organization/location, users, employees, roles, permissions and configuration.
+Employee profile, onboarding, documents, access provisioning, training, KPI/performance and lifecycle checks.
+Work/Situation/Task center with reminders, escalation, evidence and verification.
+Purchasing, vendor catalogue, purchase schedules, PO, receipt, invoice, payable and payment.
+Inventory, stock ledger, counts, transfers, production/prepared inventory, waste and adjustments.
+Finance, assets/maintenance.
+Sales/TMBill import and reconciliation.
+Customer intelligence.
+Contact Directory.
+Integration health/data freshness and audit/control views.
+6. Backend Architecture and Specificity
+Recommended boundary: UI/server routes or actions → authentication → authorization/context scope → application services/use cases → domain rules → repositories/persistence → external adapters. External-provider details must remain outside the core domain.
+Organization/branch authorization context.
+Employee/person/user-account separation.
+Configurable policies, templates, schedules and assignments.
+Audit/event writer.
+Notification and evidence abstractions.
+Idempotency, concurrency and transactional boundaries.
+Background/scheduled execution for reminders, imports and reconciliation.
+Central Integration Gateway.
+Provider-neutral AI boundary.
+7. People, Roles and Authorization
+Separate person/employee from user account and role/permissions.
+Employee records can contain history, performance, training/skills and HR/attendance data without requiring application login.
+Role definition includes purpose/responsibilities/actual work, KPIs and role-level checklist.
+Role baseline can be configured at employee level without destroying standard role baseline.
+Branch-scoped assignments where required.
+Delegation/authority is configurable; never hard-code one person.
+Deny-by-default; server-side authorization on every protected read/write.
+Segregation of duties for approvals, payments and sensitive operations.
+8. Employee Lifecycle, Onboarding, Documents and Access
+8.1 Documents
+Reusable Employee Document Requirement framework; Aadhaar currently mandatory before onboarding can become complete/active.
+Document metadata: type, employee, upload timestamp, uploader, verification status/date/by, version/history, private storage reference.
+Sensitive-document access is restricted and audited; controlled replacement/deletion.
+Avoid unnecessary display/storage of full Aadhaar number.
+Future requirements can include photo, PAN, bank proof and certificates.
+8.2 Onboarding and access checks
+Onboarding is a configurable checklist. Example Captain: documents → branch → role → ordering/mobile-app account provisioned → secure credential issuance/reset → required configuration → training assignment → manager confirmation → completion. The system shows completed/pending checks. Passwords are never stored as ordinary employee data.
+8.3 Post-onboarding
+Configurable Day 1/Day 7/Day 30 or other time-window checks.
+Examples: login test, ordering app access, basic training, manager review, KPI review.
+Requirements can be mandatory/optional, evidence-required, verification-required, employee-visible or management-only.
+Use the common task engine for reminders/escalations.
+9. Payroll / Salary Hold Policy
+Salary hold policies (e.g. 3 or 4 days) are configurable by employee group/policy and effective period.
+Maintain applied policy and history in employee/payroll/accounting records.
+Employee-facing view clearly shows applicable hold and current status/release information, without management-only details.
+Policy changes and overrides require authorization and audit.
+Historical payroll facts are preserved; corrections use controlled events/reversals.
+10. Training, KPI, Activities and Points
+Training assignments are time-bounded with assigned date, due date/window, status and completion/verification.
+Overdue training can generate reminders/escalation.
+Role training baseline may be individually configured.
+KPI is composed of measurable activities/metrics.
+Track KPI target, activity/metric, weight, points/rating, evidence, period, evaluator, verification and history.
+Points are configurable but not the only performance representation.
+Historical scores remain reproducible from underlying activities and versioned rules.
+11. Work / Situation / Task / Reminder / Escalation Engine
+Routine and event-based reminders are one unified Work/Situation/Task framework.
+Routine schedules: daily, weekly, selected weekdays and configurable recurrence.
+Business-event triggers create work automatically.
+Item/order triggers: e.g. catering order containing idli creates rice/dal soaking/preparation work.
+Priority: Low, Medium, High; Critical where required.
+SEEN ≠ ACKNOWLEDGED ≠ COMPLETED ≠ VERIFIED.
+High/Critical tasks may require independent verification; employee completion does not equal verification.
+Configurable sequence: due notification → reminder → strong reminder → final reminder → escalation.
+Verification may occur after configured delay (e.g. 30/60 minutes). Outcomes: VERIFIED or EXCEPTION/VERIFICATION FAILED, with escalation.
+High-priority/alarm-like notification should use OS-supported priority; never assume DND/silent-mode bypass.
+Generated tasks are idempotent.
+11.1 Mandatory evidence
+Task templates can require text, number, yes/no, photo, multiple photos, document, signature/approval, checklist, location or future requirement types.
+Example: drainage inspection requires a photo before valid completion.
+Mandatory requirements block valid completion.
+Evidence links to task instance/requirement with uploader/time and audit trail.
+12. Purchasing and Vendor Management
+12.1 Vendor master
+Vendor contact details, payment terms, credit days, item mappings, order frequency/day, normal quantities, min stock/buffer and lead time.
+Vendor-item metadata: vendor item name/code, unit, normal quantity, last rate, active/preferred status and frequency.
+Actual purchase history is immutable; defaults are suggestions only.
+12.2 Vendor Item Catalogue / Quick Purchase
+When a vendor is selected, all configured/predefined items for that vendor automatically load. The user does not retype/search item names. The user enters only today's required quantities/rates; unused catalogue items remain unselected/zero and are not included.
+Same catalogue supports PO generation and quick purchase/bill generation.
+Optional 'Load usual quantities' provides editable suggestions, not an automatic purchase.
+Vendor catalogue is separate from purchase schedule.
+12.3 Scheduled purchasing
+A purchase schedule specifies vendor, applicable catalogue/item set, frequency/date rule, responsible person/role, reminder time and escalation. On the scheduled date/time a task is generated; selecting the vendor loads the predefined items. End-of-day or configured reminders/escalations apply if incomplete.
+12.4 Purchase flow
+Requirement → request → approval → PO → receipt → discrepancy → invoice/bill → payable → payment → reconciliation.
+Partial receipts.
+Three-way match PO + receipt + invoice.
+Emergency purchase with configured authority/audit.
+Vendor ledger and partial/multi-bill payment allocation.
+13. Inventory
+Event/ledger-based balance changes: opening, receipt, consumption, waste, transfer out/in, adjustment.
+Stock count: expected → physical → variance → review → adjustment.
+Inter-restaurant/branch transfers and borrowing.
+Prepared/semi-finished inventory and recipe/production linkage.
+Configurable negative-stock policy.
+Adjustments require reason and authority.
+Concurrency/idempotency for stock changes.
+PO/receipt flows into stock quantities.
+Track frequent purchases and out-of-stock/availability history.
+14. Finance
+Supplier invoices, payables, payments, payment allocations, expenses and reconciliation.
+Three-way matching with configurable tolerance/exception rules.
+Full/partial payments; prevent over-allocation; detect duplicates.
+Historical financial facts are not silently overwritten; corrections are controlled events/reversals.
+Finance links to asset/maintenance costs.
+Vendor ledger and payment history are auditable.
+15. Assets and Maintenance
+Asset master, location, status and status history.
+Maintenance plans and records.
+Costs linked to finance.
+Failure → Situation → Work → repair/purchase → evidence → verification → asset history.
+Retired assets remain queryable historically.
+16. Sales, TMBill and Future POS
+External systems feed a central Integration Gateway: receive → batch → validate → normalize → map → deduplicate → persist source traceability → reconcile → business processing.
+TMBill API intended; Excel/CSV manual fallback mandatory.
+API and manual paths converge before business processing.
+Never invent TMBill API endpoints/auth/fields; verify current official/partner documentation before implementation.
+Pilot TMBill OFF.
+Dedupe: source_system + source_bill_id; fallback controlled fingerprint with collision review.
+Reconcile source count/total vs accepted, duplicates, rejects, missing periods and line mismatches where available.
+Support customer name/mobile where legally/contractually available, total value, repeat/inactive customers, customer-item history, segmentation, separate sales/CRM reports, product-wise and captain/waiter reporting where source data supports it.
+Captain and waiter remain separate optional associations until source semantics are verified.
+Future native/offline-capable Kalki POS is reserved as another integration source. TMBill must never become the foundation.
+17. Swiggy, Zomato and Third-Party Online Ordering
+Treat online ordering as a first-class future capability. Use provider-neutral adapters; external platforms are channels and Kalki owns the normalized order model.
+Swiggy, Zomato and future platforms enter through Online Order Gateway/Integration Gateway.
+Order ingestion and platform status updates where actual partner APIs permit.
+Item/menu mapping, modifiers, taxes/charges/discounts, payment mode, order time, kitchen preparation, dispatch/delivery status where available.
+Cancellations/refunds and settlement/commission reconciliation.
+Duplicate/missing/failed-event detection, retries and integration health.
+Platform credentials stored as secrets/configuration, never source code.
+Menu availability synchronization only where actually supported.
+Verify current partner API capabilities and commercial/account prerequisites before implementation.
+18. Customer Intelligence
+Canonical identity layer: customers, source identities, identity reviews, merge events.
+A source identity maps to at most one active canonical customer.
+Multiple source identities only when proven same; ambiguous matches go to review, never silent merge.
+Merges authorized/audited; source identifiers remain traceable; sales bills remain source-of-record.
+Visit/value history derives only from accepted/reconciled sales.
+Segments: repeat, regular, previously regular/currently inactive, high-value and observed vegetarian dining pattern based on transaction behavior; do not infer sensitive personal attributes.
+Version segment rules with period/scope for reproducibility.
+Opportunity lifecycle: segment → evidence → opportunity → draft → review/approval → optional execution.
+19. Owner Command Center
+Inputs: sales, purchasing/inventory, finance/assets, Work/Situations, customer intelligence, data freshness/quality.
+Daily brief: what changed, what needs attention, what needs decision, what opportunity exists.
+Insights identify evidence, period, scope and freshness and distinguish fact/calculation/inference.
+Decision lifecycle: detected → review → decide → execute/delegate → verify → closed.
+Opportunity lifecycle: identified → review → approved → prepared → executed → measured/closed.
+20. AI Architecture and Safety
+User auth → authorization → context scope → retrieval → controlled AI context.
+No unrestricted DB access; tool allowlist and server-side authorization.
+AI cannot self-grant permissions and cannot directly write to DB.
+Consequential actions go through normal business services and required confirmation.
+Audit material AI-assisted actions/recommendations.
+Prompt/context versioning, evaluation/regression suite and cost/quota controls.
+Provider/model, production credentials, privacy/data-processing terms, residency, retention/logging and cost limits are explicit external gates.
+21. Contact Directory
+Single central directory page.
+Read-only for normal users; management/edit permission separate.
+Visibility configurable per contact and per contact method by role, branch, department, group or custom scope.
+Categories: employees, managers, vendors, maintenance/service, emergency/business and future types.
+Mobile phone number provides direct device call action.
+Do not automatically expose personal mobile numbers; contact methods have independent visibility.
+Audit creation, modification, visibility and retirement.
+22. Database Format and Schema
+Use PostgreSQL relational design with stable IDs, timezone-aware timestamps, foreign keys, unique/check constraints, indexes, explicit organization/branch scope and transactional integrity. Avoid polymorphic foreign keys where explicit relationships are possible.
+22.1 Core schema areas
+organizations; locations/branches.
+users; persons; employees; employee_status_history.
+roles; permissions; role_permissions; user_role_assignments; employee_role_assignments; delegation/authority rules.
+audit_events; configuration/policy versions.
+employee_document_requirements; employee_documents; document_versions/verification history.
+employee_lifecycle_requirements/instances.
+training_definitions; training_assignments.
+kpi_definitions; kpi_activities/metrics; employee_kpi_assignments; performance_events/points.
+work_definitions; situation_definitions; work_triggers; task_templates; task_requirements; task_instances; task_evidence; task_verifications; reminder/escalation stages; notification events/deliveries; idempotency records.
+vendors; vendor contacts/methods; vendor_items; purchase_schedules; purchase_requests; purchase_orders/lines; receipts/lines; supplier_invoices/lines; payables; payments; payment_allocations.
+items; inventory_ledger; stock_counts/lines; inventory_transfers; recipes/production definitions; production/prepared inventory.
+assets; asset_status_history; maintenance_plans; maintenance_records.
+sales_import_batches; source/raw sales records; sales_transactions/bills; sales_lines; reconciliation_results.
+customers; customer_source_identities; customer_identity_reviews; customer_merge_events; customer_segments; segment_memberships; customer_opportunities.
+orders; order_lines; order_status_events; integration_sources; integration_connections metadata; integration_events; integration_errors.
+contact_directory entries/contact_methods; decisions; opportunities; AI prompt/context versions/evaluation records.
+22.2 Integrity
+Organization/branch scope enforced in services/queries and appropriate constraints/policies.
+Unique source-event/dedupe keys.
+Inventory/financial balances derived from controlled events.
+Negative stock only under explicit policy.
+Payment allocations cannot exceed allowed amounts.
+Mandatory task requirements block completion.
+Verification separate from completion when required.
+Historical records immutable or corrected by reversal/versioned event.
+Document history retained; retired entities remain historically queryable.
+23. Security
+23.1 Identity/access
+Better Auth authentication foundation.
+Kalki authorization for roles, permissions, branch scope and delegation.
+Deny-by-default and server-side checks on every protected read/write.
+Secure session/cookie/token handling, CSRF protections where applicable, rate limiting/brute-force protections.
+Least privilege and segregation of duties.
+23.2 Sensitive data
+Aadhaar is highly sensitive; minimize display and restrict access.
+No real Aadhaar/customer data in development.
+Private object storage for documents/evidence; metadata and references only where possible.
+No passwords/API keys/private keys/provider credentials in Git.
+Use environment secrets/secret manager in real environments.
+Audit sensitive-document access and security configuration.
+23.3 Data/application security
+Schema validation; safe ORM/parameterized queries; secure output handling.
+Upload size/type/content validation and safe object keys; malware scanning where available.
+Cross-organization/branch isolation tests.
+Transactions, idempotency and concurrency controls.
+Backups/recovery, retention and DR policies must be configured and tested.
+24. API and Integration Contracts
+Internal APIs expose business capabilities, not raw database tables.
+External systems use adapters behind Integration Gateway.
+Inbound events carry source, source event ID, received time, payload reference/hash where appropriate, processing state and retry/error metadata.
+Retries are safe/idempotent; failed events can enter dead-letter/manual review.
+Integration freshness and reconciliation status are visible.
+25. Notifications
+Provider-neutral in-app and future email/SMS/WhatsApp/push.
+Priority/urgency and delivery/seen/acknowledged states where channel supports them.
+Reminder/escalation engine owns timing; channels deliver.
+Respect OS/device constraints.
+Prevent duplicate notifications with idempotency.
+26. Reporting and Analytics
+Sales and CRM reports separately.
+Vendor/purchase reports: items, frequency, rates, quantities, availability/out-of-stock.
+Inventory: movement, variance, waste, transfers, adjustments.
+Finance: payables, payments, allocations, reconciliation and exceptions.
+Employee: onboarding, training timeliness, KPI/activity/points, task completion/verification and exceptions.
+Task: due/overdue/completed/verified/failed/escalated.
+Owner: exceptions, trends, decisions, opportunities, data freshness/quality.
+Reports state period, organization/branch scope and freshness.
+27. Audit and Historical Truth
+Audit actor, action, entity, timestamp, organization/branch, before/after or event detail, source and correlation/idempotency IDs where applicable.
+Financial, sales, inventory, employee-document and authorization history must be reconstructable.
+Corrections are explicit, authorized and traceable.
+External-source traceability retained according to policy.
+Audit access itself is restricted and retained appropriately.
+28. Testing and Quality Gates
+Unit tests for business/domain rules.
+Integration tests for database and adapters.
+Playwright E2E tests for critical workflows.
+Security tests: authorization isolation, sensitive data, file access and role boundaries.
+Integrity tests: migrations, constraints, transactions, idempotency, concurrency and historical correction.
+AI evaluation/regression tests.
+CI: typecheck, tests, build and applicable migration/integrity checks.
+Stage gates require actual environment execution, not source inspection alone.
+29. Stage Strategy / Current Gate
+Stage 1 repository foundation — established.
+Stage 2 technology foundation — established.
+Stage 3 executable environment — CURRENT: Node 24 + PostgreSQL 17; install/lockfile; typecheck; tests; build; DB connection; Drizzle migration; integrity verification.
+Stage 4 core foundation.
+Stage 5 database execution gate.
+Stage 6 authentication/authorization.
+Stage 7 employee/people/documents.
+Stage 8 Work/Situations/task engine.
+Stage 9 purchasing/inventory.
+Stage 10 finance.
+Stage 11 sales/TMBill.
+Stage 12 customer intelligence.
+Stage 13 assets.
+Stage 14 Owner Command Center.
+Stage 15 AI.
+Continuous cross-stage verification throughout.
+30. Pilot Acceptance
+Pilot branch and synthetic employee configured.
+TMBill disabled; synthetic/manual sales only.
+Aadhaar requirement can gate employee activation without unnecessary exposure.
+Routine/event/item-triggered tasks work with evidence/verification.
+Vendor selection loads predefined catalogue items; purchase schedule can create assigned reminder.
+Contact Directory provides permitted read-only contacts and direct call action.
+Core security, authorization, audit and integrity checks pass.
+31. Explicit Non-Decisions / External Gates
+Cloud host.
+Object storage vendor.
+AI provider/model and production credentials.
+Email/SMS/WhatsApp/push provider.
+Exact TMBill API endpoints/authentication/fields.
+Swiggy/Zomato exact partner capabilities, commercial/account prerequisites.
+Production residency/retention configuration.
+Production secret-management provider.
+Future native Kalki POS details.
+32. Definition of Done
+Correct architectural layer.
+Authorization and org/branch scope verified.
+Validation, error handling and idempotency verified.
+Database migration/constraints verified.
+Auditability verified.
+Sensitive-data handling verified.
+Appropriate unit/integration/E2E coverage.
+Agreed environment typecheck/tests/build pass.
+No secrets/real sensitive data committed.
+Documentation updated.
+Clean working tree and bounded commit.
+33. Final Antigravity Agent Instruction
+Initialize by inspecting the existing repository and this PRD. Reconcile actual repository state with this baseline; do not blindly recreate an earlier scaffold. Begin at the earliest unverified gate. Work one bounded change at a time: implement, verify, correct, re-verify, and commit. Do not downgrade or substitute the agreed stack. Do not invent external provider capabilities. If an environment capability is missing, report the exact blocker and smallest required manual intervention rather than changing architecture. The goal is a production-grade, secure, auditable, maintainable Kalki BOS—not a prototype that merely appears complete.
+END OF KALKI BOS PRD v1.0

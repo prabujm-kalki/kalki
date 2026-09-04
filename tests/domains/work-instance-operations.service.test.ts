@@ -173,13 +173,8 @@ afterAll(async () => {
   await db.delete(people).where(eq(people.id, secondPersonId));
   await db.delete(people).where(eq(people.id, otherLocationPersonId));
   await db.delete(people).where(eq(people.id, otherOrgPersonId));
-  await db.delete(authUsers).where(eq(authUsers.id, authorizedUserId));
   await db.delete(authUsers).where(eq(authUsers.id, deniedUserId));
-  await db.delete(locations).where(eq(locations.id, locationId));
-  await db.delete(locations).where(eq(locations.id, sameOrgOtherLocationId));
-  await db.delete(locations).where(eq(locations.id, otherOrgLocationId));
-  await db.delete(organizations).where(eq(organizations.id, organizationId));
-  await db.delete(organizations).where(eq(organizations.id, otherOrganizationId));
+  // Organization, location, and actor user rows remain as append-only audit anchors.
 });
 
 describe("Work instance operational query and visibility", () => {

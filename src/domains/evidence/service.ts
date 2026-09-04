@@ -6,6 +6,7 @@ import {
   workInstanceVerificationPresences,
   workInstances,
 } from "@/db/schema";
+import { recordAuditEvent } from "@/domains/audit/service";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions } from "@/lib/authorization-policy";
 import {
@@ -93,19 +94,31 @@ export async function captureEvidence(actor: Actor, input: EvidenceCaptureInput)
   if (instance.state === "VERIFIED") {
     throw new RolesWorkServiceError("Evidence cannot be changed after work is verified", "PREREQUISITE_NOT_SATISFIED");
   }
-  const [presence] = await db.insert(workInstanceEvidencePresences).values({
-    organizationId: instance.organizationId,
-    workInstanceId: instance.id,
-    metadata,
-  }).onConflictDoUpdate({
-    target: workInstanceEvidencePresences.workInstanceId,
-    set: {
+  return db.transaction(async (tx) => {
+    const [presence] = await tx.insert(workInstanceEvidencePresences).values({
+      organizationId: instance.organizationId,
+      workInstanceId: instance.id,
       metadata,
-      updatedAt: new Date(),
-    },
-  }).returning();
-  if (!presence) throw new RolesWorkServiceError("Evidence could not be recorded", "PREREQUISITE_NOT_SATISFIED");
-  return presence;
+    }).onConflictDoUpdate({
+      target: workInstanceEvidencePresences.workInstanceId,
+      set: {
+        metadata,
+        updatedAt: new Date(),
+      },
+    }).returning();
+    if (!presence) throw new RolesWorkServiceError("Evidence could not be recorded", "PREREQUISITE_NOT_SATISFIED");
+    await recordAuditEvent({
+      organizationId: instance.organizationId,
+      locationId: instance.locationId,
+      actorUserId: actor.id,
+      eventType: "work",
+      action: "evidence_recorded",
+      entityType: "work_instance",
+      entityId: instance.id,
+      metadata: { presenceId: presence.id },
+    }, tx);
+    return presence;
+  });
 }
 
 export async function captureVerification(actor: Actor, input: VerificationCaptureInput) {
@@ -120,18 +133,30 @@ export async function captureVerification(actor: Actor, input: VerificationCaptu
   if (instance.state !== "COMPLETED") {
     throw new RolesWorkServiceError("Verification can only be recorded after work is completed", "PREREQUISITE_NOT_SATISFIED");
   }
-  const [presence] = await db.insert(workInstanceVerificationPresences).values({
-    organizationId: instance.organizationId,
-    workInstanceId: instance.id,
-    metadata,
-    updatedAt: new Date(),
-  }).onConflictDoUpdate({
-    target: workInstanceVerificationPresences.workInstanceId,
-    set: {
+  return db.transaction(async (tx) => {
+    const [presence] = await tx.insert(workInstanceVerificationPresences).values({
+      organizationId: instance.organizationId,
+      workInstanceId: instance.id,
       metadata,
       updatedAt: new Date(),
-    },
-  }).returning();
-  if (!presence) throw new RolesWorkServiceError("Verification could not be recorded", "PREREQUISITE_NOT_SATISFIED");
-  return presence;
+    }).onConflictDoUpdate({
+      target: workInstanceVerificationPresences.workInstanceId,
+      set: {
+        metadata,
+        updatedAt: new Date(),
+      },
+    }).returning();
+    if (!presence) throw new RolesWorkServiceError("Verification could not be recorded", "PREREQUISITE_NOT_SATISFIED");
+    await recordAuditEvent({
+      organizationId: instance.organizationId,
+      locationId: instance.locationId,
+      actorUserId: actor.id,
+      eventType: "work",
+      action: "verification_recorded",
+      entityType: "work_instance",
+      entityId: instance.id,
+      metadata: { presenceId: presence.id },
+    }, tx);
+    return presence;
+  });
 }

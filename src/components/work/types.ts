@@ -26,10 +26,15 @@ export type AssignedEmployeeView = {
 
 export type WorkInstanceView = {
   id: string;
+  organizationId: string;
+  locationId: string | null;
   state: "SEEN" | "ACKNOWLEDGED" | "COMPLETED" | "VERIFIED";
   assignedEmployeeId: string | null;
   assignedEmployee: AssignedEmployeeView | null;
   sourceReference: string | null;
+  sourceMetadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
   definitionSnapshot: {
     title?: string;
     description?: string;
@@ -39,7 +44,7 @@ export type WorkInstanceView = {
   };
   evidenceRequired: boolean;
   verificationRequired: boolean;
-  evidencePresence: { id: string; metadata?: EvidenceMetadata; createdAt?: string } | null;
+  evidencePresence: { id: string; metadata?: EvidenceMetadata; createdAt?: string; updatedAt?: string } | null;
   verificationPresence: { id: string; metadata?: EvidenceMetadata; createdAt?: string; updatedAt?: string } | null;
   allowedNextState: "ACKNOWLEDGED" | "COMPLETED" | "VERIFIED" | null;
   nextTransitionReady: boolean;

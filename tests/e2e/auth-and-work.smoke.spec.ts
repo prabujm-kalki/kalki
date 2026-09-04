@@ -15,3 +15,10 @@ test("unauthenticated work access returns to the sign-in flow", async ({ page })
   await expect(page).toHaveURL(/\/login\?next=/);
   await expect(page.getByRole("heading", { name: "Sign in to Kalki BOS" })).toBeVisible();
 });
+
+test("unauthenticated audit access returns to the sign-in flow", async ({ page }) => {
+  await page.goto("/audit");
+
+  await expect(page).toHaveURL(/\/login\?next=/);
+  await expect(page.getByRole("heading", { name: "Sign in to Kalki BOS" })).toBeVisible();
+});

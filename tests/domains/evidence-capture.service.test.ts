@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import {
+  auditEvents,
   employees,
   locations,
   organizations,
@@ -14,6 +15,7 @@ import {
   workSituationDefinitions,
   workSituationEvidenceRequirements,
 } from "@/db/schema";
+import { listAuditEvents } from "@/domains/audit/query";
 import { captureEvidence, captureVerification } from "@/domains/evidence/service";
 import { createWorkInstance, createWorkSituationDefinition, transitionWorkInstance } from "@/domains/roles-work/service";
 import { ensureSystemOwner } from "../helpers/system-owner";
@@ -64,10 +66,7 @@ afterAll(async () => {
   }
   await db.delete(employees).where(eq(employees.id, employeeId));
   await db.delete(people).where(eq(people.id, personId));
-  await db.delete(locations).where(eq(locations.id, locationId));
-  await db.delete(locations).where(eq(locations.id, otherLocationId));
-  await db.delete(organizations).where(eq(organizations.id, organizationId));
-  await db.delete(organizations).where(eq(organizations.id, otherOrganizationId));
+  // Organization, location, and actor user rows remain as append-only audit anchors.
 });
 
 describe("evidence capture", () => {
@@ -127,6 +126,22 @@ describe("evidence capture", () => {
     });
     expect(verification.metadata).toEqual({ result: "reviewed" });
     expect(verification.workInstanceId).toBe(instance.id);
+
+    const ledger = await db.select().from(auditEvents).where(eq(auditEvents.entityId, instance.id));
+    expect(ledger.map((event) => event.action)).toEqual(expect.arrayContaining([
+      "created",
+      "evidence_recorded",
+      "acknowledged",
+      "completed",
+      "verification_recorded",
+    ]));
+    const related = await listAuditEvents({ id: userId }, {
+      ...scope,
+      entityType: "work_instance",
+      entityId: instance.id,
+    });
+    expect(related.length).toBeGreaterThan(0);
+    expect(related.every((event) => event.entityId === instance.id)).toBe(true);
   });
 
   it("does not allow a work instance to be addressed through another organization scope", async () => {

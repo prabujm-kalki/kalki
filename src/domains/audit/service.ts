@@ -35,11 +35,13 @@ export function validateAuditMetadata(metadata: unknown): AuditMetadata {
   return parsed.data;
 }
 
-export async function recordAuditEvent(input: AuditEventInput) {
+type AuditWriter = Pick<typeof db, "insert">;
+
+export async function recordAuditEvent(input: AuditEventInput, writer: AuditWriter = db) {
   const parsed = auditEventSchema.safeParse(input);
   if (!parsed.success) throw new Error("Invalid audit event input");
   const metadata = validateAuditMetadata(parsed.data.metadata);
-  const [event] = await db.insert(auditEvents).values({
+  const [event] = await writer.insert(auditEvents).values({
     organizationId: parsed.data.organizationId,
     locationId: parsed.data.locationId ?? null,
     actorUserId: parsed.data.actorUserId ?? null,

@@ -21,6 +21,7 @@ import {
   workSituationReminderEscalationStages,
   workSituationTriggerCategories,
 } from "@/db/schema";
+import { recordAuditEvent } from "@/domains/audit/service";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import {
   employeePermissions,
@@ -1091,18 +1092,33 @@ export async function createWorkInstance(actor: Actor, input: CreateWorkInstance
     );
   }
   try {
-    const [instance] = await db.insert(workInstances).values({
-      organizationId: parsed.data.organizationId,
-      workSituationDefinitionId: parsed.data.workSituationDefinitionId,
-      locationId: instanceLocationId,
-      assignedEmployeeId: parsed.data.assignedEmployeeId ?? null,
-      sourceReference,
-      sourceMetadata: parsed.data.sourceMetadata ?? {},
-      definitionSnapshot,
-      state: "SEEN",
-      verificationConfig: definitionSnapshot.verificationConfig,
-    }).returning();
-    return instance;
+    return await db.transaction(async (tx) => {
+      const [instance] = await tx.insert(workInstances).values({
+        organizationId: parsed.data.organizationId,
+        workSituationDefinitionId: parsed.data.workSituationDefinitionId,
+        locationId: instanceLocationId,
+        assignedEmployeeId: parsed.data.assignedEmployeeId ?? null,
+        sourceReference,
+        sourceMetadata: parsed.data.sourceMetadata ?? {},
+        definitionSnapshot,
+        state: "SEEN",
+        verificationConfig: definitionSnapshot.verificationConfig,
+      }).returning();
+      await recordAuditEvent({
+        organizationId: instance.organizationId,
+        locationId: instance.locationId,
+        actorUserId: actor.id,
+        eventType: "work",
+        action: "created",
+        entityType: "work_instance",
+        entityId: instance.id,
+        metadata: {
+          triggerCategory: definitionSnapshot.triggerCategory,
+          sourceReference: instance.sourceReference,
+        },
+      }, tx);
+      return instance;
+    });
   } catch (error) {
     if (isUniqueViolation(error) && sourceReference) {
       const raced = await findWorkInstanceBySource({
@@ -1212,15 +1228,30 @@ export async function transitionWorkInstance(actor: Actor, input: TransitionWork
       );
     }
   }
-  const [updated] = await db.update(workInstances).set({
-    state: parsed.data.state,
-    updatedAt: new Date(),
-  }).where(and(
-    eq(workInstances.id, instance.id),
-    eq(workInstances.organizationId, parsed.data.organizationId),
-    eq(workInstances.state, currentState),
-  )).returning();
-  if (!updated) throw new RolesWorkServiceError(`Invalid transition from ${currentState} to ${parsed.data.state}`, "INVALID_TRANSITION");
+  const updated = await db.transaction(async (tx) => {
+    const [next] = await tx.update(workInstances).set({
+      state: parsed.data.state,
+      updatedAt: new Date(),
+    }).where(and(
+      eq(workInstances.id, instance.id),
+      eq(workInstances.organizationId, parsed.data.organizationId),
+      eq(workInstances.state, currentState),
+    )).returning();
+    if (!next) {
+      throw new RolesWorkServiceError(`Invalid transition from ${currentState} to ${parsed.data.state}`, "INVALID_TRANSITION");
+    }
+    await recordAuditEvent({
+      organizationId: next.organizationId,
+      locationId: next.locationId,
+      actorUserId: actor.id,
+      eventType: "work",
+      action: parsed.data.state.toLowerCase(),
+      entityType: "work_instance",
+      entityId: next.id,
+      metadata: { fromState: currentState, toState: parsed.data.state },
+    }, tx);
+    return next;
+  });
   return toWorkInstanceOperationalView(updated);
 }
 

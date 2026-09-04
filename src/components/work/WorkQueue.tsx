@@ -5,26 +5,24 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
+import {
+  assignedLabel,
+  evidenceStatusLabel,
+  nextActionLabel,
+  snapshotTitle,
+  triggerLabel,
+  verificationStatusLabel,
+  workStateLabel,
+} from "@/components/work/presentation";
 import { workStates, type WorkInstanceView } from "@/components/work/types";
 import { apiGet } from "@/lib/api";
-
-function assignedLabel(instance: WorkInstanceView) {
-  if (instance.assignedEmployee) {
-    return `${instance.assignedEmployee.person.displayName} (${instance.assignedEmployee.employeeCode})`;
-  }
-  return instance.assignedEmployeeId ? "Assigned employee" : "Unassigned";
-}
-
-function snapshotTitle(instance: WorkInstanceView) {
-  return instance.definitionSnapshot.title ?? "Work instance";
-}
 
 export function WorkQueue() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { selected } = useSessionView();
   const [instances, setInstances] = useState<{ requestKey: string; items: WorkInstanceView[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ requestKey: string; message: string } | null>(null);
   const state = searchParams.get("state");
 
   useEffect(() => {
@@ -37,12 +35,11 @@ export function WorkQueue() {
     const requestKey = `${selected.organizationId}:${selected.locationId}:${state ?? ""}`;
     let cancelled = false;
     apiGet<{ workInstances: WorkInstanceView[] }>(`/api/work-instances?${query.toString()}`).then((payload) => {
-      if (!cancelled) {
-        setError(null);
-        setInstances({ requestKey, items: payload.workInstances });
-      }
+      if (cancelled) return;
+      setError(null);
+      setInstances({ requestKey, items: payload.workInstances });
     }).catch((caught) => {
-      if (!cancelled) setError(caught instanceof Error ? caught.message : "Unable to load work");
+      if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load work" });
     });
     return () => {
       cancelled = true;
@@ -60,13 +57,24 @@ export function WorkQueue() {
   }
 
   if (!selected) return <StatusMessage tone="empty">Select an organization location to view work.</StatusMessage>;
-  if (error) return <StatusMessage tone="error">{error}</StatusMessage>;
   const requestKey = `${selected.organizationId}:${selected.locationId}:${state ?? ""}`;
+  if (error?.requestKey === requestKey) return <StatusMessage tone="error">{error.message}</StatusMessage>;
   if (!instances || instances.requestKey !== requestKey) return <StatusMessage tone="loading">Loading work…</StatusMessage>;
 
   return (
     <div className="stack">
-      <div className="toolbar">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="muted">Work operations</p>
+            <h2>Queue</h2>
+            <p>{selected.organizationName} · {selected.locationName}</p>
+          </div>
+          <span className="muted">{instances.items.length} visible</span>
+        </div>
+        <p className="muted">Authorized work for this location, plus organization-level work. Lifecycle stays Seen → Acknowledged → Completed → Verified.</p>
+      </section>
+      <div className="toolbar" role="tablist" aria-label="Work state filters">
         <button type="button" className="filter-button" data-active={state === null} onClick={() => setFilter(null)}>All</button>
         {workStates.map((value) => (
           <button
@@ -76,7 +84,7 @@ export function WorkQueue() {
             data-active={state === value}
             onClick={() => setFilter(value)}
           >
-            {value}
+            {workStateLabel(value)}
           </button>
         ))}
       </div>
@@ -90,15 +98,22 @@ export function WorkQueue() {
               className="work-link panel"
               href={`/work/${instance.id}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
             >
-              <strong>{snapshotTitle(instance)}</strong>
-              <span className="pill">{instance.state}</span>
-              <span className="muted">{assignedLabel(instance)}</span>
-              <span className="muted">
-                Evidence {instance.evidenceRequired ? (instance.evidencePresence ? "recorded" : "required") : "not required"}
-                {" · "}
-                Verification {instance.verificationRequired ? (instance.verificationPresence ? "recorded" : "required") : "not required"}
-                {" · "}
-                Next {instance.allowedNextState ?? "none"}{instance.nextTransitionReady ? "" : " (blocked)"}
+              <div className="panel-header">
+                <strong>{snapshotTitle(instance)}</strong>
+                <span className="pill" data-state={instance.state}>{workStateLabel(instance.state)}</span>
+              </div>
+              <span className="muted">{assignedLabel(instance)} · {triggerLabel(instance.definitionSnapshot.triggerCategory)}</span>
+              {instance.sourceReference ? <span className="muted">Source {instance.sourceReference}</span> : null}
+              <span className="gate-row">
+                <span className="gate-chip" data-ready={instance.evidenceRequired ? (!!instance.evidencePresence) : true}>
+                  Evidence {evidenceStatusLabel(instance).toLowerCase()}
+                </span>
+                <span className="gate-chip" data-ready={!instance.verificationRequired || !!instance.verificationPresence}>
+                  Verification {verificationStatusLabel(instance).toLowerCase()}
+                </span>
+                <span className="gate-chip" data-ready={instance.nextTransitionReady}>
+                  {nextActionLabel(instance)}
+                </span>
               </span>
             </Link>
           ))}

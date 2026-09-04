@@ -123,6 +123,78 @@ input {
   color: inherit;
 }
 
+.gate-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.gate-chip {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid #c96b5d;
+  background: #f8e3df;
+  font-size: 0.78rem;
+}
+
+.gate-chip[data-ready="true"] {
+  border-color: #7a8f6e;
+  background: #e7efe2;
+}
+
+.nav-link {
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+.nav-link[data-active="true"] {
+  background: #163f73;
+  color: #fff;
+}
+
+.pill[data-state="SEEN"] {
+  background: #ece6da;
+}
+
+.pill[data-state="ACKNOWLEDGED"] {
+  background: #d7e4f4;
+}
+
+.pill[data-state="COMPLETED"] {
+  background: #f4e6c8;
+}
+
+.pill[data-state="VERIFIED"] {
+  background: #dce8d4;
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field textarea,
+.field input {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #b7ae9f;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.confirm-bar {
+  border-color: #163f73;
+}
+
+.audit-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.4rem;
+}
+
 .work-link:hover,
 .action-button:hover:not(:disabled),
 .secondary-button:hover:not(:disabled) {

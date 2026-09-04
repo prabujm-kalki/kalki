@@ -159,12 +159,8 @@ afterAll(async () => {
   await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, deniedUserId));
   await db.delete(employees).where(eq(employees.id, employeeId));
   await db.delete(people).where(eq(people.id, personId));
-  await db.delete(authUsers).where(eq(authUsers.id, authorizedUserId));
   await db.delete(authUsers).where(eq(authUsers.id, deniedUserId));
-  await db.delete(locations).where(eq(locations.id, locationId));
-  await db.delete(locations).where(eq(locations.id, otherOrgLocationId));
-  await db.delete(organizations).where(eq(organizations.id, organizationId));
-  await db.delete(organizations).where(eq(organizations.id, otherOrganizationId));
+  // Organization, location, and actor user rows remain as append-only audit anchors.
 });
 
 describe("Role and Work/Situation configuration status lifecycle", () => {
