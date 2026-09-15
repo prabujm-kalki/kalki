@@ -117,7 +117,7 @@ beforeAll(async () => {
   const existing = await db.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, needed));
   const missing = needed.filter((code) => !existing.some((permission) => permission.code === code));
   if (missing.length) {
-    await db.insert(permissions).values(missing.map((code) => ({ code, name: code })));
+    await db.insert(permissions).values(missing.map((code) => ({ code, name: code }))).onConflictDoNothing();
   }
   const allPermissions = await db.select({ id: permissions.id, code: permissions.code }).from(permissions).where(inArray(permissions.code, needed));
   await db.insert(roles).values({

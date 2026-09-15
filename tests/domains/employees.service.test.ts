@@ -51,9 +51,9 @@ const ownerActor = { id: "" };
 const employeeInput = (employeeCode: string, targetLocationId = locationId) => ({
   organizationId,
   locationId: targetLocationId,
-  employeeCode,
   jobTitle: "Operations Associate",
   employmentStartDate: "2026-09-01",
+  biometricId: `BIO-${employeeCode}`,
   person: {
     firstName: `Test${testRunId}`,
     lastName: "Employee",
@@ -193,8 +193,10 @@ describe("Employee service", () => {
     expect(result).toMatchObject({
       organizationId,
       locationId,
-      employeeCode: "AUTH-001",
-      person: { firstName: `Test${testRunId}`, lastName: "Employee" },
+      person: {
+        firstName: `Test${testRunId}`,
+        lastName: "Employee",
+      },
     });
     createdEmployeeIds.push(result.id);
     createdPersonIds.push(result.person.id);
@@ -221,28 +223,6 @@ describe("Employee service", () => {
     ).rejects.toMatchObject({ code: "ACCESS_DENIED" });
   });
 
-  it("rejects duplicate employee codes within an organization", async () => {
-    const results = await Promise.allSettled([
-      createEmployee(authorizedActor, employeeInput("RACE-001")),
-      createEmployee(authorizedActor, employeeInput("RACE-001")),
-    ]);
-    const successfulResults = results.filter(
-      (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof createEmployee>>> =>
-        result.status === "fulfilled",
-    );
-    const rejectedResults = results.filter(
-      (result): result is PromiseRejectedResult => result.status === "rejected",
-    );
-
-    expect(successfulResults).toHaveLength(1);
-    expect(rejectedResults).toHaveLength(1);
-    expect(rejectedResults[0].reason).toMatchObject({
-      code: "DUPLICATE_EMPLOYEE_CODE",
-    });
-    createdEmployeeIds.push(successfulResults[0].value.id);
-    createdPersonIds.push(successfulResults[0].value.person.id);
-  });
-
   it("retrieves an employee only within the caller's authorized scope", async () => {
     const employee = await getEmployee(authorizedActor, "not-a-uuid").catch(
       (error) => error,
@@ -256,7 +236,7 @@ describe("Employee service", () => {
     createdEmployeeIds.push(createdForRetrieval.id);
     createdPersonIds.push(createdForRetrieval.person.id);
     const created = await getEmployee(authorizedActor, createdForRetrieval.id);
-    expect(created.employeeCode).toBe("AUTH-002");
+    expect(created.employeeCode).toMatch(/-EMP-/);
 
     await expect(getEmployee(deniedActor, created.id)).rejects.toMatchObject({
       code: "EMPLOYEE_NOT_FOUND",

@@ -14,7 +14,7 @@ const employeeInputSchema = z.object({
   jobTitle: z.string().trim().max(200).nullable().optional(),
   employmentStartDate: z.string().date(),
   employmentEndDate: z.string().date().nullable().optional(),
-  status: z.enum(["DRAFT", "ONBOARDING", "ACTIVE", "INACTIVE"]).optional(),
+  status: z.enum(["DRAFT", "ACTIVE", "INACTIVE", "EXITED"]).optional(),
   aadhaarDocumentUrl: z.string().trim().nullable().optional(),
   photoUrl: z.string().trim().nullable().optional(),
   applicationFormUrl: z.string().trim().nullable().optional(),
@@ -40,7 +40,7 @@ const employeeUpdateSchema = z
     jobTitle: z.string().trim().max(200).nullable().optional(),
     isActive: z.boolean().optional(),
     employmentEndDate: z.string().date().nullable().optional(),
-    status: z.enum(["DRAFT", "ONBOARDING", "ACTIVE", "INACTIVE"]).optional(),
+    status: z.enum(["DRAFT", "ACTIVE", "INACTIVE", "EXITED"]).optional(),
     aadhaarDocumentUrl: z.string().trim().nullable().optional(),
     photoUrl: z.string().trim().nullable().optional(),
     applicationFormUrl: z.string().trim().nullable().optional(),
@@ -206,8 +206,12 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         })
         .returning({ id: people.id });
 
-      const orgRows = await tx.select({ code: organizations.code }).from(organizations).where(eq(organizations.id, parsed.data.organizationId));
-      let prefix = orgRows[0]?.code || "EMP";
+      const orgRows = await tx.select({ code: organizations.code })
+        .from(organizations)
+        .where(eq(organizations.id, parsed.data.organizationId))
+        .for("update");
+      const prefix = orgRows[0]?.code || "ORG";
+      const fullPrefix = `${prefix}-EMP-`;
       
       const codeRows = await tx.select({ employeeCode: employees.employeeCode }).from(employees).where(eq(employees.organizationId, parsed.data.organizationId));
       let maxNum = 0;
@@ -218,7 +222,7 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
           if (num > maxNum) maxNum = num;
         }
       }
-      const generatedCode = `${prefix}${(maxNum + 1).toString().padStart(4, "0")}`;
+      const generatedCode = `${fullPrefix}${(maxNum + 1).toString().padStart(4, "0")}`;
 
       await tx.insert(employees).values({
         personId: personRows[0].id,

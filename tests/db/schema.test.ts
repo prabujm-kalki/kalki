@@ -67,12 +67,10 @@ describe("employee foundation schema", () => {
         (column) => column.name,
       ),
     ).toEqual(["organization_id", "id"]);
-    expect(locationsConfig.indexes).toEqual(
+    expect(locationsConfig.uniqueConstraints).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          config: expect.objectContaining({
-            name: "locations_organization_id_unique",
-          }),
+          name: "locations_organization_id_unique",
         }),
       ]),
     );
@@ -174,7 +172,7 @@ describe("role responsibility work definition integrity", () => {
 describe("audit event append-only integrity", () => {
   it("registers update and delete protection in the audit foundation migration", () => {
     const auditMigration = readFileSync(
-      resolve(process.cwd(), "drizzle/0013_audit_events_foundation.sql"),
+      resolve(process.cwd(), "drizzle/0012_common_valeria_richards.sql"),
       "utf8",
     );
 
