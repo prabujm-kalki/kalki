@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { employees, locations, people } from "@/db/schema";
+import { employees, locations, people, organizations } from "@/db/schema";
+import { auth } from "@/lib/auth";
 import {
   authorizeEmployeeOperation,
 } from "@/lib/authorization";
@@ -10,10 +11,20 @@ import { employeePermissions } from "@/lib/authorization-policy";
 const employeeInputSchema = z.object({
   organizationId: z.string().uuid(),
   locationId: z.string().uuid(),
-  employeeCode: z.string().trim().min(1).max(100),
   jobTitle: z.string().trim().max(200).nullable().optional(),
   employmentStartDate: z.string().date(),
   employmentEndDate: z.string().date().nullable().optional(),
+  status: z.enum(["DRAFT", "ONBOARDING", "ACTIVE", "INACTIVE"]).optional(),
+  aadhaarDocumentUrl: z.string().trim().nullable().optional(),
+  photoUrl: z.string().trim().nullable().optional(),
+  applicationFormUrl: z.string().trim().nullable().optional(),
+  otherDocumentsUrl: z.string().trim().nullable().optional(),
+  biometricId: z.string().trim().min(1),
+  posId: z.string().trim().nullable().optional(),
+  provisionAccess: z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+  }).optional(),
   person: z.object({
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().max(100).nullable().optional(),
@@ -29,6 +40,13 @@ const employeeUpdateSchema = z
     jobTitle: z.string().trim().max(200).nullable().optional(),
     isActive: z.boolean().optional(),
     employmentEndDate: z.string().date().nullable().optional(),
+    status: z.enum(["DRAFT", "ONBOARDING", "ACTIVE", "INACTIVE"]).optional(),
+    aadhaarDocumentUrl: z.string().trim().nullable().optional(),
+    photoUrl: z.string().trim().nullable().optional(),
+    applicationFormUrl: z.string().trim().nullable().optional(),
+    otherDocumentsUrl: z.string().trim().nullable().optional(),
+    biometricId: z.string().trim().min(1).optional(),
+    posId: z.string().trim().nullable().optional(),
     person: z
       .object({
         firstName: z.string().trim().min(1).max(100).optional(),
@@ -102,6 +120,13 @@ async function selectEmployee(
       jobTitle: employees.jobTitle,
       employmentStartDate: employees.employmentStartDate,
       employmentEndDate: employees.employmentEndDate,
+      status: employees.status,
+      aadhaarDocumentUrl: employees.aadhaarDocumentUrl,
+      photoUrl: employees.photoUrl,
+      applicationFormUrl: employees.applicationFormUrl,
+      otherDocumentsUrl: employees.otherDocumentsUrl,
+      biometricId: employees.biometricId,
+      posId: employees.posId,
       isActive: employees.isActive,
       person: {
         id: people.id,
@@ -137,6 +162,20 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
     employeePermissions.create,
   );
 
+  let createdUserId: string | null = null;
+  if (parsed.data.provisionAccess) {
+    const authRes = await auth.api.signUpEmail({
+      headers: new Headers(),
+      body: {
+        email: parsed.data.provisionAccess.email,
+        password: parsed.data.provisionAccess.password,
+        name: parsed.data.person.displayName,
+        image: parsed.data.photoUrl ?? undefined,
+      }
+    });
+    createdUserId = authRes.user.id;
+  }
+
   try {
     return await db.transaction(async (tx) => {
       const locationRows = await tx
@@ -167,14 +206,36 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         })
         .returning({ id: people.id });
 
+      const orgRows = await tx.select({ code: organizations.code }).from(organizations).where(eq(organizations.id, parsed.data.organizationId));
+      let prefix = orgRows[0]?.code || "EMP";
+      
+      const codeRows = await tx.select({ employeeCode: employees.employeeCode }).from(employees).where(eq(employees.organizationId, parsed.data.organizationId));
+      let maxNum = 0;
+      for (const row of codeRows) {
+        const match = row.employeeCode.match(/\d+$/);
+        if (match) {
+          const num = parseInt(match[0], 10);
+          if (num > maxNum) maxNum = num;
+        }
+      }
+      const generatedCode = `${prefix}${(maxNum + 1).toString().padStart(4, "0")}`;
+
       await tx.insert(employees).values({
         personId: personRows[0].id,
         organizationId: parsed.data.organizationId,
         locationId: parsed.data.locationId,
-        employeeCode: parsed.data.employeeCode,
+        employeeCode: generatedCode,
         jobTitle: parsed.data.jobTitle ?? null,
         employmentStartDate: parsed.data.employmentStartDate,
         employmentEndDate: parsed.data.employmentEndDate ?? null,
+        status: parsed.data.status ?? "DRAFT",
+        userId: createdUserId,
+        aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl ?? null,
+        photoUrl: parsed.data.photoUrl ?? null,
+        applicationFormUrl: parsed.data.applicationFormUrl ?? null,
+        otherDocumentsUrl: parsed.data.otherDocumentsUrl ?? null,
+        biometricId: parsed.data.biometricId,
+        posId: parsed.data.posId ?? null,
       });
 
       return selectEmployee(tx, (await tx
@@ -272,6 +333,18 @@ export async function updateEmployee(
       "INVALID_LIFECYCLE_TRANSITION",
     );
   }
+  
+  const nextStatus = parsed.data.status ?? current.status;
+  const nextAadhaar = parsed.data.aadhaarDocumentUrl !== undefined ? parsed.data.aadhaarDocumentUrl : current.aadhaarDocumentUrl;
+  const nextPhoto = parsed.data.photoUrl !== undefined ? parsed.data.photoUrl : current.photoUrl;
+  const nextAppForm = parsed.data.applicationFormUrl !== undefined ? parsed.data.applicationFormUrl : current.applicationFormUrl;
+
+  if (nextStatus === "ACTIVE" && (!nextAadhaar || !nextPhoto || !nextAppForm)) {
+    throw new EmployeeServiceError(
+      "Aadhaar, Photo, and Application Form are required to activate an employee.",
+      "INVALID_LIFECYCLE_TRANSITION",
+    );
+  }
   if (
     parsed.data.employmentEndDate !== undefined &&
     parsed.data.employmentEndDate !== current.employmentEndDate
@@ -307,6 +380,13 @@ export async function updateEmployee(
       ...(parsed.data.employmentEndDate !== undefined && {
         employmentEndDate: parsed.data.employmentEndDate,
       }),
+      ...(parsed.data.status !== undefined && { status: parsed.data.status }),
+      ...(parsed.data.aadhaarDocumentUrl !== undefined && { aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl }),
+      ...(parsed.data.photoUrl !== undefined && { photoUrl: parsed.data.photoUrl }),
+      ...(parsed.data.applicationFormUrl !== undefined && { applicationFormUrl: parsed.data.applicationFormUrl }),
+      ...(parsed.data.otherDocumentsUrl !== undefined && { otherDocumentsUrl: parsed.data.otherDocumentsUrl }),
+      ...(parsed.data.biometricId !== undefined && { biometricId: parsed.data.biometricId }),
+      ...(parsed.data.posId !== undefined && { posId: parsed.data.posId }),
       updatedAt: new Date(),
     };
     await tx
@@ -339,6 +419,13 @@ export async function listEmployees(
       jobTitle: employees.jobTitle,
       employmentStartDate: employees.employmentStartDate,
       employmentEndDate: employees.employmentEndDate,
+      status: employees.status,
+      aadhaarDocumentUrl: employees.aadhaarDocumentUrl,
+      photoUrl: employees.photoUrl,
+      applicationFormUrl: employees.applicationFormUrl,
+      otherDocumentsUrl: employees.otherDocumentsUrl,
+      biometricId: employees.biometricId,
+      posId: employees.posId,
       isActive: employees.isActive,
       person: {
         id: people.id,
