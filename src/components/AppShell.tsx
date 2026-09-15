@@ -109,7 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               data-active={pathname === "/work" || pathname.startsWith("/work/")}
               href={selected ? `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/work"}
             >
-              Work
+              Work (Operations)
             </Link>
             {session.isOwner && selected ? (
               <Link
@@ -123,6 +123,33 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button type="button" className="secondary-button" onClick={() => void signOut()}>Sign out</button>
           </div>
         </header>
+
+        {selected && (
+          <nav className="toolbar" style={{ padding: "0.5rem 1rem", borderBottom: "1px solid var(--border-color, #e2e8f0)", backgroundColor: "var(--bg-secondary, #f8fafc)" }}>
+            {[
+              { label: "Command Center", path: "/reports" },
+              { label: "People", path: "/people" },
+              { label: "Attendance", path: "/attendance" },
+              { label: "Payroll", path: "/payroll" },
+              { label: "Purchasing", path: "/purchasing" },
+              { label: "Inventory", path: "/inventory" },
+              { label: "Sales", path: "/sales" },
+              { label: "CRM", path: "/crm" },
+              { label: "Finance", path: "/finance" },
+              { label: "Settings", path: "/settings" },
+            ].map(module => (
+              <Link
+                key={module.path}
+                className="nav-link"
+                data-active={pathname === module.path || pathname.startsWith(`${module.path}/`)}
+                href={`${module.path}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
+              >
+                {module.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+
         <main className="app-main">
           {session.scopes.length === 0 ? (
             <StatusMessage tone="empty">No authorized organization location is available for this account.</StatusMessage>

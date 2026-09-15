@@ -5,9 +5,9 @@ export default function Home() {
     <main className="app-main">
       <section className="panel">
         <p className="muted">Kalki BOS</p>
-        <h1 className="page-title">Operational work</h1>
-        <p>Sign in with an authorized account to open Work operations for a location.</p>
-        <p><Link href="/login">Sign in</Link>{" | "}<Link href="/work">Open work operations</Link></p>
+        <h1 className="page-title">Command Center</h1>
+        <p>Sign in with an authorized account to access the business operating system.</p>
+        <p><Link href="/login">Sign in</Link>{" | "}<Link href="/people">Enter application</Link></p>
       </section>
     </main>
   );
