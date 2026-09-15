@@ -1,4 +1,4 @@
-# PEOPLE MODULE COMPLETION MASTER PLAN v1.2.1
+# PEOPLE MODULE COMPLETION MASTER PLAN v1.2.2
 
 ## 1. Approved People Requirements
 The People module is the foundational module of Kalki BOS, responsible for managing the entire lifecycle of an employee from onboarding to exit. Key requirements include:
@@ -34,7 +34,11 @@ Based on the Reality Audit:
 
 ## 4. Required Database Changes
 - **`employees` table**: Add `category` (Permanent/Temporary/Part-time), `reportingEmployeeId` (self-referencing FK), `secondaryMobile`, `gender`, `residentialAddress`, `bloodGroup`, `maritalStatus`. Adjust ID generation sequence.
-- **`employee_family_contacts`**: New table to capture family and emergency details. Must support clearly typed/contact-category records (`category` ENUM for: Spouse, Child, Parent, Emergency Contact). Required fields/constraints per category (e.g. name, relationship, phone number, DOB where applicable) will be defined during Phase 1 schema design preserving approved requirements.
+- **`employee_family_contacts`**: New table for family and emergency details. The database design may use one typed table, but category-specific validation must preserve these exact requirements:
+  - **Spouse**: Name (required when Marital Status = Married), Mobile (required when Marital Status = Married). No DOB required.
+  - **Children**: Multiple allowed. Name only. No DOB requirement.
+  - **Parents**: Father Name (required), Mother Name (required). No additional DOB requirement.
+  - **Emergency Contacts**: At least one required, multiple allowed. Name, Relationship, Mobile.
 - **`employee_salary_info`**: New table for Salary Type, Amount, Effective From, Payment Method, Payment Details.
 - **`employee_history_*`**: New normalized tables (e.g., `employee_salary_history`, `employee_branch_history`) tracking effective-dated changes for role, branch, salary, reporting person, category, status.
 - **`employee_change_requests`**: New table to handle HR/Manager proposed master, salary, and branch changes awaiting Owner approval. Uses a structured JSONB payload (validated server-side via Zod) strictly to record the proposed change for audit/review, while normalized history tables remain the permanent business history upon approval.
@@ -95,7 +99,7 @@ Based on the Reality Audit:
 ### Phase 3: Approval Workflow & History Tracking
 - Implement `employee_change_requests` table with JSONB proposed-change snapshot storage, and associated API routes (Propose, Approve, Reject).
 - Implement transactional approval service that validates the JSONB payload and delegates to business services to update master records and normalized history.
-- *Verification Gate*: Integration tests prove that Manager edits on master/salary/branch create pending requests, Owner approvals transactionally apply to master and create queryable history records, and direct Owner edits apply immediately with history.
+- *Verification Gate*: Integration tests prove that HR/Manager edits on master/salary/branch create pending requests, Owner approvals transactionally apply to master and create queryable history records, and direct Owner edits apply immediately with history.
 
 ### Phase 4: Hierarchy & Salary Information
 - Implement Salary/Payment Info CRUD within the approval workflow.
@@ -114,7 +118,7 @@ Based on the Reality Audit:
 1. **Creation**: HR creates a `DRAFT` employee with initial branch assignment. Employee ID `KAL-EMP-XXXX` is generated.
 2. **Onboarding**: HR fills out all demographics, uploads Aadhaar and Photo, adds Bank Details, Salary Info, and assigns initial roles (direct add, audited).
 3. **Activation**: HR confirms onboarding declarations and activates the employee. The system verifies Aadhaar and Photo are present. Employee status becomes `ACTIVE`. A historical record of joining is created. The activation makes the employee eligible for the Contact Directory and Organization Hierarchy according to active-status, branch, role, and configured visibility rules.
-4. **Modification**: Manager proposes a salary increase and branch transfer. This creates a structured JSONB change request requiring Owner approval.
+4. **Modification**: HR/Manager proposes a salary increase and branch transfer. This creates a structured JSONB change request requiring Owner approval.
 5. **Approval**: Owner logs in, views the pending branch/salary change request, and approves it. The system transactionally applies the business change.
 6. **Verification**: History accurately reflects the salary and branch change with the effective date in queryable relational tables.
 7. **Separation**: HR proposes employee exit. Owner approves. Status becomes `EXITED`, and access is immediately revoked.
