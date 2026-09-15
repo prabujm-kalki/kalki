@@ -7,6 +7,9 @@ import {
   employeeHistoryStatus, employeeHistoryRole, employeeHistoryBranch,
   employeeHistorySalary, employeeHistoryReporting, employeeHistoryCategory
 } from "@/db/schema";
+
+import { employeeChangeRequests } from "@/db/schema";
+import { loadAuthorizationGrants } from "@/lib/authorization";
 import { auth } from "@/lib/auth";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions } from "@/lib/authorization-policy";
@@ -56,6 +59,7 @@ const employeeUpdateSchema = z
     maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"]).optional(),
     residentialAddress: z.string().nullable().optional(),
     bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
+    secondaryMobile: z.string().trim().max(50).nullable().optional(),
     person: z
       .object({
         firstName: z.string().trim().min(1).max(100).optional(),
@@ -68,6 +72,26 @@ const employeeUpdateSchema = z
       .optional(),
   })
   .strict();
+
+
+export type SalaryInput = z.infer<typeof salaryInputSchema>;
+export const salaryInputSchema = z.object({
+  salaryType: z.enum(["Daily", "Weekly", "Monthly"]),
+  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  paymentMethod: z.enum(["BANK_TRANSFER", "GPAY", "CASH"]),
+  accountHolderName: z.string().nullable().optional(),
+  accountNumber: z.string().nullable().optional(),
+  bankName: z.string().nullable().optional(),
+  ifscCode: z.string().nullable().optional(),
+  gpayNumber: z.string().nullable().optional(),
+  bankingName: z.string().nullable().optional(),
+});
+
+export const proposeEmployeeChangeSchema = employeeUpdateSchema.extend({
+  locationId: z.string().uuid().optional(),
+  salary: salaryInputSchema.optional(),
+});
+export type ProposeEmployeeChangeInput = z.infer<typeof proposeEmployeeChangeSchema>;
 
 export type CreateEmployeeInput = z.infer<typeof employeeInputSchema>;
 
@@ -83,7 +107,11 @@ export class EmployeeServiceError extends Error {
       | "DUPLICATE_EMPLOYEE_CODE"
       | "INVALID_LIFECYCLE_TRANSITION"
       | "CYCLE_DETECTED"
-      | "CROSS_ORG_REFERENCE",
+      | "CROSS_ORG_REFERENCE"
+      | "CONCURRENT_REQUEST_PENDING"
+      | "REQUEST_NOT_FOUND"
+      | "REQUEST_NOT_PENDING"
+      | "STALE_REQUEST",
   ) {
     super(message);
     this.name = "EmployeeServiceError";
@@ -689,4 +717,481 @@ export async function listEmployees(
         eq(employees.locationId, locationId),
       ),
     );
+}
+
+
+export async function proposeEmployeeChange(
+  actor: Actor,
+  employeeId: string,
+  input: ProposeEmployeeChangeInput,
+  reason: string,
+) {
+  requireActor(actor);
+  if (!z.string().uuid().safeParse(employeeId).success) {
+    throw new EmployeeServiceError("Invalid employee id", "INVALID_INPUT");
+  }
+  const parsed = proposeEmployeeChangeSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new EmployeeServiceError("Invalid change request input", "INVALID_INPUT");
+  }
+  if (Object.keys(parsed.data).length === 0) {
+    throw new EmployeeServiceError("No employee changes supplied", "INVALID_INPUT");
+  }
+  if (!reason.trim()) {
+    throw new EmployeeServiceError("Reason is required", "INVALID_INPUT");
+  }
+
+  const current = await selectEmployee(db, employeeId);
+  if (!current) throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
+  if (current.status !== "ACTIVE") {
+    throw new EmployeeServiceError("Only active employees can have change requests", "INVALID_LIFECYCLE_TRANSITION");
+  }
+
+  await requireEmployeeAccess(
+    actor,
+    current.organizationId,
+    current.locationId,
+    employeePermissions.update,
+  );
+
+  return db.transaction(async (tx) => {
+    // Prevent concurrent pending requests for the same employee
+    const existing = await tx.select().from(employeeChangeRequests)
+      .where(and(
+        eq(employeeChangeRequests.employeeId, employeeId),
+        eq(employeeChangeRequests.status, "PENDING")
+      )).for("update");
+    if (existing.length > 0) {
+      throw new EmployeeServiceError("A change request is already pending for this employee", "CONCURRENT_REQUEST_PENDING");
+    }
+
+    const currentEmployeeRecord = await tx.select({ updatedAt: employees.updatedAt }).from(employees).where(eq(employees.id, employeeId));
+    
+    // Store updatedAt to prevent stale approvals
+    const payload = {
+      ...parsed.data,
+      targetEmployeeUpdatedAt: currentEmployeeRecord[0].updatedAt.toISOString(),
+    };
+
+    const [request] = await tx.insert(employeeChangeRequests).values({
+      organizationId: current.organizationId,
+      employeeId: employeeId,
+      proposerUserId: actor.id,
+      status: "PENDING",
+      proposedPayload: payload,
+      reason: reason,
+    }).returning();
+
+    await recordAuditEvent({
+      organizationId: current.organizationId,
+      locationId: current.locationId,
+      actorUserId: actor.id,
+      eventType: "EMPLOYEE_CHANGE_PROPOSED",
+      action: "CREATE",
+      entityType: "employee_change_request",
+      entityId: request.id,
+      metadata: { employeeId: current.id }
+    }, tx);
+
+    return request;
+  });
+}
+
+export async function rejectEmployeeChange(
+  actor: Actor,
+  requestId: string,
+  reviewComment: string,
+) {
+  requireActor(actor);
+  const grants = await loadAuthorizationGrants(actor.id);
+  if (!grants.isOwner) {
+    throw new EmployeeServiceError("Only owners can reject change requests", "ACCESS_DENIED");
+  }
+  if (!reviewComment.trim()) {
+    throw new EmployeeServiceError("Review comment is required for rejection", "INVALID_INPUT");
+  }
+
+  return db.transaction(async (tx) => {
+    const requestRows = await tx.select().from(employeeChangeRequests).where(eq(employeeChangeRequests.id, requestId)).for("update");
+    if (requestRows.length === 0) throw new EmployeeServiceError("Request not found", "REQUEST_NOT_FOUND");
+    
+    const request = requestRows[0];
+    if (request.status !== "PENDING") throw new EmployeeServiceError("Request is not pending", "REQUEST_NOT_PENDING");
+    
+    if (request.proposerUserId === actor.id) {
+       // Cannot approve/reject your own request unless owner? wait, owner can reject their own?
+       // Usually owner doesn't propose, they direct edit. So if they propose, they could reject it.
+    }
+
+    const [updated] = await tx.update(employeeChangeRequests)
+      .set({ status: "REJECTED", reviewComment: reviewComment, reviewerUserId: actor.id, updatedAt: new Date() })
+      .where(eq(employeeChangeRequests.id, requestId))
+      .returning();
+
+    await recordAuditEvent({
+      organizationId: request.organizationId,
+      locationId: null, // Global or get from employee
+      actorUserId: actor.id,
+      eventType: "EMPLOYEE_CHANGE_REJECTED",
+      action: "UPDATE",
+      entityType: "employee_change_request",
+      entityId: request.id,
+      metadata: { employeeId: request.employeeId }
+    }, tx);
+
+    return updated;
+  });
+}
+
+export async function approveEmployeeChange(
+  actor: Actor,
+  requestId: string,
+  reviewComment?: string,
+) {
+  requireActor(actor);
+  const grants = await loadAuthorizationGrants(actor.id);
+  if (!grants.isOwner) {
+    throw new EmployeeServiceError("Only owners can approve change requests", "ACCESS_DENIED");
+  }
+
+  return db.transaction(async (tx) => {
+    const requestRows = await tx.select().from(employeeChangeRequests).where(eq(employeeChangeRequests.id, requestId)).for("update");
+    if (requestRows.length === 0) throw new EmployeeServiceError("Request not found", "REQUEST_NOT_FOUND");
+    const request = requestRows[0];
+    if (request.status !== "PENDING") throw new EmployeeServiceError("Request is not pending", "REQUEST_NOT_PENDING");
+
+    const employeeRows = await tx.select().from(employees).where(eq(employees.id, request.employeeId)).for("update");
+    if (employeeRows.length === 0) throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
+    const emp = employeeRows[0];
+
+    const payload = request.proposedPayload as any;
+    if (payload.targetEmployeeUpdatedAt && new Date(payload.targetEmployeeUpdatedAt).getTime() !== emp.updatedAt.getTime()) {
+      throw new EmployeeServiceError("The employee record has been modified since this request was created", "STALE_REQUEST");
+    }
+
+    const actorEmployeeRows = await tx.select({ id: employees.id }).from(employees).where(eq(employees.userId, actor.id));
+    const recordedByEmployeeId = actorEmployeeRows[0]?.id ?? null;
+    const now = new Date();
+
+    const employeeChanges: any = { updatedAt: now };
+    const personChanges: any = { updatedAt: now };
+    let hasPersonChanges = false;
+    let hasEmployeeChanges = false;
+
+    if (payload.person) {
+      if (payload.person.firstName !== undefined) personChanges.firstName = payload.person.firstName;
+      if (payload.person.lastName !== undefined) personChanges.lastName = payload.person.lastName;
+      if (payload.person.displayName !== undefined) personChanges.displayName = payload.person.displayName;
+      if (payload.person.phone !== undefined) personChanges.phone = payload.person.phone;
+      if (payload.person.email !== undefined) personChanges.email = payload.person.email;
+      if (payload.person.dateOfBirth !== undefined) personChanges.dateOfBirth = payload.person.dateOfBirth;
+      hasPersonChanges = Object.keys(personChanges).length > 1;
+    }
+
+    if (payload.jobTitle !== undefined) { employeeChanges.jobTitle = payload.jobTitle; hasEmployeeChanges = true; }
+    if (payload.category !== undefined) { employeeChanges.category = payload.category; hasEmployeeChanges = true; }
+    if (payload.locationId !== undefined) { employeeChanges.locationId = payload.locationId; hasEmployeeChanges = true; }
+    if (payload.reportingEmployeeId !== undefined) {
+      await validateReportingAssignment(tx, emp.id, payload.reportingEmployeeId, emp.organizationId);
+      employeeChanges.reportingEmployeeId = payload.reportingEmployeeId; 
+      hasEmployeeChanges = true;
+    }
+    // ...other fields if needed...
+
+    if (hasPersonChanges) {
+      await tx.update(people).set(personChanges).where(eq(people.id, emp.personId));
+    }
+    if (hasEmployeeChanges) {
+      await tx.update(employees).set(employeeChanges).where(eq(employees.id, emp.id));
+    }
+
+    // Insert histories
+    if (payload.locationId !== undefined && payload.locationId !== emp.locationId) {
+      await tx.insert(employeeHistoryBranch).values({
+        organizationId: emp.organizationId, employeeId: emp.id, locationId: payload.locationId, effectiveFrom: now, recordedBy: recordedByEmployeeId
+      });
+    }
+    if (payload.category !== undefined && payload.category !== emp.category) {
+      await tx.insert(employeeHistoryCategory).values({
+        organizationId: emp.organizationId, employeeId: emp.id, category: payload.category, effectiveFrom: now, recordedBy: recordedByEmployeeId
+      });
+    }
+    if (payload.reportingEmployeeId !== undefined && payload.reportingEmployeeId !== emp.reportingEmployeeId) {
+      await tx.insert(employeeHistoryReporting).values({
+        organizationId: emp.organizationId, employeeId: emp.id, reportingEmployeeId: payload.reportingEmployeeId, effectiveFrom: now, recordedBy: recordedByEmployeeId
+      });
+    }
+
+    // Salary update
+    if (payload.salary) {
+      await tx.update(employeeSalaryInfo).set({ isActive: false, updatedAt: now }).where(eq(employeeSalaryInfo.employeeId, emp.id));
+      await tx.insert(employeeSalaryInfo).values({
+        organizationId: emp.organizationId,
+        employeeId: emp.id,
+        salaryType: payload.salary.salaryType,
+        amount: payload.salary.amount,
+        effectiveFrom: now.toISOString().split('T')[0], // date string
+        paymentMethod: payload.salary.paymentMethod,
+        accountHolderName: payload.salary.accountHolderName ?? null,
+        accountNumber: payload.salary.accountNumber ?? null,
+        bankName: payload.salary.bankName ?? null,
+        ifscCode: payload.salary.ifscCode ?? null,
+        gpayNumber: payload.salary.gpayNumber ?? null,
+        bankingName: payload.salary.bankingName ?? null,
+      });
+      await tx.insert(employeeHistorySalary).values({
+        organizationId: emp.organizationId, employeeId: emp.id, salaryType: payload.salary.salaryType, amount: payload.salary.amount, effectiveFrom: now, recordedBy: recordedByEmployeeId
+      });
+    }
+
+    const [updated] = await tx.update(employeeChangeRequests)
+      .set({ status: "APPROVED", reviewComment: reviewComment ?? null, reviewerUserId: actor.id, updatedAt: now })
+      .where(eq(employeeChangeRequests.id, requestId))
+      .returning();
+
+    await recordAuditEvent({
+      organizationId: request.organizationId,
+      locationId: emp.locationId, // Current or new
+      actorUserId: actor.id,
+      eventType: "EMPLOYEE_CHANGE_APPROVED",
+      action: "UPDATE",
+      entityType: "employee_change_request",
+      entityId: request.id,
+      metadata: { employeeId: request.employeeId }
+    }, tx);
+
+    return updated;
+  });
+}
+
+
+export async function setEmployeeSalaryInfo(actor: Actor, employeeId: string, input: SalaryInput) {
+  requireActor(actor);
+  const parsed = salaryInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new EmployeeServiceError("Invalid salary input", "INVALID_INPUT");
+  }
+  
+  return db.transaction(async (tx) => {
+    const currentRows = await tx.select().from(employees).where(eq(employees.id, employeeId)).for("update");
+    if (currentRows.length === 0) throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
+    const current = currentRows[0];
+
+    const actorEmployeeRows = await tx.select({ id: employees.id }).from(employees).where(eq(employees.userId, actor.id));
+    const recordedByEmployeeId = actorEmployeeRows[0]?.id ?? null;
+
+    if (current.status !== "DRAFT") {
+      const grants = await loadAuthorizationGrants(actor.id);
+      if (!grants.isOwner) {
+        throw new EmployeeServiceError("Only owners can directly edit salary of active employees. Others must propose a change.", "ACCESS_DENIED");
+      }
+    } else {
+      await requireEmployeeAccess(
+        actor,
+        current.organizationId,
+        current.locationId,
+        employeePermissions.update,
+      );
+    }
+
+    const now = new Date();
+    await tx.update(employeeSalaryInfo).set({ isActive: false, updatedAt: now }).where(eq(employeeSalaryInfo.employeeId, employeeId));
+    
+    await tx.insert(employeeSalaryInfo).values({
+      organizationId: current.organizationId,
+      employeeId: employeeId,
+      salaryType: parsed.data.salaryType,
+      amount: parsed.data.amount,
+      effectiveFrom: now.toISOString().split('T')[0],
+      paymentMethod: parsed.data.paymentMethod,
+      accountHolderName: parsed.data.accountHolderName ?? null,
+      accountNumber: parsed.data.accountNumber ?? null,
+      bankName: parsed.data.bankName ?? null,
+      ifscCode: parsed.data.ifscCode ?? null,
+      gpayNumber: parsed.data.gpayNumber ?? null,
+      bankingName: parsed.data.bankingName ?? null,
+    });
+
+    if (current.status !== "DRAFT") {
+      await tx.insert(employeeHistorySalary).values({
+        organizationId: current.organizationId,
+        employeeId: employeeId,
+        salaryType: parsed.data.salaryType,
+        amount: parsed.data.amount,
+        effectiveFrom: now,
+        recordedBy: recordedByEmployeeId
+      });
+    }
+
+    await recordAuditEvent({
+      organizationId: current.organizationId,
+      locationId: current.locationId,
+      actorUserId: actor.id,
+      eventType: "EMPLOYEE_SALARY_UPDATED",
+      action: "UPDATE",
+      entityType: "employee",
+      entityId: employeeId,
+      metadata: { status: current.status }
+    }, tx);
+
+    return true;
+  });
+}
+
+export type HierarchyNode = {
+  id: string;
+  name: string;
+  jobTitle: string | null;
+  locationId: string;
+  children: HierarchyNode[];
+};
+
+export async function getOrganizationHierarchy(actor: Actor, organizationId: string, targetLocationId?: string): Promise<HierarchyNode[]> {
+  requireActor(actor);
+  
+  if (targetLocationId) {
+    await requireEmployeeAccess(actor, organizationId, targetLocationId, employeePermissions.read);
+  } else {
+    // Determine scope based on actor grants
+    const grants = await loadAuthorizationGrants(actor.id);
+    if (!grants.isOwner) {
+       // If not owner, they can only request hierarchy for their allowed locations explicitly,
+       // Or we can just fetch all locations they have read access to.
+       if (grants.locationPermissions.length === 0 && grants.organizationPermissions.length === 0) {
+          throw new EmployeeServiceError("Unauthorized", "ACCESS_DENIED");
+       }
+    }
+  }
+
+  // Fetch all active employees in scope
+  const conditions = [
+    eq(employees.organizationId, organizationId),
+    eq(employees.status, "ACTIVE")
+  ];
+  
+  const allEmps = await db.select({
+    id: employees.id,
+    locationId: employees.locationId,
+    jobTitle: employees.jobTitle,
+    reportingEmployeeId: employees.reportingEmployeeId,
+    name: people.displayName,
+  })
+  .from(employees)
+  .innerJoin(people, eq(people.id, employees.personId))
+  .where(and(...conditions));
+
+  // Build tree
+  const map = new Map<string, HierarchyNode>();
+  const roots: HierarchyNode[] = [];
+
+  for (const emp of allEmps) {
+    map.set(emp.id, {
+      id: emp.id,
+      name: emp.name,
+      jobTitle: emp.jobTitle,
+      locationId: emp.locationId,
+      children: [],
+    });
+  }
+
+  for (const emp of allEmps) {
+    const node = map.get(emp.id)!;
+    if (emp.reportingEmployeeId && map.has(emp.reportingEmployeeId)) {
+      map.get(emp.reportingEmployeeId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  // If a non-owner calls this without a specific location, filter the roots/nodes to only include their accessible locations?
+  // The requirement says: "Owner organization-wide visibility. Authorized branch users see only permitted scope"
+  // So we filter the returned tree to only include trees/subtrees they have access to.
+  const grants = await loadAuthorizationGrants(actor.id);
+  const allowedLocationIds = new Set(
+    grants.locationPermissions
+      .filter(p => p.permission === employeePermissions.read)
+      .map(p => p.locationId)
+  );
+  
+  if (!grants.isOwner && !targetLocationId) {
+     const hasOrgRead = grants.organizationPermissions.some(p => p.permission === employeePermissions.read);
+     if (!hasOrgRead) {
+       // Prune nodes that are not in allowed locations
+       // Wait, if a manager in Branch A reports to a director in Branch B, the manager shouldn't see Branch B.
+       // Actually, it's easier to just return the whole tree and filter out nodes not in allowedLocationIds.
+       const pruneTree = (nodes: HierarchyNode[]): HierarchyNode[] => {
+         const result: HierarchyNode[] = [];
+         for (const node of nodes) {
+           node.children = pruneTree(node.children);
+           if (allowedLocationIds.has(node.locationId) || node.children.length > 0) {
+             result.push(node);
+           }
+         }
+         return result;
+       };
+       return pruneTree(roots);
+     }
+  }
+
+  if (targetLocationId) {
+     const pruneTree = (nodes: HierarchyNode[]): HierarchyNode[] => {
+       const result: HierarchyNode[] = [];
+       for (const node of nodes) {
+         node.children = pruneTree(node.children);
+         if (node.locationId === targetLocationId || node.children.length > 0) {
+           result.push(node);
+         }
+       }
+       return result;
+     };
+     return pruneTree(roots);
+  }
+
+  return roots;
+}
+
+export type ContactDirectoryEntry = {
+  id: string;
+  name: string;
+  jobTitle: string | null;
+  locationId: string;
+  email: string | null;
+  phone: string | null;
+};
+
+export async function getContactDirectory(actor: Actor, organizationId: string): Promise<ContactDirectoryEntry[]> {
+  requireActor(actor);
+  const grants = await loadAuthorizationGrants(actor.id);
+  
+  const conditions = [
+    eq(employees.organizationId, organizationId),
+    eq(employees.status, "ACTIVE")
+  ];
+
+  const hasOrgRead = grants.organizationPermissions.some(p => p.permission === employeePermissions.read);
+  
+  if (!grants.isOwner && !hasOrgRead) {
+    const allowedLocationIds = grants.locationPermissions
+      .filter(p => p.permission === employeePermissions.read)
+      .map(p => p.locationId);
+      
+    if (allowedLocationIds.length === 0) {
+      return []; // No access
+    }
+    conditions.push(inArray(employees.locationId, allowedLocationIds));
+  }
+
+  const contacts = await db.select({
+    id: employees.id,
+    jobTitle: employees.jobTitle,
+    locationId: employees.locationId,
+    name: people.displayName,
+    email: people.email,
+    phone: people.phone,
+  })
+  .from(employees)
+  .innerJoin(people, eq(people.id, employees.personId))
+  .where(and(...conditions));
+
+  return contacts;
 }
