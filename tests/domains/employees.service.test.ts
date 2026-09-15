@@ -1,9 +1,10 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { db } from "@/db";
 import {
+  auditEvents,
   authAccounts,
   authSessions,
   authUsers,
@@ -24,6 +25,7 @@ import {
   EmployeeServiceError,
   getEmployee,
   updateEmployee,
+  transitionEmployeeLifecycle,
 } from "@/domains/employees/service";
 import { employeePermissions } from "@/lib/authorization-policy";
 import { ensureSystemOwner } from "../helpers/system-owner";
@@ -158,29 +160,9 @@ afterAll(async () => {
   for (const personId of createdPersonIds) {
     await db.delete(people).where(eq(people.id, personId));
   }
-  await db.delete(locationRoleAssignments).where(eq(locationRoleAssignments.userId, authorizedUserId));
-  await db.delete(organizationRoleAssignments).where(eq(organizationRoleAssignments.userId, authorizedUserId));
-  await db.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
-  for (const createdPermissionId of createdPermissionIds) {
+        for (const createdPermissionId of createdPermissionIds) {
     await db.delete(permissions).where(eq(permissions.id, createdPermissionId));
   }
-  await db.delete(roles).where(eq(roles.id, roleId));
-  await db.delete(locationMemberships).where(
-    eq(locationMemberships.userId, authorizedUserId),
-  );
-  await db.delete(locationMemberships).where(eq(locationMemberships.userId, deniedUserId));
-  await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, authorizedUserId));
-  await db.delete(organizationMemberships).where(eq(organizationMemberships.userId, deniedUserId));
-  await db.delete(authSessions).where(eq(authSessions.userId, authorizedUserId));
-  await db.delete(authAccounts).where(eq(authAccounts.userId, authorizedUserId));
-  await db.delete(authUsers).where(
-    eq(authUsers.id, authorizedUserId),
-  );
-  await db.delete(authUsers).where(eq(authUsers.id, deniedUserId));
-  await db.delete(locations).where(eq(locations.id, locationId));
-  await db.delete(locations).where(eq(locations.id, secondLocationId));
-  await db.delete(organizations).where(eq(organizations.id, organizationId));
-  await db.delete(organizations).where(eq(organizations.id, secondOrganizationId));
 });
 
 describe("Employee service", () => {
@@ -290,22 +272,23 @@ describe("Employee service", () => {
     createdEmployeeIds.push(created.id);
     createdPersonIds.push(created.person.id);
 
-    const inactive = await updateEmployee(authorizedActor, created.id, {
-      isActive: false,
-      employmentEndDate: "2026-09-03",
+    await db.update(employees)
+      .set({ status: "ACTIVE" })
+      .where(eq(employees.id, created.id));
+
+    const inactive = await transitionEmployeeLifecycle(authorizedActor, created.id, {
+      status: "INACTIVE",
+      separationReason: "Resigned",
     });
     expect(inactive).toMatchObject({
-      isActive: false,
-      employmentEndDate: "2026-09-03",
+      status: "INACTIVE",
     });
 
     await expect(
-      updateEmployee(authorizedActor, created.id, { isActive: true }),
+      transitionEmployeeLifecycle(authorizedActor, created.id, { status: "ACTIVE" }),
     ).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
     await expect(
-      updateEmployee(authorizedActor, created.id, {
-        employmentEndDate: "2026-09-04",
-      }),
+      transitionEmployeeLifecycle(authorizedActor, created.id, { status: "ACTIVE" }),
     ).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
   });
 
@@ -335,3 +318,4 @@ describe("Employee service", () => {
     ).rejects.toMatchObject({ code: "EMPLOYEE_NOT_FOUND" });
   });
 });
+
