@@ -1,0 +1,6 @@
+/* Organization Chart styles */
+.org-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

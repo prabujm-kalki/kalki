@@ -388,7 +388,30 @@ export async function getEmployee(actor: Actor, employeeId: string) {
     }
     throw error;
   }
-  return employee;
+
+  const familyContacts = await db.select().from(employeeFamilyContacts).where(eq(employeeFamilyContacts.employeeId, employee.id));
+  const salaryInfoRows = await db.select().from(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employee.id));
+  
+  const statusHistory = await db.select().from(employeeHistoryStatus).where(eq(employeeHistoryStatus.employeeId, employee.id)).orderBy(employeeHistoryStatus.effectiveFrom);
+  const branchHistory = await db.select().from(employeeHistoryBranch).where(eq(employeeHistoryBranch.employeeId, employee.id)).orderBy(employeeHistoryBranch.effectiveFrom);
+  const roleHistory = await db.select().from(employeeHistoryRole).where(eq(employeeHistoryRole.employeeId, employee.id)).orderBy(employeeHistoryRole.effectiveFrom);
+  const salaryHistory = await db.select().from(employeeHistorySalary).where(eq(employeeHistorySalary.employeeId, employee.id)).orderBy(employeeHistorySalary.effectiveFrom);
+  const reportingHistory = await db.select().from(employeeHistoryReporting).where(eq(employeeHistoryReporting.employeeId, employee.id)).orderBy(employeeHistoryReporting.effectiveFrom);
+  const categoryHistory = await db.select().from(employeeHistoryCategory).where(eq(employeeHistoryCategory.employeeId, employee.id)).orderBy(employeeHistoryCategory.effectiveFrom);
+
+  return {
+    ...employee,
+    familyContacts,
+    salaryInfo: salaryInfoRows[0] ?? null,
+    history: {
+      status: statusHistory,
+      branch: branchHistory,
+      role: roleHistory,
+      salary: salaryHistory,
+      reporting: reportingHistory,
+      category: categoryHistory,
+    }
+  };
 }
 
 export type UpdateEmployeeInput = z.infer<typeof employeeUpdateSchema>;

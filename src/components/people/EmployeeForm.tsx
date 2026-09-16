@@ -32,6 +32,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
     otherDocumentsUrl: initialData?.otherDocumentsUrl || "",
     biometricId: initialData?.biometricId || "",
     posId: initialData?.posId || "",
+    category: initialData?.category || "",
+    gender: initialData?.gender || "",
+    maritalStatus: initialData?.maritalStatus || "",
+    residentialAddress: initialData?.residentialAddress || "",
+    bloodGroup: initialData?.bloodGroup || "",
+    reportingEmployeeId: initialData?.reportingEmployeeId || "",
+    secondaryMobile: initialData?.secondaryMobile || "",
   });
 
   const [files, setFiles] = useState<{
@@ -87,6 +94,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
         locationId,
         jobTitle: formData.jobTitle || null,
         employmentStartDate: formData.employmentStartDate,
+        category: formData.category || undefined,
+        gender: formData.gender || undefined,
+        maritalStatus: formData.maritalStatus || undefined,
+        residentialAddress: formData.residentialAddress || null,
+        bloodGroup: formData.bloodGroup || undefined,
+        reportingEmployeeId: formData.reportingEmployeeId || null,
+        secondaryMobile: formData.secondaryMobile || null,
         person: {
           firstName: formData.firstName,
           lastName: formData.lastName || null,
@@ -109,6 +123,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
         const updatePayload = {
           jobTitle: payload.jobTitle,
           status: payload.status,
+          category: payload.category,
+          gender: payload.gender,
+          maritalStatus: payload.maritalStatus,
+          residentialAddress: payload.residentialAddress,
+          bloodGroup: payload.bloodGroup,
+          reportingEmployeeId: payload.reportingEmployeeId,
+          secondaryMobile: payload.secondaryMobile,
           aadhaarDocumentUrl: payload.aadhaarDocumentUrl,
           photoUrl: payload.photoUrl,
           applicationFormUrl: payload.applicationFormUrl,
@@ -132,7 +153,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
       }
       onSuccess();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Failed to create employee");
+      setError(caught instanceof Error ? caught.message : "Failed to save employee");
       setPending(false);
     }
   }
@@ -188,6 +209,60 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
           </select>
         </div>
         <div className="field">
+          <label>Category</label>
+          <select value={formData.category} onChange={(e) => handleChange("category", e.target.value)} disabled={pending}>
+            <option value="">Select Category...</option>
+            <option value="Permanent">Permanent</option>
+            <option value="Temporary">Temporary</option>
+            <option value="Part-time">Part-time</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Gender</label>
+          <select value={formData.gender} onChange={(e) => handleChange("gender", e.target.value)} disabled={pending}>
+            <option value="">Select Gender...</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Marital Status</label>
+          <select value={formData.maritalStatus} onChange={(e) => handleChange("maritalStatus", e.target.value)} disabled={pending}>
+            <option value="">Select Status...</option>
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+            <option value="Divorced">Divorced</option>
+            <option value="Widowed">Widowed</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Blood Group</label>
+          <select value={formData.bloodGroup} onChange={(e) => handleChange("bloodGroup", e.target.value)} disabled={pending}>
+            <option value="">Select Blood Group...</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+          </select>
+        </div>
+        <div className="field">
+          <label>Date of Birth</label>
+          <input type="date" value={formData.dateOfBirth} onChange={(e) => handleChange("dateOfBirth", e.target.value)} disabled={pending} />
+        </div>
+        <div className="field">
+          <label>Secondary Mobile</label>
+          <input type="tel" value={formData.secondaryMobile} onChange={(e) => handleChange("secondaryMobile", e.target.value)} disabled={pending} />
+        </div>
+        <div className="field">
+          <label>Residential Address</label>
+          <textarea value={formData.residentialAddress} onChange={(e) => handleChange("residentialAddress", e.target.value)} disabled={pending} />
+        </div>
+        <div className="field">
           <label>Biometric ID *</label>
           <input required type="text" value={formData.biometricId} onChange={(e) => handleChange("biometricId", e.target.value)} disabled={pending} />
         </div>
@@ -195,11 +270,15 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
           <label>POS ID</label>
           <input type="text" value={formData.posId} onChange={(e) => handleChange("posId", e.target.value)} disabled={pending} />
         </div>
+        <div className="field">
+          <label>Reporting To (Employee ID)</label>
+          <input type="text" value={formData.reportingEmployeeId} onChange={(e) => handleChange("reportingEmployeeId", e.target.value)} disabled={pending} />
+        </div>
       </div>
 
       <div className="panel" style={{ marginTop: "1.5rem" }}>
         <h4>Documents Gate</h4>
-        <p className="muted" style={{ marginBottom: "1rem" }}>Upload required documents. All three must be uploaded to activate the employee.</p>
+        <p className="muted" style={{ marginBottom: "1rem" }}>Upload required documents. Aadhaar and Photo must be uploaded to activate.</p>
         <div className="grid-2">
           <div className="field">
             <label>Aadhaar Document *</label>
@@ -222,8 +301,8 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
             {formData.otherDocumentsUrl && <p className="text-sm text-green-600 mt-1">Uploaded: {formData.otherDocumentsUrl}</p>}
           </div>
         </div>
-        {formData.status === "ACTIVE" && (!formData.aadhaarDocumentUrl && !files.aadhaar || !formData.photoUrl && !files.photo || !formData.applicationFormUrl && !files.applicationForm) && (
-           <p className="text-red-500 text-sm mt-2">Aadhaar, Photo, and Application Form are required to set status to ACTIVE.</p>
+        {formData.status === "ACTIVE" && (!formData.aadhaarDocumentUrl && !files.aadhaar || !formData.photoUrl && !files.photo) && (
+           <p className="text-red-500 text-sm mt-2">Aadhaar and Photo are required to set status to ACTIVE.</p>
         )}
       </div>
 

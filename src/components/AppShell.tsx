@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, Suspense, type ReactNode } from "react";
 import { apiGet } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { StatusMessage } from "@/components/StatusMessage";
@@ -23,7 +23,7 @@ export function useSessionView() {
   return value;
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+function AppShellContent({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -157,5 +157,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       </div>
     </SessionViewContext.Provider>
+  );
+}
+
+export function AppShell({ children }: { children: ReactNode }) {
+  return (
+    <Suspense fallback={<main className="app-main"><StatusMessage tone="loading">Loading...</StatusMessage></main>}>
+      <AppShellContent>{children}</AppShellContent>
+    </Suspense>
   );
 }

@@ -20,6 +20,15 @@ type EmployeeView = {
   otherDocumentsUrl: string | null;
   biometricId: string | null;
   posId: string | null;
+  category: string | null;
+  gender: string | null;
+  maritalStatus: string | null;
+  residentialAddress: string | null;
+  bloodGroup: string | null;
+  reportingEmployeeId: string | null;
+  familyContacts: any[];
+  salaryInfo: any | null;
+  history: any;
   isActive: boolean;
   person: {
     id: string;
@@ -173,12 +182,144 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             />
           </div>
         ) : (
-          <div style={{ marginTop: "1rem" }}>
-            {emp.person.email && <p><strong>Email:</strong> {emp.person.email}</p>}
-            {emp.person.phone && <p><strong>Phone:</strong> {emp.person.phone}</p>}
+          <div className="grid-2" style={{ gap: "2rem", marginTop: "1.5rem" }}>
+            <div>
+              <h3>Personal Information</h3>
+              <div className="stack" style={{ gap: "0.5rem", marginTop: "1rem" }}>
+                <p><strong>Email:</strong> {emp.person.email ?? "Not provided"}</p>
+                <p><strong>Phone:</strong> {emp.person.phone ?? "Not provided"}</p>
+                <p><strong>Date of Birth:</strong> {emp.person.dateOfBirth ?? "Not provided"} {emp.person.dateOfBirth ? `(${Math.floor((new Date().getTime() - new Date(emp.person.dateOfBirth).getTime()) / 31557600000)} yrs)` : ""}</p>
+                <p><strong>Gender:</strong> {emp.gender ?? "Not provided"}</p>
+                <p><strong>Blood Group:</strong> {emp.bloodGroup ?? "Not provided"}</p>
+                <p><strong>Marital Status:</strong> {emp.maritalStatus ?? "Not provided"}</p>
+                <p><strong>Address:</strong> {emp.residentialAddress ?? "Not provided"}</p>
+              </div>
+            </div>
+            <div>
+              <h3>Employment Information</h3>
+              <div className="stack" style={{ gap: "0.5rem", marginTop: "1rem" }}>
+                <p><strong>Status:</strong> <span style={{ fontWeight: "600", padding: "0.2rem 0.6rem", borderRadius: "999px", background: emp.status === 'ACTIVE' ? '#dcfce7' : emp.status === 'DRAFT' ? '#fef9c3' : '#f1f5f9', color: emp.status === 'ACTIVE' ? '#166534' : emp.status === 'DRAFT' ? '#854d0e' : '#475569' }}>{emp.status}</span></p>
+                <p><strong>Category:</strong> {emp.category ?? "Not specified"}</p>
+                <p><strong>Start Date:</strong> {emp.employmentStartDate}</p>
+                {emp.employmentEndDate && <p><strong>End Date:</strong> {emp.employmentEndDate}</p>}
+                <p><strong>Biometric ID:</strong> {emp.biometricId ?? "Not provided"}</p>
+                <p><strong>Reporting To:</strong> {emp.reportingEmployeeId ?? "Not assigned"}</p>
+              </div>
+            </div>
           </div>
         )}
       </section>
+
+      {!isEditing && (
+        <>
+          <section className="panel">
+            <div className="panel-header">
+              <h3>Family & Emergency Contacts</h3>
+            </div>
+            {emp.familyContacts?.length === 0 ? (
+              <p className="muted" style={{ marginTop: "1rem" }}>No family or emergency contacts recorded.</p>
+            ) : (
+              <div className="grid-2" style={{ gap: "1rem", marginTop: "1rem" }}>
+                {emp.familyContacts?.map(contact => (
+                  <div key={contact.id} style={{ padding: "0.75rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
+                    <p style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: "bold", color: "var(--primary)" }}>{contact.category.replace('_', ' ')}</p>
+                    {contact.category === 'PARENT' ? (
+                      <>
+                        <p><strong>Father:</strong> {contact.fatherName}</p>
+                        <p><strong>Mother:</strong> {contact.motherName}</p>
+                      </>
+                    ) : (
+                      <>
+                        <p><strong>Name:</strong> {contact.name}</p>
+                        {contact.mobile && <p><strong>Mobile:</strong> {contact.mobile}</p>}
+                        {contact.relationship && <p><strong>Relation:</strong> {contact.relationship}</p>}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <h3>Salary & Payment Information</h3>
+            </div>
+            {!emp.salaryInfo ? (
+              <p className="muted" style={{ marginTop: "1rem" }}>No salary information recorded.</p>
+            ) : (
+              <div className="grid-2" style={{ gap: "2rem", marginTop: "1rem" }}>
+                <div className="stack" style={{ gap: "0.5rem" }}>
+                  <p><strong>Type:</strong> {emp.salaryInfo.salaryType}</p>
+                  <p><strong>Amount:</strong> ₹{emp.salaryInfo.amount}</p>
+                  <p><strong>Payment Method:</strong> {emp.salaryInfo.paymentMethod.replace('_', ' ')}</p>
+                </div>
+                {emp.salaryInfo.paymentMethod === 'BANK_TRANSFER' && (
+                  <div className="stack" style={{ gap: "0.5rem" }}>
+                    <p><strong>Account Holder:</strong> {emp.salaryInfo.accountHolderName}</p>
+                    <p><strong>Account Number:</strong> {emp.salaryInfo.accountNumber}</p>
+                    <p><strong>Bank:</strong> {emp.salaryInfo.bankName}</p>
+                    <p><strong>IFSC:</strong> {emp.salaryInfo.ifscCode}</p>
+                  </div>
+                )}
+                {emp.salaryInfo.paymentMethod === 'GPAY' && (
+                  <div className="stack" style={{ gap: "0.5rem" }}>
+                    <p><strong>GPay Number:</strong> {emp.salaryInfo.gpayNumber}</p>
+                    <p><strong>Banking Name:</strong> {emp.salaryInfo.bankingName}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+          <section className="panel">
+            <div className="panel-header">
+              <h3>Employment History</h3>
+            </div>
+            {!emp.history ? (
+              <p className="muted" style={{ marginTop: "1rem" }}>No history recorded.</p>
+            ) : (
+              <div className="stack" style={{ gap: "1rem", marginTop: "1rem" }}>
+                {emp.history.status?.length > 0 && (
+                  <div>
+                    <h4 style={{ marginBottom: "0.5rem" }}>Status History</h4>
+                    <ul style={{ paddingLeft: "1.5rem" }}>
+                      {emp.history.status.map((h: any) => (
+                        <li key={h.id}>
+                          <strong>{h.status}</strong> - Effective from {new Date(h.effectiveFrom).toLocaleDateString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {emp.history.category?.length > 0 && (
+                  <div>
+                    <h4 style={{ marginBottom: "0.5rem" }}>Category History</h4>
+                    <ul style={{ paddingLeft: "1.5rem" }}>
+                      {emp.history.category.map((h: any) => (
+                        <li key={h.id}>
+                          <strong>{h.category}</strong> - Effective from {new Date(h.effectiveFrom).toLocaleDateString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {emp.history.salary?.length > 0 && (
+                  <div>
+                    <h4 style={{ marginBottom: "0.5rem" }}>Salary History</h4>
+                    <ul style={{ paddingLeft: "1.5rem" }}>
+                      {emp.history.salary.map((h: any) => (
+                        <li key={h.id}>
+                          <strong>{h.salaryType} - ₹{h.amount}</strong> - Effective from {new Date(h.effectiveFrom).toLocaleDateString()}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       <section className="panel">
         <div className="panel-header">
