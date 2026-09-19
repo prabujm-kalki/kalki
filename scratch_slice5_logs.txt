@@ -1,0 +1,2588 @@
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T01:55:37Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-33 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-33" finished with result:
+
+				The command exited with code 0.
+				Output:
+				
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+7:25:06 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 2751ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  1205ms
+   ✓ Work instance operational query and visibility > exposes evidence and verification gates on the operational read path  387ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 3068ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  1482ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates work definition and reminder stage status without rewriting existing instance snapshots  399ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates live evidence, verification, and severity without rewriting existing instance snapshots  335ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 3118ms
+   ✓ Work/Situation instance foundation > creates a scoped instance with optional assignment and an immutable definition snapshot  540ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 3371ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  831ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  374ms
+7:25:18 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 2119ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  546ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 2423ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  738ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  555ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1976ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 6147ms
+   ✓ Session context for operational UI > requires authentication  4601ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 2306ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  371ms
+   ✓ Phase 2 Verification Strengthening > Lifecycle State Machine Tests > Exhaustive valid and invalid transitions  314ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 3136ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  842ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > accepts valid BANK_TRANSFER  356ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects self-reference  351ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->A cycle  347ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  584ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 2497ms
+   ✓ Employee service > creates a Person and Employee atomically for an authorized scope  458ms
+   ✓ Employee service > retrieves an employee only within the caller's authorized scope  412ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 2827ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  751ms
+   ✓ Work instance reminder and escalation snapshot foundation > assigns only active reminder and escalation stages into the instance snapshot  339ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 2429ms
+   ✓ Stage 8 persistence foundation > keeps role baselines, employee additions, and role configuration separate  448ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  1346ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1621ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 1742ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  1168ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 2695ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  1095ms
+   ✓ Phase 3 Approval Workflow Tests > Propose -> Reject -> Master remains unchanged  378ms
+   ✓ Phase 3 Approval Workflow Tests > Idempotency: Cannot approve already approved request  348ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1951ms
+   ✓ Work instance generation from source provenance > rejects unauthenticated, unauthorized, and invalid generation  410ms
+   ✓ Work instance generation from source provenance > generates event and order instances through the normal create path with required source identity  309ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 881ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1310ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  592ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  430ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 12ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1275ms
+ ✓ tests/domains/employees.auth.test.ts (2 tests) 1064ms
+   ✓ Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation  569ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 5ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1123ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  320ms
+
+ Test Files  24 passed (24)
+      Tests  132 passed (132)
+   Start at  07:25:04
+   Duration  32.12s (transform 2.75s, setup 780ms, collect 132.10s, tests 51.85s, environment 9ms, prepare 10.70s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-33.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:05:44Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-247 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-247" finished with result:
+
+				The command exited with code 1.
+				Output:
+				<truncated 128 lines>
+   ↓ Phase 5 Slice 5 Tests > HR cannot propose a change without a reason
+   ↓ Phase 5 Slice 5 Tests > HR cannot propose another change while one is pending
+   ↓ Phase 5 Slice 5 Tests > Owner can list pending proposals across the organization
+   ↓ Phase 5 Slice 5 Tests > HR cannot list all pending proposals across the organization
+   ↓ Phase 5 Slice 5 Tests > Unauthorized users cannot approve proposals
+   ↓ Phase 5 Slice 5 Tests > Owner cannot reject a proposal without a comment
+   ↓ Phase 5 Slice 5 Tests > Unauthorized users cannot reject proposals
+   ↓ Phase 5 Slice 5 Tests > Owner can reject the proposal, which clears it without changing master data
+   ↓ Phase 5 Slice 5 Tests > Owner can approve a new proposal and update master data
+   ↓ Phase 5 Slice 5 Tests > Salary Case A: Owner can edit unrelated fields on an active employee with existing salary without breaking it
+   ↓ Phase 5 Slice 5 Tests > Salary Case B: Owner can edit unrelated fields on a DRAFT employee with NO salary without error
+ ✓ tests/domains/audit.service.test.ts (5 tests) 10ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 13ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 526ms
+ ❯ tests/domains/employees.gate.test.ts (3 tests | 3 failed) 303ms
+   × Phase 2 Gate Audit Tests > Concurrent Employee ID generation 106ms
+     → Cannot convert undefined or null to object
+   × Phase 2 Gate Audit Tests > Indirect and deep hierarchy cycles 71ms
+     → Cannot convert undefined or null to object
+   × Phase 2 Gate Audit Tests > Payment method validation via DB constraint 38ms
+     → Cannot convert undefined or null to object
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 2 failed) 575ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 313ms
+     → Cannot convert undefined or null to object
+   × Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 97ms
+     → Cannot convert undefined or null to object
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.slice5.test.ts > Phase 5 Slice 5 Tests
+TypeError: Cannot convert undefined or null to object
+ ❯ orderSelectedFields node_modules/src/utils.ts:80:16
+ ❯ node_modules/src/utils.ts:91:19
+ ❯ orderSelectedFields node_modules/src/utils.ts:80:32
+ ❯ node_modules/src/pg-core/query-builders/select.ts:1087:23
+ ❯ Object.startActiveSpan node_modules/src/tracing.ts:27:11
+ ❯ PgSelectBase._prepare node_modules/src/pg-core/query-builders/select.ts:1086:17
+ ❯ node_modules/src/pg-core/query-builders/select.ts:1120:16
+ ❯ Object.startActiveSpan node_modules/src/tracing.ts:27:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/32]⎯
+
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 31 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted)
+ FAIL  tests/domains/employees.gate.test.ts > Phase 2 Gate Audit Tests > Concurrent Employee ID generation
+ FAIL  tests/domains/employees.gate.test.ts > Phase 2 Gate Audit Tests > Indirect and deep hierarchy cycles
+ FAIL  tests/domains/employees.gate.test.ts > Phase 2 Gate Audit Tests > Payment method validation via DB constraint
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (GPAY missing fields)
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Salary / Payment > accepts valid BANK_TRANSFER
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects self-reference
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->A cycle
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle
+ FAIL  tests/domains/employees.phase4.test.ts > Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee
+ FAIL  tests/domains/employees.phase4.test.ts > Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope
+ FAIL  tests/domains/employees.service.test.ts > Employee service > creates a Person and Employee atomically for an authorized scope
+ FAIL  tests/domains/employees.service.test.ts > Employee service > retrieves an employee only within the caller's authorized scope
+ FAIL  tests/domains/employees.service.test.ts > Employee service > allows Owner retrieval across organizations and locations
+ FAIL  tests/domains/employees.service.test.ts > Employee service > updates an authorized employee profile without changing scope
+ FAIL  tests/domains/employees.service.test.ts > Employee service > supports one-way deactivation and preserves the separation fact
+ FAIL  tests/domains/employees.service.test.ts > Employee service > denies unauthorized and cross-scope profile updates
+ FAIL  tests/domains/employees.verification.test.ts > Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds
+ FAIL  tests/domains/employees.verification.test.ts > Phase 2 Verification Strengthening > Activation Test Coverage > Activation fails when mandatory fields are missing
+ FAIL  tests/domains/employees.verification.test.ts > Phase 2 Verification Strengthening > Activation Test Coverage > Married employee requires spouse data, non-married does not
+ FAIL  tests/domains/employees.verification.test.ts > Phase 2 Verification Strengthening > Lifecycle State Machine Tests > Exhaustive valid and invalid transitions
+ FAIL  tests/domains/employees.verification.test.ts > Phase 2 Verification Strengthening > Reporting Person Tests > Valid, self, and cross-org reporting
+ FAIL  tests/domains/employees.verification.test.ts > Phase 2 Verification Strengthening > Audit & History Logging > Creates audit events and history rows
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Propose -> Reject -> Master remains unchanged
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Unauthorized User Cannot Approve
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Idempotency: Cannot approve already approved request
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Concurrency: Cannot propose while another proposal is PENDING
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Stale Requests: Master changed after proposal creation
+TypeError: Cannot convert undefined or null to object
+ ❯ orderSelectedFields node_modules/src/utils.ts:80:16
+ ❯ node_modules/src/utils.ts:91:19
+ ❯ orderSelectedFields node_modules/src/utils.ts:80:32
+ ❯ node_modules/src/pg-core/query-builders/select.ts:1087:23
+ ❯ Object.startActiveSpan node_modules/src/tracing.ts:27:11
+ ❯ PgSelectBase._prepare node_modules/src/pg-core/query-builders/select.ts:1086:17
+ ❯ node_modules/src/pg-core/query-builders/select.ts:1120:16
+ ❯ Object.startActiveSpan node_modules/src/tracing.ts:27:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/32]⎯
+
+
+ Test Files  8 failed | 16 passed (24)
+      Tests  31 failed | 89 passed | 12 skipped (132)
+   Start at  07:35:24
+   Duration  19.96s (transform 2.29s, setup 669ms, collect 83.62s, tests 28.51s, environment 8ms, prepare 8.38s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-247.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:13:23Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-384 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-384" finished with result:
+
+				The command exited with code 1.
+				Output:
+				<truncated 1 lines>
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ buildActiveEmployee tests/domains/employees.phase4.test.ts:122:5
+ ❯ tests/domains/employees.phase4.test.ts:158:18
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/19]⎯
+
+ FAIL  tests/domains/employees.slice5.test.ts > Phase 5 Slice 5 Tests > Owner can list pending proposals across the organization
+AssertionError: expected undefined to be 'John Doe' // Object.is equality
+
+- Expected: 
+"John Doe"
+
++ Received: 
+undefined
+
+ ❯ tests/domains/employees.slice5.test.ts:106:46
+    104|     expect(proposals.length).toBeGreaterThan(0);
+    105|     expect(proposals[0].employeeId).toBe(employeeId);
+    106|     expect(proposals[0].employeeDisplayName).toBe("John Doe");
+       |                                              ^
+    107|   });
+    108| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/19]⎯
+
+ FAIL  tests/domains/employees.slice5.test.ts > Phase 5 Slice 5 Tests > HR cannot list all pending proposals across the organization
+AssertionError: promise resolved "[ { …(11) } ]" instead of rejecting
+
+- Expected: 
+Error {
+  "message": "rejected promise",
+}
+
++ Received: 
+[
+  {
+    "createdAt": 2026-09-19T02:13:13.155Z,
+    "employeeId": "51d2e676-91a1-4520-8f22-d7723bb8631b",
+    "id": "e30a76ce-c7bd-4024-ac23-35041bd1a631",
+    "organizationId": "71c61e7b-a7f5-4390-86ed-d210cc04cefe",
+    "proposedPayload": {
+      "jobTitle": "Senior Worker",
+      "targetEmployeeUpdatedAt": "2026-09-19T02:13:13.035Z",
+    },
+    "proposerUserId": "hr-fcf27bbf-c65d-45f2-a84a-b612fae68409",
+    "reason": "Promoted to Senior",
+    "reviewComment": null,
+    "reviewerUserId": null,
+    "status": "PENDING",
+    "updatedAt": 2026-09-19T02:13:13.155Z,
+  },
+]
+
+ ❯ tests/domains/employees.slice5.test.ts:113:5
+    111|     await expect(
+    112|       listEmployeeChangeRequests(hrActor, orgId)
+    113|     ).rejects.toThrow(/Only owners can list all/);
+       |     ^
+    114|   });
+    115| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/19]⎯
+
+ FAIL  tests/domains/employees.slice5.test.ts > Phase 5 Slice 5 Tests > Owner can reject the proposal, which clears it without changing master data
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ tests/domains/employees.slice5.test.ts:156:30
+    154| 
+    155|     proposals = await listEmployeeChangeRequests(ownerActor, orgId);
+    156|     expect(proposals.length).toBe(0); // cleared
+       |                              ^
+    157| 
+    158|     // Master data should still be original
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/19]⎯
+
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createActiveEmployee tests/domains/employees.workflow.test.ts:130:5
+ ❯ tests/domains/employees.workflow.test.ts:138:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[14/19]⎯
+
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Propose -> Reject -> Master remains unchanged
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createActiveEmployee tests/domains/employees.workflow.test.ts:130:5
+ ❯ tests/domains/employees.workflow.test.ts:175:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[15/19]⎯
+
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Unauthorized User Cannot Approve
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createActiveEmployee tests/domains/employees.workflow.test.ts:130:5
+ ❯ tests/domains/employees.workflow.test.ts:191:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[16/19]⎯
+
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Idempotency: Cannot approve already approved request
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createActiveEmployee tests/domains/employees.workflow.test.ts:130:5
+ ❯ tests/domains/employees.workflow.test.ts:202:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[17/19]⎯
+
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Concurrency: Cannot propose while another proposal is PENDING
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createActiveEmployee tests/domains/employees.workflow.test.ts:130:5
+ ❯ tests/domains/employees.workflow.test.ts:212:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[18/19]⎯
+
+ FAIL  tests/domains/employees.workflow.test.ts > Phase 3 Approval Workflow Tests > Stale Requests: Master changed after proposal creation
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createActiveEmployee tests/domains/employees.workflow.test.ts:130:5
+ ❯ tests/domains/employees.workflow.test.ts:224:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[19/19]⎯
+
+
+ Test Files  5 failed | 19 passed (24)
+      Tests  19 failed | 113 passed (132)
+   Start at  07:43:08
+   Duration  14.74s (transform 1.78s, setup 505ms, collect 50.01s, tests 31.27s, environment 8ms, prepare 5.47s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-384.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:14:36Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-406 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-406" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+src/domains/employees/service.ts(1335,4): error TS1128: Declaration or statement expected.
+src/domains/employees/service.ts(1336,1): error TS1128: Declaration or statement expected.
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 1842ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  376ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  306ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2155ms
+   ✓ Session context for operational UI > requires authentication  1345ms
+7:44:30 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1785ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  324ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1930ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  882ms
+   ✓ Work instance operational query and visibility > exposes evidence and verification gates on the operational read path  330ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1999ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  518ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  643ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2083ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  992ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates work definition and reminder stage status without rewriting existing instance snapshots  341ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2230ms
+   ✓ Work/Situation instance foundation > rejects unauthenticated and unauthorized instance operations  303ms
+7:44:31 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1512ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1042ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1283ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  360ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1098ms
+   ✓ Role and Work/Situation configuration services > creates and retrieves a role baseline with ordered children  311ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1370ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  682ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 797ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  439ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 260ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 6ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 6ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts [ tests/domains/employees.auth.test.ts ]
+ FAIL  tests/domains/employees.gate.test.ts [ tests/domains/employees.gate.test.ts ]
+ FAIL  tests/domains/employees.phase4.audit.test.ts [ tests/domains/employees.phase4.audit.test.ts ]
+ FAIL  tests/domains/employees.phase4.test.ts [ tests/domains/employees.phase4.test.ts ]
+ FAIL  tests/domains/employees.service.test.ts [ tests/domains/employees.service.test.ts ]
+ FAIL  tests/domains/employees.slice5.test.ts [ tests/domains/employees.slice5.test.ts ]
+ FAIL  tests/domains/employees.verification.test.ts [ tests/domains/employees.verification.test.ts ]
+ FAIL  tests/domains/employees.workflow.test.ts [ tests/domains/employees.workflow.test.ts ]
+Error: Transform failed with 1 error:
+C:/Users/Asus/Kalki-BOS/kalki/src/domains/employees/service.ts:1335:3: ERROR: Unexpected ")"
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/src/domains/employees/service.ts:1335:3
+  
+  Unexpected ")"
+  1333 |  
+  1334 |      return true;
+  1335 |    });
+       |     ^
+  1336 |  }
+  1337 |  
+  
+ ❯ failureErrorWithLog node_modules/vite/node_modules/esbuild/lib/main.js:1752:15
+ ❯ node_modules/vite/node_modules/esbuild/lib/main.js:1019:50
+ ❯ responseCallbacks.<computed> node_modules/vite/node_modules/esbuild/lib/main.js:886:9
+ ❯ handleIncomingPacket node_modules/vite/node_modules/esbuild/lib/main.js:941:12
+ ❯ Socket.readFromStdout node_modules/vite/node_modules/esbuild/lib/main.js:864:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+
+ Test Files  8 failed | 16 passed (24)
+      Tests  87 passed (87)
+   Start at  07:44:24
+   Duration  11.88s (transform 1.97s, setup 389ms, collect 25.89s, tests 21.40s, environment 8ms, prepare 6.07s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-406.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:17:00Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-460 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-460" finished with result:
+
+				The command exited with code 1.
+				Output:
+				<truncated 1 lines>
+
+stdout | tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+[ZodError: [
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "provisionAccess",
+      "phone"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  }
+]]
+
+stdout | tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted)
+[ZodError: [
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "provisionAccess",
+      "phone"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  }
+]]
+
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 2 failed) 203ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 36ms
+     → Invalid employee input
+   × Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 4ms
+     → Invalid employee input
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 1597ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2052ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  343ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  348ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2046ms
+   ✓ Session context for operational UI > requires authentication  1261ms
+ ❯ tests/domains/employees.phase4.test.ts (2 tests | 1 failed) 1427ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  641ms
+   × Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope 394ms
+     → Onboarding declaration required for activation
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1781ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  632ms
+7:46:50 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1973ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  614ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1526ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1934ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  890ms
+7:46:54 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1473ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1717ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  383ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  487ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1820ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  611ms
+   ✓ Work instance operational query and visibility > exposes evidence and verification gates on the operational read path  502ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1552ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  385ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1692ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1013ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1193ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  649ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1091ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1148ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 819ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  503ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1069ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  519ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 14ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1214ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 10ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 348ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+EmployeeServiceError: Invalid employee input
+ ❯ createEmployee src/domains/employees/service.ts:248:11
+    246|   if (!parsed.success) {
+    247|     console.dir(parsed.error, { depth: null });
+    248|     throw new EmployeeServiceError("Invalid employee input", "INVALID_…
+       |           ^
+    249|   }
+    250|   if (
+ ❯ tests/domains/employees.auth.test.ts:34:26
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted)
+EmployeeServiceError: Invalid employee input
+ ❯ createEmployee src/domains/employees/service.ts:248:11
+    246|   if (!parsed.success) {
+    247|     console.dir(parsed.error, { depth: null });
+    248|     throw new EmployeeServiceError("Invalid employee input", "INVALID_…
+       |           ^
+    249|   }
+    250|   if (
+ ❯ tests/domains/employees.auth.test.ts:72:28
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/domains/employees.phase4.test.ts > Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope
+EmployeeServiceError: Onboarding declaration required for activation
+ ❯ src/domains/employees/service.ts:671:15
+    669|     if (nextStatus === "ACTIVE" && current.status === "DRAFT") {
+    670|       if (!parsed.data.onboardingDeclared) {
+    671|         throw new EmployeeServiceError("Onboarding declaration require…
+       |               ^
+    672|       }
+    673|       
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.phase4.test.ts:182:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed | 22 passed (24)
+      Tests  3 failed | 129 passed (132)
+   Start at  07:46:45
+   Duration  14.90s (transform 1.70s, setup 348ms, collect 51.24s, tests 30.71s, environment 8ms, prepare 5.60s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-460.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:18:01Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-480 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-480" finished with result:
+
+				The command exited with code 1.
+				Output:
+				<truncated 1 lines>
+> tsc --noEmit
+
+src/domains/employees/service.ts(795,37): error TS2339: Property 'applicationFormUrl' does not exist on type 'PgTableWithColumns<{ name: "employees"; schema: undefined; columns: { id: PgColumn<{ name: "id"; tableName: "employees"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; ... 6 more ...; generated: undefined; }, {}, {}>; ... 26 more ...; updatedAt: PgColumn...'.
+src/domains/employees/service.ts(796,36): error TS2551: Property 'otherDocumentsUrl' does not exist on type 'PgTableWithColumns<{ name: "employees"; schema: undefined; columns: { id: PgColumn<{ name: "id"; tableName: "employees"; dataType: "string"; columnType: "PgUUID"; data: string; driverParam: string; notNull: true; hasDefault: true; ... 6 more ...; generated: undefined; }, {}, {}>; ... 26 more ...; updatedAt: PgColumn...'. Did you mean 'otherDocument1Url'?
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1350ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  608ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1434ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  626ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 1925ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  393ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2319ms
+   ✓ Session context for operational UI > requires authentication  1583ms
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 1 failed) 1091ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 463ms
+     → expected '+919925164418@kalki.internal' to be 'test.employee.0e74523e-fcfb-4b0c-a255…' // Object.is equality
+   ✓ Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 261ms
+ ❯ tests/domains/employees.phase4.test.ts (2 tests | 1 failed) 1261ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  640ms
+   × Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope 401ms
+     → expected true to be false // Object.is equality
+7:47:51 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1971ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  642ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  339ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1586ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  421ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  491ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1708ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  346ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2005ms
+   ✓ Work/Situation instance foundation > fails safely when evidence or verification prerequisites are required but deferred  304ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1915ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  535ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 2136ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  1016ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1625ms
+7:47:56 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1568ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 977ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  467ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1114ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 961ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1325ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 896ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  583ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1181ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 916ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  430ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 8ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 400ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+AssertionError: expected '+919925164418@kalki.internal' to be 'test.employee.0e74523e-fcfb-4b0c-a255…' // Object.is equality
+
+Expected: "test.employee.0e74523e-fcfb-4b0c-a255-54599b98a413@kalki.local"
+Received: "+919925164418@kalki.internal"
+
+ ❯ tests/domains/employees.auth.test.ts:58:31
+     56|     const authUser = await db.select().from(authUsers).where(eq(authUs…
+     57|     expect(authUser.length).toBe(1);
+     58|     expect(authUser[0].email).toBe(email);
+       |                               ^
+     59| 
+     60|     const orgMem = await db.select().from(organizationMemberships).whe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/domains/employees.phase4.test.ts > Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ tests/domains/employees.phase4.test.ts:188:53
+    186|     // HR only sees Branch A. 
+    187|     expect(hrDirectory.some(e => e.id === empA)).toBe(true);
+    188|     expect(hrDirectory.some(e => e.id === empB.id)).toBe(false);
+       |                                                     ^
+    189| 
+    190|     // Verify redaction in Directory
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 22 passed (24)
+      Tests  2 failed | 130 passed (132)
+   Start at  07:47:46
+   Duration  15.05s (transform 1.74s, setup 343ms, collect 51.88s, tests 31.68s, environment 9ms, prepare 5.52s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-480.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:21:59Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-553 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-553" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 1674ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2103ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  429ms
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 1 failed) 1083ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 624ms
+     → expected '+919986261064@kalki.internal' to be 'test.employee.a8f2950c-31c7-4c17-854e…' // Object.is equality
+   ✓ Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 234ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1314ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  621ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  462ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2675ms
+   ✓ Session context for operational UI > requires authentication  1851ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1783ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  694ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1977ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  574ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  342ms
+7:51:49 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1689ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  361ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 2083ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  521ms
+   ✓ Work instance evidence presence foundation > records evidence presence idempotently without rewriting the instance snapshot  358ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1752ms
+7:51:52 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1995ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  437ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  546ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1625ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  758ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2043ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  915ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates live evidence, verification, and severity without rewriting existing instance snapshots  311ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1675ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1448ms
+   ✓ Work instance generation from source provenance > generates event and order instances through the normal create path with required source identity  342ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1137ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  571ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 938ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1098ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1444ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1207ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  521ms
+   ✓ Phase 2 Gate Audit Tests > Indirect and deep hierarchy cycles  338ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 11ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 1062ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  649ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 423ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 13ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+AssertionError: expected '+919986261064@kalki.internal' to be 'test.employee.a8f2950c-31c7-4c17-854e…' // Object.is equality
+
+Expected: "test.employee.a8f2950c-31c7-4c17-854e-ad19b445b1c2@kalki.local"
+Received: "+919986261064@kalki.internal"
+
+ ❯ tests/domains/employees.auth.test.ts:58:31
+     56|     const authUser = await db.select().from(authUsers).where(eq(authUs…
+     57|     expect(authUser.length).toBe(1);
+     58|     expect(authUser[0].email).toBe(email);
+       |                               ^
+     59| 
+     60|     const orgMem = await db.select().from(organizationMemberships).whe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 23 passed (24)
+      Tests  1 failed | 131 passed (132)
+   Start at  07:51:42
+   Duration  16.23s (transform 2.11s, setup 444ms, collect 56.49s, tests 34.25s, environment 9ms, prepare 5.82s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-553.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:22:59Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-586 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-586" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1534ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  335ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1696ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  427ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  425ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1792ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  833ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2069ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  445ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  375ms
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 1 failed) 969ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 515ms
+     → expected +0 to be 1 // Object.is equality
+   ✓ Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 263ms
+7:52:49 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2736ms
+   ✓ Session context for operational UI > requires authentication  1968ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1974ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  617ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1442ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  358ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1656ms
+7:52:52 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1956ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  765ms
+   ✓ Work instance operational query and visibility > exposes evidence and verification gates on the operational read path  351ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2284ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1483ms
+   ✓ Work instance generation from source provenance > returns the same instance on source retry without rewriting snapshot or state  347ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1752ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  331ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 2103ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  928ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1204ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  631ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  377ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1170ms
+   ✓ Employee service > creates a Person and Employee atomically for an authorized scope  301ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1078ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  523ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 814ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  466ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 968ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1146ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  459ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 12ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1384ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 10ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 429ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/domains/employees.auth.test.ts:62:27
+     60| 
+     61|     const orgMem = await db.select().from(organizationMemberships).whe…
+     62|     expect(orgMem.length).toBe(1);
+       |                           ^
+     63| 
+     64|     const locMem = await db.select().from(locationMemberships).where(e…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 23 passed (24)
+      Tests  1 failed | 131 passed (132)
+   Start at  07:52:43
+   Duration  16.01s (transform 1.69s, setup 347ms, collect 55.76s, tests 33.66s, environment 8ms, prepare 5.73s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-586.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:23:39Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-607 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-607" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1544ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  672ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 1628ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 1886ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  413ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2243ms
+   ✓ Session context for operational UI > requires authentication  1430ms
+7:53:27 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 1 failed) 1253ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 784ms
+     → expected +0 to be 1 // Object.is equality
+   ✓ Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 252ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1817ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  755ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 2542ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  777ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->A cycle  304ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  493ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2241ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  1145ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 2033ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  521ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  561ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1835ms
+   ✓ Work instance verification presence foundation > rejects unauthenticated and unauthorized presence operations  322ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1722ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  340ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1299ms
+   ✓ Work instance generation from source provenance > generates event and order instances through the normal create path with required source identity  309ms
+7:53:32 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1585ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  411ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1629ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  393ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1046ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  476ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1210ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  518ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  458ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1128ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1033ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1394ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 890ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  529ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1282ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  623ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 9ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 429ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 9ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+AssertionError: expected +0 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ tests/domains/employees.auth.test.ts:65:27
+     63| 
+     64|     const locMem = await db.select().from(locationMemberships).where(e…
+     65|     expect(locMem.length).toBe(1);
+       |                           ^
+     66| 
+     67|     const roleAssign = await db.select().from(employeeRoleAssignments)…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 23 passed (24)
+      Tests  1 failed | 131 passed (132)
+   Start at  07:53:22
+   Duration  16.28s (transform 1.70s, setup 469ms, collect 53.91s, tests 33.69s, environment 8ms, prepare 6.11s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-607.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:25:12Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-647 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-647" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+src/domains/employees/service.ts(1142,13): error TS1005: ',' expected.
+src/domains/employees/service.ts(1143,13): error TS1005: ',' expected.
+src/domains/employees/service.ts(1144,15): error TS1005: ',' expected.
+src/domains/employees/service.ts(1145,26): error TS1005: ',' expected.
+src/domains/employees/service.ts(1146,21): error TS1005: ',' expected.
+src/domains/employees/service.ts(1147,27): error TS1011: An element access expression should take an argument.
+src/domains/employees/service.ts(1147,28): error TS1005: ',' expected.
+src/domains/employees/service.ts(1148,2): error TS1005: ',' expected.
+src/domains/employees/service.ts(1150,23): error TS1005: ':' expected.
+src/domains/employees/service.ts(1150,53): error TS1005: ',' expected.
+src/domains/employees/service.ts(1150,76): error TS1005: ',' expected.
+src/domains/employees/service.ts(1150,103): error TS1109: Expression expected.
+src/domains/employees/service.ts(1150,112): error TS1005: ',' expected.
+src/domains/employees/service.ts(1150,135): error TS1005: ',' expected.
+src/domains/employees/service.ts(1150,136): error TS1109: Expression expected.
+src/domains/employees/service.ts(1150,137): error TS1005: ':' expected.
+src/domains/employees/service.ts(1153,3): error TS1005: ',' expected.
+src/domains/employees/service.ts(1155,5): error TS1005: ',' expected.
+src/domains/employees/service.ts(1155,10): error TS1005: ':' expected.
+src/domains/employees/service.ts(1156,11): error TS1005: ':' expected.
+src/domains/employees/service.ts(1156,59): error TS1005: ',' expected.
+src/domains/employees/service.ts(1157,9): error TS1003: Identifier expected.
+src/domains/employees/service.ts(1157,16): error TS1005: ',' expected.
+src/domains/employees/service.ts(1157,24): error TS1005: ',' expected.
+src/domains/employees/service.ts(1157,26): error TS1005: ';' expected.
+src/domains/employees/service.ts(1243,1): error TS1005: ',' expected.
+src/domains/employees/service.ts(1327,1): error TS1005: '}' expected.
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1610ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1622ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  424ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  534ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1917ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  954ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2121ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  510ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  350ms
+7:55:04 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2953ms
+   ✓ Session context for operational UI > requires authentication  1952ms
+   ✓ Session context for operational UI > returns only authorized location scopes and omits other organizations  306ms
+7:55:05 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1632ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  404ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1669ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  418ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1770ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  796ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2360ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1300ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 10ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 32ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 603ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1095ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  526ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 826ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  428ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 974ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts [ tests/domains/employees.auth.test.ts ]
+ FAIL  tests/domains/employees.gate.test.ts [ tests/domains/employees.gate.test.ts ]
+ FAIL  tests/domains/employees.phase4.audit.test.ts [ tests/domains/employees.phase4.audit.test.ts ]
+ FAIL  tests/domains/employees.phase4.test.ts [ tests/domains/employees.phase4.test.ts ]
+ FAIL  tests/domains/employees.service.test.ts [ tests/domains/employees.service.test.ts ]
+ FAIL  tests/domains/employees.slice5.test.ts [ tests/domains/employees.slice5.test.ts ]
+ FAIL  tests/domains/employees.verification.test.ts [ tests/domains/employees.verification.test.ts ]
+ FAIL  tests/domains/employees.workflow.test.ts [ tests/domains/employees.workflow.test.ts ]
+Error: Transform failed with 1 error:
+C:/Users/Asus/Kalki-BOS/kalki/src/domains/employees/service.ts:1142:7: ERROR: Expected ":" but found "type"
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/src/domains/employees/service.ts:1142:7
+  
+  Expected ":" but found "type"
+  1140 |          employeeId: employeeId,
+  1141 |  
+  1142 |  export type HierarchyNode = {
+       |         ^
+  1143 |    id: string;
+  1144 |    name: string;
+  
+ ❯ failureErrorWithLog node_modules/vite/node_modules/esbuild/lib/main.js:1752:15
+ ❯ node_modules/vite/node_modules/esbuild/lib/main.js:1019:50
+ ❯ responseCallbacks.<computed> node_modules/vite/node_modules/esbuild/lib/main.js:886:9
+ ❯ handleIncomingPacket node_modules/vite/node_modules/esbuild/lib/main.js:941:12
+ ❯ Socket.readFromStdout node_modules/vite/node_modules/esbuild/lib/main.js:864:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+
+ Test Files  8 failed | 16 passed (24)
+      Tests  87 passed (87)
+   Start at  07:54:59
+   Duration  12.57s (transform 1.87s, setup 562ms, collect 27.39s, tests 22.50s, environment 8ms, prepare 6.52s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-647.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:26:36Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-680 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-680" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+src/domains/employees/service.ts(1133,20): error TS1005: ',' expected.
+src/domains/employees/service.ts(1133,33): error TS1005: ',' expected.
+src/domains/employees/service.ts(1133,35): error TS1005: ';' expected.
+src/domains/employees/service.ts(1143,19): error TS1005: ';' expected.
+src/domains/employees/service.ts(1144,15): error TS1005: ';' expected.
+src/domains/employees/service.ts(1145,22): error TS1005: ';' expected.
+src/domains/employees/service.ts(1146,19): error TS1005: ';' expected.
+src/domains/employees/service.ts(1147,8): error TS1128: Declaration or statement expected.
+src/domains/employees/service.ts(1162,3): error TS1128: Declaration or statement expected.
+src/domains/employees/service.ts(1162,4): error TS1128: Declaration or statement expected.
+src/domains/employees/service.ts(1163,1): error TS1128: Declaration or statement expected.
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+7:56:23 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+7:56:23 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1538ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  511ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1801ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  879ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 1920ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2111ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  958ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2421ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  543ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  419ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2614ms
+   ✓ Session context for operational UI > requires authentication  1891ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1663ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  353ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1333ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  661ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1527ms
+   ✓ Work instance generation from source provenance > generates event and order instances through the normal create path with required source identity  355ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 2253ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  588ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  623ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1306ms
+   ✓ Role and Work/Situation configuration services > creates and retrieves a role baseline with ordered children  456ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 2244ms
+   ✓ Work instance verification presence foundation > rejects unauthenticated and unauthorized presence operations  312ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 1223ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  739ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 493ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 7ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 5ms
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts [ tests/domains/employees.auth.test.ts ]
+ FAIL  tests/domains/employees.gate.test.ts [ tests/domains/employees.gate.test.ts ]
+ FAIL  tests/domains/employees.phase4.audit.test.ts [ tests/domains/employees.phase4.audit.test.ts ]
+ FAIL  tests/domains/employees.phase4.test.ts [ tests/domains/employees.phase4.test.ts ]
+ FAIL  tests/domains/employees.service.test.ts [ tests/domains/employees.service.test.ts ]
+ FAIL  tests/domains/employees.slice5.test.ts [ tests/domains/employees.slice5.test.ts ]
+ FAIL  tests/domains/employees.verification.test.ts [ tests/domains/employees.verification.test.ts ]
+ FAIL  tests/domains/employees.workflow.test.ts [ tests/domains/employees.workflow.test.ts ]
+Error: Transform failed with 1 error:
+C:/Users/Asus/Kalki-BOS/kalki/src/domains/employees/service.ts:1133:19: ERROR: Expected ")" but found "."
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/src/domains/employees/service.ts:1133:19
+  
+  Expected ")" but found "."
+  1131 |        bankName: parsed.data.bankName ?? null,
+  1132 |        ifscCode: parsed.data.ifscCode ?? null,
+  1133 |      if (requestRows.length === 0) throw new EmployeeServiceError("Request not found", "REQUEST_NOT_FOUND");
+       |                     ^
+  1134 |      
+  1135 |      const request = requestRows[0];
+  
+ ❯ failureErrorWithLog node_modules/vite/node_modules/esbuild/lib/main.js:1752:15
+ ❯ node_modules/vite/node_modules/esbuild/lib/main.js:1019:50
+ ❯ responseCallbacks.<computed> node_modules/vite/node_modules/esbuild/lib/main.js:886:9
+ ❯ handleIncomingPacket node_modules/vite/node_modules/esbuild/lib/main.js:941:12
+ ❯ Socket.readFromStdout node_modules/vite/node_modules/esbuild/lib/main.js:864:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+
+ Test Files  8 failed | 16 passed (24)
+      Tests  87 passed (87)
+   Start at  07:56:23
+   Duration  13.56s (transform 2.03s, setup 408ms, collect 28.16s, tests 24.46s, environment 8ms, prepare 5.85s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-680.log
+</SYSTEM_MESSAGE>
+Created At: 2026-09-19T07:58:13+05:30
+Completed At: 2026-09-19T07:58:13+05:30
+Task: c2ebd627-c396-4448-bd73-af30b3fa39a9/task-707
+Status: DONE
+Log: C:\Users\Asus\.gemini\antigravity-ide\brain\c2ebd627-c396-4448-bd73-af30b3fa39a9\.system_generated\tasks\task-707.log
+Log output:
+<truncated 215 lines>
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:71:12
+ ❯ src/domains/employees/service.ts:1139:7
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.slice5.test.ts:181:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 164, severity: 'ERROR', code: '22P02', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'unnamed portal parameter $6 = \'...\'', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'uuid.c', routine: 'string_to_uuid' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  4 failed | 20 passed (24)
+      Tests  5 failed | 127 passed (132)
+   Start at  07:57:53
+   Duration  16.19s (transform 2.05s, setup 459ms, collect 51.22s, tests 37.19s, environment 9ms, prepare 5.63s)
+
+
+Last progress: 3s ago
+
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:28:09Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-707 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-707" finished with result:
+
+				The command exited with code 1.
+				Output:
+				<truncated 127 lines>
+       |                         ^
+    380|           userId: createdUserId,
+    381|           organizationId: parsed.data.organizationId,
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createEmployee src/domains/employees/service.ts:287:12
+ ❯ tests/domains/employees.auth.test.ts:74:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/5]⎯
+
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Salary / Payment > accepts valid BANK_TRANSFER
+AssertionError: promise rejected "Error: Failed query: insert into "employe… { …(2) }" instead of resolving
+ ❯ tests/domains/employees.phase4.audit.test.ts:131:9
+    129|         salaryType: "Daily", amount: "100.50", paymentMethod: "BANK_TR…
+    130|         accountHolderName: "John", accountNumber: "1234", bankName: "S…
+    131|       })).resolves.toBe(true);
+       |         ^
+    132|     });
+    133|   });
+
+Caused by: Error: Failed query: insert into "employee_history_salary" ("id", "organization_id", "employee_id", "salary_type", "amount", "effective_from", "effective_to", "recorded_by", "recorded_at") values (default, $1, $2, $3, $4, $5, default, $6, default)
+params: e5ffdc42-64a3-4fad-a9e6-f894e00519c6,8e10e71e-36bc-42ad-ab66-9521ab3089c3,Daily,100.50,2026-09-19T02:27:58.444Z,LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:73:11
+ ❯ src/domains/employees/service.ts:1139:7
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.phase4.audit.test.ts:128:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { query: 'insert into "employee_history_salary" ("id", "organization_id", "employee_id", "salary_type", "amount", "effective_from", "effective_to", "recorded_by", "recorded_at") values (default, $1, $2, $3, $4, $5, default, $6, default)', params: [ 'e5ffdc42-64a3-4fad-a9e6-f894e00519c6', '8e10e71e-36bc-42ad-ab66-9521ab3089c3', 'Daily', '100.50', '2026-09-19T02:27:58.444Z', 'LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS' ] }
+Caused by: error: invalid input syntax for type uuid: "LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ node_modules/src/node-postgres/session.ts:149:14
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:71:12
+ ❯ src/domains/employees/service.ts:1139:7
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.phase4.audit.test.ts:128:7
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 164, severity: 'ERROR', code: '22P02', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'unnamed portal parameter $6 = \'...\'', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'uuid.c', routine: 'string_to_uuid' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/5]⎯
+
+ FAIL  tests/domains/employees.phase4.test.ts > Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee
+AssertionError: promise rejected "Error: Failed query: insert into "employe… { …(2) }" instead of resolving
+ ❯ tests/domains/employees.phase4.test.ts:140:7
+    138|     await expect(setEmployeeSalaryInfo(ownerActor, empId, {
+    139|       salaryType: "Monthly", amount: "300", paymentMethod: "CASH"
+    140|     })).resolves.toBe(true);
+       |       ^
+    141| 
+    142|     const history = await db.select().from(employeeHistorySalary).wher…
+
+Caused by: Error: Failed query: insert into "employee_history_salary" ("id", "organization_id", "employee_id", "salary_type", "amount", "effective_from", "effective_to", "recorded_by", "recorded_at") values (default, $1, $2, $3, $4, $5, default, $6, default)
+params: c4366836-714a-4a7c-9554-52951f4dd50d,839775a1-bc99-4bbe-82d3-9512134198fd,Monthly,300,2026-09-19T02:27:58.032Z,LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:73:11
+ ❯ src/domains/employees/service.ts:1139:7
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.phase4.test.ts:138:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { query: 'insert into "employee_history_salary" ("id", "organization_id", "employee_id", "salary_type", "amount", "effective_from", "effective_to", "recorded_by", "recorded_at") values (default, $1, $2, $3, $4, $5, default, $6, default)', params: [ 'c4366836-714a-4a7c-9554-52951f4dd50d', '839775a1-bc99-4bbe-82d3-9512134198fd', 'Monthly', '300', '2026-09-19T02:27:58.032Z', 'LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS' ] }
+Caused by: error: invalid input syntax for type uuid: "LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ node_modules/src/node-postgres/session.ts:149:14
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:71:12
+ ❯ src/domains/employees/service.ts:1139:7
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.phase4.test.ts:138:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 164, severity: 'ERROR', code: '22P02', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'unnamed portal parameter $6 = \'...\'', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'uuid.c', routine: 'string_to_uuid' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/5]⎯
+
+ FAIL  tests/domains/employees.slice5.test.ts > Phase 5 Slice 5 Tests > Salary Case A: Owner can edit unrelated fields on an active employee with existing salary without breaking it
+Error: Failed query: insert into "employee_history_salary" ("id", "organization_id", "employee_id", "salary_type", "amount", "effective_from", "effective_to", "recorded_by", "recorded_at") values (default, $1, $2, $3, $4, $5, default, $6, default)
+params: fd26fa7a-3724-421b-ad37-2030f5c01d27,732d5eb3-f861-4644-b28d-c3b59139435f,Monthly,5000,2026-09-19T02:27:58.439Z,LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:73:11
+ ❯ src/domains/employees/service.ts:1139:7
+    1137| 
+    1138|     if (current.status !== "DRAFT") {
+    1139|       await tx.insert(employeeHistorySalary).values({
+       |       ^
+    1140|         organizationId: current.organizationId,
+    1141|         employeeId: employeeId,
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.slice5.test.ts:181:5
+
+Caused by: error: invalid input syntax for type uuid: "LaEBjiidMFg8B40Zh6jgCo5jl8OjqFGS"
+ ❯ node_modules/pg/lib/client.js:694:17
+ ❯ node_modules/src/node-postgres/session.ts:149:14
+ ❯ NodePgPreparedQuery.queryWithCache node_modules/src/pg-core/session.ts:71:12
+ ❯ src/domains/employees/service.ts:1139:7
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ tests/domains/employees.slice5.test.ts:181:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { length: 164, severity: 'ERROR', code: '22P02', detail: undefined, hint: undefined, position: undefined, internalPosition: undefined, internalQuery: undefined, where: 'unnamed portal parameter $6 = \'...\'', schema: undefined, table: undefined, dataType: undefined, constraint: undefined, file: 'uuid.c', routine: 'string_to_uuid' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/5]⎯
+
+
+ Test Files  4 failed | 20 passed (24)
+      Tests  5 failed | 127 passed (132)
+   Start at  07:57:53
+   Duration  16.19s (transform 2.05s, setup 459ms, collect 51.22s, tests 37.19s, environment 9ms, prepare 5.63s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-707.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:28:48Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-729 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-729" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+src/domains/employees/service.ts(379,25): error TS2304: Cannot find name 'organizationMemberships'.
+src/domains/employees/service.ts(384,25): error TS2304: Cannot find name 'locationMemberships'.
+src/domains/employees/service.ts(390,30): error TS18048: 'parsed.data.provisionAccess.roleIds' is possibly 'undefined'.
+src/domains/employees/service.ts(391,27): error TS2304: Cannot find name 'employeeRoleAssignments'.
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 1578ms
+ ❯ tests/domains/employees.auth.test.ts (2 tests | 2 failed) 1122ms
+   × Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation 601ms
+     → organizationMemberships is not defined
+   × Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted) 297ms
+     → organizationMemberships is not defined
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1204ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2153ms
+   ✓ Session context for operational UI > requires authentication  1482ms
+7:58:38 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1506ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  787ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  492ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1921ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  610ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 2156ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  893ms
+7:58:39 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1691ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  679ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates live evidence, verification, and severity without rewriting existing instance snapshots  336ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1748ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  491ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  560ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1766ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  688ms
+   ✓ Work instance operational query and visibility > exposes evidence and verification gates on the operational read path  349ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2401ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  422ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1452ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  323ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1821ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  300ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1144ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1245ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  362ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1367ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1208ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  480ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1676ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 1002ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  669ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 964ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1050ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  545ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 9ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 7ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 344ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation
+ReferenceError: organizationMemberships is not defined
+ ❯ src/domains/employees/service.ts:379:25
+    377| 
+    378|       if (parsed.data.provisionAccess && createdUserId) {
+    379|         await tx.insert(organizationMemberships).values({
+       |                         ^
+    380|           userId: createdUserId,
+    381|           organizationId: parsed.data.organizationId,
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createEmployee src/domains/employees/service.ts:287:12
+ ❯ tests/domains/employees.auth.test.ts:35:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/domains/employees.auth.test.ts > Employee Login Credential Architecture > DRAFT employee cannot get session scope (authentication restricted)
+ReferenceError: organizationMemberships is not defined
+ ❯ src/domains/employees/service.ts:379:25
+    377| 
+    378|       if (parsed.data.provisionAccess && createdUserId) {
+    379|         await tx.insert(organizationMemberships).values({
+       |                         ^
+    380|           userId: createdUserId,
+    381|           organizationId: parsed.data.organizationId,
+ ❯ NodePgSession.transaction node_modules/src/node-postgres/session.ts:259:19
+ ❯ createEmployee src/domains/employees/service.ts:287:12
+ ❯ tests/domains/employees.auth.test.ts:74:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed | 23 passed (24)
+      Tests  2 failed | 130 passed (132)
+   Start at  07:58:33
+   Duration  15.19s (transform 1.69s, setup 358ms, collect 51.35s, tests 32.54s, environment 8ms, prepare 5.56s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-729.log
+</SYSTEM_MESSAGE>
+Created At: 2026-09-19T07:59:33+05:30
+Completed At: 2026-09-19T07:59:34+05:30
+Task: c2ebd627-c396-4448-bd73-af30b3fa39a9/task-755
+Status: DONE
+Log: C:\Users\Asus\.gemini\antigravity-ide\brain\c2ebd627-c396-4448-bd73-af30b3fa39a9\.system_generated\tasks\task-755.log
+Log output:
+<truncated 71 lines>
+, stages, and instances  786ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 872ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  542ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1100ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  480ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1316ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1097ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1435ms
+   ✓ Employee service > creates a Person and Employee atomically for an authorized scope  352ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 11ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 422ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 5ms
+
+ Test Files  24 passed (24)
+      Tests  132 passed (132)
+   Start at  07:59:16
+   Duration  16.41s (transform 2.19s, setup 328ms, collect 56.19s, tests 34.82s, environment 10ms, prepare 6.10s)
+
+
+Last progress: 1s ago
+
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:29:32Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-755 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-755" finished with result:
+
+				The command exited with code 0.
+				Output:
+				
+> kalki-bos@0.1.0 typecheck
+> tsc --noEmit
+
+src/domains/employees/service.ts(390,30): error TS18048: 'parsed.data.provisionAccess.roleIds' is possibly 'undefined'.
+src/domains/employees/service.ts(391,52): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(value: { organizationId: string | SQL<unknown> | Placeholder<string, any>; employeeId: string | SQL<unknown> | Placeholder<string, any>; roleId: string | SQL<...> | Placeholder<...>; ... 4 more ...; metadata?: unknown; }): PgInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'grantedBy' does not exist in type '{ organizationId: string | SQL<unknown> | Placeholder<string, any>; employeeId: string | SQL<unknown> | Placeholder<string, any>; roleId: string | SQL<...> | Placeholder<...>; ... 4 more ...; metadata?: unknown; }'.
+  Overload 2 of 2, '(values: { organizationId: string | SQL<unknown> | Placeholder<string, any>; employeeId: string | SQL<unknown> | Placeholder<string, any>; roleId: string | SQL<...> | Placeholder<...>; ... 4 more ...; metadata?: unknown; }[]): PgInsertBase<...>', gave the following error.
+    Object literal may only specify known properties, and 'organizationId' does not exist in type '{ organizationId: string | SQL<unknown> | Placeholder<string, any>; employeeId: string | SQL<unknown> | Placeholder<string, any>; roleId: string | SQL<...> | Placeholder<...>; ... 4 more ...; metadata?: unknown; }[]'.
+
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/** tests/domains/
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+7:59:16 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1403ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  583ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 1767ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  355ms
+ ✓ tests/domains/employees.auth.test.ts (2 tests) 1080ms
+   ✓ Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation  617ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2359ms
+   ✓ Session context for operational UI > requires authentication  1557ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1569ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1961ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  684ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 2006ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  599ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  355ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 2175ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  444ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  843ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2523ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  1291ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates work definition and reminder stage status without rewriting existing instance snapshots  443ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates live evidence, verification, and severity without rewriting existing instance snapshots  318ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 2018ms
+   ✓ Work instance verification presence foundation > rejects unauthenticated and unauthorized presence operations  323ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1328ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1656ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  350ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2489ms
+   ✓ Work/Situation instance foundation > rejects unauthenticated and unauthorized instance operations  475ms
+7:59:27 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1240ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  658ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  333ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1589ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  448ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1394ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  786ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 872ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  542ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1100ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  480ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1316ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1097ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1435ms
+   ✓ Employee service > creates a Person and Employee atomically for an authorized scope  352ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 11ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 422ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 5ms
+
+ Test Files  24 passed (24)
+      Tests  132 passed (132)
+   Start at  07:59:16
+   Duration  16.41s (transform 2.19s, setup 328ms, collect 56.19s, tests 34.82s, environment 10ms, prepare 6.10s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-755.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:58:39Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1005 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1005" finished with result:
+
+				The command exited with code 0.
+				Output:
+				<truncated 1 lines>
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1704ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  403ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  389ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1821ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1997ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  867ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2041ms
+8:28:00 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 2653ms
+   ✓ Session context for operational UI > requires authentication  1776ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1645ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  747ms
+8:28:01 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1885ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  568ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  314ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1495ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  413ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1938ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  503ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2341ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  496ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  334ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1633ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  656ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1276ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  636ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1572ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1257ms
+   ✓ Employee service > creates a Person and Employee atomically for an authorized scope  301ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1413ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1035ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1221ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  581ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  395ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1147ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 839ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  519ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 501ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1023ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  477ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 6ms
+ ✓ tests/domains/employees.auth.test.ts (2 tests) 854ms
+   ✓ Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation  476ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 10ms
+
+ Test Files  24 passed (24)
+      Tests  132 passed (132)
+   Start at  08:27:54
+   Duration  17.11s (transform 2.11s, setup 372ms, collect 63.07s, tests 33.31s, environment 11ms, prepare 6.14s)
+
+
+> kalki-bos@0.1.0 build
+> next build
+
+▲ Next.js 16.3.3 (Turbopack)
+- Environments: .env
+✓ Running next.config took 15ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 10.6s
+  Running TypeScript ...
+  Finished TypeScript in 9.5s ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/65) ...
+  Generating static pages using 7 workers (16/65) 
+  Generating static pages using 7 workers (32/65) 
+  Generating static pages using 7 workers (48/65) 
+✓ Generating static pages using 7 workers (65/65) in 1021ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /api/audit-events
+├ ƒ /api/auth/[...all]
+├ ƒ /api/departments
+├ ƒ /api/employee-effective-roles
+├ ƒ /api/employee-responsibility-additions
+├ ƒ /api/employee-role-assignments
+├ ƒ /api/employees
+├ ƒ /api/employees/lifecycle
+├ ƒ /api/employees/proposals
+├ ƒ /api/employees/proposals/[id]/approve
+├ ƒ /api/employees/proposals/[id]/reject
+├ ƒ /api/employees/reporting-candidates
+├ ƒ /api/employees/salary
+├ ƒ /api/finance/invoices
+├ ƒ /api/finance/ledger
+├ ƒ /api/finance/payments
+├ ƒ /api/health
+├ ƒ /api/inventory-ledger
+├ ƒ /api/items
+├ ƒ /api/purchase-schedules
+├ ƒ /api/role-definitions
+├ ƒ /api/sales/stats
+├ ƒ /api/sales/upload
+├ ƒ /api/sales/upload/analyze
+├ ƒ /api/session-context
+├ ƒ /api/settings/departments
+├ ƒ /api/settings/import-fields
+├ ƒ /api/settings/org-chart
+├ ƒ /api/settings/positions
+├ ƒ /api/settings/roles
+├ ƒ /api/settings/roles/[id]/permissions
+├ ƒ /api/settings/tasks
+├ ƒ /api/settings/users
+├ ƒ /api/settings/users/[id]/roles
+├ ƒ /api/upload
+├ ƒ /api/vendor-items
+├ ƒ /api/vendors
+├ ƒ /api/work-instance-evidence-presences
+├ ƒ /api/work-instance-generations
+├ ƒ /api/work-instance-verification-presences
+├ ƒ /api/work-instances
+├ ƒ /api/work-situation-definitions
+├ ○ /attendance
+├ ○ /audit
+├ ○ /crm
+├ ○ /finance
+├ ○ /finance/invoices
+├ ○ /finance/payments
+├ ○ /inventory
+├ ○ /login
+├ ○ /payroll
+├ ○ /people
+├ ƒ /people/[id]
+├ ƒ /people/roles/[id]
+├ ƒ /purchasing
+├ ○ /purchasing/configuration
+├ ○ /purchasing/items
+├ ○ /purchasing/items/create
+├ ○ /purchasing/manual
+├ ○ /purchasing/vendors
+├ ƒ /purchasing/vendors/[id]
+├ ○ /sales
+├ ○ /sales/import
+├ ○ /settings
+├ ○ /settings/departments
+├ ○ /settings/import-fields
+├ ○ /settings/organization
+├ ○ /settings/roles
+├ ƒ /settings/roles/[id]
+├ ○ /settings/tasks
+├ ○ /settings/users
+├ ƒ /settings/users/[id]
+├ ○ /work
+└ ƒ /work/[id]
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-1005.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T02:59:10Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1040 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1040" finished with result:
+
+				The command exited with code 0.
+				Output:
+				
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/**
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1627ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1647ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  390ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2017ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  912ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2153ms
+   ✓ Work/Situation instance foundation > rejects unauthenticated and unauthorized instance operations  363ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2414ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  666ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  344ms
+8:28:57 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+78 |    biometricId: `BIO-${employeeCode}`,
+79 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+80 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,
+82 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 1674ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  518ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 3746ms
+   ✓ Session context for operational UI > requires authentication  2759ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1678ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  506ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  406ms
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1765ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  852ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1408ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  398ms
+8:29:01 AM [vite] (ssr) warning: Duplicate key "familyContacts" in object literal
+58 |    biometricId: `BIO-${employeeCode}`,
+59 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+60 |      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+   |      ^
+61 |          person: { firstName: `Test${testRunId}`,
+62 |      lastName: "Employee",
+
+  Plugin: vite:esbuild
+  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1255ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1498ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  676ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1773ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  719ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1838ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  458ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1154ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1194ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1276ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  647ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  370ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 941ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  568ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1098ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  464ms
+   ✓ Phase 2 Gate Audit Tests > Indirect and deep hierarchy cycles  401ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1292ms
+ ✓ tests/auth/authorization.test.ts (5 tests) 16ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 651ms
+ ✓ tests/db/schema.test.ts (8 tests) 20ms
+ ✓ tests/domains/employees.auth.test.ts (2 tests) 998ms
+   ✓ Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation  537ms
+ ✓ tests/work/presentation.test.ts (2 tests) 5ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 12ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 5ms
+
+ Test Files  27 passed (27)
+      Tests  147 passed (147)
+   Start at  08:28:51
+   Duration  18.48s (transform 1.85s, setup 482ms, collect 64.47s, tests 35.16s, environment 26ms, prepare 7.45s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-1040.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T03:34:02Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1231 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1231" finished with result:
+
+				The command exited with code 1.
+				Output:
+				
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/**
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 1846ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  665ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 2102ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2389ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  964ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 2408ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  549ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  327ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 3396ms
+   ✓ Session context for operational UI > requires authentication  2126ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 1523ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  318ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 1518ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  624ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1453ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  432ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  369ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 1479ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  321ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 1527ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1389ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  583ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1474ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  417ms
+ ❯ tests/domains/employees.phase4.audit.test.ts (6 tests | 1 failed) 1857ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  650ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (GPAY missing fields) 164ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > accepts valid BANK_TRANSFER 200ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects self-reference 98ms
+   × Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->A cycle 116ms
+     → Mobile number is already registered to another employee
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  344ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 972ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 1205ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 969ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1107ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  539ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  368ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1263ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1140ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  482ms
+   ✓ Phase 2 Gate Audit Tests > Indirect and deep hierarchy cycles  378ms
+ ✓ tests/auth/authorization.test.ts (5 tests) 7ms
+ ✓ tests/db/schema.test.ts (8 tests) 26ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 1052ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  664ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 658ms
+ ✓ tests/work/presentation.test.ts (2 tests) 5ms
+ ✓ tests/domains/employees.auth.test.ts (2 tests) 883ms
+   ✓ Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation  445ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 5ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/domains/employees.phase4.audit.test.ts > Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->A cycle
+EmployeeServiceError: Mobile number is already registered to another employee
+ ❯ createEmployee src/domains/employees/service.ts:274:13
+    272|     const existingPhone = await db.select({ id: people.id }).from(peop…
+    273|     if (existingPhone.length > 0) {
+    274|       throw new EmployeeServiceError("Mobile number is already registe…
+       |             ^
+    275|     }
+    276|   }
+ ❯ buildActiveEmployee tests/domains/employees.phase4.audit.test.ts:79:17
+ ❯ tests/domains/employees.phase4.audit.test.ts:148:20
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 26 passed (27)
+      Tests  1 failed | 146 passed (147)
+   Start at  09:03:43
+   Duration  18.41s (transform 2.96s, setup 551ms, collect 66.15s, tests 33.66s, environment 9ms, prepare 7.37s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-1231.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T03:35:30Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1266 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1266" finished with result:
+
+				The command exited with code 0.
+				Output:
+				
+> kalki-bos@0.1.0 test
+> vitest run --exclude tests/e2e/**
+
+
+ RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki
+
+ ✓ tests/domains/work-instance-operations.service.test.ts (3 tests) 2543ms
+   ✓ Work instance operational query and visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  1109ms
+   ✓ Work instance operational query and visibility > exposes evidence and verification gates on the operational read path  366ms
+ ✓ tests/domains/work-instance-verification.service.test.ts (8 tests) 2798ms
+   ✓ Work instance verification presence foundation > rejects unauthenticated and unauthorized presence operations  433ms
+ ✓ tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 2979ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, assignments, or snapshots of existing work  1381ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates work definition and reminder stage status without rewriting existing instance snapshots  333ms
+   ✓ Role and Work/Situation configuration status lifecycle > updates live evidence, verification, and severity without rewriting existing instance snapshots  549ms
+ ✓ tests/domains/work-instances.service.test.ts (10 tests) 3345ms
+   ✓ Work/Situation instance foundation > rejects unauthenticated and unauthorized instance operations  417ms
+   ✓ Work/Situation instance foundation > fails safely when evidence or verification prerequisites are required but deferred  313ms
+ ✓ tests/domains/employee-roles.service.test.ts (9 tests) 4728ms
+   ✓ Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles for one employee  906ms
+   ✓ Employee business-role assignment and additions > creates and reads employee-specific additions without mutating the shared role baseline  637ms
+   ✓ Employee business-role assignment and additions > composes a read-only effective role from assigned baselines and employee additions  383ms
+   ✓ Employee business-role assignment and additions > omits inactive assigned role baselines from the effective view without hiding the assignment record  371ms
+ ✓ tests/domains/session-context.service.test.ts (3 tests) 6656ms
+   ✓ Session context for operational UI > requires authentication  4842ms
+ ✓ tests/domains/employees.phase4.audit.test.ts (6 tests) 2903ms
+   ✓ Phase 4 Final Gate Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  945ms
+   ✓ Phase 4 Final Gate Audit Tests > Organization Hierarchy > rejects A->B->C->A cycle  362ms
+ ✓ tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1703ms
+   ✓ Work instance reminder and escalation snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  479ms
+ ✓ tests/domains/work-instance-evidence.service.test.ts (9 tests) 2145ms
+   ✓ Work instance evidence presence foundation > creates and reads a same-organization presence for a scoped instance  593ms
+ ✓ tests/domains/role-work-expectation.service.test.ts (3 tests) 1909ms
+   ✓ Role responsibility Work/Situation expectation > links active same-organization work definitions from create and later update  489ms
+   ✓ Role responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating instances  623ms
+ ✓ tests/domains/stage8.persistence.test.ts (2 tests) 1623ms
+   ✓ Stage 8 persistence foundation > enforces organization-scoped work definitions, evidence, stages, and instances  811ms
+ ✓ tests/domains/employees.verification.test.ts (6 tests) 2560ms
+   ✓ Phase 2 Verification Strengthening > Activation Test Coverage > DRAFT creation with incomplete onboarding succeeds  516ms
+ ✓ tests/domains/employees.workflow.test.ts (6 tests) 2984ms
+   ✓ Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> Master & History Updated  1184ms
+   ✓ Phase 3 Approval Workflow Tests > Propose -> Reject -> Master remains unchanged  361ms
+   ✓ Phase 3 Approval Workflow Tests > Unauthorized User Cannot Approve  314ms
+ ✓ tests/domains/work-instance-generation.service.test.ts (4 tests) 2044ms
+   ✓ Work instance generation from source provenance > rejects unauthenticated, unauthorized, and invalid generation  308ms
+   ✓ Work instance generation from source provenance > generates event and order instances through the normal create path with required source identity  378ms
+ ✓ tests/domains/evidence-capture.service.test.ts (2 tests) 1281ms
+   ✓ evidence capture > records and updates evidence metadata through one idempotent write boundary  738ms
+ ✓ tests/domains/employees.gate.test.ts (3 tests) 1333ms
+   ✓ Phase 2 Gate Audit Tests > Concurrent Employee ID generation  438ms
+   ✓ Phase 2 Gate Audit Tests > Indirect and deep hierarchy cycles  379ms
+ ✓ tests/domains/employees.service.test.ts (8 tests) 1689ms
+ ✓ tests/domains/roles-work.service.test.ts (6 tests) 1559ms
+   ✓ Role and Work/Situation configuration services > creates and retrieves a role baseline with ordered children  416ms
+ ✓ tests/auth/authorization.test.ts (5 tests) 6ms
+ ✓ tests/domains/employees.phase4.test.ts (2 tests) 1700ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  808ms
+   ✓ Phase 4 Tests: Hierarchy, Salary & Directory > Hierarchy Generation & Contact Directory Scope  627ms
+ ✓ tests/db/schema.test.ts (8 tests) 35ms
+ ✓ tests/domains/audit-query.service.test.ts (7 tests) 596ms
+ ✓ tests/domains/employees.slice5.test.ts (12 tests) 1446ms
+ ✓ tests/work/presentation.test.ts (2 tests) 7ms
+ ✓ tests/domains/evidence.service.test.ts (5 tests) 12ms
+ ✓ tests/domains/audit.service.test.ts (5 tests) 12ms
+ ✓ tests/domains/employees.auth.test.ts (2 tests) 1093ms
+   ✓ Employee Login Credential Architecture > Links employee to auth user, memberships, and roles during creation  524ms
+
+ Test Files  27 passed (27)
+      Tests  147 passed (147)
+   Start at  09:05:04
+   Duration  25.74s (transform 3.74s, setup 577ms, collect 95.76s, tests 51.69s, environment 10ms, prepare 7.98s)
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-1266.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T04:15:13Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1506 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1506" finished with result:
+
+				The command exited with code 0.
+				Output:
+				<truncated 487 lines>
+data payload is passed. I must figure out where the \"expected string, received null\" error comes 
+from.\n\n\n","tool_calls":[{"name":"run_command","args":{"CommandLine":"cat src/domains/employees/service.ts | grep -A 
+20 \"employeeUpdateSchema 
+=\"","Cwd":"c:\\Users\\Asus\\Kalki-BOS\\kalki","IsDaemon":false,"WaitMsBeforeAsync":5000,"toolAction":"View 
+employeeUpdateSchema","toolSummary":"View employeeUpdateSchema"}}]}
+C:\Users\Asus\.gemini\antigravity-ide\brain\6ddce3a8-abf4-439b-9b7d-36b3e76b98cc\.system_generated\logs\transcript_full
+.jsonl:538:{"step_index":537,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-18T14:07:
+07Z","thinking":"**Prioritizing Specific Tools**\n\nI'm focusing on the importance of selecting the most appropriate 
+tool for each task. The goal is to maximize efficiency. I am making an active effort to ensure that I always choose 
+the correct approach to each problem or challenge, such as choosing a relevant 'view_file' utility where 
+possible.\n\n\n**Analyzing Tool Suitability**\n\nI've been reviewing my prior thoughts, specifically recalling 
+critical instruction 1: the prohibition on using tools like `cat`, `grep`, `ls`, and `sed` in basic operations within 
+bash commands. Also, recalling critical instruction 2 on listing all relevant tools. Because I'm on PowerShell, I'm 
+now focused on using `Select-String`, `findstr`, or the available API tools. I've already confirmed that 
+`salaryAmount` isn't in `employeeUpdateSchema`.\n\n\n**Investigating Input Validation**\n\nI'm now zeroing in on a 
+critical failure point: the \"expected string, received null\" error. I've been tracing the data flow from the user 
+input through to the backend, focusing on the `/api/employees/salary` endpoint. I was initially unsure if `amount` 
+could be null, but have confirmed this is a potential cause, even though amount is initialized to \"\". My schema 
+analysis shows `amount` is a non-nullable string, and I'm further exploring how this might occur in 
+`EmployeeSalaryForm.tsx`.\n\n\n**Unraveling Data Flow**\n\nOkay, I've got it! I was stuck, but now I think I see the 
+issue. Initializing `amount` to `\"\"` in the form, and the subsequent update of the amount state, is a red herring. 
+The form submits an empty string when the user leaves the input field as-is. And then it hits the regex validation 
+failure. The root problem may be that the `PATCH` endpoint is not validating inputs correctly. I should look into what 
+happens when `salaryAmountNum` is null or zero. Let me trace back the data on that `PATCH` API call.\n\n\n","tool_calls
+":[{"name":"view_file","args":{"AbsolutePath":"c:\\Users\\Asus\\Kalki-BOS\\kalki\\src\\domains\\employees\\service.ts",
+"EndLine":750,"StartLine":500,"toolAction":"View updateEmployee again","toolSummary":"View updateEmployee"}}]}
+C:\Users\Asus\.gemini\antigravity-ide\brain\6ddce3a8-abf4-439b-9b7d-36b3e76b98cc\.system_generated\logs\transcript_full
+.jsonl:834:{"step_index":833,"source":"MODEL","type":"RUN_COMMAND","status":"DONE","exit_code":0,"created_at":"2026-09-
+18T14:27:51Z","content":"Created At: 2026-09-18T19:57:51+05:30\nCompleted At: 2026-09-18T19:57:51+05:30\n\n\t\t\t\tThe 
+command exited with code 0.\n\t\t\t\tOutput:\n\t\t\t\tOn branch foundation\nYour branch is ahead of 
+'origin/foundation' by 10 commits.\n  (use \"git push\" to publish your local commits)\n\nChanges not staged for 
+commit:\n  (use \"git add <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard 
+changes in working directory)\n\tmodified:   drizzle/meta/_journal.json\n\tmodified:   next-env.d.ts\n\tmodified:   
+package.json\n\tmodified:   scripts/seed.ts\n\tmodified:   src/app/api/employee-role-assignments/route.ts\n\tmodified: 
+  src/app/api/role-definitions/route.ts\n\tmodified:   src/app/globals.css\n\tmodified:   
+src/app/page.tsx\n\tmodified:   src/components/AppShell.tsx\n\tmodified:   
+src/components/people/EmployeeForm.tsx\n\tmodified:   src/components/people/EmployeeProfile.tsx\n\tmodified:   
+src/components/people/PeopleDashboard.tsx\n\tmodified:   src/db/schema.ts\n\tmodified:   
+src/domains/employees/service.ts\n\tmodified:   src/domains/roles-work/service.ts\n\tmodified:   
+src/lib/authorization.ts\n\tmodified:   tests/domains/employees.gate.test.ts\n\tmodified:   
+tests/domains/employees.phase4.audit.test.ts\n\tmodified:   tests/domains/employees.phase4.test.ts\n\tmodified:   
+tests/domains/employees.service.test.ts\n\tmodified:   tests/domains/employees.verification.test.ts\n\tmodified:   
+tests/domains/employees.workflow.test.ts\n\nUntracked files:\n  (use \"git add <file>...\" to include in what will be c
+ommitted)\n\tdrizzle/0013_gray_bloodaxe.sql\n\tdrizzle/0014_yellow_blacklash.sql\n\tdrizzle/meta/0013_snapshot.json\n\t
+drizzle/meta/0014_snapshot.json\n\tpublic/uploads/1789543864617-1.png\n\tpublic/uploads/1789543864620-1.png\n\tpublic/u
+ploads/1789543864623-1.png\n\tpublic/uploads/1789543864625-1.png\n\tpublic/uploads/1789553102504-1.png\n\tpublic/upload
+s/1789553102506-2.png\n\tpublic/uploads/1789553102508-1.png\n\tpublic/uploads/1789663075742-1.png\n\tpublic/uploads/178
+9663075744-1.png\n\tpublic/uploads/1789663075746-1.png\n\tpublic/uploads/1789663096123-1.png\n\tpublic/uploads/17896630
+96124-1.png\n\tpublic/uploads/1789663096126-1.png\n\tpublic/uploads/1789663667184-1.png\n\tpublic/uploads/1789663667186
+-1.png\n\tpublic/uploads/1789663667187-1.png\n\tpublic/uploads/1789665677986-2.png\n\tpublic/uploads/1789730135244-1.pn
+g\n\tpublic/uploads/1789730135245-1.png\n\tpublic/uploads/1789736993509-1.png\n\tpublic/uploads/1789736993512-1.png\n\t
+public/uploads/1789736999693-1.png\n\tpublic/uploads/1789736999695-1.png\n\tpublic/uploads/1789737028505-1.png\n\tpubli
+c/uploads/1789737028507-1.png\n\tpublic/uploads/1789737030018-1.png\n\tpublic/uploads/1789737030019-1.png\n\tpublic/upl
+oads/1789737067206-1.png\n\tpublic/uploads/1789737067207-1.png\n\tpublic/uploads/1789737067888-1.png\n\tpublic/uploads/
+1789737067890-1.png\n\tpublic/uploads/1789737068427-1.png\n\tpublic/uploads/1789737068428-1.png\n\tpublic/uploads/17897
+37078278-1.png\n\tpublic/uploads/1789737079197-1.png\n\tpublic/uploads/1789737104596-1.png\n\tpublic/uploads/1789737104
+597-2.png\n\tpublic/uploads/1789737104599-1.png\n\tpublic/uploads/1789737104600-1.png\n\tpublic/uploads/1789737104601-1
+.png\n\tpublic/uploads/1789737105481-1.png\n\tpublic/uploads/1789737105483-2.png\n\tpublic/uploads/1789737105484-1.png\
+n\tpublic/uploads/1789737105485-1.png\n\tpublic/uploads/1789737105488-1.png\n\tpublic/uploads/1789737109798-1.png\n\tpu
+blic/uploads/1789737109801-2.png\n\tpublic/uploads/1789737109806-1.png\n\tpublic/uploads/1789737109809-1.png\n\tpublic/
+uploads/1789737109812-1.png\n\tpublic/uploads/1789737130953-1.png\n\tpublic/uploads/1789737130955-2.png\n\tpublic/uploa
+ds/1789737130957-1.png\n\tpublic/uploads/1789737130958-1.png\n\tpublic/uploads/1789737130960-1.png\n\tpublic/uploads/17
+89737131821-1.png\n\tpublic/uploads/1789737131823-2.png\n\tpublic/uploads/1789737131825-1.png\n\tpublic/uploads/1789737
+131828-1.png\n\tpublic/uploads/1789737131830-1.png\n\tpublic/uploads/1789738363012-1.png\n\tpublic/uploads/178973836301
+3-2.png\n\tpublic/uploads/1789738562002-1.png\n\tpublic/uploads/1789738562004-1.png\n\tpublic/uploads/1789739250306-1.p
+ng\n\tpublic/uploads/1789739250308-1.png\n\tscripts/check-locations.ts\n\tscripts/clear-audits.ts\n\tscripts/create-adm
+in2.ts\n\tscripts/drizzle-answer.js\n\tscripts/rename-admin.ts\n\tscripts/wipe-db.ts\n\tsrc/app/api/employees/lifecycle
+/\n\tsrc/app/api/employees/proposals/\n\tsrc/app/api/employees/reporting-candidates/\n\tsrc/app/api/employees/salary/\n
+\tsrc/app/attendance/\n\tsrc/app/crm/\n\tsrc/app/kalki-ds.css\n\tsrc/app/payroll/\n\tsrc/app/settings/page.tsx\n\tsrc/c
+omponents/people/EmployeeSalaryForm.tsx\n\tsrc/components/ui/\n\ttests/domains/employees.auth.test.ts\n\ttests/domains/
+employees.slice5.test.ts\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")\n\n"}
+
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-1506.log
+</SYSTEM_MESSAGE>
+The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.
+
+<SYSTEM_MESSAGE>
+[Message] timestamp=2026-09-19T04:27:21Z sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1675 priority=MESSAGE_PRIORITY_HIGH content=Task id "c2ebd627-c396-4448-bd73-af30b3fa39a9/task-1675" finished with result:
+
+				The command exited with code 0.
+				Output:
+				<truncated 613 lines>
+23 passed (24)\n      Tests  1 failed | 131 passed (132)\n   Start at  07:51:42\n   Duration  16.23s (transform 2.11s, 
+setup 444ms, collect 56.49s, tests 34.25s, environment 9ms, prepare 5.82s)\n\n\n\nLog: file:///C:/Users/Asus/.gemini/an
+tigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-553.log\n</SYSTEM_MESSAGE>"}
+C:\Users\Asus\.gemini\antigravity-ide\brain\c2ebd627-c396-4448-bd73-af30b3fa39a9\.system_generated\logs\transcript_full
+.jsonl:597:{"step_index":600,"source":"SYSTEM","type":"SYSTEM_MESSAGE","status":"DONE","created_at":"2026-09-19T02:23:0
+3Z","content":"The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as 
+important information to pay attention to.\n\n<SYSTEM_MESSAGE>\n[Message] timestamp=2026-09-19T02:22:59Z 
+sender=c2ebd627-c396-4448-bd73-af30b3fa39a9/task-586 priority=MESSAGE_PRIORITY_HIGH content=Task id 
+\"c2ebd627-c396-4448-bd73-af30b3fa39a9/task-586\" finished with result:\n\n\t\t\t\tThe command exited with code 
+1.\n\t\t\t\tOutput:\n\t\t\t\t\n> kalki-bos@0.1.0 typecheck\n> tsc --noEmit\n\n\n> kalki-bos@0.1.0 test\n> vitest run 
+--exclude tests/e2e/** tests/domains/\n\n\n RUN  v3.2.7 C:/Users/Asus/Kalki-BOS/kalki\n\n � 
+tests/domains/work-instance-evidence.service.test.ts (9 tests) 1534ms\n   � Work instance evidence presence foundation 
+> creates and reads a same-organization presence for a scoped instance  335ms\n � 
+tests/domains/role-work-expectation.service.test.ts (3 tests) 1696ms\n   � Role responsibility Work/Situation 
+expectation > links active same-organization work definitions from create and later update  427ms\n   � Role 
+responsibility Work/Situation expectation > surfaces unique expected work on the effective role without generating 
+instances  425ms\n � tests/domains/roles-work-configuration-status.service.test.ts (4 tests) 1792ms\n   � Role and 
+Work/Situation configuration status lifecycle > updates role and addition active status without rewriting baselines, 
+assignments, or snapshots of existing work  833ms\n � tests/domains/employee-roles.service.test.ts (9 tests) 2069ms\n  
+ � Employee business-role assignment and additions > assigns and retrieves multiple organization-scoped business roles 
+for one employee  445ms\n   � Employee business-role assignment and additions > creates and reads employee-specific 
+additions without mutating the shared role baseline  375ms\n ? tests/domains/employees.auth.test.ts (2 tests | 1 
+failed) 969ms\n   x Employee Login Credential Architecture > Links employee to auth user, memberships, and roles 
+during creation 515ms\n      expected +0 to be 1 // Object.is equality\n   � Employee Login Credential Architecture > 
+DRAFT employee cannot get session scope (authentication restricted) 263ms\n7:52:49 AM [vite] (ssr) warning: Duplicate 
+key \"familyContacts\" in object literal\n78 |    biometricId: `BIO-${employeeCode}`,\n79 |      familyContacts: [{ 
+category: \"EMERGENCY_CONTACT\", name: \"test\", mobile: \"123\", relationship: \"test\" }],\n80 |      
+familyContacts: [{ category: \"EMERGENCY_CONTACT\", name: \"test\", mobile: \"123\", relationship: \"test\" }],\n   |  
+    ^\n81 |          person: { firstName: `Test${randomUUID().slice(0, 8)}`,\n82 |      lastName: \"Employee\",\n\n  
+Plugin: vite:esbuild\n  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.verification.test.ts\n � 
+tests/domains/session-context.service.test.ts (3 tests) 2736ms\n   � Session context for operational UI > requires 
+authentication  1968ms\n � tests/domains/employees.phase4.audit.test.ts (6 tests) 1974ms\n   � Phase 4 Final Gate 
+Audit Tests > Salary / Payment > rejects invalid payment combinations (BANK_TRANSFER missing fields)  617ms\n � 
+tests/domains/work-instance-snapshot.service.test.ts (7 tests) 1442ms\n   � Work instance reminder and escalation 
+snapshot foundation > captures ordered reminder and escalation configuration on the instance snapshot  358ms\n � 
+tests/domains/work-instance-verification.service.test.ts (8 tests) 1656ms\n7:52:52 AM [vite] (ssr) warning: Duplicate 
+key \"familyContacts\" in object literal\n58 |    biometricId: `BIO-${employeeCode}`,\n59 |      familyContacts: [{ 
+category: \"EMERGENCY_CONTACT\", name: \"test\", mobile: \"123\", relationship: \"test\" }],\n60 |      
+familyContacts: [{ category: \"EMERGENCY_CONTACT\", name: \"test\", mobile: \"123\", relationship: \"test\" }],\n   |  
+    ^\n61 |          person: { firstName: `Test${testRunId}`,\n62 |      lastName: \"Employee\",\n\n  Plugin: 
+vite:esbuild\n  File: C:/Users/Asus/Kalki-BOS/kalki/tests/domains/employees.service.test.ts\n � 
+tests/domains/work-instance-operations.service.test.ts (3 tests) 1956ms\n   � Work instance operational query and 
+visibility > filters assigned and generated work by existing instance identity without rewriting snapshots  765ms\n   
+� Work instance operational query and visibility > exposes evidence and verification gates on the operational read 
+path  351ms\n � tests/domains/work-instances.service.test.ts (10 tests) 2284ms\n � 
+tests/domains/work-instance-generation.service.test.ts (4 tests) 1483ms\n   � Work instance generation from source 
+provenance > returns the same instance on source retry without rewriting snapshot or state  347ms\n � 
+tests/domains/employees.verification.test.ts (6 tests) 1752ms\n   � Phase 2 Verification Strengthening > Activation 
+Test Coverage > DRAFT creation with incomplete onboarding succeeds  331ms\n � tests/domains/employees.workflow.test.ts 
+(6 tests) 2103ms\n   � Phase 3 Approval Workflow Tests > End-to-End: Propose -> Master Unchanged -> Owner Approves -> 
+Master & History Updated  928ms\n � tests/domains/employees.phase4.test.ts (2 tests) 1204ms\n   � Phase 4 Tests: 
+Hierarchy, Salary & Directory > Salary Direct CRUD: Owner edits active employee  631ms\n   � Phase 4 Tests: Hierarchy, 
+Salary & Directory > Hierarchy Generation & Contact Directory Scope  377ms\n � tests/domains/employees.service.test.ts 
+(8 tests) 1170ms\n   � Employee service > creates a Person and Employee atomically for an authorized scope  301ms\n � 
+tests/domains/stage8.persistence.test.ts (2 tests) 1078ms\n   � Stage 8 persistence foundation > enforces 
+organization-scoped work definitions, evidence, stages, and instances  523ms\n � 
+tests/domains/evidence-capture.service.test.ts (2 tests) 814ms\n   � evidence capture > records and updates evidence 
+metadata through one idempotent write boundary  466ms\n � tests/domains/roles-work.service.test.ts (6 tests) 968ms\n � 
+tests/domains/employees.gate.test.ts (3 tests) 1146ms\n   � Phase 2 Gate Audit Tests > Concurrent Employee ID 
+generation  459ms\n � tests/domains/evidence.service.test.ts (5 tests) 12ms\n � tests/domains/employees.slice5.test.ts 
+(12 tests) 1384ms\n � tests/domains/audit.service.test.ts (5 tests) 10ms\n � tests/domains/audit-query.service.test.ts 
+(7 tests) 429ms\n\n??????? Failed Tests 1 ???????\n\n FAIL  tests/domains/employees.auth.test.ts > Employee Login 
+Credential Architecture > Links employee to auth user, memberships, and roles during creation\nAssertionError: 
+expected +0 to be 1 // Object.is equality\n\n- Expected\n+ Received\n\n- 1\n+ 0\n\n ? 
+tests/domains/employees.auth.test.ts:62:27\n     60| \n     61|     const orgMem = await 
+db.select().from(organizationMemberships).whe.\n     62|     expect(orgMem.length).toBe(1);\n       |                  
+         ^\n     63| \n     64|     const locMem = await 
+db.select().from(locationMemberships).where(e.\n\n????????????????????????[1/1]?\n\n\n Test Files  1 failed | 23 
+passed (24)\n      Tests  1 failed | 131 passed (132)\n   Start at  07:52:43\n   Duration  16.01s (transform 1.69s, 
+setup 347ms, collect 55.76s, tests 33.66s, environment 8ms, prepare 5.73s)\n\n\n\nLog: file:///C:/Users/Asus/.gemini/an
+tigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-586.log\n</SYSTEM_MESSAGE>"}
+
+
+
+
+Log: file:///C:/Users/Asus/.gemini/antigravity-ide/brain/c2ebd627-c396-4448-bd73-af30b3fa39a9/.system_generated/tasks/task-1675.log
+</SYSTEM_MESSAGE>
+<USER_REQUEST>
+Good. The application-source recovery is now substantially complete. Do NOT modify the application implementation at this stage.
+
+The current verified test count is 133, while the previously verified Phase 5 state had 147 tests.
+
+The missing coverage has now been isolated to:
+
+employees.auth.test.ts → 2 tests
+employees.slice5.test.ts → 12 tests
+
+Therefore the exact coverage gap is 14 tests.
+
+Objective
+
+Recover or legitimately re-establish these 14 tests without weakening or artificially inflating the test suite.
+
+1. Recover the 2 authentication tests
+
+Search the available Antigravity transcripts/history for the complete implementation of employees.auth.test.ts.
+
+You already found replace_file_content blocks containing its test logic.
+
+Reconstruct the complete file from those recorded blocks wherever possible.
+
+Do not invent assertions that were not present unless necessary to make the recovered test executable. If something cannot be recovered exactly, explicitly identify it.
+
+2. Recover the 12 Slice 5 tests
+
+Search all available:
+
+Antigravity transcripts
+test-runner output
+task logs
+.next artifacts if relevant
+Git history
+brain/session logs
+
+for:
+
+employees.slice5.test.ts
+
+and identify the exact 12 tests that previously passed.
+
+Search by both filename and test names/descriptions because the original source may not be present as one complete block.
+
+3. Important distinction
+
+Do NOT simply create 14 new tests and claim that the original 14 were recovered.
+
+Classify each test:
+
+EXACTLY RECOVERED
+
+RECONSTRUCTED FROM RECORDED TEST INTENT
+
+NEW TEST FOR PREVIOUSLY UNCOVERED BEHAVIOR
+
+We need to know which is which.
+
+4. Preserve test strength
+
+Do NOT:
+
+remove existing tests
+weaken assertions
+reduce coverage
+skip database verification
+mock away the functionality being tested merely to make the tests pass
+modify production code merely to satisfy a reconstructed test
+
+If a recovered test exposes a genuine implementation problem, stop and report the problem rather than weakening the test.
+
+5. Re-establish the test baseline
+
+After restoring/reconstructing the tests:
+
+npm test
+
+Confirm the exact test count.
+
+The target is at least 147 passing tests, but the number alone is NOT sufficient.
+
+Produce a table:
+
+Test file	Expected tests	Current tests	Recovery status
+employees.auth.test.ts	2	?	...
+employees.slice5.test.ts	12	?	...
+Existing People tests	133	?	...
+6. Run the complete verification
+
+After test recovery:
+
+npm run typecheck
+
+npm test
+
+npm run build
+
+Do not change application code unless a genuine test reveals a defect.
+
+7. Inspect repository state
+
+Run:
+
+git status
+
+git diff --stat
+
+git ls-files --others --exclude-standard
+
+Confirm that the recovered source files and recovered tests are visible to Git and that no required production/test files remain unintentionally untracked.
+
+Do NOT run git clean.
+
+Do NOT commit.
+
+Do NOT freeze.
+
+Do NOT begin browser testing yet.
+
+Final report
+
+Report:
+
+Auth tests: X/2 recovered/re-established
+
+Slice 5 tests: X/12 recovered/re-established
+
+Total tests: X
+
+Typecheck: PASS/FAIL
+
+Build: PASS/FAIL
+
+Test coverage: VERIFIED/PARTIALLY VERIFIED
+
+Production code changed during test recovery: YES/NO
+
+Untracked required files remaining: YES/NO
+
+Git integrity: PASS/FAIL
+
+If any of the original 14 tests cannot be recovered exactly, explicitly state which ones and why.
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-19T10:11:04+05:30.
+
+The user's current state is as follows:
+Other open documents:
+- c:\Users\Asus\Kalki-BOS\kalki\src\app\settings\roles\[id]\page.tsx (LANGUAGE_TSX)
+- c:\Users\Asus\Kalki-BOS\kalki\src\app\api\settings\users\[id]\roles\route.ts (LANGUAGE_TYPESCRIPT)
+- c:\Users\Asus\Kalki-BOS\kalki\src\components\people\RoleProfile.tsx (LANGUAGE_TSX)
+- c:\Users\Asus\Kalki-BOS\kalki\src\app\purchasing\items\page.tsx (LANGUAGE_TSX)
+- c:\Users\Asus\Kalki-BOS\kalki\src\app\purchasing\items\create\page.tsx (LANGUAGE_TSX)
+</ADDITIONAL_METADATA>

@@ -670,11 +670,11 @@ export const workSituationReminderEscalationStages = pgTable("work_situation_rem
 ]);
 
 export const workInstances = pgTable("work_instances", {
-  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), locationId: uuid("location_id"), assignedEmployeeId: uuid("assigned_employee_id"), sourceReference: text("source_reference"), sourceMetadata: jsonb("source_metadata").notNull().default({}), definitionSnapshot: jsonb("definition_snapshot").notNull().default({}), state: text("state").notNull().default("SEEN"), verificationConfig: jsonb("verification_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  id: uuid("id").defaultRandom().primaryKey(), organizationId: uuid("organization_id").notNull(), workSituationDefinitionId: uuid("work_situation_definition_id").notNull(), locationId: uuid("location_id"), assignedEmployeeId: uuid("assigned_employee_id"), sourceReference: text("source_reference"), sourceMetadata: jsonb("source_metadata").notNull().default({}), definitionSnapshot: jsonb("definition_snapshot").notNull().default({}), state: text("state").notNull().default("SEEN"), verificationConfig: jsonb("verification_config").notNull().default({}), metadata: jsonb("metadata").notNull().default({}), dueAt: timestamp("due_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   unique("work_instances_organization_id_unique").on(table.organizationId, table.id),
   unique("work_instances_organization_definition_source_unique").on(table.organizationId, table.workSituationDefinitionId, table.sourceReference),
-  foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_instances_organization_definition_fk" }), foreignKey({ columns: [table.organizationId, table.locationId], foreignColumns: [locations.organizationId, locations.id], name: "work_instances_organization_location_fk" }), foreignKey({ columns: [table.organizationId, table.assignedEmployeeId], foreignColumns: [employees.organizationId, employees.id], name: "work_instances_organization_assigned_employee_fk" }), check("work_instances_state_check", sql`${table.state} IN ('SEEN', 'ACKNOWLEDGED', 'COMPLETED', 'VERIFIED')`), index("work_instances_organization_state_idx").on(table.organizationId, table.state), index("work_instances_assigned_employee_state_idx").on(table.assignedEmployeeId, table.state), index("work_instances_definition_idx").on(table.workSituationDefinitionId),
+  foreignKey({ columns: [table.organizationId, table.workSituationDefinitionId], foreignColumns: [workSituationDefinitions.organizationId, workSituationDefinitions.id], name: "work_instances_organization_definition_fk" }), foreignKey({ columns: [table.organizationId, table.locationId], foreignColumns: [locations.organizationId, locations.id], name: "work_instances_organization_location_fk" }), foreignKey({ columns: [table.organizationId, table.assignedEmployeeId], foreignColumns: [employees.organizationId, employees.id], name: "work_instances_organization_assigned_employee_fk" }), check("work_instances_state_check", sql`${table.state} IN ('SEEN', 'ACKNOWLEDGED', 'COMPLETED', 'VERIFIED')`), index("work_instances_organization_state_idx").on(table.organizationId, table.state), index("work_instances_assigned_employee_state_idx").on(table.assignedEmployeeId, table.state), index("work_instances_definition_idx").on(table.workSituationDefinitionId), index("work_instances_organization_due_idx").on(table.organizationId, table.dueAt),
 ]);
 
 export const workInstanceEvidencePresences = pgTable("work_instance_evidence_presences", {
@@ -1096,4 +1096,105 @@ export const taskAuditLogs = pgTable("task_audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index("task_audit_logs_task_instance_idx").on(table.taskInstanceId),
+]);
+
+export const workEscalationHistory = pgTable("work_escalation_history", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  workInstanceId: uuid("work_instance_id").notNull(),
+  stagePosition: integer("stage_position").notNull(),
+  occurrenceIndex: integer("occurrence_index").notNull().default(0),
+  triggerCondition: text("trigger_condition").notNull(),
+  notificationEventId: uuid("notification_event_id"),
+  recipientInfo: jsonb("recipient_info").notNull().default({}),
+  status: text("status").notNull().default("EXECUTED"),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  foreignKey({
+    columns: [table.organizationId, table.workInstanceId],
+    foreignColumns: [workInstances.organizationId, workInstances.id],
+    name: "work_escalation_history_org_instance_fk"
+  }),
+  unique("work_escalation_history_instance_stage_occurrence_unique").on(table.workInstanceId, table.stagePosition, table.occurrenceIndex),
+  index("work_escalation_history_org_instance_idx").on(table.organizationId, table.workInstanceId),
+]);
+
+export const notificationEvents = pgTable("notification_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  workInstanceId: uuid("work_instance_id"),
+  sourceEvent: text("source_event").notNull(),
+  notificationType: text("notification_type").notNull(),
+  criticality: text("criticality").notNull().default("NORMAL"),
+  recipientUserId: text("recipient_user_id").notNull().references(() => authUsers.id),
+  payloadReference: jsonb("payload_reference").notNull().default({}),
+  processingState: text("processing_state").notNull().default("PENDING"),
+  idempotencyKey: text("idempotency_key"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("notification_events_idempotency_unique").on(table.idempotencyKey),
+  index("notification_events_org_state_idx").on(table.organizationId, table.processingState),
+  foreignKey({
+    columns: [table.organizationId, table.workInstanceId],
+    foreignColumns: [workInstances.organizationId, workInstances.id],
+    name: "notification_events_org_instance_fk"
+  }),
+]);
+
+export const notificationDeliveries = pgTable("notification_deliveries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  notificationEventId: uuid("notification_event_id").notNull().references(() => notificationEvents.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull(),
+  recipientUserId: text("recipient_user_id").notNull().references(() => authUsers.id),
+  status: text("status").notNull().default("PENDING"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  providerReference: text("provider_reference"),
+  failureInformation: jsonb("failure_information"),
+  retryAt: timestamp("retry_at", { withTimezone: true }),
+  idempotencyKey: text("idempotency_key"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("notification_deliveries_idempotency_unique").on(table.idempotencyKey),
+  index("notification_deliveries_event_channel_idx").on(table.notificationEventId, table.channel),
+  index("notification_deliveries_status_retry_idx").on(table.status, table.retryAt),
+  check("notification_deliveries_attempt_count_check", sql`${table.attemptCount} >= 0`),
+]);
+
+export const schedulerRuns = pgTable("scheduler_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workerIdentity: text("worker_identity").notNull(),
+  status: text("status").notNull().default("RUNNING"),
+  itemsScanned: integer("items_scanned").notNull().default(0),
+  itemsProcessed: integer("items_processed").notNull().default(0),
+  failureInformation: jsonb("failure_information"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const notificationProviderEvents = pgTable("notification_provider_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  provider: text("provider").notNull(),
+  providerEventId: text("provider_event_id").notNull(),
+  notificationDeliveryId: uuid("notification_delivery_id").references(() => notificationDeliveries.id),
+  eventType: text("event_type").notNull(),
+  rawData: jsonb("raw_data").notNull().default({}),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("notification_provider_events_unique").on(table.provider, table.providerEventId),
+]);
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: text("user_id").notNull().references(() => authUsers.id, { onDelete: "cascade" }),
+  channel: text("channel").notNull(),
+  isEnabled: boolean("is_enabled").notNull().default(true),
+  metadata: jsonb("metadata").notNull().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("notification_preferences_user_channel_unique").on(table.userId, table.channel),
 ]);
