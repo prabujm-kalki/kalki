@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { 
@@ -8,12 +8,34 @@ import {
   employeeHistorySalary, employeeHistoryReporting, employeeHistoryCategory
 } from "@/db/schema";
 
-import { employeeChangeRequests } from "@/db/schema";
+import { employeeChangeRequests, organizationMemberships, locationMemberships, employeeRoleAssignments } from "@/db/schema";
 import { loadAuthorizationGrants } from "@/lib/authorization";
 import { auth } from "@/lib/auth";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions } from "@/lib/authorization-policy";
 import { recordAuditEvent } from "@/domains/audit/service";
+
+export const salaryInputSchema = z.object({
+  salaryType: z.enum(["Daily", "Weekly", "Monthly"]),
+  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  paymentMethod: z.enum(["BANK_TRANSFER", "GPAY", "CASH"]),
+  accountHolderName: z.string().nullable().optional(),
+  accountNumber: z.string().nullable().optional(),
+  bankName: z.string().nullable().optional(),
+  ifscCode: z.string().nullable().optional(),
+  gpayNumber: z.string().nullable().optional(),
+  bankingName: z.string().nullable().optional(),
+});
+export type SalaryInput = z.infer<typeof salaryInputSchema>;
+
+export const familyContactSchema = z.object({
+  category: z.enum(["EMERGENCY_CONTACT", "SPOUSE", "PARENT", "CHILD"]),
+  name: z.string().optional(),
+  mobile: z.string().optional(),
+  relationship: z.string().optional(),
+  fatherName: z.string().optional(),
+  motherName: z.string().optional(),
+});
 
 const employeeInputSchema = z.object({
   organizationId: z.string().uuid(),
@@ -23,24 +45,27 @@ const employeeInputSchema = z.object({
   employmentEndDate: z.string().date().nullable().optional(),
   aadhaarDocumentUrl: z.string().trim().nullable().optional(),
   photoUrl: z.string().trim().nullable().optional(),
-  applicationFormUrl: z.string().trim().nullable().optional(),
-  otherDocumentsUrl: z.string().trim().nullable().optional(),
+  otherDocument1Url: z.string().trim().nullable().optional(),
+  otherDocument2Url: z.string().trim().nullable().optional(),
+  otherDocument3Url: z.string().trim().nullable().optional(),
   biometricId: z.string().trim().min(1),
   posId: z.string().trim().nullable().optional(),
   reportingEmployeeId: z.string().uuid().nullable().optional(),
   category: z.enum(["Permanent", "Temporary", "Part-time"]).optional(),
   provisionAccess: z.object({
-    email: z.string().email(),
+    phone: z.string().min(1),
     password: z.string().min(8),
+    roleIds: z.array(z.string().uuid()).optional(),
   }).optional(),
   person: z.object({
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().max(100).nullable().optional(),
     displayName: z.string().trim().min(1).max(200),
     phone: z.string().trim().max(50).nullable().optional(),
-    email: z.string().email().max(320).nullable().optional(),
+    email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
     dateOfBirth: z.string().date().nullable().optional(),
   }),
+  familyContacts: z.array(familyContactSchema).optional(),
 });
 
 const employeeUpdateSchema = z
@@ -48,10 +73,11 @@ const employeeUpdateSchema = z
     jobTitle: z.string().trim().max(200).nullable().optional(),
     employmentEndDate: z.string().date().nullable().optional(),
     aadhaarDocumentUrl: z.string().trim().nullable().optional(),
-    photoUrl: z.string().trim().nullable().optional(),
-    applicationFormUrl: z.string().trim().nullable().optional(),
-    otherDocumentsUrl: z.string().trim().nullable().optional(),
-    biometricId: z.string().trim().min(1).optional(),
+    photoUrl: z.string().trim().max(1024).nullable().optional(),
+    otherDocument1Url: z.string().trim().max(1024).nullable().optional(),
+    otherDocument2Url: z.string().trim().max(1024).nullable().optional(),
+    otherDocument3Url: z.string().trim().max(1024).nullable().optional(),
+    biometricId: z.string().trim().max(100).nullable().optional(),
     posId: z.string().trim().nullable().optional(),
     reportingEmployeeId: z.string().uuid().nullable().optional(),
     category: z.enum(["Permanent", "Temporary", "Part-time"]).optional(),
@@ -66,26 +92,14 @@ const employeeUpdateSchema = z
         lastName: z.string().trim().max(100).nullable().optional(),
         displayName: z.string().trim().min(1).max(200).optional(),
         phone: z.string().trim().max(50).nullable().optional(),
-        email: z.string().email().max(320).nullable().optional(),
+        email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
         dateOfBirth: z.string().date().nullable().optional(),
       })
       .optional(),
+    familyContacts: z.array(familyContactSchema).optional(),
+    salary: salaryInputSchema.optional(),
   })
   .strict();
-
-
-export type SalaryInput = z.infer<typeof salaryInputSchema>;
-export const salaryInputSchema = z.object({
-  salaryType: z.enum(["Daily", "Weekly", "Monthly"]),
-  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  paymentMethod: z.enum(["BANK_TRANSFER", "GPAY", "CASH"]),
-  accountHolderName: z.string().nullable().optional(),
-  accountNumber: z.string().nullable().optional(),
-  bankName: z.string().nullable().optional(),
-  ifscCode: z.string().nullable().optional(),
-  gpayNumber: z.string().nullable().optional(),
-  bankingName: z.string().nullable().optional(),
-});
 
 export const proposeEmployeeChangeSchema = employeeUpdateSchema.extend({
   locationId: z.string().uuid().optional(),
@@ -206,8 +220,9 @@ async function selectEmployee(
       status: employees.status,
       aadhaarDocumentUrl: employees.aadhaarDocumentUrl,
       photoUrl: employees.photoUrl,
-      applicationFormUrl: employees.applicationFormUrl,
-      otherDocumentsUrl: employees.otherDocumentsUrl,
+      otherDocument1Url: employees.otherDocument1Url,
+      otherDocument2Url: employees.otherDocument2Url,
+      otherDocument3Url: employees.otherDocument3Url,
       biometricId: employees.biometricId,
       posId: employees.posId,
       reportingEmployeeId: employees.reportingEmployeeId,
@@ -253,12 +268,20 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
     employeePermissions.create,
   );
 
+  if (parsed.data.person.phone) {
+    const existingPhone = await db.select({ id: people.id }).from(people).where(eq(people.phone, parsed.data.person.phone));
+    if (existingPhone.length > 0) {
+      throw new EmployeeServiceError("Mobile number is already registered to another employee", "INVALID_INPUT");
+    }
+  }
+
   let createdUserId: string | null = null;
   if (parsed.data.provisionAccess) {
+    const authEmail = `${parsed.data.provisionAccess.phone}@kalki.internal`;
     const authRes = await auth.api.signUpEmail({
       headers: new Headers(),
       body: {
-        email: parsed.data.provisionAccess.email,
+        email: authEmail,
         password: parsed.data.provisionAccess.password,
         name: parsed.data.person.displayName,
         image: parsed.data.photoUrl ?? undefined,
@@ -330,8 +353,6 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         userId: createdUserId,
         aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl ?? null,
         photoUrl: parsed.data.photoUrl ?? null,
-        applicationFormUrl: parsed.data.applicationFormUrl ?? null,
-        otherDocumentsUrl: parsed.data.otherDocumentsUrl ?? null,
         biometricId: parsed.data.biometricId,
         posId: parsed.data.posId ?? null,
       }).returning({ id: employees.id });
@@ -346,6 +367,42 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         entityId: newEmployee.id,
         metadata: { status: "DRAFT" }
       }, tx);
+
+      if (parsed.data.familyContacts && parsed.data.familyContacts.length > 0) {
+        const familyContactValues = parsed.data.familyContacts.map(contact => ({
+          organizationId: parsed.data.organizationId,
+          employeeId: newEmployee.id,
+          category: contact.category,
+          name: contact.name ?? null,
+          mobile: contact.mobile ?? null,
+          relationship: contact.relationship ?? null,
+          fatherName: contact.fatherName ?? null,
+          motherName: contact.motherName ?? null,
+        }));
+        await tx.insert(employeeFamilyContacts).values(familyContactValues);
+      }
+
+      if (parsed.data.provisionAccess && createdUserId) {
+        await tx.insert(organizationMemberships).values({
+          userId: createdUserId,
+          organizationId: parsed.data.organizationId,
+        });
+
+        await tx.insert(locationMemberships).values({
+          userId: createdUserId,
+          organizationId: parsed.data.organizationId,
+          locationId: parsed.data.locationId,
+        });
+
+        const roleIds = parsed.data.provisionAccess.roleIds || [];
+        for (const roleId of roleIds) {
+          await tx.insert(employeeRoleAssignments).values({
+            organizationId: parsed.data.organizationId,
+            employeeId: newEmployee.id,
+            roleId: roleId,
+          });
+        }
+      }
 
       return selectEmployee(tx, newEmployee.id);
     });
@@ -475,6 +532,12 @@ export async function updateEmployee(
     }
 
     const personChanges = parsed.data.person;
+    if (personChanges?.phone && personChanges.phone !== current.person.phone) {
+      const existingPhone = await tx.select({ id: people.id }).from(people).where(eq(people.phone, personChanges.phone));
+      if (existingPhone.length > 0) {
+        throw new EmployeeServiceError("Mobile number is already registered to another employee", "INVALID_INPUT");
+      }
+    }
     if (personChanges) {
       await tx
         .update(people)
@@ -486,8 +549,6 @@ export async function updateEmployee(
       ...(parsed.data.employmentEndDate !== undefined && { employmentEndDate: parsed.data.employmentEndDate }),
       ...(parsed.data.aadhaarDocumentUrl !== undefined && { aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl }),
       ...(parsed.data.photoUrl !== undefined && { photoUrl: parsed.data.photoUrl }),
-      ...(parsed.data.applicationFormUrl !== undefined && { applicationFormUrl: parsed.data.applicationFormUrl }),
-      ...(parsed.data.otherDocumentsUrl !== undefined && { otherDocumentsUrl: parsed.data.otherDocumentsUrl }),
       ...(parsed.data.biometricId !== undefined && { biometricId: parsed.data.biometricId }),
       ...(parsed.data.posId !== undefined && { posId: parsed.data.posId }),
       ...(parsed.data.reportingEmployeeId !== undefined && { reportingEmployeeId: parsed.data.reportingEmployeeId }),
@@ -505,6 +566,53 @@ export async function updateEmployee(
         .update(employees)
         .set(employeeChanges)
         .where(eq(employees.id, employeeId));
+    }
+
+    if (parsed.data.familyContacts !== undefined) {
+      await tx.delete(employeeFamilyContacts).where(eq(employeeFamilyContacts.employeeId, employeeId));
+      if (parsed.data.familyContacts.length > 0) {
+        const familyContactValues = parsed.data.familyContacts.map(contact => ({
+          organizationId: current.organizationId,
+          employeeId: employeeId,
+          category: contact.category,
+          name: contact.name ?? null,
+          mobile: contact.mobile ?? null,
+          relationship: contact.relationship ?? null,
+          fatherName: contact.fatherName ?? null,
+          motherName: contact.motherName ?? null,
+        }));
+        await tx.insert(employeeFamilyContacts).values(familyContactValues);
+      }
+    }
+
+    if (parsed.data.salary !== undefined) {
+      const now = new Date();
+      await tx.delete(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employeeId));
+      await tx.insert(employeeSalaryInfo).values({
+        organizationId: current.organizationId,
+        employeeId: employeeId,
+        salaryType: parsed.data.salary.salaryType,
+        amount: parsed.data.salary.amount,
+        effectiveFrom: now.toISOString().split('T')[0],
+        paymentMethod: parsed.data.salary.paymentMethod,
+        accountHolderName: parsed.data.salary.accountHolderName ?? null,
+        accountNumber: parsed.data.salary.accountNumber ?? null,
+        bankName: parsed.data.salary.bankName ?? null,
+        ifscCode: parsed.data.salary.ifscCode ?? null,
+        gpayNumber: parsed.data.salary.gpayNumber ?? null,
+        bankingName: parsed.data.salary.bankingName ?? null,
+      });
+
+      if (current.status !== "DRAFT") {
+        await tx.insert(employeeHistorySalary).values({
+          organizationId: current.organizationId,
+          employeeId: employeeId,
+          salaryType: parsed.data.salary.salaryType,
+          amount: parsed.data.salary.amount,
+          effectiveFrom: now,
+          recordedBy: recordedByEmployeeId
+        });
+      }
     }
 
     if (parsed.data.reportingEmployeeId !== undefined && parsed.data.reportingEmployeeId !== current.reportingEmployeeId) {
@@ -713,8 +821,9 @@ export async function listEmployees(
       status: employees.status,
       aadhaarDocumentUrl: employees.aadhaarDocumentUrl,
       photoUrl: employees.photoUrl,
-      applicationFormUrl: employees.applicationFormUrl,
-      otherDocumentsUrl: employees.otherDocumentsUrl,
+      otherDocument1Url: employees.otherDocument1Url,
+      otherDocument2Url: employees.otherDocument2Url,
+      otherDocument3Url: employees.otherDocument3Url,
       biometricId: employees.biometricId,
       posId: employees.posId,
       reportingEmployeeId: employees.reportingEmployeeId,
@@ -820,6 +929,7 @@ export async function proposeEmployeeChange(
   });
 }
 
+
 export async function rejectEmployeeChange(
   actor: Actor,
   requestId: string,
@@ -830,6 +940,7 @@ export async function rejectEmployeeChange(
   if (!grants.isOwner) {
     throw new EmployeeServiceError("Only owners can reject change requests", "ACCESS_DENIED");
   }
+
   if (!reviewComment.trim()) {
     throw new EmployeeServiceError("Review comment is required for rejection", "INVALID_INPUT");
   }
@@ -987,7 +1098,6 @@ export async function approveEmployeeChange(
   });
 }
 
-
 export async function setEmployeeSalaryInfo(actor: Actor, employeeId: string, input: SalaryInput) {
   requireActor(actor);
   const parsed = salaryInputSchema.safeParse(input);
@@ -1075,18 +1185,14 @@ export async function getOrganizationHierarchy(actor: Actor, organizationId: str
   if (targetLocationId) {
     await requireEmployeeAccess(actor, organizationId, targetLocationId, employeePermissions.read);
   } else {
-    // Determine scope based on actor grants
     const grants = await loadAuthorizationGrants(actor.id);
     if (!grants.isOwner) {
-       // If not owner, they can only request hierarchy for their allowed locations explicitly,
-       // Or we can just fetch all locations they have read access to.
        if (grants.locationPermissions.length === 0 && grants.organizationPermissions.length === 0) {
           throw new EmployeeServiceError("Unauthorized", "ACCESS_DENIED");
        }
     }
   }
 
-  // Fetch all active employees in scope
   const conditions = [
     eq(employees.organizationId, organizationId),
     eq(employees.status, "ACTIVE")
@@ -1103,7 +1209,6 @@ export async function getOrganizationHierarchy(actor: Actor, organizationId: str
   .innerJoin(people, eq(people.id, employees.personId))
   .where(and(...conditions));
 
-  // Build tree
   const map = new Map<string, HierarchyNode>();
   const roots: HierarchyNode[] = [];
 
@@ -1126,9 +1231,6 @@ export async function getOrganizationHierarchy(actor: Actor, organizationId: str
     }
   }
 
-  // If a non-owner calls this without a specific location, filter the roots/nodes to only include their accessible locations?
-  // The requirement says: "Owner organization-wide visibility. Authorized branch users see only permitted scope"
-  // So we filter the returned tree to only include trees/subtrees they have access to.
   const grants = await loadAuthorizationGrants(actor.id);
   const allowedLocationIds = new Set(
     grants.locationPermissions
@@ -1139,9 +1241,6 @@ export async function getOrganizationHierarchy(actor: Actor, organizationId: str
   if (!grants.isOwner && !targetLocationId) {
      const hasOrgRead = grants.organizationPermissions.some(p => p.permission === employeePermissions.read);
      if (!hasOrgRead) {
-       // Prune nodes that are not in allowed locations
-       // Wait, if a manager in Branch A reports to a director in Branch B, the manager shouldn't see Branch B.
-       // Actually, it's easier to just return the whole tree and filter out nodes not in allowedLocationIds.
        const pruneTree = (nodes: HierarchyNode[]): HierarchyNode[] => {
          const result: HierarchyNode[] = [];
          for (const node of nodes) {
@@ -1199,7 +1298,7 @@ export async function getContactDirectory(actor: Actor, organizationId: string):
       .map(p => p.locationId);
       
     if (allowedLocationIds.length === 0) {
-      return []; // No access
+      return []; 
     }
     conditions.push(inArray(employees.locationId, allowedLocationIds));
   }
@@ -1217,4 +1316,43 @@ export async function getContactDirectory(actor: Actor, organizationId: string):
   .where(and(...conditions));
 
   return contacts;
+}
+
+export async function listEmployeeChangeRequests(actor: Actor, organizationId: string, employeeId?: string) {
+  requireActor(actor);
+  const grants = await loadAuthorizationGrants(actor.id);
+
+  if (!employeeId && !grants.isOwner) {
+    throw new EmployeeServiceError("Only owners can list all pending proposals", "ACCESS_DENIED");
+  }
+
+  const q = db.select({
+    id: employeeChangeRequests.id,
+    organizationId: employeeChangeRequests.organizationId,
+    employeeId: employeeChangeRequests.employeeId,
+    proposerUserId: employeeChangeRequests.proposerUserId,
+    proposedPayload: employeeChangeRequests.proposedPayload,
+    reason: employeeChangeRequests.reason,
+    reviewComment: employeeChangeRequests.reviewComment,
+    reviewerUserId: employeeChangeRequests.reviewerUserId,
+    status: employeeChangeRequests.status,
+    createdAt: employeeChangeRequests.createdAt,
+    updatedAt: employeeChangeRequests.updatedAt,
+    employeeDisplayName: people.displayName,
+    employeeCode: employees.employeeCode,
+    jobTitle: employees.jobTitle,
+  })
+  .from(employeeChangeRequests)
+  .innerJoin(employees, eq(employees.id, employeeChangeRequests.employeeId))
+  .innerJoin(people, eq(people.id, employees.personId))
+  .where(
+    and(
+      eq(employeeChangeRequests.organizationId, organizationId),
+      eq(employeeChangeRequests.status, "PENDING"),
+      employeeId ? eq(employeeChangeRequests.employeeId, employeeId) : undefined
+    )
+  )
+  .orderBy(desc(employeeChangeRequests.createdAt));
+  
+  return q;
 }

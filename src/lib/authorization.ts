@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  employees,
   locationMemberships,
   locationRoleAssignments,
   organizationMemberships,
@@ -107,5 +108,19 @@ export async function authorizeEmployeeOperation(input: AuthorizationInput) {
 export async function requireAuthenticatedUser(request: Request) {
   const { auth } = await import("@/lib/auth");
   const session = await auth.api.getSession({ headers: request.headers });
-  return session?.user ?? null;
+  if (!session?.user) return null;
+
+  const employeeRows = await db
+    .select({ status: employees.status })
+    .from(employees)
+    .where(eq(employees.userId, session.user.id))
+    .limit(1);
+
+  if (employeeRows.length > 0) {
+    if (employeeRows[0].status === "DRAFT" || employeeRows[0].status === "EXITED") {
+      return null;
+    }
+  }
+
+  return session.user;
 }

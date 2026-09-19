@@ -83,7 +83,8 @@ describe("Phase 4 Final Gate Audit Tests", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      person: { firstName: name, displayName: name, phone: "+123", dateOfBirth: "1990-01-01" }
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+      person: { firstName: name, displayName: name, phone: `+123${randomUUID().slice(0, 10)}`, dateOfBirth: "1990-01-01" }
     });
     await updateEmployee(actor, emp.id, {
       gender: "Male", maritalStatus: "Single", residentialAddress: "Address",

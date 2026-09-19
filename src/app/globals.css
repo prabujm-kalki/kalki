@@ -1,11 +1,356 @@
+/* Kalki BOS Design System Styles - Exact Visual Match */
+
+:root {
+  --kalki-primary: #2563eb;
+  --kalki-primary-hover: #1d4ed8;
+  --kalki-bg-app: #f1f5f9;
+  --kalki-bg-panel: #ffffff;
+  --kalki-text-primary: #0f172a;
+  --kalki-text-secondary: #64748b;
+  --kalki-border: #e2e8f0;
+  --kalki-danger: #ef4444;
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.kalki-app-shell { 
+  display: flex; 
+  height: 100vh; 
+  overflow: hidden; 
+  background-color: var(--kalki-bg-app); 
+  font-family: 'Inter', system-ui, sans-serif; 
+}
+
+.kalki-sidebar { 
+  width: 260px; 
+  background-color: #ffffff; 
+  border-right: 1px solid var(--kalki-border); 
+  display: flex; 
+  flex-direction: column; 
+  flex-shrink: 0; 
+}
+
+.kalki-topbar { 
+  height: 60px; 
+  background-color: #1e293b; 
+  color: white; 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 0 var(--spacing-6); 
+  flex-shrink: 0; 
+}
+
+.kalki-main-wrapper { 
+  flex: 1; 
+  display: flex; 
+  flex-direction: column; 
+  overflow: hidden; 
+}
+
+.kalki-main-content { 
+  flex: 1; 
+  overflow-y: auto; 
+  padding: var(--spacing-6); 
+}
+
+/* Sidebar Navigation */
+.kalki-sidebar-header {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--kalki-text-primary);
+  border-bottom: 1px solid var(--kalki-border);
+  flex-shrink: 0;
+}
+
+.kalki-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 8px;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.kalki-sidebar-link {
+  display: block;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  color: var(--kalki-text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.kalki-sidebar-link:hover {
+  background-color: var(--kalki-bg-app);
+  color: var(--kalki-text-primary);
+}
+
+.kalki-sidebar-link[data-active="true"] {
+  background-color: #eff6ff; /* blue-50 */
+  color: var(--kalki-primary);
+  font-weight: 600;
+}
+
+/* Buttons */
+.kalki-button { 
+  display: inline-flex; 
+  align-items: center; 
+  justify-content: center; 
+  border-radius: var(--radius-sm); 
+  font-weight: 500; 
+  cursor: pointer; 
+  border: 1px solid transparent; 
+  transition: all 0.2s; 
+  padding: 8px 16px; 
+  font-size: 14px; 
+}
+
+.kalki-button--primary { 
+  background-color: var(--kalki-primary); 
+  color: white; 
+}
+
+.kalki-button--secondary { 
+  background-color: white; 
+  border-color: var(--kalki-border); 
+  color: var(--kalki-text-primary); 
+}
+
+.kalki-button--ghost { 
+  background-color: transparent; 
+  color: var(--kalki-text-secondary); 
+  padding: 4px 8px; 
+}
+
+.kalki-button--danger {
+  background-color: white;
+  border-color: var(--kalki-danger);
+  color: var(--kalki-danger);
+}
+
+/* Inputs */
+.kalki-field { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 4px; 
+  margin-bottom: 16px; 
+}
+
+.kalki-label { 
+  font-size: 13px; 
+  font-weight: 500; 
+  color: var(--kalki-text-primary); 
+}
+
+.kalki-required { 
+  color: var(--kalki-danger); 
+}
+
+.kalki-input, .kalki-select, .kalki-textarea { 
+  padding: 8px 12px; 
+  border: 1px solid var(--kalki-border); 
+  border-radius: var(--radius-sm); 
+  font-size: 14px; 
+  color: var(--kalki-text-primary); 
+  background: #fff; 
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kalki-input:disabled {
+  background-color: #f1f5f9;
+}
+
+.kalki-input:focus, .kalki-select:focus { 
+  outline: none; 
+  border-color: var(--kalki-primary); 
+  box-shadow: 0 0 0 1px var(--kalki-primary); 
+}
+
+/* Layout */
+.kalki-form-layout { 
+  display: flex; 
+  gap: 24px; 
+  align-items: flex-start; 
+}
+
+.kalki-form-main { 
+  flex: 2; 
+  min-width: 0; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 16px; 
+}
+
+.kalki-form-secondary { 
+  flex: 1; 
+  min-width: 0; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 16px; 
+}
+
+.kalki-grid-2-col { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 16px; 
+}
+
+/* Sections */
+.kalki-section { 
+  background: white; 
+  border: 1px solid var(--kalki-border); 
+  border-radius: var(--radius-md); 
+  box-shadow: var(--shadow-sm); 
+  overflow: hidden; 
+  margin-bottom: 0; 
+}
+
+.kalki-section-header { 
+  padding: 12px 16px; 
+  border-bottom: 1px solid var(--kalki-border); 
+  background: #f8fafc; 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  font-weight: 600; 
+  font-size: 14px; 
+  color: #0f172a; 
+}
+
+.kalki-section-title { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  margin: 0; 
+}
+
+.kalki-section-content { 
+  padding: 20px; 
+}
+
+/* Header */
+.kalki-page-header { 
+  background: white; 
+  padding: 16px 24px; 
+  border-bottom: 1px solid var(--kalki-border); 
+  margin: -24px -24px 24px -24px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+}
+
+.kalki-breadcrumbs { 
+  font-size: 13px; 
+  color: var(--kalki-primary); 
+  cursor: pointer; 
+}
+
+.kalki-page-title { 
+  margin: 0; 
+  font-size: 24px; 
+  font-weight: 600; 
+}
+
+.kalki-page-description { 
+  margin: 0; 
+  color: var(--kalki-text-secondary); 
+  font-size: 14px; 
+}
+
+/* Action Bar */
+.kalki-action-bar { 
+  display: flex; 
+  justify-content: flex-end; 
+  gap: 12px; 
+  padding: 16px; 
+  background: white; 
+  border-top: 1px solid var(--kalki-border); 
+  position: sticky; 
+  bottom: 0; 
+  margin: 24px -24px -24px -24px; 
+  z-index: 10; 
+}
+
+/* Document Upload specific styling to match reference */
+.kalki-upload-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--kalki-border);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+}
+.kalki-upload-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.kalki-upload-filename {
+  font-size: 13px;
+  font-weight: 500;
+  display: block;
+}
+.kalki-upload-size {
+  font-size: 12px;
+  color: var(--kalki-text-secondary);
+}
+
+/* Emergency Contacts Table */
+.kalki-table-container {
+  overflow-x: auto;
+}
+.kalki-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.kalki-table th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 500;
+  color: var(--kalki-text-secondary);
+  border-bottom: 1px solid var(--kalki-border);
+}
+.kalki-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--kalki-border);
+}
+
+
+
+:root {
+  /* 
+   * LEGACY TOKENS REMOVED
+   * All global design tokens (colors, spacing, typography, radii, shadows)
+   * are now authoritatively defined in kalki-ds.css for the Kalki BOS Design System.
+   * Do not re-declare conflicting tokens here.
+   */
+}
+
 html,
 body {
   margin: 0;
   min-height: 100%;
-  background: #f4f1ea;
-  color: #1c1914;
-  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-  line-height: 1.45;
+  /* Background and text colors are handled by .kalki-app-shell / .kalki-main-wrapper */
+  /* Do not hardcode #f4f1ea here, it breaks the new design system */
 }
 
 * {
@@ -13,7 +358,11 @@ body {
 }
 
 a {
-  color: #163f73;
+  color: var(--kalki-primary);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
 }
 
 button,

@@ -8,7 +8,7 @@ import { authClient } from "@/lib/auth-client";
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -17,6 +17,7 @@ function LoginForm() {
     event.preventDefault();
     setPending(true);
     setError(null);
+    const email = `${phone}@kalki.internal`;
     const result = await authClient.signIn.email({ email, password });
     setPending(false);
     if (result.error) {
@@ -33,8 +34,8 @@ function LoginForm() {
       {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       <form onSubmit={(event) => void submit(event)}>
         <label>
-          Email
-          <input type="email" autoComplete="username" value={email} onChange={(event) => setEmail(event.target.value)} required />
+          Mobile Number
+          <input type="tel" autoComplete="username" value={phone} onChange={(event) => setPhone(event.target.value)} required />
         </label>
         <label>
           Password

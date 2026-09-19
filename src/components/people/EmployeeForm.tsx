@@ -1,20 +1,72 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { apiSend } from "@/lib/api";
-import { StatusMessage } from "@/components/StatusMessage";
+import { z } from "zod";
+import { useToast } from "../ui/Toast";
+import { KalkiInput } from "../ui/KalkiInput";
+import { KalkiSelect } from "../ui/KalkiSelect";
+import { KalkiTextarea } from "../ui/KalkiTextarea";
+import { KalkiButton } from "../ui/KalkiButton";
+import { KalkiSection } from "../ui/KalkiSection";
+import { KalkiPageHeader } from "../ui/KalkiPageHeader";
+import { KalkiActionBar } from "../ui/KalkiActionBar";
+import { KalkiFileUpload } from "../ui/KalkiFileUpload";
 
 type EmployeeFormProps = {
   organizationId: string;
   locationId: string;
   initialData?: any;
+  isProposal?: boolean;
   onSuccess: () => void;
   onCancel: () => void;
 };
 
-export function EmployeeForm({ organizationId, locationId, initialData, onSuccess, onCancel }: EmployeeFormProps) {
+const formSchema = z.object({
+  jobTitle: z.string().trim().optional(),
+  employmentStartDate: z.string().min(1, "Start date is required"),
+  category: z.string().optional(),
+  gender: z.string().optional(),
+  maritalStatus: z.string().optional(),
+  residentialAddress: z.string().optional(),
+  bloodGroup: z.string().optional(),
+  reportingEmployeeId: z.string().optional(),
+  secondaryMobile: z.string().optional(),
+  firstName: z.string().trim().min(1, "First name is required"),
+  lastName: z.string().trim().optional(),
+  displayName: z.string().trim().min(1, "Display name is required"),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  biometricId: z.string().trim().min(1, "Biometric ID is required"),
+  posId: z.string().optional(),
+  spouseName: z.string().optional(),
+  spouseMobile: z.string().optional(),
+  
+  fatherName: z.string().optional(),
+  motherName: z.string().optional(),
+  
+  // Salary fields
+  salaryType: z.string().optional(),
+  salaryAmount: z.number().optional(),
+  salaryEffectiveFrom: z.string().optional(),
+  paymentMethod: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.maritalStatus === "Married") {
+    if (!data.spouseName || data.spouseName.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Spouse Name is required for married employees.", path: ["spouseName"] });
+    }
+    if (!data.spouseMobile || data.spouseMobile.trim() === "") {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Spouse Mobile is required for married employees.", path: ["spouseMobile"] });
+    }
+  }
+});
+
+export function EmployeeForm({ organizationId, locationId, initialData, isProposal, onSuccess, onCancel }: EmployeeFormProps) {
+  const { addToast } = useToast();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isDirty, setIsDirty] = useState(false);
 
   const [formData, setFormData] = useState({
     jobTitle: initialData?.jobTitle || "",
@@ -28,8 +80,9 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
     status: initialData?.status || "DRAFT",
     aadhaarDocumentUrl: initialData?.aadhaarDocumentUrl || "",
     photoUrl: initialData?.photoUrl || "",
-    applicationFormUrl: initialData?.applicationFormUrl || "",
-    otherDocumentsUrl: initialData?.otherDocumentsUrl || "",
+    otherDocument1Url: initialData?.otherDocument1Url || "",
+    otherDocument2Url: initialData?.otherDocument2Url || "",
+    otherDocument3Url: initialData?.otherDocument3Url || "",
     biometricId: initialData?.biometricId || "",
     posId: initialData?.posId || "",
     category: initialData?.category || "",
@@ -39,28 +92,124 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
     bloodGroup: initialData?.bloodGroup || "",
     reportingEmployeeId: initialData?.reportingEmployeeId || "",
     secondaryMobile: initialData?.secondaryMobile || "",
+    
+    // Salary Data
+    salaryType: initialData?.salaryType || "Monthly",
+    salaryAmount: initialData?.salaryAmount || "",
+    salaryEffectiveFrom: initialData?.salaryEffectiveFrom || new Date().toISOString().split("T")[0],
+    paymentMethod: initialData?.paymentMethod || "Bank Transfer",
+    paymentDetails: initialData?.paymentDetails || "",
   });
 
   const [files, setFiles] = useState<{
     aadhaar?: File;
     photo?: File;
-    applicationForm?: File;
-    otherDocuments?: File;
+    otherDocument1?: File;
+    otherDocument2?: File;
+    otherDocument3?: File;
   }>({});
 
   const [provisionAccess, setProvisionAccess] = useState(false);
-  const [provisionEmail, setProvisionEmail] = useState("");
   const [provisionPassword, setProvisionPassword] = useState("");
+  const [roleIds, setRoleIds] = useState<string[]>([]);
+  
+  const [familyContacts, setFamilyContacts] = useState<any[]>(initialData?.familyContacts?.filter((c:any) => c.category === "EMERGENCY_CONTACT") || [
+    { category: "EMERGENCY_CONTACT", name: "", mobile: "", relationship: "" }
+  ]);
+  const [spouseName, setSpouseName] = useState(initialData?.familyContacts?.find((c: any) => c.category === "SPOUSE")?.name || "");
+  const [spouseMobile, setSpouseMobile] = useState(initialData?.familyContacts?.find((c: any) => c.category === "SPOUSE")?.mobile || "");
+  
+  const parentContact = initialData?.familyContacts?.find((c: any) => c.category === "PARENT");
+  const [fatherName, setFatherName] = useState(parentContact?.fatherName || "");
+  const [motherName, setMotherName] = useState(parentContact?.motherName || "");
+  
+  const initialChildren = initialData?.familyContacts?.filter((c: any) => c.category === "CHILD") || [];
+  const [children, setChildren] = useState<any[]>(initialChildren);
 
-  function handleChange(field: string, value: string) {
+  function addChild() {
+    setIsDirty(true);
+    setChildren([...children, { category: "CHILD", name: "" }]);
+  }
+  function removeChild(index: number) {
+    setIsDirty(true);
+    const updated = [...children];
+    updated.splice(index, 1);
+    setChildren(updated);
+  }
+  function handleChildChange(index: number, value: string) {
+    setIsDirty(true);
+    const updated = [...children];
+    updated[index] = { ...updated[index], name: value };
+    setChildren(updated);
+  }
+
+  const [rolesData, setRolesData] = useState<{ roles: any[] } | null>(null);
+  const [reportingCandidatesData, setReportingCandidatesData] = useState<{ candidates: any[] } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/role-definitions?organizationId=${organizationId}&locationId=${locationId}`)
+      .then(res => res.json())
+      .then(data => setRolesData(data))
+      .catch(console.error);
+  }, [organizationId, locationId]);
+
+  useEffect(() => {
+    const queryRolesStr = roleIds.map(id => `roleId=${id}`).join("&");
+    let url = `/api/employees/reporting-candidates`;
+    const params = [];
+    if (queryRolesStr) params.push(queryRolesStr);
+    if (initialData?.id) params.push(`excludeEmployeeId=${initialData.id}`);
+    if (params.length > 0) url += `?${params.join("&")}`;
+    
+    fetch(url)
+      .then(res => res.json())
+      .then(data => setReportingCandidatesData(data))
+      .catch(console.error);
+  }, [roleIds]);
+
+  function handleChange(field: string, value: string | number) {
+    setIsDirty(true);
     setFormData((prev) => ({ ...prev, [field]: value }));
     if (field === "firstName" && !formData.displayName) {
-      setFormData((prev) => ({ ...prev, displayName: value }));
+      setFormData((prev) => ({ ...prev, displayName: value as string }));
+    }
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => ({ ...prev, [field]: undefined as any }));
     }
   }
 
   function handleFileChange(field: keyof typeof files, file: File | null) {
+    setIsDirty(true);
     setFiles((prev) => ({ ...prev, [field]: file || undefined }));
+  }
+
+  function handleEmergencyContactChange(index: number, field: string, value: string) {
+    setIsDirty(true);
+    const updated = [...familyContacts];
+    updated[index] = { ...updated[index], [field]: value };
+    setFamilyContacts(updated);
+  }
+
+  function addEmergencyContact() {
+    setIsDirty(true);
+    setFamilyContacts([...familyContacts, { category: "EMERGENCY_CONTACT", name: "", mobile: "", relationship: "" }]);
+  }
+
+  function removeEmergencyContact(index: number) {
+    setIsDirty(true);
+    const updated = [...familyContacts];
+    updated.splice(index, 1);
+    setFamilyContacts(updated);
+  }
+
+  function handleCancel() {
+    if (isDirty) {
+      if (window.confirm("You have unsaved changes. Are you sure you want to cancel?")) {
+        onCancel();
+      }
+    } else {
+      onCancel();
+    }
   }
 
   async function uploadFiles() {
@@ -68,15 +217,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
     let hasFiles = false;
     if (files.aadhaar) { uploadData.append("aadhaar", files.aadhaar); hasFiles = true; }
     if (files.photo) { uploadData.append("photo", files.photo); hasFiles = true; }
-    if (files.applicationForm) { uploadData.append("applicationForm", files.applicationForm); hasFiles = true; }
-    if (files.otherDocuments) { uploadData.append("otherDocuments", files.otherDocuments); hasFiles = true; }
+    if (files.otherDocument1) { uploadData.append("otherDocument1", files.otherDocument1); hasFiles = true; }
+    if (files.otherDocument2) { uploadData.append("otherDocument2", files.otherDocument2); hasFiles = true; }
+    if (files.otherDocument3) { uploadData.append("otherDocument3", files.otherDocument3); hasFiles = true; }
 
     if (!hasFiles) return {};
 
-    const res = await fetch("/api/upload", {
-      method: "POST",
-      body: uploadData,
-    });
+    const res = await fetch("/api/upload", { method: "POST", body: uploadData });
     if (!res.ok) throw new Error("File upload failed");
     const data = await res.json();
     return data.urls as Record<string, string>;
@@ -85,253 +232,347 @@ export function EmployeeForm({ organizationId, locationId, initialData, onSucces
   async function submit(event: FormEvent) {
     event.preventDefault();
     setPending(true);
-    setError(null);
-    try {
-      const uploadedUrls = await uploadFiles();
+    setFieldErrors({});
 
-      const payload = {
-        organizationId,
-        locationId,
-        jobTitle: formData.jobTitle || null,
-        employmentStartDate: formData.employmentStartDate,
+    const salaryAmountNum = formData.salaryAmount ? Number(formData.salaryAmount) : undefined;
+
+    const validationResult = formSchema.safeParse({ 
+      ...formData, 
+      salaryAmount: salaryAmountNum,
+      spouseName, 
+      spouseMobile 
+    });
+
+    if (!validationResult.success) {
+      const errors: Record<string, string> = {};
+      validationResult.error.issues.forEach(issue => {
+        if (issue.path.length > 0) {
+          errors[issue.path[0] as string] = issue.message;
+        }
+      });
+      setFieldErrors(errors);
+      addToast({
+        type: 'error',
+        message: 'Employee could not be saved',
+        description: `${Object.keys(errors).length} fields need attention.`
+      });
+      setTimeout(() => {
+        const firstError = document.querySelector('.is-invalid') as HTMLElement;
+        if (firstError) {
+          firstError.focus();
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      setPending(false);
+      return;
+    }
+
+    try {
+      if (provisionAccess && roleIds.length === 0) {
+        throw new Error("At least one role must be selected to provision access.");
+      }
+
+      const uploadedUrls = await uploadFiles();
+      
+      const payloadContacts = familyContacts.filter(c => c.category === "EMERGENCY_CONTACT" && (c.name || c.mobile || c.relationship));
+      if (payloadContacts.length === 0) {
+        throw new Error("At least one emergency contact is required.");
+      }
+      const invalidEmergency = payloadContacts.find(c => !c.name || !c.mobile || !c.relationship);
+      if (invalidEmergency) {
+        throw new Error("Emergency contacts must include Name, Relationship, and Mobile.");
+      }
+      
+      if (formData.maritalStatus === "Married") {
+        payloadContacts.push({ category: "SPOUSE", name: spouseName, mobile: spouseMobile });
+      }
+
+      if (!fatherName || !fatherName.trim() || !motherName || !motherName.trim()) {
+        throw new Error("Father Name and Mother Name are required.");
+      }
+      payloadContacts.push({ category: "PARENT", fatherName, motherName });
+
+      children.forEach(c => {
+        if (c.name && c.name.trim()) {
+          payloadContacts.push({ category: "CHILD", name: c.name.trim() });
+        }
+      });
+
+      const personPayload = {
+        firstName: formData.firstName,
+        lastName: formData.lastName || undefined,
+        displayName: formData.displayName,
+        phone: formData.phone || undefined,
+        email: formData.email || undefined,
+        dateOfBirth: formData.dateOfBirth || undefined,
+      };
+
+      const documentPayload = {
+        aadhaarDocumentUrl: uploadedUrls.aadhaar || formData.aadhaarDocumentUrl || null,
+        photoUrl: uploadedUrls.photo || formData.photoUrl || null,
+        otherDocument1Url: uploadedUrls.otherDocument1 || formData.otherDocument1Url || null,
+        otherDocument2Url: uploadedUrls.otherDocument2 || formData.otherDocument2Url || null,
+        otherDocument3Url: uploadedUrls.otherDocument3Url || formData.otherDocument3Url || null,
+      };
+
+      const commonFields = {
+        jobTitle: formData.jobTitle || undefined,
         category: formData.category || undefined,
         gender: formData.gender || undefined,
         maritalStatus: formData.maritalStatus || undefined,
-        residentialAddress: formData.residentialAddress || null,
+        residentialAddress: formData.residentialAddress || undefined,
         bloodGroup: formData.bloodGroup || undefined,
-        reportingEmployeeId: formData.reportingEmployeeId || null,
-        secondaryMobile: formData.secondaryMobile || null,
-        person: {
-          firstName: formData.firstName,
-          lastName: formData.lastName || null,
-          displayName: formData.displayName,
-          phone: formData.phone || null,
-          email: formData.email || null,
-          dateOfBirth: formData.dateOfBirth || null,
-        },
-        status: formData.status,
-        aadhaarDocumentUrl: uploadedUrls.aadhaar || formData.aadhaarDocumentUrl || null,
-        photoUrl: uploadedUrls.photo || formData.photoUrl || null,
-        applicationFormUrl: uploadedUrls.applicationForm || formData.applicationFormUrl || null,
-        otherDocumentsUrl: uploadedUrls.otherDocuments || formData.otherDocumentsUrl || null,
+        reportingEmployeeId: formData.reportingEmployeeId || undefined,
+        secondaryMobile: formData.secondaryMobile || undefined,
         biometricId: formData.biometricId,
-        posId: formData.posId || null,
+        posId: formData.posId || undefined,
+        person: personPayload,
+        ...documentPayload,
+      };
+
+      const salaryPayload = {
+        salaryType: formData.salaryType || undefined,
+        amount: salaryAmountNum !== undefined ? String(salaryAmountNum) : undefined,
+        paymentMethod: formData.paymentMethod || undefined,
+        accountHolderName: formData.paymentDetails || undefined,
       };
 
       if (initialData?.id) {
-        // Strip fields not allowed in update schema
-        const updatePayload = {
-          jobTitle: payload.jobTitle,
-          status: payload.status,
-          category: payload.category,
-          gender: payload.gender,
-          maritalStatus: payload.maritalStatus,
-          residentialAddress: payload.residentialAddress,
-          bloodGroup: payload.bloodGroup,
-          reportingEmployeeId: payload.reportingEmployeeId,
-          secondaryMobile: payload.secondaryMobile,
-          aadhaarDocumentUrl: payload.aadhaarDocumentUrl,
-          photoUrl: payload.photoUrl,
-          applicationFormUrl: payload.applicationFormUrl,
-          otherDocumentsUrl: payload.otherDocumentsUrl,
-          biometricId: payload.biometricId,
-          posId: payload.posId,
-          person: payload.person,
-        };
-        await apiSend(`/api/employees?id=${initialData.id}`, "PATCH", updatePayload);
+        if (isProposal) {
+          const reason = prompt("Please provide a reason for proposing this change:");
+          if (!reason) {
+            setPending(false);
+            return;
+          }
+          await apiSend(`/api/employees/proposals`, "POST", { employeeId: initialData.id, reason, ...commonFields, salary: salaryAmountNum ? salaryPayload : undefined });
+        } else {
+          await apiSend(`/api/employees?id=${initialData.id}`, "PATCH", { ...commonFields, familyContacts: payloadContacts, salary: salaryAmountNum ? salaryPayload : undefined });
+        }
       } else {
-        const createPayload = {
-          ...payload,
-          ...(provisionAccess && !initialData?.id ? {
-            provisionAccess: {
-              email: provisionEmail,
-              password: provisionPassword,
-            }
-          } : {})
-        };
-        await apiSend("/api/employees", "POST", createPayload);
+        await apiSend("/api/employees", "POST", {
+          organizationId, locationId, employmentStartDate: formData.employmentStartDate, familyContacts: payloadContacts, ...commonFields,
+          ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds } } : {})
+        });
       }
+      setIsDirty(false);
+      addToast({ type: 'success', message: 'Employee saved successfully' });
       onSuccess();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Failed to save employee");
+      addToast({ type: 'error', message: 'Failed to save employee', description: caught instanceof Error ? caught.message : '' });
       setPending(false);
     }
   }
 
   return (
-    <form onSubmit={(e) => void submit(e)} className="panel stack">
-      <div className="panel-header">
-        <h3>{initialData ? "Edit Employee" : "Add New Employee"}</h3>
-        <button type="button" className="secondary-button" onClick={onCancel} disabled={pending}>Cancel</button>
-      </div>
-      {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
-      
-      <div className="grid-2">
-        <div className="field">
-          <label>First name *</label>
-          <input required type="text" value={formData.firstName} onChange={(e) => handleChange("firstName", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Last name</label>
-          <input type="text" value={formData.lastName} onChange={(e) => handleChange("lastName", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Display name *</label>
-          <input required type="text" value={formData.displayName} onChange={(e) => handleChange("displayName", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Employee code</label>
-          <input type="text" value={initialData?.employeeCode || "Auto-generated upon save"} disabled={true} />
-        </div>
-        <div className="field">
-          <label>Job title</label>
-          <input type="text" value={formData.jobTitle} onChange={(e) => handleChange("jobTitle", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Start date *</label>
-          <input required type="date" value={formData.employmentStartDate} onChange={(e) => handleChange("employmentStartDate", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Phone</label>
-          <input type="tel" value={formData.phone} onChange={(e) => handleChange("phone", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Email</label>
-          <input type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Status</label>
-          <select value={formData.status} onChange={(e) => handleChange("status", e.target.value)} disabled={pending}>
-            <option value="DRAFT">Draft</option>
-            <option value="ACTIVE">Active</option>
-            <option value="INACTIVE">Inactive</option>
-            <option value="EXITED">Exited</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Category</label>
-          <select value={formData.category} onChange={(e) => handleChange("category", e.target.value)} disabled={pending}>
-            <option value="">Select Category...</option>
-            <option value="Permanent">Permanent</option>
-            <option value="Temporary">Temporary</option>
-            <option value="Part-time">Part-time</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Gender</label>
-          <select value={formData.gender} onChange={(e) => handleChange("gender", e.target.value)} disabled={pending}>
-            <option value="">Select Gender...</option>
-            <option value="Male">Male</option>
-            <option value="Female">Female</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Marital Status</label>
-          <select value={formData.maritalStatus} onChange={(e) => handleChange("maritalStatus", e.target.value)} disabled={pending}>
-            <option value="">Select Status...</option>
-            <option value="Single">Single</option>
-            <option value="Married">Married</option>
-            <option value="Divorced">Divorced</option>
-            <option value="Widowed">Widowed</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Blood Group</label>
-          <select value={formData.bloodGroup} onChange={(e) => handleChange("bloodGroup", e.target.value)} disabled={pending}>
-            <option value="">Select Blood Group...</option>
-            <option value="A+">A+</option>
-            <option value="A-">A-</option>
-            <option value="B+">B+</option>
-            <option value="B-">B-</option>
-            <option value="AB+">AB+</option>
-            <option value="AB-">AB-</option>
-            <option value="O+">O+</option>
-            <option value="O-">O-</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>Date of Birth</label>
-          <input type="date" value={formData.dateOfBirth} onChange={(e) => handleChange("dateOfBirth", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Secondary Mobile</label>
-          <input type="tel" value={formData.secondaryMobile} onChange={(e) => handleChange("secondaryMobile", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Residential Address</label>
-          <textarea value={formData.residentialAddress} onChange={(e) => handleChange("residentialAddress", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Biometric ID *</label>
-          <input required type="text" value={formData.biometricId} onChange={(e) => handleChange("biometricId", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>POS ID</label>
-          <input type="text" value={formData.posId} onChange={(e) => handleChange("posId", e.target.value)} disabled={pending} />
-        </div>
-        <div className="field">
-          <label>Reporting To (Employee ID)</label>
-          <input type="text" value={formData.reportingEmployeeId} onChange={(e) => handleChange("reportingEmployeeId", e.target.value)} disabled={pending} />
-        </div>
-      </div>
+    <form onSubmit={(e) => void submit(e)} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <KalkiPageHeader 
+        title={initialData ? "Edit Employee" : "Add Employee"}
+        description="Create a new employee in Kalki BOS."
+        breadcrumbs={<button type="button" onClick={onCancel} style={{background: 'none', border: 'none', color: 'var(--kalki-primary)', cursor: 'pointer', padding: 0, fontWeight: 600, fontSize: '0.85rem'}}>&lt; Back to Employees</button>}
+      />
 
-      <div className="panel" style={{ marginTop: "1.5rem" }}>
-        <h4>Documents Gate</h4>
-        <p className="muted" style={{ marginBottom: "1rem" }}>Upload required documents. Aadhaar and Photo must be uploaded to activate.</p>
-        <div className="grid-2">
-          <div className="field">
-            <label>Aadhaar Document *</label>
-            <input type="file" onChange={(e) => handleFileChange("aadhaar", e.target.files?.[0] || null)} disabled={pending} />
-            {formData.aadhaarDocumentUrl && <p className="text-sm text-green-600 mt-1">Uploaded: {formData.aadhaarDocumentUrl}</p>}
-          </div>
-          <div className="field">
-            <label>Profile Photo *</label>
-            <input type="file" accept="image/*" onChange={(e) => handleFileChange("photo", e.target.files?.[0] || null)} disabled={pending} />
-            {formData.photoUrl && <p className="text-sm text-green-600 mt-1">Uploaded: {formData.photoUrl}</p>}
-          </div>
-          <div className="field">
-            <label>Application Form *</label>
-            <input type="file" onChange={(e) => handleFileChange("applicationForm", e.target.files?.[0] || null)} disabled={pending} />
-            {formData.applicationFormUrl && <p className="text-sm text-green-600 mt-1">Uploaded: {formData.applicationFormUrl}</p>}
-          </div>
-          <div className="field">
-            <label>Other Documents</label>
-            <input type="file" onChange={(e) => handleFileChange("otherDocuments", e.target.files?.[0] || null)} disabled={pending} />
-            {formData.otherDocumentsUrl && <p className="text-sm text-green-600 mt-1">Uploaded: {formData.otherDocumentsUrl}</p>}
-          </div>
-        </div>
-        {formData.status === "ACTIVE" && (!formData.aadhaarDocumentUrl && !files.aadhaar || !formData.photoUrl && !files.photo) && (
-           <p className="text-red-500 text-sm mt-2">Aadhaar and Photo are required to set status to ACTIVE.</p>
-        )}
-      </div>
-
-      {!initialData?.id && (
-        <div className="panel" style={{ marginTop: "1.5rem" }}>
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "1rem" }}>
-            <input type="checkbox" id="provisionAccess" checked={provisionAccess} onChange={(e) => setProvisionAccess(e.target.checked)} disabled={pending} />
-            <label htmlFor="provisionAccess" style={{ margin: 0, fontWeight: "bold" }}>Provision System Access</label>
-          </div>
-          {provisionAccess && (
-            <div className="grid-2">
-              <div className="field">
-                <label>Login Email *</label>
-                <input required type="email" value={provisionEmail} onChange={(e) => setProvisionEmail(e.target.value)} disabled={pending} />
-              </div>
-              <div className="field">
-                <label>Login Password *</label>
-                <input required type="password" minLength={8} value={provisionPassword} onChange={(e) => setProvisionPassword(e.target.value)} disabled={pending} />
-              </div>
+      <div className="kalki-form-layout">
+        {/* Main Content */}
+        <div className="kalki-form-main">
+          
+          <KalkiSection title="Personal Information" icon="👤">
+            <div className="kalki-grid-2-col">
+              <KalkiInput label="First Name" required error={fieldErrors.firstName} value={formData.firstName} onChange={e => handleChange("firstName", e.target.value)} disabled={pending} />
+              <KalkiInput label="Last Name" value={formData.lastName} onChange={e => handleChange("lastName", e.target.value)} disabled={pending} />
+              <KalkiInput label="Display Name" required error={fieldErrors.displayName} value={formData.displayName} onChange={e => handleChange("displayName", e.target.value)} disabled={pending} />
+              <KalkiInput label="Employee ID" value={initialData?.employeeCode || "Auto-generated upon save"} disabled />
+              
+              <KalkiInput label="Primary Mobile" required type="tel" value={formData.phone} onChange={e => handleChange("phone", e.target.value)} disabled={pending} />
+              <KalkiInput label="Secondary Mobile" type="tel" value={formData.secondaryMobile} onChange={e => handleChange("secondaryMobile", e.target.value)} disabled={pending} />
+              
+              <KalkiInput label="Date of Birth" type="date" value={formData.dateOfBirth} onChange={e => handleChange("dateOfBirth", e.target.value)} disabled={pending} />
+              <KalkiSelect label="Gender" required value={formData.gender} onChange={e => handleChange("gender", e.target.value)} disabled={pending}>
+                <option value="">Select...</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
+              </KalkiSelect>
+              
+              <KalkiSelect label="Blood Group" value={formData.bloodGroup} onChange={e => handleChange("bloodGroup", e.target.value)} disabled={pending}>
+                <option value="">Select...</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="O+">O+</option><option value="O-">O-</option><option value="AB+">AB+</option><option value="AB-">AB-</option>
+              </KalkiSelect>
+              <KalkiSelect label="Marital Status" required value={formData.maritalStatus} onChange={e => handleChange("maritalStatus", e.target.value)} disabled={pending}>
+                <option value="">Select...</option><option value="Single">Single</option><option value="Married">Married</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option>
+              </KalkiSelect>
             </div>
+            <div style={{marginTop: '1rem'}}>
+              <KalkiTextarea label="Residential Address" value={formData.residentialAddress} onChange={e => handleChange("residentialAddress", e.target.value)} disabled={pending} rows={2} />
+            </div>
+          </KalkiSection>
+
+          <KalkiSection title="Family Details" icon="👥">
+            {formData.maritalStatus === "Married" && (
+              <div className="kalki-grid-2-col" style={{ marginBottom: '1rem' }}>
+                <KalkiInput label="Spouse Name *" required error={fieldErrors.spouseName} value={spouseName} onChange={e => {setSpouseName(e.target.value); setIsDirty(true);}} disabled={pending} />
+                <KalkiInput label="Spouse Mobile *" type="tel" required error={fieldErrors.spouseMobile} value={spouseMobile} onChange={e => {setSpouseMobile(e.target.value); setIsDirty(true);}} disabled={pending} />
+              </div>
+            )}
+            
+            <div className="kalki-grid-2-col" style={{ marginBottom: '1rem' }}>
+              <KalkiInput label="Father Name *" required value={fatherName} onChange={e => {setFatherName(e.target.value); setIsDirty(true);}} disabled={pending} />
+              <KalkiInput label="Mother Name *" required value={motherName} onChange={e => {setMotherName(e.target.value); setIsDirty(true);}} disabled={pending} />
+            </div>
+            
+            <div style={{ marginBottom: '1rem' }}>
+              <label className="kalki-label" style={{ display: 'block', marginBottom: '0.5rem' }}>Children (Optional)</label>
+              {children.map((child, index) => (
+                <div key={index} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', alignItems: 'center' }}>
+                  <KalkiInput value={child.name} onChange={e => handleChildChange(index, e.target.value)} disabled={pending} placeholder="Child Name" style={{ flexGrow: 1, marginBottom: 0 }} />
+                  <KalkiButton variant="ghost" size="sm" type="button" onClick={() => removeChild(index)} disabled={pending} style={{ color: 'var(--kalki-danger)' }}>Remove</KalkiButton>
+                </div>
+              ))}
+              <KalkiButton variant="secondary" size="sm" type="button" onClick={addChild} disabled={pending}>+ Add Child</KalkiButton>
+            </div>
+          </KalkiSection>
+
+          <KalkiSection title="Emergency Contacts" icon="📞">
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid var(--kalki-border)', textAlign: 'left' }}>
+                    <th style={{ padding: '0.5rem' }}>Name *</th>
+                    <th style={{ padding: '0.5rem' }}>Relationship *</th>
+                    <th style={{ padding: '0.5rem' }}>Mobile *</th>
+                    <th style={{ padding: '0.5rem', width: '80px' }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {familyContacts.map((contact, index) => {
+                    if (contact.category !== "EMERGENCY_CONTACT") return null;
+                    return (
+                      <tr key={index} style={{ borderBottom: '1px solid var(--kalki-border)' }}>
+                        <td style={{ padding: '0.5rem' }}>
+                          <KalkiInput required value={contact.name} onChange={e => handleEmergencyContactChange(index, "name", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
+                        </td>
+                        <td style={{ padding: '0.5rem' }}>
+                          <KalkiInput required value={contact.relationship} onChange={e => handleEmergencyContactChange(index, "relationship", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
+                        </td>
+                        <td style={{ padding: '0.5rem' }}>
+                          <KalkiInput required type="tel" value={contact.mobile} onChange={e => handleEmergencyContactChange(index, "mobile", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
+                        </td>
+                        <td style={{ padding: '0.5rem' }}>
+                          <KalkiButton variant="ghost" size="sm" type="button" onClick={() => removeEmergencyContact(index)} disabled={pending || familyContacts.filter(c => c.category === "EMERGENCY_CONTACT").length <= 1} style={{ color: 'var(--kalki-danger)' }}>Remove</KalkiButton>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <KalkiButton variant="secondary" size="sm" type="button" onClick={addEmergencyContact} disabled={pending}>+ Add Contact</KalkiButton>
+            </div>
+          </KalkiSection>
+
+          <KalkiSection title="Employment Information" icon="💼">
+            <div className="kalki-grid-2-col">
+              <KalkiSelect label="Category" required value={formData.category} onChange={e => handleChange("category", e.target.value)} disabled={pending}>
+                <option value="">Select...</option><option value="Permanent">Permanent</option><option value="Temporary">Temporary</option><option value="Part-time">Part-time</option>
+              </KalkiSelect>
+              <KalkiInput label="Date of Joining" required type="date" error={fieldErrors.employmentStartDate} value={formData.employmentStartDate} onChange={e => handleChange("employmentStartDate", e.target.value)} disabled={pending} />
+              
+              <KalkiInput label="Job Title" value={formData.jobTitle} onChange={e => handleChange("jobTitle", e.target.value)} disabled={pending} />
+              <KalkiSelect label="Reporting To" value={formData.reportingEmployeeId} onChange={e => handleChange("reportingEmployeeId", e.target.value)} disabled={pending}>
+                <option value="">No Reporting Manager</option>
+                {reportingCandidatesData?.candidates?.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.displayName} ({c.jobTitle || c.roleIdentifier || 'Employee'})</option>
+                ))}
+              </KalkiSelect>
+            </div>
+          </KalkiSection>
+
+          <KalkiSection title="Salary & Payment" icon="₹">
+            <div className="kalki-grid-2-col">
+              <KalkiSelect label="Salary Type" required value={formData.salaryType} onChange={e => handleChange("salaryType", e.target.value)} disabled={pending}>
+                <option value="Monthly">Monthly</option>
+                <option value="Weekly">Weekly</option>
+                <option value="Daily">Daily</option>
+              </KalkiSelect>
+              <KalkiInput label="Salary Amount (₹)" required type="number" step="0.01" value={formData.salaryAmount} onChange={e => handleChange("salaryAmount", e.target.value)} disabled={pending} />
+              <KalkiInput label="Effective From" required type="date" value={formData.salaryEffectiveFrom} onChange={e => handleChange("salaryEffectiveFrom", e.target.value)} disabled={pending} />
+              <KalkiSelect label="Payment Method" required value={formData.paymentMethod} onChange={e => handleChange("paymentMethod", e.target.value)} disabled={pending}>
+                <option value="BANK_TRANSFER">Bank Transfer</option>
+                <option value="GPAY">GPay / UPI</option>
+                <option value="CASH">Cash</option>
+              </KalkiSelect>
+            </div>
+            {formData.paymentMethod !== "CASH" && (
+              <div style={{ marginTop: '1rem' }}>
+                <KalkiInput label={formData.paymentMethod === "BANK_TRANSFER" ? "Bank Account Details" : "UPI ID / Phone Number"} value={formData.paymentDetails} onChange={e => handleChange("paymentDetails", e.target.value)} disabled={pending} />
+              </div>
+            )}
+          </KalkiSection>
+
+        </div>
+
+        {/* Secondary Content */}
+        <div className="kalki-form-secondary">
+          <KalkiSection title="System Integration" icon="🔗">
+            <div className="kalki-field">
+              <KalkiInput label="Biometric ID" required value={formData.biometricId} onChange={e => handleChange("biometricId", e.target.value)} error={fieldErrors.biometricId} disabled={pending} />
+            </div>
+            <div className="kalki-field">
+              <KalkiInput label="POS ID" value={formData.posId} onChange={e => handleChange("posId", e.target.value)} disabled={pending} />
+            </div>
+          </KalkiSection>
+
+          <KalkiSection title="Documents" icon="📄">
+            <div style={{background: 'var(--kalki-info-bg)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: 'var(--kalki-primary)', marginBottom: '1rem'}}>
+              Aadhaar and Profile Photo are mandatory for activation.
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <KalkiFileUpload label="Aadhaar Card" required onFileSelect={file => handleFileChange('aadhaar', file)} disabled={pending} />
+              <KalkiFileUpload label="Profile Photo" required accept="image/*" onFileSelect={file => handleFileChange('photo', file)} disabled={pending} />
+              <KalkiFileUpload label="Other Document 1" onFileSelect={file => handleFileChange('otherDocument1', file)} disabled={pending} />
+              <KalkiFileUpload label="Other Document 2" onFileSelect={file => handleFileChange('otherDocument2', file)} disabled={pending} />
+              <KalkiFileUpload label="Other Document 3" onFileSelect={file => handleFileChange('otherDocument3', file)} disabled={pending} />
+            </div>
+          </KalkiSection>
+
+          {!initialData?.id && (
+            <KalkiSection title="Access & Roles" icon="🛡️">
+              <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem'}}>
+                <input type="checkbox" id="provisionAccess" checked={provisionAccess} onChange={e => {setProvisionAccess(e.target.checked); setIsDirty(true);}} disabled={pending} />
+                <label htmlFor="provisionAccess" style={{fontWeight: 600, fontSize: '0.9rem', margin: 0}}>Provision System Access</label>
+              </div>
+
+              {provisionAccess && (
+                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
+                  <div className="kalki-field">
+                    <label className="kalki-label">Login Username</label>
+                    <div style={{ padding: '0.5rem', background: 'var(--kalki-bg)', border: '1px solid var(--kalki-border)', borderRadius: 'var(--radius-sm)', color: 'var(--kalki-foreground-muted)' }}>
+                      {formData.phone || "Please enter Primary Mobile"}
+                    </div>
+                  </div>
+                  <KalkiInput label="Initial Password" required type="password" minLength={8} value={provisionPassword} onChange={e => {setProvisionPassword(e.target.value); setIsDirty(true);}} disabled={pending} />
+                  
+                  <div className="kalki-field">
+                    <label className="kalki-label">Assign Roles *</label>
+                    <select multiple size={5} value={roleIds} onChange={e => {
+                        const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                        setRoleIds(selectedOptions);
+                        setIsDirty(true);
+                      }} disabled={pending} className="kalki-select" style={{ fontSize: '0.85rem', padding: '0.25rem' }}>
+                      {rolesData?.roles?.filter((r: any) => r.isActive).map((r: any) => (
+                        <option key={r.id} value={r.id} style={{ padding: '0.25rem 0.5rem' }}>{r.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </KalkiSection>
           )}
         </div>
-      )}
-
-      <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
-        <button type="submit" className="action-button" disabled={pending}>
-          {pending ? "Saving…" : "Save Employee"}
-        </button>
       </div>
+
+      <div style={{ flexGrow: 1 }} />
+      <KalkiActionBar>
+        <KalkiButton variant="secondary" type="button" onClick={handleCancel} disabled={pending}>Cancel</KalkiButton>
+        <KalkiButton variant="primary" type="submit" disabled={pending}>{pending ? "Saving..." : isProposal ? "Propose Change" : "Save Employee"}</KalkiButton>
+      </KalkiActionBar>
     </form>
   );
 }

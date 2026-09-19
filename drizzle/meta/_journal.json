@@ -92,6 +92,20 @@
       "when": 1789486060216,
       "tag": "0012_common_valeria_richards",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789664795240,
+      "tag": "0013_gray_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789664813674,
+      "tag": "0014_yellow_blacklash",
+      "breakpoints": true
     }
   ]
 }

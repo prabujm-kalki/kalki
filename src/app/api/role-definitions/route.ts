@@ -17,11 +17,8 @@ export async function GET(request: Request) {
   } catch (error) { return serviceErrorResponse(error); }
 }
 
-export async function POST(request: Request) {
-  const user = await requireAuthenticatedUser(request);
-  if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
-  try { return NextResponse.json({ role: await createRoleDefinition(user, await request.json()) }, { status: 201 }); }
-  catch (error) { return serviceErrorResponse(error); }
+export async function POST() {
+  return NextResponse.json({ error: "Method Not Allowed. Roles are predefined." }, { status: 405 });
 }
 
 export async function PATCH(request: Request) {

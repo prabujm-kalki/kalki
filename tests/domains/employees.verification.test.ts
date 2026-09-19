@@ -76,8 +76,8 @@ const employeeInput = (employeeCode: string, targetLocationId = locationId) => (
   jobTitle: "Operations Associate",
   employmentStartDate: "2026-09-01",
   biometricId: `BIO-${employeeCode}`,
-  person: {
-    firstName: `Test${randomUUID().slice(0, 8)}`,
+  familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+  person: { firstName: `Test${randomUUID().slice(0, 8)}`,
     lastName: "Employee",
     displayName: `Test Employee ${employeeCode}`,
     phone: `+9199${Math.floor(Math.random() * 100000000)}`,
@@ -260,12 +260,12 @@ describe("Phase 2 Verification Strengthening", () => {
       const inactive = await transitionEmployeeLifecycle(authorizedActor, e.id, { status: "INACTIVE", separationReason: "R" });
       expect(inactive.status).toBe("INACTIVE");
       
-      await expect(transitionEmployeeLifecycle(authorizedActor, e.id, { status: "ACTIVE" })).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
+      await expect(transitionEmployeeLifecycle(authorizedActor, e.id, { status: "ACTIVE", onboardingDeclared: true })).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
       
       const exited = await transitionEmployeeLifecycle(authorizedActor, e.id, { status: "EXITED", separationReason: "R" });
       expect(exited.status).toBe("EXITED");
       
-      await expect(transitionEmployeeLifecycle(authorizedActor, e.id, { status: "ACTIVE" })).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
+      await expect(transitionEmployeeLifecycle(authorizedActor, e.id, { status: "ACTIVE", onboardingDeclared: true })).rejects.toMatchObject({ code: "INVALID_LIFECYCLE_TRANSITION" });
     });
   });
   

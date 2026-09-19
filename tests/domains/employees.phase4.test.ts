@@ -91,10 +91,10 @@ describe("Phase 4 Tests: Hierarchy, Salary & Directory", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      person: {
-        firstName: name,
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+        person: { firstName: name,
         displayName: name,
-        phone: "+919999999999",
+        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
         dateOfBirth: "1990-01-01"
       }
     });
@@ -165,7 +165,8 @@ describe("Phase 4 Tests: Hierarchy, Salary & Directory", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      person: { firstName: "Manager B", displayName: "Manager B", phone: "+123", dateOfBirth: "1990-01-01" }
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+      person: { firstName: "Manager B", displayName: "Manager B", phone: `+123${randomUUID().slice(0, 10)}`, dateOfBirth: "1990-01-01" }
     });
     await updateEmployee(ownerActor, empB.id, {
       gender: "Male", maritalStatus: "Single", residentialAddress: "Address",

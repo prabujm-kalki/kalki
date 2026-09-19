@@ -56,8 +56,8 @@ const employeeInput = (employeeCode: string, targetLocationId = locationId) => (
   jobTitle: "Operations Associate",
   employmentStartDate: "2026-09-01",
   biometricId: `BIO-${employeeCode}`,
-  person: {
-    firstName: `Test${testRunId}`,
+  familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+  person: { firstName: `Test${testRunId}`,
     lastName: "Employee",
     displayName: `Test Employee ${employeeCode}`,
   },

@@ -7,6 +7,7 @@ import { apiGet } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
 import { StatusMessage } from "@/components/StatusMessage";
 import type { SessionContext, SessionScope } from "@/components/work/types";
+import { ToastProvider } from "./ui/Toast";
 
 function scopeKey(scope: Pick<SessionScope, "organizationId" | "locationId">) {
   return `${scope.organizationId}:${scope.locationId}`;
@@ -76,93 +77,114 @@ function AppShellContent({ children }: { children: ReactNode }) {
     router.replace("/login");
   }
 
-  if (error) return <main className="app-main"><StatusMessage tone="error">{error}</StatusMessage></main>;
-  if (!session) return <main className="app-main"><StatusMessage tone="loading">Loading session…</StatusMessage></main>;
+  if (error) return <div className="kalki-main-wrapper"><main className="kalki-main-content"><StatusMessage tone="error">{error}</StatusMessage></main></div>;
+  if (!session) return <div className="kalki-main-wrapper"><main className="kalki-main-content"><StatusMessage tone="loading">Loading session…</StatusMessage></main></div>;
 
   return (
     <SessionViewContext.Provider value={{ session, selected }}>
-      <div className="app-shell">
-        <header className="app-header">
-          <div>
-            <p className="muted">Operations</p>
-            <h1>Kalki BOS</h1>
-            <p>{session.user.email ?? session.user.name ?? session.user.id}</p>
-          </div>
-          <div className="toolbar">
-            <label>
-              <span className="muted">Organization / location</span>
-              <select
-                className="scope-select"
-                value={selected ? scopeKey(selected) : ""}
-                onChange={(event) => changeScope(event.target.value)}
-              >
-                <option value="" disabled>Select a location scope</option>
-                {session.scopes.map((scope) => (
-                  <option key={scopeKey(scope)} value={scopeKey(scope)}>
-                    {scope.organizationName} / {scope.locationName}
-                  </option>
+      <ToastProvider>
+        <div className="kalki-app-shell">
+          
+          {/* LEFT: Persistent Sidebar */}
+          <aside className="kalki-sidebar">
+            <div className="kalki-sidebar-header">
+              Kalki BOS
+            </div>
+            
+            {selected && (
+              <nav className="kalki-sidebar-nav">
+                <div style={{ padding: '0 1.25rem 0.5rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>
+                  Modules
+                </div>
+                {[
+                  { label: "Command Center", path: "/reports" },
+                  { label: "People", path: "/people" },
+                  { label: "Attendance", path: "/attendance" },
+                  { label: "Payroll", path: "/payroll" },
+                  { label: "Purchasing", path: "/purchasing" },
+                  { label: "Inventory", path: "/inventory" },
+                  { label: "Sales", path: "/sales" },
+                  { label: "CRM", path: "/crm" },
+                  { label: "Finance", path: "/finance" },
+                  { label: "Settings", path: "/settings" },
+                ].map(module => (
+                  <Link
+                    key={module.path}
+                    className="kalki-sidebar-link"
+                    data-active={pathname === module.path || pathname.startsWith(`${module.path}/`)}
+                    href={`${module.path}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
+                  >
+                    {module.label}
+                  </Link>
                 ))}
-              </select>
-            </label>
-            <Link
-              className="nav-link"
-              data-active={pathname === "/work" || pathname.startsWith("/work/")}
-              href={selected ? `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/work"}
-            >
-              Work (Operations)
-            </Link>
-            {session.isOwner && selected ? (
-              <Link
-                className="nav-link"
-                data-active={pathname === "/audit"}
-                href={`/audit?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
-              >
-                Audit
-              </Link>
-            ) : null}
-            <button type="button" className="secondary-button" onClick={() => void signOut()}>Sign out</button>
+              </nav>
+            )}
+          </aside>
+
+          {/* MAIN WRAPPER */}
+          <div className="kalki-main-wrapper">
+            
+            {/* TOP: Global Header */}
+            <header className="kalki-topbar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <select
+                  className="kalki-select"
+                  style={{ width: 'auto', padding: '0.25rem 2rem 0.25rem 0.75rem', fontSize: '0.85rem' }}
+                  value={selected ? scopeKey(selected) : ""}
+                  onChange={(event) => changeScope(event.target.value)}
+                >
+                  <option value="" disabled>Select Location...</option>
+                  {session.scopes.map((scope) => (
+                    <option key={scopeKey(scope)} value={scopeKey(scope)}>
+                      {scope.organizationName} / {scope.locationName}
+                    </option>
+                  ))}
+                </select>
+                
+                <Link
+                  href={selected ? `/work?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/work"}
+                  style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}
+                >
+                  Work
+                </Link>
+                
+                {session.isOwner && selected && (
+                  <Link
+                    href={`/audit?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
+                    style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}
+                  >
+                    Audit
+                  </Link>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <span style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)' }}>
+                  {session.user.name || session.user.email}
+                </span>
+                <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: 'rgba(255, 255, 255, 1)' }} onClick={() => void signOut()}>
+                  Sign out
+                </button>
+              </div>
+            </header>
+
+            {/* CONTENT */}
+            <main className="kalki-main-content">
+              {session.scopes.length === 0 ? (
+                <StatusMessage tone="empty">No authorized organization location is available for this account.</StatusMessage>
+              ) : children}
+            </main>
           </div>
-        </header>
 
-        {selected && (
-          <nav className="toolbar" style={{ padding: "0.5rem 1rem", borderBottom: "1px solid var(--border-color, #e2e8f0)", backgroundColor: "var(--bg-secondary, #f8fafc)" }}>
-            {[
-              { label: "Command Center", path: "/reports" },
-              { label: "People", path: "/people" },
-              { label: "Attendance", path: "/attendance" },
-              { label: "Payroll", path: "/payroll" },
-              { label: "Purchasing", path: "/purchasing" },
-              { label: "Inventory", path: "/inventory" },
-              { label: "Sales", path: "/sales" },
-              { label: "CRM", path: "/crm" },
-              { label: "Finance", path: "/finance" },
-              { label: "Settings", path: "/settings" },
-            ].map(module => (
-              <Link
-                key={module.path}
-                className="nav-link"
-                data-active={pathname === module.path || pathname.startsWith(`${module.path}/`)}
-                href={`${module.path}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
-              >
-                {module.label}
-              </Link>
-            ))}
-          </nav>
-        )}
-
-        <main className="app-main">
-          {session.scopes.length === 0 ? (
-            <StatusMessage tone="empty">No authorized organization location is available for this account.</StatusMessage>
-          ) : children}
-        </main>
-      </div>
+        </div>
+      </ToastProvider>
     </SessionViewContext.Provider>
   );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <Suspense fallback={<main className="app-main"><StatusMessage tone="loading">Loading...</StatusMessage></main>}>
+    <Suspense fallback={<div className="kalki-main-wrapper"><main className="kalki-main-content"><StatusMessage tone="loading">Loading...</StatusMessage></main></div>}>
       <AppShellContent>{children}</AppShellContent>
     </Suspense>
   );

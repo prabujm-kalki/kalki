@@ -97,10 +97,10 @@ describe("Phase 3 Approval Workflow Tests", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      person: {
-        firstName: "Test",
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+        person: { firstName: "Test",
         displayName: "Test Emp",
-        phone: "+919999999999",
+        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
         dateOfBirth: "1990-01-01"
       }
     });

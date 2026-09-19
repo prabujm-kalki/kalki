@@ -6,6 +6,7 @@ import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import { EmployeeForm } from "./EmployeeForm";
+import { EmployeeSalaryForm } from "./EmployeeSalaryForm";
 
 type EmployeeView = {
   id: string;
@@ -16,8 +17,7 @@ type EmployeeView = {
   status: string;
   aadhaarDocumentUrl: string | null;
   photoUrl: string | null;
-  applicationFormUrl: string | null;
-  otherDocumentsUrl: string | null;
+
   biometricId: string | null;
   posId: string | null;
   category: string | null;
@@ -58,11 +58,25 @@ type RoleDefinitionView = {
   isActive: boolean;
 };
 
+// Reusable Dense Info Grid Component
+function InfoItem({ label, value, strong = false }: { label: string, value: React.ReactNode, strong?: boolean }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "16px" }}>
+      <span style={{ fontSize: "12px", color: "var(--kalki-text-secondary)", fontWeight: 500 }}>{label}</span>
+      <span style={{ fontSize: "14px", color: "var(--kalki-text-primary)", fontWeight: strong ? 600 : 400 }}>
+        {value || <span style={{ color: "var(--kalki-text-secondary)", fontStyle: "italic" }}>Not provided</span>}
+      </span>
+    </div>
+  );
+}
+
 export function EmployeeProfile({ employeeId }: { employeeId: string }) {
-  const { selected } = useSessionView();
+  const { session, selected } = useSessionView();
   const [employee, setEmployee] = useState<{ requestKey: string; data: EmployeeView } | null>(null);
+  const [manager, setManager] = useState<EmployeeView | null>(null);
   const [assignments, setAssignments] = useState<{ requestKey: string; items: RoleAssignmentView[] } | null>(null);
   const [availableRoles, setAvailableRoles] = useState<RoleDefinitionView[]>([]);
+  const [pendingProposal, setPendingProposal] = useState<any>(null);
   const [error, setError] = useState<{ requestKey: string; message: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -71,15 +85,35 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
   const [assignError, setAssignError] = useState<string | null>(null);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
+
+  async function activateEmployee() {
+    if (!selected || !employee?.data) return;
+    if (!confirm("Are you sure you want to activate this employee? Ensure all required documents and details are complete.")) return;
+    setIsActivating(true);
+    try {
+      await apiSend(`/api/employees/lifecycle?id=${employee.data.id}`, "POST", {
+        status: "ACTIVE",
+      });
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to activate");
+    } finally {
+      setIsActivating(false);
+    }
+  }
 
   async function deactivateEmployee() {
     if (!selected || !employee?.data) return;
-    if (!confirm("Are you sure you want to deactivate this employee?")) return;
+    const reason = prompt("Please provide a reason for deactivation/separation:");
+    if (!reason) return;
     setIsDeactivating(true);
     try {
-      await apiSend(`/api/employees?id=${employee.data.id}`, "PATCH", {
-        isActive: false
+      await apiSend(`/api/employees/lifecycle?id=${employee.data.id}`, "POST", {
+        status: "INACTIVE",
+        separationReason: reason,
       });
       setRefreshKey(k => k + 1);
     } catch (e) {
@@ -97,13 +131,28 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
     Promise.all([
       apiGet<{ employee: EmployeeView }>(`/api/employees?id=${employeeId}`),
       apiGet<{ assignments: RoleAssignmentView[] }>(`/api/employee-role-assignments?organizationId=${selected.organizationId}&locationId=${selected.locationId}&employeeId=${employeeId}`),
-      apiGet<{ roles: RoleDefinitionView[] }>(`/api/role-definitions?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)
-    ]).then(([empPayload, assignsPayload, rolesPayload]) => {
+      apiGet<{ roles: RoleDefinitionView[] }>(`/api/role-definitions?organizationId=${selected.organizationId}&locationId=${selected.locationId}`),
+      apiGet<{ data: any[] }>(`/api/employees/proposals?employeeId=${employeeId}`)
+    ]).then(async ([empPayload, assignsPayload, rolesPayload, proposalsPayload]) => {
       if (cancelled) return;
       setError(null);
+      
+      let mgr = null;
+      if (empPayload.employee.reportingEmployeeId) {
+        try {
+          const m = await apiGet<{employee: EmployeeView}>(`/api/employees?id=${empPayload.employee.reportingEmployeeId}`);
+          mgr = m.employee;
+        } catch(e) {
+          console.error("Failed to load manager details", e);
+        }
+      }
+      
+      if (cancelled) return;
+      setManager(mgr);
       setEmployee({ requestKey, data: empPayload.employee });
       setAssignments({ requestKey, items: assignsPayload.assignments });
       setAvailableRoles(rolesPayload.roles.filter(r => r.isActive));
+      setPendingProposal(proposalsPayload.data?.[0] || null);
     }).catch((caught) => {
       if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load profile data" });
     });
@@ -134,6 +183,24 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
     }
   }
 
+  async function handleRemoveRole(assignmentId: string, roleName: string) {
+    if (!selected) return;
+    if (!confirm(`Are you sure you want to remove the role "${roleName}" from this employee?`)) return;
+    setAssignError(null);
+    try {
+      const res = await fetch(`/api/employee-role-assignments?organizationId=${selected.organizationId}&locationId=${selected.locationId}&employeeId=${employeeId}&id=${assignmentId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to remove role");
+      }
+      setRefreshKey((k) => k + 1);
+    } catch (caught) {
+      setAssignError(caught instanceof Error ? caught.message : "Failed to remove role");
+    }
+  }
+
   if (!selected) return <StatusMessage tone="empty">Select an organization location to view profile.</StatusMessage>;
   const requestKey = `${selected.organizationId}:${selected.locationId}:${employeeId}`;
   if (error?.requestKey === requestKey) return <StatusMessage tone="error">{error.message}</StatusMessage>;
@@ -141,231 +208,351 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
 
   const emp = employee.data;
 
-  // Filter out roles that are already assigned
   const unassignedRoles = availableRoles.filter(
-    (role) => !assignments.items.some((assign) => assign.role.id === role.id)
+    (role) => !assignments.items.some((assign) => assign.role?.id === role.id)
   );
 
-  return (
-    <div className="stack">
-      <Link href={`/people?organizationId=${selected.organizationId}&locationId=${selected.locationId}`} className="nav-link" style={{ alignSelf: "flex-start" }}>
-        ← Back to People
-      </Link>
+  const isProposalRequired = emp.status === "ACTIVE" && !session.isOwner;
 
-      <section className="panel">
-        <div className="panel-header">
+  async function handleApproveProposal() {
+    if (!pendingProposal) return;
+    try {
+      await apiSend(`/api/employees/proposals/${pendingProposal.id}/approve`, "POST", {});
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to approve proposal");
+    }
+  }
+
+  async function handleRejectProposal() {
+    if (!pendingProposal) return;
+    const comment = prompt("Please provide a reason for rejection:");
+    if (!comment) return;
+    try {
+      await apiSend(`/api/employees/proposals/${pendingProposal.id}/reject`, "POST", { reviewComment: comment });
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to reject proposal");
+    }
+  }
+
+  if (isEditing) {
+    return (
+      <div style={{ padding: "0 0 40px 0" }}>
+        <EmployeeForm 
+          organizationId={selected.organizationId}
+          locationId={selected.locationId}
+          initialData={emp}
+          isProposal={isProposalRequired}
+          onCancel={() => setIsEditing(false)}
+          onSuccess={() => {
+            setIsEditing(false);
+            setRefreshKey(k => k + 1);
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px", paddingBottom: "60px" }}>
+      <div className="kalki-page-header">
+        <Link href={`/people?organizationId=${selected.organizationId}&locationId=${selected.locationId}`} className="kalki-breadcrumbs">
+          &lt; Back to People
+        </Link>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
           <div>
-            <p className="muted">Employee Profile</p>
-            <h2>{emp.person.displayName} {emp.isActive ? "" : "(Inactive)"}</h2>
-            <p>{emp.employeeCode} · {emp.jobTitle ?? "No job title"}</p>
+            <h1 className="kalki-page-title">{emp.person.displayName}</h1>
+            <p className="kalki-page-description">
+              {emp.employeeCode} &middot; {emp.jobTitle ?? "No job title"}
+            </p>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button className="secondary-button" onClick={() => setIsEditing(true)}>Edit</button>
-            {emp.isActive && (
-              <button className="secondary-button" style={{ color: "var(--danger)", borderColor: "var(--danger-light)" }} onClick={() => void deactivateEmployee()} disabled={isDeactivating}>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <button className="kalki-button kalki-button--secondary" onClick={() => setIsEditing(true)} disabled={!!pendingProposal}>
+              {isProposalRequired ? "Propose Change" : "Edit"}
+            </button>
+            {emp.status === "DRAFT" && (
+              <button className="kalki-button kalki-button--secondary" style={{ color: "var(--kalki-success)", borderColor: "var(--kalki-success)" }} onClick={() => void activateEmployee()} disabled={isActivating}>
+                Activate
+              </button>
+            )}
+            {emp.status === "ACTIVE" && (
+              <button className="kalki-button kalki-button--danger" onClick={() => void deactivateEmployee()} disabled={isDeactivating}>
                 Deactivate
               </button>
             )}
           </div>
         </div>
-        {isEditing ? (
-          <div style={{ marginTop: "1rem" }}>
-            <EmployeeForm 
-              organizationId={selected.organizationId}
-              locationId={selected.locationId}
-              initialData={emp}
-              onCancel={() => setIsEditing(false)}
-              onSuccess={() => {
-                setIsEditing(false);
-                setRefreshKey(k => k + 1);
-              }}
-            />
-          </div>
-        ) : (
-          <div className="grid-2" style={{ gap: "2rem", marginTop: "1.5rem" }}>
-            <div>
-              <h3>Personal Information</h3>
-              <div className="stack" style={{ gap: "0.5rem", marginTop: "1rem" }}>
-                <p><strong>Email:</strong> {emp.person.email ?? "Not provided"}</p>
-                <p><strong>Phone:</strong> {emp.person.phone ?? "Not provided"}</p>
-                <p><strong>Date of Birth:</strong> {emp.person.dateOfBirth ?? "Not provided"} {emp.person.dateOfBirth ? `(${Math.floor((new Date().getTime() - new Date(emp.person.dateOfBirth).getTime()) / 31557600000)} yrs)` : ""}</p>
-                <p><strong>Gender:</strong> {emp.gender ?? "Not provided"}</p>
-                <p><strong>Blood Group:</strong> {emp.bloodGroup ?? "Not provided"}</p>
-                <p><strong>Marital Status:</strong> {emp.maritalStatus ?? "Not provided"}</p>
-                <p><strong>Address:</strong> {emp.residentialAddress ?? "Not provided"}</p>
-              </div>
-            </div>
-            <div>
-              <h3>Employment Information</h3>
-              <div className="stack" style={{ gap: "0.5rem", marginTop: "1rem" }}>
-                <p><strong>Status:</strong> <span style={{ fontWeight: "600", padding: "0.2rem 0.6rem", borderRadius: "999px", background: emp.status === 'ACTIVE' ? '#dcfce7' : emp.status === 'DRAFT' ? '#fef9c3' : '#f1f5f9', color: emp.status === 'ACTIVE' ? '#166534' : emp.status === 'DRAFT' ? '#854d0e' : '#475569' }}>{emp.status}</span></p>
-                <p><strong>Category:</strong> {emp.category ?? "Not specified"}</p>
-                <p><strong>Start Date:</strong> {emp.employmentStartDate}</p>
-                {emp.employmentEndDate && <p><strong>End Date:</strong> {emp.employmentEndDate}</p>}
-                <p><strong>Biometric ID:</strong> {emp.biometricId ?? "Not provided"}</p>
-                <p><strong>Reporting To:</strong> {emp.reportingEmployeeId ?? "Not assigned"}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
+      </div>
 
-      {!isEditing && (
-        <>
-          <section className="panel">
-            <div className="panel-header">
-              <h3>Family & Emergency Contacts</h3>
-            </div>
-            {emp.familyContacts?.length === 0 ? (
-              <p className="muted" style={{ marginTop: "1rem" }}>No family or emergency contacts recorded.</p>
-            ) : (
-              <div className="grid-2" style={{ gap: "1rem", marginTop: "1rem" }}>
-                {emp.familyContacts?.map(contact => (
-                  <div key={contact.id} style={{ padding: "0.75rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-                    <p style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: "bold", color: "var(--primary)" }}>{contact.category.replace('_', ' ')}</p>
-                    {contact.category === 'PARENT' ? (
-                      <>
-                        <p><strong>Father:</strong> {contact.fatherName}</p>
-                        <p><strong>Mother:</strong> {contact.motherName}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p><strong>Name:</strong> {contact.name}</p>
-                        {contact.mobile && <p><strong>Mobile:</strong> {contact.mobile}</p>}
-                        {contact.relationship && <p><strong>Relation:</strong> {contact.relationship}</p>}
-                      </>
-                    )}
-                  </div>
-                ))}
+      {pendingProposal && (
+        <div className="kalki-section" style={{ border: "2px solid #f59e0b" }}>
+          <div className="kalki-section-header" style={{ background: "#fef3c7", color: "#92400e" }}>
+            <span className="kalki-section-title">Pending Change Request</span>
+            {session.isOwner && (
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button className="kalki-button kalki-button--danger" onClick={() => void handleRejectProposal()}>Reject</button>
+                <button className="kalki-button kalki-button--primary" onClick={() => void handleApproveProposal()}>Approve</button>
               </div>
             )}
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <h3>Salary & Payment Information</h3>
-            </div>
-            {!emp.salaryInfo ? (
-              <p className="muted" style={{ marginTop: "1rem" }}>No salary information recorded.</p>
-            ) : (
-              <div className="grid-2" style={{ gap: "2rem", marginTop: "1rem" }}>
-                <div className="stack" style={{ gap: "0.5rem" }}>
-                  <p><strong>Type:</strong> {emp.salaryInfo.salaryType}</p>
-                  <p><strong>Amount:</strong> ₹{emp.salaryInfo.amount}</p>
-                  <p><strong>Payment Method:</strong> {emp.salaryInfo.paymentMethod.replace('_', ' ')}</p>
-                </div>
-                {emp.salaryInfo.paymentMethod === 'BANK_TRANSFER' && (
-                  <div className="stack" style={{ gap: "0.5rem" }}>
-                    <p><strong>Account Holder:</strong> {emp.salaryInfo.accountHolderName}</p>
-                    <p><strong>Account Number:</strong> {emp.salaryInfo.accountNumber}</p>
-                    <p><strong>Bank:</strong> {emp.salaryInfo.bankName}</p>
-                    <p><strong>IFSC:</strong> {emp.salaryInfo.ifscCode}</p>
-                  </div>
-                )}
-                {emp.salaryInfo.paymentMethod === 'GPAY' && (
-                  <div className="stack" style={{ gap: "0.5rem" }}>
-                    <p><strong>GPay Number:</strong> {emp.salaryInfo.gpayNumber}</p>
-                    <p><strong>Banking Name:</strong> {emp.salaryInfo.bankingName}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-          <section className="panel">
-            <div className="panel-header">
-              <h3>Employment History</h3>
-            </div>
-            {!emp.history ? (
-              <p className="muted" style={{ marginTop: "1rem" }}>No history recorded.</p>
-            ) : (
-              <div className="stack" style={{ gap: "1rem", marginTop: "1rem" }}>
-                {emp.history.status?.length > 0 && (
-                  <div>
-                    <h4 style={{ marginBottom: "0.5rem" }}>Status History</h4>
-                    <ul style={{ paddingLeft: "1.5rem" }}>
-                      {emp.history.status.map((h: any) => (
-                        <li key={h.id}>
-                          <strong>{h.status}</strong> - Effective from {new Date(h.effectiveFrom).toLocaleDateString()}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {emp.history.category?.length > 0 && (
-                  <div>
-                    <h4 style={{ marginBottom: "0.5rem" }}>Category History</h4>
-                    <ul style={{ paddingLeft: "1.5rem" }}>
-                      {emp.history.category.map((h: any) => (
-                        <li key={h.id}>
-                          <strong>{h.category}</strong> - Effective from {new Date(h.effectiveFrom).toLocaleDateString()}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {emp.history.salary?.length > 0 && (
-                  <div>
-                    <h4 style={{ marginBottom: "0.5rem" }}>Salary History</h4>
-                    <ul style={{ paddingLeft: "1.5rem" }}>
-                      {emp.history.salary.map((h: any) => (
-                        <li key={h.id}>
-                          <strong>{h.salaryType} - ₹{h.amount}</strong> - Effective from {new Date(h.effectiveFrom).toLocaleDateString()}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-          </section>
-        </>
+          </div>
+          <div className="kalki-section-content">
+            <p style={{ margin: "0 0 8px 0", fontSize: "14px", fontWeight: 500 }}>Reason: {pendingProposal.reason}</p>
+            <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Review the proposed payload carefully. This employee cannot be edited again until this proposal is resolved.</p>
+            <pre style={{ margin: 0, fontSize: "12px", background: "#f8fafc", padding: "12px", borderRadius: "4px", border: "1px solid var(--kalki-border)", overflowX: "auto" }}>
+              {JSON.stringify(pendingProposal.proposedPayload, null, 2)}
+            </pre>
+          </div>
+        </div>
       )}
 
-      <section className="panel">
-        <div className="panel-header">
-          <h3>Role Assignments</h3>
-          <span className="muted">{assignments.items.length} active roles</span>
-        </div>
-        
-        {assignments.items.length === 0 ? (
-          <p className="muted" style={{ marginTop: "1rem" }}>No roles assigned.</p>
-        ) : (
-          <div className="grid" style={{ gap: "1rem", marginTop: "1rem" }}>
-            {assignments.items.map((assign) => (
-              <div key={assign.id} style={{ padding: "0.75rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-                <strong>{assign.role.name}</strong>
-                <p className="muted" style={{ fontSize: "0.875rem" }}>{assign.role.identifier}</p>
+      <div className="kalki-form-layout">
+        <div className="kalki-form-main">
+          
+          <section className="kalki-section">
+            <div className="kalki-section-header">
+              <h2 className="kalki-section-title">Personal Information</h2>
+            </div>
+            <div className="kalki-section-content">
+              <div className="kalki-grid-2-col">
+                <InfoItem label="Date of Birth" value={emp.person.dateOfBirth ? `${new Date(emp.person.dateOfBirth).toLocaleDateString('en-GB').replace(/\//g, '-')} (${Math.floor((new Date().getTime() - new Date(emp.person.dateOfBirth).getTime()) / 31557600000)} yrs)` : null} />
+                <InfoItem label="Gender" value={emp.gender} />
+                <InfoItem label="Blood Group" value={emp.bloodGroup} />
+                <InfoItem label="Marital Status" value={emp.maritalStatus} />
+                <InfoItem label="Phone" value={emp.person.phone} />
+                <InfoItem label="Email" value={emp.person.email} />
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <InfoItem label="Residential Address" value={emp.residentialAddress} />
+                </div>
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          </section>
 
-        <hr style={{ margin: "1.5rem 0", borderColor: "var(--border)" }} />
-        
-        <h4>Assign a new role</h4>
-        {assignError ? <StatusMessage tone="error">{assignError}</StatusMessage> : null}
-        
-        {availableRoles.length === 0 ? (
-          <p className="muted" style={{ marginTop: "0.5rem" }}>No roles defined yet. Create a role first.</p>
-        ) : unassignedRoles.length === 0 ? (
-          <p className="muted" style={{ marginTop: "0.5rem" }}>All available active roles are already assigned to this employee.</p>
-        ) : (
-          <form onSubmit={(e) => void assignRole(e)} style={{ display: "flex", gap: "1rem", marginTop: "1rem", alignItems: "flex-end" }}>
-            <label style={{ flex: 1 }}>
-              Select Role
-              <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} disabled={assigning}>
-                <option value="" disabled>Choose a role...</option>
-                {unassignedRoles.map((role) => (
-                  <option key={role.id} value={role.id}>{role.name}</option>
-                ))}
-              </select>
-            </label>
-            <button type="submit" className="action-button" disabled={!selectedRole || assigning}>
-              {assigning ? "Assigning…" : "Assign Role"}
-            </button>
-          </form>
-        )}
-      </section>
+          <section className="kalki-section">
+            <div className="kalki-section-header">
+              <h2 className="kalki-section-title">Employment Information</h2>
+            </div>
+            <div className="kalki-section-content">
+              <div className="kalki-grid-2-col">
+                <InfoItem label="Employee ID" value={emp.employeeCode} strong />
+                <InfoItem 
+                  label="Status" 
+                  value={
+                    <span className={`kalki-badge kalki-badge--${emp.status === 'ACTIVE' ? 'success' : emp.status === 'DRAFT' ? 'warning' : 'danger'}`}>
+                      {emp.status}
+                    </span>
+                  } 
+                />
+                <InfoItem label="Category" value={emp.category} />
+                <InfoItem label="Date of Joining" value={new Date(emp.employmentStartDate).toLocaleDateString('en-GB').replace(/\//g, '-')} />
+                <InfoItem label="Job Title" value={emp.jobTitle} />
+                <InfoItem 
+                  label="Reporting To" 
+                  value={manager ? (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span>{manager.person.displayName}</span>
+                      <span style={{ fontSize: "12px", color: "var(--kalki-text-secondary)" }}>
+                        {manager.employeeCode} &middot; {manager.jobTitle ?? 'Employee'}
+                      </span>
+                    </div>
+                  ) : null} 
+                />
+                <InfoItem label="Biometric ID" value={emp.biometricId} />
+                <InfoItem label="POYS ID" value={emp.posId} />
+              </div>
+            </div>
+          </section>
+
+          <section className="kalki-section">
+            <div className="kalki-section-header">
+              <h2 className="kalki-section-title">Family & Emergency Contacts</h2>
+            </div>
+            <div className="kalki-section-content" style={{ padding: 0 }}>
+              {emp.familyContacts?.length === 0 ? (
+                <div style={{ padding: "20px", color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
+                  No family or emergency contacts recorded.
+                </div>
+              ) : (
+                <div className="kalki-table-container">
+                  <table className="kalki-table">
+                    <thead>
+                      <tr>
+                        <th>Category</th>
+                        <th>Name</th>
+                        <th>Relationship</th>
+                        <th>Mobile</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {emp.familyContacts?.map(contact => (
+                        <tr key={contact.id}>
+                          <td><span className="kalki-badge kalki-badge--default" style={{ fontSize: "10px" }}>{contact.category.replace('_', ' ')}</span></td>
+                          <td>
+                            {contact.category === 'PARENT' ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <span>Father: {contact.fatherName}</span>
+                                <span>Mother: {contact.motherName}</span>
+                              </div>
+                            ) : (
+                              contact.name
+                            )}
+                          </td>
+                          <td>{contact.relationship || "-"}</td>
+                          <td>{contact.mobile || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="kalki-section">
+            <div className="kalki-section-header">
+              <h2 className="kalki-section-title">Salary & Payment</h2>
+              <button className="kalki-button kalki-button--ghost kalki-button--sm" onClick={() => setIsEditingSalary(true)} disabled={!!pendingProposal}>
+                {isProposalRequired ? "Propose Salary Change" : "Edit"}
+              </button>
+            </div>
+            {isEditingSalary ? (
+              <div className="kalki-section-content" style={{ background: "#f8fafc", borderBottom: "1px solid var(--kalki-border)" }}>
+                <EmployeeSalaryForm 
+                  employeeId={emp.id}
+                  initialData={emp.salaryInfo}
+                  isProposal={isProposalRequired}
+                  onCancel={() => setIsEditingSalary(false)}
+                  onSuccess={() => {
+                    setIsEditingSalary(false);
+                    setRefreshKey(k => k + 1);
+                  }}
+                />
+              </div>
+            ) : null}
+            <div className="kalki-section-content">
+              {!emp.salaryInfo ? (
+                <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
+                  No salary information recorded.
+                </div>
+              ) : (
+                <div className="kalki-grid-2-col">
+                  <InfoItem label="Salary Type" value={emp.salaryInfo.salaryType} />
+                  <InfoItem label="Amount" value={`₹${emp.salaryInfo.amount}`} strong />
+                  <InfoItem label="Payment Method" value={emp.salaryInfo.paymentMethod.replace('_', ' ')} />
+                  {emp.salaryInfo.paymentMethod === 'BANK_TRANSFER' && (
+                    <>
+                      <InfoItem label="Account Holder" value={emp.salaryInfo.accountHolderName} />
+                      <InfoItem label="Account Number" value={emp.salaryInfo.accountNumber} />
+                      <InfoItem label="Bank" value={emp.salaryInfo.bankName} />
+                      <InfoItem label="IFSC" value={emp.salaryInfo.ifscCode} />
+                    </>
+                  )}
+                  {emp.salaryInfo.paymentMethod === 'GPAY' && (
+                    <>
+                      <InfoItem label="GPay Number" value={emp.salaryInfo.gpayNumber} />
+                      <InfoItem label="Banking Name" value={emp.salaryInfo.bankingName} />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="kalki-section">
+            <div className="kalki-section-header">
+              <h2 className="kalki-section-title">Employment History</h2>
+            </div>
+            <div className="kalki-section-content">
+              {(!emp.history || (emp.history.status?.length === 0 && emp.history.category?.length === 0 && emp.history.salary?.length === 0)) ? (
+                <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
+                  No employment changes recorded yet.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {emp.history.status?.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Status Changes</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
+                        {emp.history.status.map((h: any) => (
+                          <li key={h.id} style={{ marginBottom: "4px" }}>
+                            <strong>{h.status}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {emp.history.salary?.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Salary Changes</h4>
+                      <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
+                        {emp.history.salary.map((h: any) => (
+                          <li key={h.id} style={{ marginBottom: "4px" }}>
+                            <strong>{h.salaryType} - ₹{h.amount}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+        </div>
+
+        <div className="kalki-form-secondary">
+          
+          <section className="kalki-section">
+            <div className="kalki-section-header">
+              <h2 className="kalki-section-title">Roles & Access</h2>
+            </div>
+            <div className="kalki-section-content">
+              {assignments.items.length === 0 ? (
+                <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic", marginBottom: "16px" }}>
+                  No roles assigned.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
+                  {assignments.items.map((assign) => (
+                    <div key={assign.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", border: "1px solid var(--kalki-border)", borderRadius: "var(--radius-sm)" }}>
+                      <div>
+                        <span style={{ fontSize: "14px", fontWeight: 500, display: "block" }}>{assign.role.name}</span>
+                      </div>
+                      <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: "var(--kalki-danger)", padding: "4px 8px" }} onClick={() => void handleRemoveRole(assign.id, assign.role.name)}>
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <div style={{ borderTop: "1px solid var(--kalki-border)", paddingTop: "16px" }}>
+                <h4 style={{ margin: "0 0 12px 0", fontSize: "13px", fontWeight: 600 }}>Assign a new role</h4>
+                {assignError ? <StatusMessage tone="error">{assignError}</StatusMessage> : null}
+                
+                {availableRoles.length === 0 ? (
+                  <p style={{ fontSize: "13px", color: "var(--kalki-text-secondary)", margin: 0 }}>No roles defined yet.</p>
+                ) : unassignedRoles.length === 0 ? (
+                  <p style={{ fontSize: "13px", color: "var(--kalki-text-secondary)", margin: 0 }}>All available roles assigned.</p>
+                ) : (
+                  <form onSubmit={(e) => void assignRole(e)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <select className="kalki-select" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} disabled={assigning}>
+                      <option value="" disabled>Choose a role...</option>
+                      {unassignedRoles.map((role) => (
+                        <option key={role.id} value={role.id}>{role.name}</option>
+                      ))}
+                    </select>
+                    <button type="submit" className="kalki-button kalki-button--primary" disabled={!selectedRole || assigning}>
+                      {assigning ? "Assigning…" : "+ Assign"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
     </div>
   );
 }
