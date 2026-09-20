@@ -56,10 +56,11 @@ const employeeInput = (employeeCode: string, targetLocationId = locationId) => (
   jobTitle: "Operations Associate",
   employmentStartDate: "2026-09-01",
   biometricId: `BIO-${employeeCode}`,
-  familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+  familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
   person: { firstName: `Test${testRunId}`,
     lastName: "Employee",
     displayName: `Test Employee ${employeeCode}`,
+    phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
   },
 });
 

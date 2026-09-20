@@ -91,10 +91,10 @@ describe("Phase 4 Tests: Hierarchy, Salary & Directory", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
         person: { firstName: name,
         displayName: name,
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
         dateOfBirth: "1990-01-01"
       }
     });
@@ -106,12 +106,12 @@ describe("Phase 4 Tests: Hierarchy, Salary & Directory", () => {
       aadhaarDocumentUrl: "url",
       photoUrl: "url",
       reportingEmployeeId: reportingTo,
-      secondaryMobile: "+918888888888" // testing redaction
+      secondaryMobile: "8888888888" // testing redaction
     });
 
     const { employeeFamilyContacts } = await import("@/db/schema");
     await db.insert(employeeFamilyContacts).values([
-      { organizationId: orgId, employeeId: emp.id, category: "EMERGENCY_CONTACT", name: "E", relationship: "R", mobile: "123" },
+      { organizationId: orgId, employeeId: emp.id, category: "EMERGENCY_CONTACT", name: "E", relationship: "R", mobile: "9876543210" },
       { organizationId: orgId, employeeId: emp.id, category: "PARENT", fatherName: "F", motherName: "M" }
     ]);
 
@@ -165,8 +165,8 @@ describe("Phase 4 Tests: Hierarchy, Salary & Directory", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-      person: { firstName: "Manager B", displayName: "Manager B", phone: `+123${randomUUID().slice(0, 10)}`, dateOfBirth: "1990-01-01" }
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+      person: { firstName: "Manager B", displayName: "Manager B", phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, dateOfBirth: "1990-01-01" }
     });
     await updateEmployee(ownerActor, empB.id, {
       gender: "Male", maritalStatus: "Single", residentialAddress: "Address",
@@ -175,7 +175,7 @@ describe("Phase 4 Tests: Hierarchy, Salary & Directory", () => {
     });
     const { employeeFamilyContacts } = await import("@/db/schema");
     await db.insert(employeeFamilyContacts).values([
-      { organizationId: orgId, employeeId: empB.id, category: "EMERGENCY_CONTACT", name: "E", relationship: "R", mobile: "123" },
+      { organizationId: orgId, employeeId: empB.id, category: "EMERGENCY_CONTACT", name: "E", relationship: "R", mobile: "9876543210" },
       { organizationId: orgId, employeeId: empB.id, category: "PARENT", fatherName: "F", motherName: "M" }
     ]);
     await setEmployeeSalaryInfo(ownerActor, empB.id, { salaryType: "Monthly", amount: "100", paymentMethod: "CASH" });

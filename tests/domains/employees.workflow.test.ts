@@ -97,10 +97,10 @@ describe("Phase 3 Approval Workflow Tests", () => {
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-${randomUUID()}`,
       category: "Permanent",
-      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
         person: { firstName: "Test",
         displayName: "Test Emp",
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
         dateOfBirth: "1990-01-01"
       }
     });
@@ -117,7 +117,7 @@ describe("Phase 3 Approval Workflow Tests", () => {
     // Emergency, Parent
     const { employeeFamilyContacts } = await import("@/db/schema");
     await db.insert(employeeFamilyContacts).values([
-      { organizationId: orgId, employeeId: emp.id, category: "EMERGENCY_CONTACT", name: "E", relationship: "R", mobile: "123" },
+      { organizationId: orgId, employeeId: emp.id, category: "EMERGENCY_CONTACT", name: "E", relationship: "R", mobile: "9876543210" },
       { organizationId: orgId, employeeId: emp.id, category: "PARENT", fatherName: "F", motherName: "M" }
     ]);
 

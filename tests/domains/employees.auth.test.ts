@@ -22,14 +22,14 @@ describe("Employee Login Credential Architecture", () => {
       locationId: locId,
       biometricId: `BIO-${randomUUID()}`,
       employmentStartDate: "2026-01-01",
-      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
       person: { 
         firstName: "Test",
         displayName: "Test Employee",
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
       },
       provisionAccess: {
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
         password: "SecurePassword123!",
         roleIds: [testRoleId],
       }
@@ -68,14 +68,14 @@ describe("Employee Login Credential Architecture", () => {
       locationId: locId,
       biometricId: `BIO-DRAFT-${randomUUID()}`,
       employmentStartDate: "2026-01-01",
-      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
       person: { 
         firstName: "Draft",
         displayName: "Draft Employee",
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
       },
       provisionAccess: {
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
         password: "SecurePassword123!",
         roleIds: [testRoleId],
       }

@@ -15,6 +15,10 @@ import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions } from "@/lib/authorization-policy";
 import { recordAuditEvent } from "@/domains/audit/service";
 
+const mobileNumberRegex = /^[0-9]{10}$/;
+const mobileNumberMessage = "Mobile number must be exactly 10 digits";
+const optionalMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMessage).or(z.literal('')).nullable().optional();
+
 export const salaryInputSchema = z.object({
   salaryType: z.enum(["Daily", "Weekly", "Monthly"]),
   amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
@@ -23,15 +27,25 @@ export const salaryInputSchema = z.object({
   accountNumber: z.string().nullable().optional(),
   bankName: z.string().nullable().optional(),
   ifscCode: z.string().nullable().optional(),
-  gpayNumber: z.string().nullable().optional(),
+  gpayNumber: optionalMobileSchema,
   bankingName: z.string().nullable().optional(),
+}).superRefine((val, ctx) => {
+  if (val.paymentMethod === "BANK_TRANSFER") {
+    if (!val.accountHolderName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["accountHolderName"] });
+    if (!val.accountNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["accountNumber"] });
+    if (!val.bankName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["bankName"] });
+    if (!val.ifscCode) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["ifscCode"] });
+  } else if (val.paymentMethod === "GPAY") {
+    if (!val.gpayNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for GPay", path: ["gpayNumber"] });
+    if (!val.bankingName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for GPay", path: ["bankingName"] });
+  }
 });
 export type SalaryInput = z.infer<typeof salaryInputSchema>;
 
 export const familyContactSchema = z.object({
   category: z.enum(["EMERGENCY_CONTACT", "SPOUSE", "PARENT", "CHILD"]),
   name: z.string().optional(),
-  mobile: z.string().optional(),
+  mobile: optionalMobileSchema,
   relationship: z.string().optional(),
   fatherName: z.string().optional(),
   motherName: z.string().optional(),
@@ -61,11 +75,12 @@ const employeeInputSchema = z.object({
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().max(100).nullable().optional(),
     displayName: z.string().trim().min(1).max(200),
-    phone: z.string().trim().max(50).nullable().optional(),
+    phone: optionalMobileSchema,
     email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
     dateOfBirth: z.string().date().nullable().optional(),
   }),
   familyContacts: z.array(familyContactSchema).optional(),
+  salary: salaryInputSchema.optional(),
 });
 
 const employeeUpdateSchema = z
@@ -85,13 +100,13 @@ const employeeUpdateSchema = z
     maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"]).optional(),
     residentialAddress: z.string().nullable().optional(),
     bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
-    secondaryMobile: z.string().trim().max(50).nullable().optional(),
+    secondaryMobile: optionalMobileSchema,
     person: z
       .object({
         firstName: z.string().trim().min(1).max(100).optional(),
         lastName: z.string().trim().max(100).nullable().optional(),
         displayName: z.string().trim().min(1).max(200).optional(),
-        phone: z.string().trim().max(50).nullable().optional(),
+        phone: optionalMobileSchema,
         email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
         dateOfBirth: z.string().date().nullable().optional(),
       })
@@ -252,7 +267,6 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
   requireActor(actor);
   const parsed = employeeInputSchema.safeParse(input);
   if (!parsed.success) {
-    console.dir(parsed.error, { depth: null });
     throw new EmployeeServiceError("Invalid employee input", "INVALID_INPUT");
   }
   if (

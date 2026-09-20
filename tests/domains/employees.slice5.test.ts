@@ -89,13 +89,13 @@ describe("Phase 5 Slice 5 Tests", () => {
       jobTitle: "Worker",
       category: "Permanent",
       familyContacts: [
-        { category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" },
+        { category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" },
         { category: "PARENT", fatherName: "Dad", motherName: "Mom" }
       ],
       person: { 
         firstName: `First-${prefix}`,
         displayName: `Display-${prefix}`,
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
         dateOfBirth: "1990-01-01"
       }
     });
@@ -241,7 +241,7 @@ describe("Phase 5 Slice 5 Tests", () => {
       person: { 
         firstName: `SalB`,
         displayName: `SalB`,
-        phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+        phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`,
       }
     });
 

@@ -76,11 +76,11 @@ const employeeInput = (employeeCode: string, targetLocationId = locationId) => (
   jobTitle: "Operations Associate",
   employmentStartDate: "2026-09-01",
   biometricId: `BIO-${employeeCode}`,
-  familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
+  familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
   person: { firstName: `Test${randomUUID().slice(0, 8)}`,
     lastName: "Employee",
     displayName: `Test Employee ${employeeCode}`,
-    phone: `+9199${Math.floor(Math.random() * 100000000)}`,
+    phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, '0')}`,
     email: `test.${employeeCode}@example.invalid`,
   },
 });
@@ -311,6 +311,62 @@ describe("Phase 2 Verification Strengthening", () => {
       
       const audits = await db.select().from(auditEvents).where(eq(auditEvents.entityId, a.id));
       expect(audits.length).toBeGreaterThan(0);
+    });
+  });
+  describe("Mobile Validation", () => {
+    it("rejects duplicate primary mobile", async () => {
+      const payload1 = employeeInput("MOB-DUP-1");
+      payload1.person.phone = "9876543210";
+      const emp1 = await createEmployee(authorizedActor, payload1);
+      createdEmployeeIds.push(emp1.id);
+      createdPersonIds.push(emp1.person.id);
+
+      const payload2 = employeeInput("MOB-DUP-2");
+      payload2.person.phone = "9876543210";
+      await expect(createEmployee(authorizedActor, payload2)).rejects.toMatchObject({
+        code: "INVALID_INPUT",
+        message: "Mobile number is already registered to another employee"
+      });
+      
+      const retrieved = await getEmployee(authorizedActor, emp1.id);
+      expect(retrieved.person.phone).toBe("9876543210");
+      
+      const updated = await updateEmployee(authorizedActor, emp1.id, {
+        person: { phone: "9876543210" }
+      });
+      expect(updated.person.phone).toBe("9876543210");
+      
+      const payload3 = employeeInput("MOB-DUP-3");
+      payload3.person.phone = "9999999999";
+      const emp3 = await createEmployee(authorizedActor, payload3);
+      createdEmployeeIds.push(emp3.id);
+      createdPersonIds.push(emp3.person.id);
+      
+      await expect(updateEmployee(authorizedActor, emp1.id, {
+        person: { phone: "9999999999" }
+      })).rejects.toMatchObject({
+        code: "INVALID_INPUT",
+        message: "Mobile number is already registered to another employee"
+      });
+    });
+
+    it("validates mobile number formats", async () => {
+      const p = employeeInput("MOB-FMT");
+      const testCases = [
+        "1234", "12345", "12345678", "123456789", "12345678901",
+        "abcdefghij", "98765abcde", "98765-43210", "98765 43210"
+      ];
+      for (const invalidPhone of testCases) {
+        p.person.phone = invalidPhone;
+        await expect(createEmployee(authorizedActor, p)).rejects.toMatchObject({
+          code: "INVALID_INPUT"
+        });
+      }
+      p.person.phone = "9876543211";
+      const validEmp = await createEmployee(authorizedActor, p);
+      createdEmployeeIds.push(validEmp.id);
+      createdPersonIds.push(validEmp.person.id);
+      expect(validEmp.person.phone).toBe("9876543211");
     });
   });
 });

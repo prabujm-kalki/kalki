@@ -48,8 +48,8 @@ describe("Phase 2 Gate Audit Tests", () => {
       jobTitle: "Gate Tester",
       employmentStartDate: "2026-09-01",
       biometricId: `BIO-GATE-${randomUUID().slice(0, 8)}`,
-      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-        person: { firstName: `Test${i}`, lastName: "Gate", displayName: `Test Gate ${i}`, phone: `+9199${Math.floor(Math.random()*100000000)}`, email: `test${randomUUID()}@invalid.com` }
+      familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+        person: { firstName: `Test${i}`, lastName: "Gate", displayName: `Test Gate ${i}`, phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, email: `test${randomUUID()}@invalid.com` }
     }));
     
     const emps = await Promise.all(promises);
@@ -64,12 +64,12 @@ describe("Phase 2 Gate Audit Tests", () => {
   });
 
   it("Indirect and deep hierarchy cycles", async () => {
-    const e1 = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-        person: { firstName: "A", lastName: "X", displayName: "A X", phone: `+9199${Math.floor(Math.random()*100000000)}`, email: `test${randomUUID()}@invalid.com` } });
-    const e2 = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-        person: { firstName: "B", lastName: "X", displayName: "B X", phone: `+9199${Math.floor(Math.random()*100000000)}`, email: `test${randomUUID()}@invalid.com` } });
-    const e3 = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-        person: { firstName: "C", lastName: "X", displayName: "C X", phone: `+9199${Math.floor(Math.random()*100000000)}`, email: `test${randomUUID()}@invalid.com` } });
+    const e1 = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+        person: { firstName: "A", lastName: "X", displayName: "A X", phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, email: `test${randomUUID()}@invalid.com` } });
+    const e2 = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+        person: { firstName: "B", lastName: "X", displayName: "B X", phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, email: `test${randomUUID()}@invalid.com` } });
+    const e3 = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+        person: { firstName: "C", lastName: "X", displayName: "C X", phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, email: `test${randomUUID()}@invalid.com` } });
     
     await updateEmployee(actor, e2.id, { reportingEmployeeId: e1.id });
     await updateEmployee(actor, e3.id, { reportingEmployeeId: e2.id });
@@ -85,14 +85,14 @@ describe("Phase 2 Gate Audit Tests", () => {
     await db.insert(locationMemberships).values([{ userId, organizationId: org2Id, locationId: loc2Id }]);
     await db.insert(locationRoleAssignments).values([{ userId, organizationId: org2Id, locationId: loc2Id, roleId }]);
 
-    const eCross = await createEmployee(actor, { organizationId: org2Id, locationId: loc2Id, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-        person: { firstName: "X", lastName: "Y", displayName: "X Y", phone: `+9199${Math.floor(Math.random()*100000000)}`, email: `test${randomUUID()}@invalid.com` } });
+    const eCross = await createEmployee(actor, { organizationId: org2Id, locationId: loc2Id, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+        person: { firstName: "X", lastName: "Y", displayName: "X Y", phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, email: `test${randomUUID()}@invalid.com` } });
     await expect(updateEmployee(actor, eCross.id, { reportingEmployeeId: e1.id })).rejects.toMatchObject({ code: "CROSS_ORG_REFERENCE" });
   });
 
   it("Payment method validation via DB constraint", async () => {
-    const e = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "123", relationship: "test" }],
-        person: { firstName: "P", lastName: "Y", displayName: "P Y", phone: `+9199${Math.floor(Math.random()*100000000)}`, email: `test${randomUUID()}@invalid.com` } });
+    const e = await createEmployee(actor, { organizationId: orgId, locationId: locId, jobTitle: "T", employmentStartDate: "2026-09-01", biometricId: `BIO-${randomUUID()}`, familyContacts: [{ category: "EMERGENCY_CONTACT", name: "test", mobile: "9876543210", relationship: "test" }],
+        person: { firstName: "P", lastName: "Y", displayName: "P Y", phone: `99${Math.floor(Math.random() * 10000000).toString().padStart(8, "0")}`, email: `test${randomUUID()}@invalid.com` } });
     
     // Should fail check constraint for BANK_TRANSFER without fields
     await expect(

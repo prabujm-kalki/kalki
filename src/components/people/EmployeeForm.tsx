@@ -22,6 +22,11 @@ type EmployeeFormProps = {
   onCancel: () => void;
 };
 
+const mobileNumberRegex = /^[0-9]{10}$/;
+const mobileNumberMessage = "Mobile number must be exactly 10 digits";
+const optionalMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMessage).or(z.literal('')).optional();
+const requiredMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMessage);
+
 const formSchema = z.object({
   jobTitle: z.string().trim().optional(),
   employmentStartDate: z.string().min(1, "Start date is required"),
@@ -31,17 +36,17 @@ const formSchema = z.object({
   residentialAddress: z.string().optional(),
   bloodGroup: z.string().optional(),
   reportingEmployeeId: z.string().optional(),
-  secondaryMobile: z.string().optional(),
+  secondaryMobile: optionalMobileSchema,
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().optional(),
   displayName: z.string().trim().min(1, "Display name is required"),
-  phone: z.string().optional(),
+  phone: requiredMobileSchema,
   email: z.string().optional(),
   dateOfBirth: z.string().optional(),
   biometricId: z.string().trim().min(1, "Biometric ID is required"),
   posId: z.string().optional(),
   spouseName: z.string().optional(),
-  spouseMobile: z.string().optional(),
+  spouseMobile: optionalMobileSchema,
   
   fatherName: z.string().optional(),
   motherName: z.string().optional(),
@@ -58,6 +63,9 @@ const formSchema = z.object({
     }
     if (!data.spouseMobile || data.spouseMobile.trim() === "") {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Spouse Mobile is required for married employees.", path: ["spouseMobile"] });
+    } else if (!mobileNumberRegex.test(data.spouseMobile.trim())) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: mobileNumberMessage, path: ["spouseMobile"] });
+    }
     }
   }
 });
@@ -274,14 +282,30 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
       const uploadedUrls = await uploadFiles();
       
-      const payloadContacts = familyContacts.filter(c => c.category === "EMERGENCY_CONTACT" && (c.name || c.mobile || c.relationship));
-      if (payloadContacts.length === 0) {
+      let hasEmergencyError = false;
+      const newFieldErrors: Record<string, string> = {};
+      const payloadContacts = [...familyContacts];
+      const emergencyContacts = familyContacts.filter(c => c.category === "EMERGENCY_CONTACT");
+      
+      if (emergencyContacts.length === 0) {
         throw new Error("At least one emergency contact is required.");
       }
-      const invalidEmergency = payloadContacts.find(c => !c.name || !c.mobile || !c.relationship);
-      if (invalidEmergency) {
-        throw new Error("Emergency contacts must include Name, Relationship, and Mobile.");
+      
+      familyContacts.forEach((c, index) => {
+        if (c.category !== "EMERGENCY_CONTACT") return;
+        if (!c.name || !c.name.trim()) { newFieldErrors[`emergency_name_${index}`] = "Mandatory field cannot be blank."; hasEmergencyError = true; }
+        if (!c.relationship || !c.relationship.trim()) { newFieldErrors[`emergency_relationship_${index}`] = "Mandatory field cannot be blank."; hasEmergencyError = true; }
+        if (!c.mobile || !c.mobile.trim()) { newFieldErrors[`emergency_mobile_${index}`] = "Mandatory field cannot be blank."; hasEmergencyError = true; }
+        else if (!mobileNumberRegex.test(c.mobile.trim())) { newFieldErrors[`emergency_mobile_${index}`] = mobileNumberMessage; hasEmergencyError = true; }
+      });
+      
+      if (hasEmergencyError) {
+        setFieldErrors(prev => ({ ...prev, ...newFieldErrors }));
+        addToast({ type: 'error', message: 'Employee could not be saved', description: 'Emergency contacts contain errors.' });
+        setPending(false);
+        return;
       }
+
       
       if (formData.maritalStatus === "Married") {
         payloadContacts.push({ category: "SPOUSE", name: spouseName, mobile: spouseMobile });
@@ -358,7 +382,11 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
       addToast({ type: 'success', message: 'Employee saved successfully' });
       onSuccess();
     } catch (caught) {
-      addToast({ type: 'error', message: 'Failed to save employee', description: caught instanceof Error ? caught.message : '' });
+      const message = caught instanceof Error ? caught.message : 'Unknown error';
+      if (message.includes("Mobile number is already registered")) {
+        setFieldErrors(prev => ({ ...prev, phone: message }));
+      }
+      addToast({ type: 'error', message: 'Failed to save employee', description: message });
       setPending(false);
     }
   }
@@ -444,13 +472,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
                     return (
                       <tr key={index} style={{ borderBottom: '1px solid var(--kalki-border)' }}>
                         <td style={{ padding: '0.5rem' }}>
-                          <KalkiInput required value={contact.name} onChange={e => handleEmergencyContactChange(index, "name", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
+                          <KalkiInput required error={fieldErrors[`emergency_name_${index}`]} value={contact.name} onChange={e => handleEmergencyContactChange(index, "name", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
                         </td>
                         <td style={{ padding: '0.5rem' }}>
-                          <KalkiInput required value={contact.relationship} onChange={e => handleEmergencyContactChange(index, "relationship", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
+                          <KalkiInput required error={fieldErrors[`emergency_relationship_${index}`]} value={contact.relationship} onChange={e => handleEmergencyContactChange(index, "relationship", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
                         </td>
                         <td style={{ padding: '0.5rem' }}>
-                          <KalkiInput required type="tel" value={contact.mobile} onChange={e => handleEmergencyContactChange(index, "mobile", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
+                          <KalkiInput required type="tel" error={fieldErrors[`emergency_mobile_${index}`]} value={contact.mobile} onChange={e => handleEmergencyContactChange(index, "mobile", e.target.value)} disabled={pending} style={{ marginBottom: 0 }} />
                         </td>
                         <td style={{ padding: '0.5rem' }}>
                           <KalkiButton variant="ghost" size="sm" type="button" onClick={() => removeEmergencyContact(index)} disabled={pending || familyContacts.filter(c => c.category === "EMERGENCY_CONTACT").length <= 1} style={{ color: 'var(--kalki-danger)' }}>Remove</KalkiButton>
