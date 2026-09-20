@@ -107,7 +107,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
 
   async function deactivateEmployee() {
     if (!selected || !employee?.data) return;
-    const reason = prompt("Please provide a reason for deactivation/separation:");
+    const reason = prompt("Please provide a reason for deactivation:");
     if (!reason) return;
     setIsDeactivating(true);
     try {
@@ -118,6 +118,40 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
       setRefreshKey(k => k + 1);
     } catch (e) {
       alert(e instanceof Error ? e.message : "Failed to deactivate");
+    } finally {
+      setIsDeactivating(false);
+    }
+  }
+
+  async function reactivateEmployee() {
+    if (!selected || !employee?.data) return;
+    if (!confirm("Are you sure you want to reactivate this employee?")) return;
+    setIsActivating(true);
+    try {
+      await apiSend(`/api/employees/lifecycle?id=${employee.data.id}`, "POST", {
+        status: "ACTIVE",
+      });
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to reactivate");
+    } finally {
+      setIsActivating(false);
+    }
+  }
+
+  async function exitEmployee() {
+    if (!selected || !employee?.data) return;
+    const reason = prompt("Please provide a reason for marking as exited:");
+    if (!reason) return;
+    setIsDeactivating(true);
+    try {
+      await apiSend(`/api/employees/lifecycle?id=${employee.data.id}`, "POST", {
+        status: "EXITED",
+        separationReason: reason,
+      });
+      setRefreshKey(k => k + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to mark as exited");
     } finally {
       setIsDeactivating(false);
     }
@@ -201,6 +235,24 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
     }
   }
 
+  async function handleResetPassword() {
+    if (!selected) return;
+    const newPassword = prompt("Enter new password (minimum 8 characters):");
+    if (!newPassword) return;
+    if (newPassword.length < 8) {
+      alert("Password must be at least 8 characters long.");
+      return;
+    }
+    if (!confirm("Are you sure you want to reset this employee's password? All their active sessions will be revoked.")) return;
+    
+    try {
+      await apiSend(`/api/employees/${employeeId}/reset-password`, "POST", { newPassword });
+      alert("Password reset successfully.");
+    } catch (caught) {
+      alert(caught instanceof Error ? caught.message : "Failed to reset password.");
+    }
+  }
+
   if (!selected) return <StatusMessage tone="empty">Select an organization location to view profile.</StatusMessage>;
   const requestKey = `${selected.organizationId}:${selected.locationId}:${employeeId}`;
   if (error?.requestKey === requestKey) return <StatusMessage tone="error">{error.message}</StatusMessage>;
@@ -277,9 +329,29 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
               </button>
             )}
             {emp.status === "ACTIVE" && (
-              <button className="kalki-button kalki-button--danger" onClick={() => void deactivateEmployee()} disabled={isDeactivating}>
-                Deactivate
-              </button>
+              <>
+                {session.isOwner && (
+                  <button className="kalki-button kalki-button--secondary" onClick={() => void handleResetPassword()}>
+                    Reset Password
+                  </button>
+                )}
+                <button className="kalki-button kalki-button--danger" onClick={() => void deactivateEmployee()} disabled={isDeactivating}>
+                  Deactivate
+                </button>
+                <button className="kalki-button kalki-button--danger" onClick={() => void exitEmployee()} disabled={isDeactivating}>
+                  Mark Exited
+                </button>
+              </>
+            )}
+            {emp.status === "INACTIVE" && (
+              <>
+                <button className="kalki-button kalki-button--secondary" style={{ color: "var(--kalki-success)", borderColor: "var(--kalki-success)" }} onClick={() => void reactivateEmployee()} disabled={isActivating}>
+                  Reactivate
+                </button>
+                <button className="kalki-button kalki-button--danger" onClick={() => void exitEmployee()} disabled={isDeactivating}>
+                  Mark Exited
+                </button>
+              </>
             )}
           </div>
         </div>

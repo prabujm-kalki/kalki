@@ -162,6 +162,9 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 <span style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)' }}>
                   {session.user.name || session.user.email}
                 </span>
+                <Link href="/me/settings" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}>
+                  Settings
+                </Link>
                 <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: 'rgba(255, 255, 255, 1)' }} onClick={() => void signOut()}>
                   Sign out
                 </button>

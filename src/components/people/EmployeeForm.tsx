@@ -67,7 +67,6 @@ const formSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: mobileNumberMessage, path: ["spouseMobile"] });
     }
     }
-  }
 });
 
 export function EmployeeForm({ organizationId, locationId, initialData, isProposal, onSuccess, onCancel }: EmployeeFormProps) {

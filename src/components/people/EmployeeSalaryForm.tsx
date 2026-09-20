@@ -37,8 +37,16 @@ export function EmployeeSalaryForm({ employeeId, initialData, isProposal, onCanc
         salaryType,
         amount,
         paymentMethod,
-        ...(paymentMethod === "BANK_TRANSFER" ? { accountHolderName, accountNumber, bankName, ifscCode } : {}),
-        ...(paymentMethod === "GPAY" ? { gpayNumber, bankingName } : {}),
+        ...(paymentMethod === "BANK_TRANSFER" ? {
+          accountHolderName: accountHolderName || "",
+          accountNumber: accountNumber || "",
+          bankName: bankName || "",
+          ifscCode: ifscCode || ""
+        } : {}),
+        ...(paymentMethod === "GPAY" ? {
+          gpayNumber: gpayNumber || "",
+          bankingName: bankingName || ""
+        } : {}),
       };
 
       if (isProposal) {
