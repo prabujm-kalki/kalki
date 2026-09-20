@@ -185,6 +185,22 @@ describe("Employee service", () => {
     expect(result.person.id).toBeDefined();
   });
 
+  it("regression: creates and retrieves an employee with an email correctly", async () => {
+    const payload = employeeInput("EMAIL-001");
+    payload.person.email = "test@example.com";
+    const created = await createEmployee(authorizedActor, payload);
+    
+    createdEmployeeIds.push(created.id);
+    createdPersonIds.push(created.person.id);
+
+    // Verify it is returned from createEmployee (via selectEmployee)
+    expect(created.person.email).toBe("test@example.com");
+
+    // Verify it is returned from getEmployee
+    const retrieved = await getEmployee(authorizedActor, created.id);
+    expect(retrieved.person.email).toBe("test@example.com");
+  });
+
   it("denies creation without the required permission", async () => {
     await expect(
       createEmployee(deniedActor, employeeInput("DENY-001")),

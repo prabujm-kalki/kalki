@@ -238,6 +238,7 @@ async function selectEmployee(
         displayName: people.displayName,
         dateOfBirth: people.dateOfBirth,
         phone: people.phone,
+        email: people.email,
       },
     })
     .from(employees)
