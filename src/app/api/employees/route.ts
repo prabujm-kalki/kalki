@@ -73,8 +73,10 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Employee id is required" }, { status: 400 });
   }
   try {
+    const payload = await request.json();
+    console.log("PAYLOAD_RECEIVED:", JSON.stringify(payload, null, 2));
     return NextResponse.json({
-      employee: await updateEmployee(user, employeeId, await request.json()),
+      employee: await updateEmployee(user, employeeId, payload),
     });
   } catch (error) {
     return serviceErrorResponse(error);

@@ -20,7 +20,7 @@ export type AuthorizationInput = {
   userId: string;
   organizationId: string;
   locationId: string;
-  permission: EmployeePermission;
+  permission?: string;
 };
 
 export async function loadAuthorizationGrants(userId: string) {

@@ -2,19 +2,8 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { locations, organizations } from "@/db/schema";
 import { loadAuthorizationGrants } from "@/lib/authorization";
-import {
-  employeePermissions,
-  isEmployeeOperationAuthorized,
-  type EmployeePermission,
-} from "@/lib/authorization-policy";
 
 type Actor = { id: string; name?: string | null; email?: string | null } | null;
-
-const readablePermissions = [
-  employeePermissions.read,
-  employeePermissions.create,
-  employeePermissions.update,
-] as const;
 
 export class SessionServiceError extends Error {
   constructor(
@@ -28,19 +17,6 @@ export class SessionServiceError extends Error {
 
 function requireActor(actor: Actor): asserts actor is { id: string; name?: string | null; email?: string | null } {
   if (!actor) throw new SessionServiceError("Authentication required", "AUTHENTICATION_REQUIRED");
-}
-
-function permissionsForScope(
-  actorId: string,
-  organizationId: string,
-  locationId: string,
-  grants: Awaited<ReturnType<typeof loadAuthorizationGrants>>,
-) {
-  return readablePermissions.filter((permission) => isEmployeeOperationAuthorized(
-    { id: actorId },
-    { organizationId, locationId, permission },
-    grants,
-  ));
 }
 
 export async function getSessionContext(actor: Actor) {
@@ -85,8 +61,24 @@ export async function getSessionContext(actor: Actor) {
     ))) {
       return [];
     }
-    const permissions = permissionsForScope(actor.id, row.organizationId, row.locationId, grants) as EmployeePermission[];
-    if (!grants.isOwner && !permissions.includes(employeePermissions.read)) return [];
+    
+    // Aggregate all permissions for this specific scope
+    const scopePermissions = new Set<string>();
+    
+    // Add organization-level permissions
+    grants.organizationPermissions.forEach(p => {
+      if (p.organizationId === row.organizationId) {
+        scopePermissions.add(p.permission);
+      }
+    });
+    
+    // Add location-level permissions
+    grants.locationPermissions.forEach(p => {
+      if (p.organizationId === row.organizationId && p.locationId === row.locationId) {
+        scopePermissions.add(p.permission);
+      }
+    });
+
     return [{
       organizationId: row.organizationId,
       locationId: row.locationId,
@@ -94,7 +86,7 @@ export async function getSessionContext(actor: Actor) {
       locationName: row.locationName,
       organizationCode: row.organizationCode,
       locationCode: row.locationCode,
-      permissions,
+      permissions: Array.from(scopePermissions),
     }];
   });
 

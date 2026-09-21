@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
-import { Plus, X, Shield } from "lucide-react";
+import { AppShell, useSessionView } from "@/components/AppShell";
+import { Plus, X, Shield, Settings, Edit } from "lucide-react";
 import Link from "next/link";
 
 type Role = {
@@ -12,7 +12,10 @@ type Role = {
   createdAt: string;
 };
 
-export default function RolesPage() {
+function RolesPageContent() {
+  const { selected } = useSessionView();
+  const locationParams = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : '';
+  
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -63,68 +66,76 @@ export default function RolesPage() {
   };
 
   return (
-    <AppShell>
-      <div className="flex h-full flex-col">
-        <header className="flex items-center justify-between border-b px-6 py-4">
-          <div>
-            <h1 className="text-lg font-medium flex items-center gap-2">
-              <Shield className="h-5 w-5 text-gray-500" /> 
-              Application Roles
-            </h1>
-            <p className="text-sm text-gray-500">Manage authorization roles and application permissions.</p>
-          </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            <Plus className="h-4 w-4" />
-            New Role
-          </button>
-        </header>
+    <div className="kalki-main-wrapper">
+      <div className="kalki-main-content">
+        
+        {/* Main Header Area */}
+        <div className="kalki-page-header">
+          <Link href={`/settings${locationParams}`} className="kalki-breadcrumbs">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}><path d="m15 18-6-6 6-6"/></svg>
+            Back to Settings
+          </Link>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ backgroundColor: 'var(--kalki-primary)', padding: '12px', borderRadius: 'var(--radius-lg)', color: 'white' }}>
+                <Shield size={28} strokeWidth={1.5} />
+              </div>
+              <div>
+                <h1 className="kalki-page-title">Application Roles</h1>
+                <p className="kalki-page-description">Manage authorization roles and application permissions.</p>
+              </div>
+            </div>
 
-        <main className="flex-1 overflow-auto p-6 relative">
-          <div className="rounded-lg border bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b bg-gray-50">
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="kalki-button kalki-button--primary"
+            >
+              <Plus size={16} style={{ marginRight: '8px' }} />
+              New Role
+            </button>
+          </div>
+        </div>
+
+        <div className="kalki-section" style={{ padding: '0', overflow: 'hidden' }}>
+          <div className="kalki-table-container">
+            <table className="kalki-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-3 font-medium text-gray-900">Role Name</th>
-                  <th className="px-6 py-3 font-medium text-gray-900">Code</th>
-                  <th className="px-6 py-3 font-medium text-gray-900">Permissions</th>
-                  <th className="px-6 py-3 text-right font-medium text-gray-900">Actions</th>
+                  <th style={{ width: '33%' }}>Role Name</th>
+                  <th style={{ width: '33%' }}>Code</th>
+                  <th style={{ width: '33%' }}>Permissions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={3} style={{ padding: '48px', textAlign: 'center', color: 'var(--kalki-text-secondary)' }}>
                       Loading roles...
                     </td>
                   </tr>
                 ) : roles.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={3} style={{ padding: '48px', textAlign: 'center', color: 'var(--kalki-text-secondary)' }}>
                       No roles configured. Create one to get started.
                     </td>
                   </tr>
                 ) : (
                   roles.map((role) => (
-                    <tr key={role.id} className="hover:bg-gray-50 group">
-                      <td className="px-6 py-4 font-medium text-gray-900">{role.name}</td>
-                      <td className="px-6 py-4 font-mono text-xs text-gray-500">{role.code}</td>
-                      <td className="px-6 py-4">
-                        <Link 
-                          href={`/settings/roles/${role.id}`}
-                          className="text-blue-600 hover:underline"
-                        >
-                          Configure Matrix
-                        </Link>
+                    <tr key={role.id}>
+                      <td style={{ fontWeight: 500, color: 'var(--kalki-text-primary)' }}>{role.name}</td>
+                      <td>
+                        <div style={{ display: 'inline-block', padding: '4px 8px', backgroundColor: '#f1f5f9', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px', color: 'var(--kalki-text-secondary)' }}>
+                          {role.code}
+                        </div>
                       </td>
-                      <td className="px-6 py-4 text-right">
-                         <Link 
-                          href={`/settings/roles/${role.id}`}
-                          className="text-sm rounded border px-3 py-1 text-gray-600 hover:bg-gray-100"
+                      <td>
+                        <Link 
+                          href={`/settings/roles/${role.id}${locationParams}`}
+                          className="kalki-button kalki-button--secondary"
                         >
-                          Edit
+                          <Settings size={14} style={{ marginRight: '8px' }} />
+                          Configure Matrix
                         </Link>
                       </td>
                     </tr>
@@ -133,61 +144,63 @@ export default function RolesPage() {
               </tbody>
             </table>
           </div>
+        </div>
 
-          {/* Modal overlay */}
-          {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-gray-900">Create Application Role</h2>
-                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Role Name</label>
+        {/* Modal overlay */}
+        {isModalOpen && (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <div className="kalki-section" style={{ width: '100%', maxWidth: '400px' }}>
+              <div className="kalki-section-header">
+                <h2 className="kalki-section-title">Create Application Role</h2>
+                <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--kalki-text-secondary)' }}>
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="kalki-section-content">
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div className="kalki-field">
+                    <label className="kalki-label">Role Name <span className="kalki-required">*</span></label>
                     <input 
                       type="text" 
                       required
                       value={name}
                       onChange={(e) => {
                         setName(e.target.value);
-                        // Auto-generate code if empty or based on name
                         if (!code || code === name.slice(0, -1).toLowerCase().replace(/\s+/g, "_")) {
                           setCode(e.target.value.toLowerCase().replace(/\s+/g, "_"));
                         }
                       }}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                      className="kalki-input"
                       placeholder="e.g. Kitchen Manager"
                     />
                   </div>
                   
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Role Code</label>
+                  <div className="kalki-field">
+                    <label className="kalki-label">Role Code <span className="kalki-required">*</span></label>
                     <input 
                       type="text" 
                       required
                       value={code}
                       onChange={(e) => setCode(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                      className="kalki-input"
+                      style={{ fontFamily: 'monospace' }}
                       placeholder="e.g. kitchen_manager"
                     />
-                    <p className="mt-1 text-xs text-gray-500">A unique technical identifier without spaces.</p>
+                    <div style={{ fontSize: '12px', color: 'var(--kalki-text-secondary)' }}>A unique technical identifier without spaces.</div>
                   </div>
 
-                  <div className="mt-6 flex justify-end gap-3">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
                     <button 
                       type="button" 
                       onClick={() => setIsModalOpen(false)}
-                      className="rounded-md border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                      className="kalki-button kalki-button--secondary"
                     >
                       Cancel
                     </button>
                     <button 
                       type="submit" 
-                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                      className="kalki-button kalki-button--primary"
                     >
                       Create Role
                     </button>
@@ -195,9 +208,17 @@ export default function RolesPage() {
                 </form>
               </div>
             </div>
-          )}
-        </main>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+export default function RolesPage() {
+  return (
+    <AppShell>
+      <RolesPageContent />
     </AppShell>
   );
 }

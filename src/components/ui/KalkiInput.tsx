@@ -25,7 +25,7 @@ export const KalkiInput = forwardRef<HTMLInputElement, KalkiInputProps>(
           required={required}
           {...props}
         />
-        {error && <span className="kalki-error-text">{error}</span>}
+        {error && <span className="kalki-error-text" style={{ color: 'red' }}>{error}</span>}
       </div>
     );
   }

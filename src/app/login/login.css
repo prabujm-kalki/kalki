@@ -1,0 +1,326 @@
+/* src/app/login/login.css */
+
+.kalki-login-wrapper {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-image: url('/login-bg.jpg');
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+/* On desktop, left side is dark gradient overlay, right side is solid white */
+.kalki-login-left {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 4rem;
+  color: white;
+  background: linear-gradient(to right, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 100%);
+}
+
+.kalki-login-right {
+  width: 500px;
+  background: #fdfaf6; /* slightly warm premium white */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 3rem;
+  box-shadow: -10px 0 30px rgba(0,0,0,0.2);
+  z-index: 10;
+}
+
+/* Mobile logic */
+@media (max-width: 900px) {
+  .kalki-login-wrapper {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 1rem;
+    background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.7)), url('/login-bg.jpg');
+    background-size: cover;
+    background-position: center;
+  }
+  
+  .kalki-login-left {
+    display: none; /* Hide left text on mobile to focus on login card */
+  }
+
+  .kalki-login-right {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 16px;
+    padding: 2rem;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  }
+}
+
+/* Typography and Brand Elements */
+.kalki-brand-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 2rem;
+}
+
+.kalki-brand-text h1 {
+  font-size: 2.5rem;
+  letter-spacing: 4px;
+  margin: 0;
+  font-weight: 300;
+  text-transform: uppercase;
+  color: #1a1a1a;
+}
+.kalki-login-left .kalki-brand-text h1 {
+  color: white;
+}
+
+.kalki-brand-sub {
+  font-size: 0.7rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-top: 4px;
+  color: #a4814d; /* gold color */
+}
+
+.kalki-hero-text {
+  max-width: 500px;
+}
+.kalki-hero-text h2 {
+  font-size: 3.5rem;
+  line-height: 1.1;
+  font-family: 'Times New Roman', Times, serif; /* Using standard serif fallback for playfair */
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+}
+.kalki-hero-text .highlight {
+  color: #d4af37; /* Gold highlight */
+}
+.kalki-hero-text p {
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: #e2e8f0;
+}
+
+/* Bottom icons left side */
+.kalki-stats-grid {
+  display: flex;
+  gap: 2rem;
+  margin-top: 4rem;
+}
+.kalki-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+.kalki-stat-item svg {
+  color: #d4af37;
+}
+.kalki-stat-item span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+/* Login Form Styles */
+.kalki-login-form {
+  width: 100%;
+  max-width: 360px;
+  margin-top: 2rem;
+}
+
+.kalki-login-title {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+.kalki-login-title h2 {
+  font-size: 2rem;
+  font-family: 'Times New Roman', Times, serif;
+  margin: 0 0 8px 0;
+  color: #1a1a1a;
+}
+.kalki-login-title p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.kalki-login-input-group {
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+.kalki-login-input-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+}
+
+.kalki-login-input-eye {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #6b7280;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.kalki-login-input {
+  width: 100%;
+  padding: 12px 42px 12px 42px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  background: white;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.kalki-login-input:focus {
+  outline: none;
+  border-color: #a4814d;
+}
+
+.kalki-login-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+.kalki-login-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #4b5563;
+  cursor: pointer;
+}
+.kalki-login-options a {
+  color: #a4814d;
+  text-decoration: none;
+}
+.kalki-login-options a:hover {
+  text-decoration: underline;
+}
+
+.kalki-login-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, #a4814d, #836336);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s;
+}
+.kalki-login-btn:hover {
+  opacity: 0.9;
+}
+.kalki-login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Footer of the login card */
+.kalki-login-footer {
+  margin-top: 3rem;
+  text-align: center;
+  width: 100%;
+}
+.kalki-login-footer-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: #9ca3af;
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+.kalki-login-footer-divider::before,
+.kalki-login-footer-divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e5e7eb;
+}
+.kalki-login-footer-divider::before {
+  margin-right: .5em;
+}
+.kalki-login-footer-divider::after {
+  margin-left: .5em;
+}
+
+.kalki-footer-icons {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+}
+.kalki-footer-icon-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #a4814d;
+}
+.kalki-footer-icon-item span {
+  font-size: 0.55rem;
+  color: #4b5563;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.kalki-initiative {
+  font-size: 0.65rem;
+  color: #4b5563;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+.kalki-motto {
+  font-size: 0.8rem;
+  color: #1a1a1a;
+  font-family: 'Times New Roman', Times, serif;
+  font-style: italic;
+}
+
+.kalki-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(26, 26, 26, 0.9);
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #9ca3af;
+  z-index: 20;
+}
+.kalki-bottom-bar a {
+  color: #9ca3af;
+  text-decoration: none;
+  margin-left: 16px;
+}
+.kalki-bottom-bar a:hover {
+  color: white;
+}

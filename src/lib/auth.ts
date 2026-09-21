@@ -1,5 +1,5 @@
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
-import { betterAuth } from "better-auth/minimal";
+import { betterAuth } from "better-auth";
 import { toNextJsHandler } from "better-auth/next-js";
 import { db } from "@/db";
 import { authAccounts, authSessions, authUsers, authVerifications } from "@/db/schema";
@@ -17,7 +17,13 @@ export const auth = betterAuth({
   }),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
+  trustedOrigins: ["http://localhost:3001"],
   emailAndPassword: { enabled: true },
+  advanced: {
+    crossSubDomainCookies: {
+      enabled: false, // Prevents setting 'Domain=192.168.x.x' which browsers reject for IP addresses
+    },
+  },
 });
 
 export const authHandler = toNextJsHandler(auth);

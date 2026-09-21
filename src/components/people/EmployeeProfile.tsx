@@ -96,6 +96,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
     try {
       await apiSend(`/api/employees/lifecycle?id=${employee.data.id}`, "POST", {
         status: "ACTIVE",
+        onboardingDeclared: true,
       });
       setRefreshKey(k => k + 1);
     } catch (e) {

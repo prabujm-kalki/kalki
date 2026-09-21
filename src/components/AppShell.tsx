@@ -8,6 +8,7 @@ import { authClient } from "@/lib/auth-client";
 import { StatusMessage } from "@/components/StatusMessage";
 import type { SessionContext, SessionScope } from "@/components/work/types";
 import { ToastProvider } from "./ui/Toast";
+import { Menu, X } from "lucide-react";
 
 function scopeKey(scope: Pick<SessionScope, "organizationId" | "locationId">) {
   return `${scope.organizationId}:${scope.locationId}`;
@@ -30,6 +31,8 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const [session, setSession] = useState<SessionContext | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   const organizationId = searchParams.get("organizationId");
   const locationId = searchParams.get("locationId");
 
@@ -85,10 +88,25 @@ function AppShellContent({ children }: { children: ReactNode }) {
       <ToastProvider>
         <div className="kalki-app-shell">
           
+          {/* Mobile Overlay */}
+          {isMobileMenuOpen && (
+            <div 
+              className="kalki-sidebar-overlay" 
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+          )}
+
           {/* LEFT: Persistent Sidebar */}
-          <aside className="kalki-sidebar">
-            <div className="kalki-sidebar-header">
-              Kalki BOS
+          <aside className={`kalki-sidebar ${isMobileMenuOpen ? 'kalki-sidebar--mobile-open' : ''}`}>
+            <div className="kalki-sidebar-header" style={{ justifyContent: 'space-between' }}>
+              <span>Kalki BOS</span>
+              <button 
+                className="kalki-mobile-only" 
+                onClick={() => setIsMobileMenuOpen(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--kalki-text-primary)' }}
+              >
+                <X size={20} />
+              </button>
             </div>
             
             {selected && (
@@ -97,22 +115,29 @@ function AppShellContent({ children }: { children: ReactNode }) {
                   Modules
                 </div>
                 {[
-                  { label: "Command Center", path: "/reports" },
-                  { label: "People", path: "/people" },
-                  { label: "Attendance", path: "/attendance" },
-                  { label: "Payroll", path: "/payroll" },
-                  { label: "Purchasing", path: "/purchasing" },
-                  { label: "Inventory", path: "/inventory" },
-                  { label: "Sales", path: "/sales" },
-                  { label: "CRM", path: "/crm" },
-                  { label: "Finance", path: "/finance" },
-                  { label: "Settings", path: "/settings" },
-                ].map(module => (
+                  { label: "Command Center", path: "/reports", module: "command-center" },
+                  { label: "People", path: "/people", module: "employee" },
+                  { label: "Attendance", path: "/attendance", module: "attendance" },
+                  { label: "Payroll", path: "/payroll", module: "payroll" },
+                  { label: "Purchasing", path: "/purchasing", module: "purchasing" },
+                  { label: "Inventory", path: "/inventory", module: "inventory" },
+                  { label: "Sales", path: "/sales", module: "sales" },
+                  { label: "CRM", path: "/crm", module: "crm" },
+                  { label: "Finance", path: "/finance", module: "finance" },
+                  { label: "Settings", path: "/settings", module: "settings" },
+                ]
+                  .filter(m => {
+                    if (session.isOwner) return true;
+                    if (!selected) return false;
+                    return selected.permissions.some(p => p.startsWith(`${m.module}.`) || p.startsWith(`${m.module}:`));
+                  })
+                  .map(module => (
                   <Link
                     key={module.path}
                     className="kalki-sidebar-link"
                     data-active={pathname === module.path || pathname.startsWith(`${module.path}/`)}
                     href={`${module.path}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
                   >
                     {module.label}
                   </Link>
@@ -126,7 +151,14 @@ function AppShellContent({ children }: { children: ReactNode }) {
             
             {/* TOP: Global Header */}
             <header className="kalki-topbar">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <button 
+                  className="kalki-mobile-only kalki-hamburger-btn"
+                  onClick={() => setIsMobileMenuOpen(true)}
+                  style={{ background: 'none', border: 'none', color: 'white', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  <Menu size={24} />
+                </button>
                 <select
                   className="kalki-select"
                   style={{ width: 'auto', padding: '0.25rem 2rem 0.25rem 0.75rem', fontSize: '0.85rem' }}
@@ -159,7 +191,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <span style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)' }}>
+                <span className="kalki-hide-on-mobile" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)' }}>
                   {session.user.name || session.user.email}
                 </span>
                 <Link href="/me/settings" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}>
@@ -173,9 +205,46 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
             {/* CONTENT */}
             <main className="kalki-main-content">
-              {session.scopes.length === 0 ? (
-                <StatusMessage tone="empty">No authorized organization location is available for this account.</StatusMessage>
-              ) : children}
+              {(() => {
+                if (session.scopes.length === 0) {
+                  return <StatusMessage tone="empty">No authorized organization location is available for this account.</StatusMessage>;
+                }
+                
+                // Route protection
+                if (!session.isOwner && selected) {
+                  const pathMap: Record<string, string> = {
+                    "/reports": "command-center",
+                    "/people": "employee",
+                    "/attendance": "attendance",
+                    "/payroll": "payroll",
+                    "/purchasing": "purchasing",
+                    "/inventory": "inventory",
+                    "/sales": "sales",
+                    "/crm": "crm",
+                    "/finance": "finance",
+                    "/settings": "settings"
+                  };
+                  
+                  const rootPath = Object.keys(pathMap).find(p => pathname === p || pathname.startsWith(`${p}/`));
+                  
+                  if (rootPath) {
+                    const moduleName = pathMap[rootPath];
+                    const hasAccess = selected.permissions.some(p => p.startsWith(`${moduleName}.`) || p.startsWith(`${moduleName}:`));
+                    
+                    if (!hasAccess) {
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--danger)' }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>
+                          <h2>Access Denied</h2>
+                          <p className="muted">You do not have permission to access the {moduleName} module.</p>
+                        </div>
+                      );
+                    }
+                  }
+                }
+                
+                return children;
+              })()}
             </main>
           </div>
 

@@ -5,10 +5,11 @@ export interface KalkiFileUploadProps extends InputHTMLAttributes<HTMLInputEleme
   error?: string;
   required?: boolean;
   onFileSelect?: (file: File | null) => void;
+  existingUrl?: string | null;
 }
 
 export const KalkiFileUpload = forwardRef<HTMLInputElement, KalkiFileUploadProps>(
-  ({ label, error, required, className = '', onChange, onFileSelect, ...props }, ref) => {
+  ({ label, error, required, existingUrl, className = '', onChange, onFileSelect, ...props }, ref) => {
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,7 +35,7 @@ export const KalkiFileUpload = forwardRef<HTMLInputElement, KalkiFileUploadProps
           {!selectedFile ? (
             <div className="kalki-file-upload-empty">
               <label className="kalki-button kalki-button--secondary kalki-button--sm" style={{cursor: 'pointer'}}>
-                Choose File
+                {existingUrl ? 'Replace File' : 'Choose File'}
                 <input
                   type="file"
                   style={{ display: 'none' }}
@@ -43,7 +44,13 @@ export const KalkiFileUpload = forwardRef<HTMLInputElement, KalkiFileUploadProps
                   {...props}
                 />
               </label>
-              <span className="kalki-file-placeholder">No file chosen</span>
+              {existingUrl ? (
+                <a href={existingUrl} target="_blank" rel="noopener noreferrer" className="kalki-file-link" style={{ marginLeft: '10px', fontSize: '0.9em', color: 'var(--kalki-primary)', textDecoration: 'underline' }}>
+                  View Current File
+                </a>
+              ) : (
+                <span className="kalki-file-placeholder">No file chosen</span>
+              )}
             </div>
           ) : (
             <div className="kalki-file-upload-selected">

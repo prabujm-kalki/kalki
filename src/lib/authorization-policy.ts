@@ -10,7 +10,7 @@ export type EmployeePermission =
 export type AuthorizationInput = {
   organizationId: string;
   locationId: string;
-  permission: EmployeePermission;
+  permission?: string;
 };
 
 export type AuthorizationGrants = {
@@ -45,6 +45,8 @@ export function isEmployeeOperationAuthorized(
       membership.locationId === input.locationId,
   );
   if (!organizationMember || !locationMember) return false;
+
+  if (!input.permission) return true;
 
   return (
     grants.organizationPermissions.some(

@@ -645,3 +645,75 @@ input {
     width: 100%;
   }
 }
+
+/* --- Mobile Responsiveness (Kalki Design System) --- */
+.kalki-mobile-only {
+  display: none !important;
+}
+
+.kalki-sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  /* Hide elements marked as desktop-only */
+  .kalki-hide-on-mobile {
+    display: none !important;
+  }
+
+  /* Show mobile-only elements */
+  .kalki-mobile-only {
+    display: inline-flex !important;
+  }
+
+  /* Responsive Topbar */
+  .kalki-topbar {
+    padding: 0 var(--spacing-4);
+  }
+
+  /* Sidebar as Mobile Overlay Drawer */
+  .kalki-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 100;
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease-in-out;
+  }
+
+  .kalki-sidebar--mobile-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Full screen overlay behind the mobile menu */
+  .kalki-sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 90;
+  }
+
+  /* Main wrapper adjustments */
+  .kalki-main-content {
+    padding: var(--spacing-4);
+  }
+  
+  .kalki-page-header {
+    margin: -16px -16px 16px -16px;
+    padding: 16px;
+  }
+
+  /* Form and Grid stacking */
+  .kalki-form-layout {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .kalki-grid-2-col {
+    grid-template-columns: 1fr;
+  }
+}

@@ -41,7 +41,7 @@ const formSchema = z.object({
   lastName: z.string().trim().optional(),
   displayName: z.string().trim().min(1, "Display name is required"),
   phone: requiredMobileSchema,
-  email: z.string().optional(),
+  email: z.string().email("Invalid email address").or(z.literal('')).optional(),
   dateOfBirth: z.string().optional(),
   biometricId: z.string().trim().min(1, "Biometric ID is required"),
   posId: z.string().optional(),
@@ -70,7 +70,7 @@ const formSchema = z.object({
 });
 
 export function EmployeeForm({ organizationId, locationId, initialData, isProposal, onSuccess, onCancel }: EmployeeFormProps) {
-  const { addToast } = useToast();
+  const { addToast, clearToasts } = useToast();
   const [pending, setPending] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isDirty, setIsDirty] = useState(false);
@@ -101,11 +101,16 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     secondaryMobile: initialData?.secondaryMobile || "",
     
     // Salary Data
-    salaryType: initialData?.salaryType || "Monthly",
-    salaryAmount: initialData?.salaryAmount || "",
-    salaryEffectiveFrom: initialData?.salaryEffectiveFrom || new Date().toISOString().split("T")[0],
-    paymentMethod: initialData?.paymentMethod || "Bank Transfer",
-    paymentDetails: initialData?.paymentDetails || "",
+    salaryType: initialData?.salaryInfo?.salaryType || "Monthly",
+    salaryAmount: initialData?.salaryInfo?.amount || "",
+    salaryEffectiveFrom: initialData?.salaryInfo?.effectiveFrom || new Date().toISOString().split("T")[0],
+    paymentMethod: initialData?.salaryInfo?.paymentMethod || "BANK_TRANSFER",
+    accountHolderName: initialData?.salaryInfo?.accountHolderName || "",
+    accountNumber: initialData?.salaryInfo?.accountNumber || "",
+    bankName: initialData?.salaryInfo?.bankName || "",
+    ifscCode: initialData?.salaryInfo?.ifscCode || "",
+    gpayNumber: initialData?.salaryInfo?.gpayNumber || "",
+    bankingName: initialData?.salaryInfo?.bankingName || "",
   });
 
   const [files, setFiles] = useState<{
@@ -119,6 +124,16 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
   const [provisionAccess, setProvisionAccess] = useState(false);
   const [provisionPassword, setProvisionPassword] = useState("");
   const [roleIds, setRoleIds] = useState<string[]>([]);
+  
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>(initialData?.locationMemberships?.map((m: any) => m.locationId) || [locationId]);
+  const [locationsData, setLocationsData] = useState<{ locations: any[] } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/locations?organizationId=${organizationId}`)
+      .then(res => res.json())
+      .then(data => setLocationsData(data))
+      .catch(console.error);
+  }, [organizationId]);
   
   const [familyContacts, setFamilyContacts] = useState<any[]>(initialData?.familyContacts?.filter((c:any) => c.category === "EMERGENCY_CONTACT") || [
     { category: "EMERGENCY_CONTACT", name: "", mobile: "", relationship: "" }
@@ -238,6 +253,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (clearToasts) clearToasts();
     setPending(true);
     setFieldErrors({});
 
@@ -283,7 +299,14 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
       
       let hasEmergencyError = false;
       const newFieldErrors: Record<string, string> = {};
-      const payloadContacts = [...familyContacts];
+      const payloadContacts: any[] = familyContacts.map(c => ({
+        category: c.category,
+        name: c.name || undefined,
+        mobile: c.mobile || undefined,
+        relationship: c.relationship || undefined,
+        fatherName: c.fatherName || undefined,
+        motherName: c.motherName || undefined,
+      }));
       const emergencyContacts = familyContacts.filter(c => c.category === "EMERGENCY_CONTACT");
       
       if (emergencyContacts.length === 0) {
@@ -335,7 +358,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         photoUrl: uploadedUrls.photo || formData.photoUrl || null,
         otherDocument1Url: uploadedUrls.otherDocument1 || formData.otherDocument1Url || null,
         otherDocument2Url: uploadedUrls.otherDocument2 || formData.otherDocument2Url || null,
-        otherDocument3Url: uploadedUrls.otherDocument3Url || formData.otherDocument3Url || null,
+        otherDocument3Url: uploadedUrls.otherDocument3 || formData.otherDocument3Url || null,
       };
 
       const commonFields = {
@@ -357,7 +380,12 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         salaryType: formData.salaryType || undefined,
         amount: salaryAmountNum !== undefined ? String(salaryAmountNum) : undefined,
         paymentMethod: formData.paymentMethod || undefined,
-        accountHolderName: formData.paymentDetails || undefined,
+        accountHolderName: formData.accountHolderName || undefined,
+        accountNumber: formData.accountNumber || undefined,
+        bankName: formData.bankName || undefined,
+        ifscCode: formData.ifscCode || undefined,
+        gpayNumber: formData.gpayNumber || undefined,
+        bankingName: formData.bankingName || undefined,
       };
 
       if (initialData?.id) {
@@ -367,14 +395,14 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
             setPending(false);
             return;
           }
-          await apiSend(`/api/employees/proposals`, "POST", { employeeId: initialData.id, reason, ...commonFields, salary: salaryAmountNum ? salaryPayload : undefined });
+          await apiSend(`/api/employees/proposals`, "POST", { employeeId: initialData.id, reason, ...commonFields, salary: salaryAmountNum ? salaryPayload : undefined, accessLocations: selectedLocationIds });
         } else {
-          await apiSend(`/api/employees?id=${initialData.id}`, "PATCH", { ...commonFields, familyContacts: payloadContacts, salary: salaryAmountNum ? salaryPayload : undefined });
+          await apiSend(`/api/employees?id=${initialData.id}`, "PATCH", { ...commonFields, familyContacts: payloadContacts, salary: salaryAmountNum ? salaryPayload : undefined, accessLocations: selectedLocationIds });
         }
       } else {
         await apiSend("/api/employees", "POST", {
           organizationId, locationId, employmentStartDate: formData.employmentStartDate, familyContacts: payloadContacts, ...commonFields,
-          ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds } } : {})
+          ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds, locationIds: selectedLocationIds } } : {})
         });
       }
       setIsDirty(false);
@@ -382,10 +410,16 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
       onSuccess();
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : 'Unknown error';
+      let handledAsFieldError = false;
+      
       if (message.includes("Mobile number is already registered")) {
-        setFieldErrors(prev => ({ ...prev, phone: message }));
+        setFieldErrors(prev => ({ ...prev, phone: "Mobile number is already registered to another employee." }));
+        handledAsFieldError = true;
       }
-      addToast({ type: 'error', message: 'Failed to save employee', description: message });
+      
+      if (!handledAsFieldError) {
+        addToast({ type: 'error', message: 'Failed to save employee', description: message });
+      }
       setPending(false);
     }
   }
@@ -409,7 +443,8 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
               <KalkiInput label="Display Name" required error={fieldErrors.displayName} value={formData.displayName} onChange={e => handleChange("displayName", e.target.value)} disabled={pending} />
               <KalkiInput label="Employee ID" value={initialData?.employeeCode || "Auto-generated upon save"} disabled />
               
-              <KalkiInput label="Primary Mobile" required type="tel" value={formData.phone} onChange={e => handleChange("phone", e.target.value)} disabled={pending} />
+              <KalkiInput label="Primary Mobile" required type="tel" error={fieldErrors.phone} value={formData.phone} onChange={e => handleChange("phone", e.target.value)} disabled={pending} />
+              <KalkiInput label="Email Address" type="email" error={fieldErrors.email} value={formData.email} onChange={e => handleChange("email", e.target.value)} disabled={pending} />
               <KalkiInput label="Secondary Mobile" type="tel" value={formData.secondaryMobile} onChange={e => handleChange("secondaryMobile", e.target.value)} disabled={pending} />
               
               <KalkiInput label="Date of Birth" type="date" value={formData.dateOfBirth} onChange={e => handleChange("dateOfBirth", e.target.value)} disabled={pending} />
@@ -525,9 +560,18 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
                 <option value="CASH">Cash</option>
               </KalkiSelect>
             </div>
-            {formData.paymentMethod !== "CASH" && (
-              <div style={{ marginTop: '1rem' }}>
-                <KalkiInput label={formData.paymentMethod === "BANK_TRANSFER" ? "Bank Account Details" : "UPI ID / Phone Number"} value={formData.paymentDetails} onChange={e => handleChange("paymentDetails", e.target.value)} disabled={pending} />
+            {formData.paymentMethod === "BANK_TRANSFER" && (
+              <div className="kalki-grid-2-col" style={{ marginTop: '1rem' }}>
+                <KalkiInput label="Account Holder Name *" required value={formData.accountHolderName} onChange={e => handleChange("accountHolderName", e.target.value)} disabled={pending} />
+                <KalkiInput label="Account Number *" required value={formData.accountNumber} onChange={e => handleChange("accountNumber", e.target.value)} disabled={pending} />
+                <KalkiInput label="Bank Name *" required value={formData.bankName} onChange={e => handleChange("bankName", e.target.value)} disabled={pending} />
+                <KalkiInput label="IFSC Code *" required value={formData.ifscCode} onChange={e => handleChange("ifscCode", e.target.value)} disabled={pending} />
+              </div>
+            )}
+            {formData.paymentMethod === "GPAY" && (
+              <div className="kalki-grid-2-col" style={{ marginTop: '1rem' }}>
+                <KalkiInput label="GPay Number *" required type="tel" value={formData.gpayNumber} onChange={e => handleChange("gpayNumber", e.target.value)} disabled={pending} />
+                <KalkiInput label="Banking Name *" required value={formData.bankingName} onChange={e => handleChange("bankingName", e.target.value)} disabled={pending} />
               </div>
             )}
           </KalkiSection>
@@ -551,47 +595,64 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
             </div>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <KalkiFileUpload label="Aadhaar Card" required onFileSelect={file => handleFileChange('aadhaar', file)} disabled={pending} />
-              <KalkiFileUpload label="Profile Photo" required accept="image/*" onFileSelect={file => handleFileChange('photo', file)} disabled={pending} />
-              <KalkiFileUpload label="Other Document 1" onFileSelect={file => handleFileChange('otherDocument1', file)} disabled={pending} />
-              <KalkiFileUpload label="Other Document 2" onFileSelect={file => handleFileChange('otherDocument2', file)} disabled={pending} />
-              <KalkiFileUpload label="Other Document 3" onFileSelect={file => handleFileChange('otherDocument3', file)} disabled={pending} />
+              <KalkiFileUpload label="Aadhaar Card" required onFileSelect={file => handleFileChange('aadhaar', file)} existingUrl={formData.aadhaarDocumentUrl} disabled={pending} />
+              <KalkiFileUpload label="Profile Photo" required accept="image/*" onFileSelect={file => handleFileChange('photo', file)} existingUrl={formData.photoUrl} disabled={pending} />
+              <KalkiFileUpload label="Other Document 1" onFileSelect={file => handleFileChange('otherDocument1', file)} existingUrl={formData.otherDocument1Url} disabled={pending} />
+              <KalkiFileUpload label="Other Document 2" onFileSelect={file => handleFileChange('otherDocument2', file)} existingUrl={formData.otherDocument2Url} disabled={pending} />
+              <KalkiFileUpload label="Other Document 3" onFileSelect={file => handleFileChange('otherDocument3', file)} existingUrl={formData.otherDocument3Url} disabled={pending} />
             </div>
           </KalkiSection>
 
-          {!initialData?.id && (
-            <KalkiSection title="Access & Roles" icon="🛡️">
-              <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem'}}>
-                <input type="checkbox" id="provisionAccess" checked={provisionAccess} onChange={e => {setProvisionAccess(e.target.checked); setIsDirty(true);}} disabled={pending} />
-                <label htmlFor="provisionAccess" style={{fontWeight: 600, fontSize: '0.9rem', margin: 0}}>Provision System Access</label>
-              </div>
+          <KalkiSection title="System Access & Locations" icon="🛡️">
+            {!initialData?.id && (
+              <>
+                <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem'}}>
+                  <input type="checkbox" id="provisionAccess" checked={provisionAccess} onChange={e => {setProvisionAccess(e.target.checked); setIsDirty(true);}} disabled={pending} />
+                  <label htmlFor="provisionAccess" style={{fontWeight: 600, fontSize: '0.9rem', margin: 0}}>Provision System Access</label>
+                </div>
 
-              {provisionAccess && (
-                <div style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                  <div className="kalki-field">
-                    <label className="kalki-label">Login Username</label>
-                    <div style={{ padding: '0.5rem', background: 'var(--kalki-bg)', border: '1px solid var(--kalki-border)', borderRadius: 'var(--radius-sm)', color: 'var(--kalki-foreground-muted)' }}>
-                      {formData.phone || "Please enter Primary Mobile"}
+                {provisionAccess && (
+                  <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem'}}>
+                    <div className="kalki-field">
+                      <label className="kalki-label">Login Username</label>
+                      <div style={{ padding: '0.5rem', background: 'var(--kalki-bg)', border: '1px solid var(--kalki-border)', borderRadius: 'var(--radius-sm)', color: 'var(--kalki-foreground-muted)' }}>
+                        {formData.phone || "Please enter Primary Mobile"}
+                      </div>
+                    </div>
+                    <KalkiInput label="Initial Password" required type="password" minLength={8} value={provisionPassword} onChange={e => {setProvisionPassword(e.target.value); setIsDirty(true);}} disabled={pending} />
+                    
+                    <div className="kalki-field">
+                      <label className="kalki-label">Assign Roles *</label>
+                      <select multiple size={5} value={roleIds} onChange={e => {
+                          const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                          setRoleIds(selectedOptions);
+                          setIsDirty(true);
+                        }} disabled={pending} className="kalki-select" style={{ fontSize: '0.85rem', padding: '0.25rem' }}>
+                        {rolesData?.roles?.filter((r: any) => r.isActive).map((r: any) => (
+                          <option key={r.id} value={r.id} style={{ padding: '0.25rem 0.5rem' }}>{r.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <KalkiInput label="Initial Password" required type="password" minLength={8} value={provisionPassword} onChange={e => {setProvisionPassword(e.target.value); setIsDirty(true);}} disabled={pending} />
-                  
-                  <div className="kalki-field">
-                    <label className="kalki-label">Assign Roles *</label>
-                    <select multiple size={5} value={roleIds} onChange={e => {
-                        const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
-                        setRoleIds(selectedOptions);
-                        setIsDirty(true);
-                      }} disabled={pending} className="kalki-select" style={{ fontSize: '0.85rem', padding: '0.25rem' }}>
-                      {rolesData?.roles?.filter((r: any) => r.isActive).map((r: any) => (
-                        <option key={r.id} value={r.id} style={{ padding: '0.25rem 0.5rem' }}>{r.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </KalkiSection>
-          )}
+                )}
+              </>
+            )}
+
+            {(provisionAccess || initialData?.id) && (
+              <div className="kalki-field">
+                <label className="kalki-label">Assign Locations *</label>
+                <select multiple size={5} value={selectedLocationIds} onChange={e => {
+                    const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
+                    setSelectedLocationIds(selectedOptions);
+                    setIsDirty(true);
+                  }} disabled={pending} className="kalki-select" style={{ fontSize: '0.85rem', padding: '0.25rem' }}>
+                  {locationsData?.locations?.map((loc: any) => (
+                    <option key={loc.id} value={loc.id} style={{ padding: '0.25rem 0.5rem' }}>{loc.name} ({loc.code})</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </KalkiSection>
         </div>
       </div>
 

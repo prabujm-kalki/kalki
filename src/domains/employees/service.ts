@@ -70,6 +70,7 @@ const employeeInputSchema = z.object({
     phone: z.string().min(1),
     password: z.string().min(8),
     roleIds: z.array(z.string().uuid()).optional(),
+    locationIds: z.array(z.string().uuid()).optional(),
   }).optional(),
   person: z.object({
     firstName: z.string().trim().min(1).max(100),
@@ -113,6 +114,7 @@ const employeeUpdateSchema = z
       .optional(),
     familyContacts: z.array(familyContactSchema).optional(),
     salary: salaryInputSchema.optional(),
+    accessLocations: z.array(z.string().uuid()).optional(),
   })
   .strict();
 
@@ -226,6 +228,7 @@ async function selectEmployee(
   const rows = await queryDb
     .select({
       id: employees.id,
+      userId: employees.userId,
       organizationId: employees.organizationId,
       locationId: employees.locationId,
       employeeCode: employees.employeeCode,
@@ -368,6 +371,9 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         userId: createdUserId,
         aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl ?? null,
         photoUrl: parsed.data.photoUrl ?? null,
+        otherDocument1Url: parsed.data.otherDocument1Url ?? null,
+        otherDocument2Url: parsed.data.otherDocument2Url ?? null,
+        otherDocument3Url: parsed.data.otherDocument3Url ?? null,
         biometricId: parsed.data.biometricId,
         posId: parsed.data.posId ?? null,
       }).returning({ id: employees.id });
@@ -403,17 +409,30 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
           organizationId: parsed.data.organizationId,
         });
 
-        await tx.insert(locationMemberships).values({
-          userId: createdUserId,
-          organizationId: parsed.data.organizationId,
-          locationId: parsed.data.locationId,
-        });
+        const locationIds = parsed.data.provisionAccess.locationIds && parsed.data.provisionAccess.locationIds.length > 0 
+          ? parsed.data.provisionAccess.locationIds 
+          : [parsed.data.locationId];
+
+        for (const locId of locationIds) {
+          await tx.insert(locationMemberships).values({
+            userId: createdUserId,
+            organizationId: parsed.data.organizationId,
+            locationId: locId,
+          });
+        }
 
         const roleIds = parsed.data.provisionAccess.roleIds || [];
         for (const roleId of roleIds) {
           await tx.insert(employeeRoleAssignments).values({
             organizationId: parsed.data.organizationId,
             employeeId: newEmployee.id,
+            roleId: roleId,
+          });
+          
+          // Also assign the application-level role for the unified authorization access
+          await tx.insert(organizationRoleAssignments).values({
+            userId: createdUserId,
+            organizationId: parsed.data.organizationId,
             roleId: roleId,
           });
         }
@@ -499,6 +518,7 @@ export async function updateEmployee(
   }
   const parsed = employeeUpdateSchema.safeParse(input);
   if (!parsed.success) {
+    console.log("ZOD_ERROR:", JSON.stringify(parsed.error.issues, null, 2));
     throw new EmployeeServiceError("Invalid employee input", "INVALID_INPUT");
   }
   if (Object.keys(parsed.data).length === 0) {
@@ -564,6 +584,9 @@ export async function updateEmployee(
       ...(parsed.data.employmentEndDate !== undefined && { employmentEndDate: parsed.data.employmentEndDate }),
       ...(parsed.data.aadhaarDocumentUrl !== undefined && { aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl }),
       ...(parsed.data.photoUrl !== undefined && { photoUrl: parsed.data.photoUrl }),
+      ...(parsed.data.otherDocument1Url !== undefined && { otherDocument1Url: parsed.data.otherDocument1Url }),
+      ...(parsed.data.otherDocument2Url !== undefined && { otherDocument2Url: parsed.data.otherDocument2Url }),
+      ...(parsed.data.otherDocument3Url !== undefined && { otherDocument3Url: parsed.data.otherDocument3Url }),
       ...(parsed.data.biometricId !== undefined && { biometricId: parsed.data.biometricId }),
       ...(parsed.data.posId !== undefined && { posId: parsed.data.posId }),
       ...(parsed.data.reportingEmployeeId !== undefined && { reportingEmployeeId: parsed.data.reportingEmployeeId }),
@@ -581,6 +604,19 @@ export async function updateEmployee(
         .update(employees)
         .set(employeeChanges)
         .where(eq(employees.id, employeeId));
+    }
+
+    if (parsed.data.accessLocations !== undefined && current.userId) {
+      await tx.delete(locationMemberships).where(eq(locationMemberships.userId, current.userId));
+      if (parsed.data.accessLocations.length > 0) {
+        for (const locId of parsed.data.accessLocations) {
+          await tx.insert(locationMemberships).values({
+            userId: current.userId,
+            organizationId: current.organizationId,
+            locationId: locId,
+          });
+        }
+      }
     }
 
     if (parsed.data.familyContacts !== undefined) {

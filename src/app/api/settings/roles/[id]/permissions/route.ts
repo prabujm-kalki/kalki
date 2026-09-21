@@ -35,13 +35,28 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
     const { id: roleId } = await params;
     const body = await request.json();
-    const { code, name, enabled } = body;
+    
+    // Check if it's the old single-permission format or the new batch format
+    if (body.permissions && Array.isArray(body.permissions)) {
+      // Batch mode
+      const permissionIds: string[] = body.permissions;
+      
+      await db.transaction(async (tx) => {
+        await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+        if (permissionIds.length > 0) {
+          const insertData = permissionIds.map(id => ({ roleId, permissionId: id }));
+          await tx.insert(rolePermissions).values(insertData);
+        }
+      });
+      return NextResponse.json({ success: true });
+    }
 
+    // Legacy single-mode for backward compatibility
+    const { code, name, enabled } = body;
     if (!code || typeof enabled !== "boolean") {
       return NextResponse.json({ error: "code and enabled are required" }, { status: 400 });
     }
 
-    // 1. Ensure the permission exists in the permissions table (create if not)
     let [perm] = await db.select().from(permissions)
       .where(eq(permissions.code, code))
       .limit(1);
@@ -51,18 +66,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       perm = newPerm;
     }
 
-    // 2. Toggle the assignment in rolePermissions
     if (enabled) {
-      // Upsert/Insert
       const exists = await db.select().from(rolePermissions)
         .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, perm.id)))
         .limit(1);
-      
       if (exists.length === 0) {
         await db.insert(rolePermissions).values({ roleId, permissionId: perm.id });
       }
     } else {
-      // Delete
       await db.delete(rolePermissions)
         .where(and(eq(rolePermissions.roleId, roleId), eq(rolePermissions.permissionId, perm.id)));
     }
