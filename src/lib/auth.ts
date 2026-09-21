@@ -17,7 +17,10 @@ export const auth = betterAuth({
   }),
   secret: env.BETTER_AUTH_SECRET,
   baseURL: env.BETTER_AUTH_URL,
-  trustedOrigins: ["http://localhost:3001"],
+  trustedOrigins: [
+    "http://localhost:3001", 
+    "https://dis-thorough-enable-replace.trycloudflare.com"
+  ],
   emailAndPassword: { enabled: true },
   advanced: {
     crossSubDomainCookies: {

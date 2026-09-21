@@ -43,7 +43,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
     }).catch((caught) => {
       if (cancelled) return;
       if ("status" in caught && caught.status === 401) {
-        router.replace(`/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`);
+        window.location.href = `/login?next=${encodeURIComponent(`${pathname}?${searchParams.toString()}`)}`;
         return;
       }
       setError(caught instanceof Error ? caught.message : "Unable to load session");
