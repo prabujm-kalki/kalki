@@ -6,6 +6,7 @@ import {
   employeeResponsibilityAdditions,
   employeeRoleAssignments,
   employees,
+  organizationRoleAssignments,
   locations,
   people,
   roleChecklistItems,
@@ -251,6 +252,7 @@ function isUniqueViolation(error: unknown) {
 async function requireEmployeeInScope(scope: z.infer<typeof employeeScopeSchema>) {
   const [employee] = await db.select({
     id: employees.id,
+    userId: employees.userId,
     organizationId: employees.organizationId,
     locationId: employees.locationId,
     isActive: employees.isActive,
@@ -705,11 +707,24 @@ export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRole
   }
 
   try {
-    const [assignment] = await db.insert(employeeRoleAssignments).values({
-      organizationId: parsed.data.organizationId,
-      employeeId: parsed.data.employeeId,
-      roleId: parsed.data.roleId,
-    }).returning();
+    const assignment = await db.transaction(async (tx) => {
+      const [newAssignment] = await tx.insert(employeeRoleAssignments).values({
+        organizationId: parsed.data.organizationId,
+        employeeId: parsed.data.employeeId,
+        roleId: parsed.data.roleId,
+      }).returning();
+      
+      if (employee.userId) {
+        await tx.insert(organizationRoleAssignments).values({
+          organizationId: parsed.data.organizationId,
+          userId: employee.userId,
+          roleId: parsed.data.roleId,
+        }).onConflictDoNothing();
+      }
+      
+      return newAssignment;
+    });
+
     return getEmployeeRoleAssignment(actor, {
       organizationId: parsed.data.organizationId,
       locationId: parsed.data.locationId,
@@ -782,11 +797,21 @@ export async function removeEmployeeRole(actor: Actor, scope: z.infer<typeof emp
 
   const existingAssignment = await getEmployeeRoleAssignment(actor, scope, assignmentId);
 
-  await db.delete(employeeRoleAssignments).where(and(
-    eq(employeeRoleAssignments.id, assignmentId),
-    eq(employeeRoleAssignments.organizationId, scope.organizationId),
-    eq(employeeRoleAssignments.employeeId, scope.employeeId),
-  ));
+  await db.transaction(async (tx) => {
+    await tx.delete(employeeRoleAssignments).where(and(
+      eq(employeeRoleAssignments.id, assignmentId),
+      eq(employeeRoleAssignments.organizationId, scope.organizationId),
+      eq(employeeRoleAssignments.employeeId, scope.employeeId),
+    ));
+
+    if (employee.userId) {
+      await tx.delete(organizationRoleAssignments).where(and(
+        eq(organizationRoleAssignments.organizationId, scope.organizationId),
+        eq(organizationRoleAssignments.userId, employee.userId),
+        eq(organizationRoleAssignments.roleId, existingAssignment.roleId)
+      ));
+    }
+  });
 
   await recordAuditEvent({
     organizationId: scope.organizationId,
