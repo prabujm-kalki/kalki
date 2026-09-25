@@ -18,13 +18,16 @@ export async function proxy(request: NextRequest) {
   let session: any | null = null;
   try {
     // Fetch directly from localhost to avoid looping out to the internet and being blocked by Cloudflare
+    const headers = new Headers(request.headers);
+    // Overwrite the host header to ensure Better Auth matches the configured baseURL
+    headers.set("host", "localhost:3001");
+    // Explicitly ensure authorization header is passed
+    if (request.headers.get("authorization")) {
+      headers.set("authorization", request.headers.get("authorization")!);
+    }
+
     const response = await fetch(`http://localhost:3001/api/auth/get-session`, {
-      headers: {
-        // Forward the cookies from the client
-        cookie: request.headers.get("cookie") || "",
-        // Forward the host header so Better Auth knows the actual domain
-        host: request.headers.get("host") || "",
-      },
+      headers,
     });
     if (response.ok) {
       session = await response.json();
@@ -47,7 +50,7 @@ export async function proxy(request: NextRequest) {
   // Case 2: Authenticated user trying to access login page
   if (session && isAuthRoute) {
     // Determine where to send them
-    const nextUrl = request.nextUrl.searchParams.get("next") || "/work";
+    const nextUrl = request.nextUrl.searchParams.get("next") || "/";
     return NextResponse.redirect(new URL(nextUrl, request.url));
   }
 

@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  allowedDevOrigins: ["dis-thorough-enable-replace.trycloudflare.com"],
+  allowedDevOrigins: [
+    "graham-width-tires-late.trycloudflare.com"
+  ],
   experimental: {
     serverActions: {
-      allowedOrigins: ["dis-thorough-enable-replace.trycloudflare.com", "*.trycloudflare.com"],
+      allowedOrigins: ["*.trycloudflare.com", "localhost:3001"],
     },
   },
 };

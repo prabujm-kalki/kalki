@@ -7,4 +7,4 @@ const pool = globalForDb.pool ?? new Pool({ connectionString: env.DATABASE_URL }
 
 if (process.env.NODE_ENV !== "production") globalForDb.pool = pool;
 
-export const db = drizzle(pool);
+export const db = drizzle(pool, { logger: true });

@@ -30,6 +30,7 @@ export function DepartmentForm({ organizationId, initialData, onSuccess, onCance
       organizationId,
       name: formData.get("name") as string,
       code: formData.get("code") as string,
+      ...(initialData && { isActive: formData.get("isActive") === "on" }),
     };
 
     try {
@@ -60,6 +61,14 @@ export function DepartmentForm({ organizationId, initialData, onSuccess, onCance
           <input name="code" required defaultValue={initialData?.code} disabled={submitting} />
         </div>
       </div>
+      {initialData && (
+        <div className="field" style={{ marginTop: "1rem" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input type="checkbox" name="isActive" defaultChecked={initialData.isActive} disabled={submitting} />
+            Active Department
+          </label>
+        </div>
+      )}
       <div className="form-actions" style={{ marginTop: "1rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
         <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
         <button type="submit" className="action-button" disabled={submitting}>

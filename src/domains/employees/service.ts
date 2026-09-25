@@ -2,19 +2,20 @@ import { and, eq, inArray, isNull, ne, desc } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { 
-  employees, locations, people, organizations,
+  employees, locations, people, organizations, departments,
   employeeFamilyContacts, employeeSalaryInfo,
   employeeHistoryStatus, employeeHistoryRole, employeeHistoryBranch,
   employeeHistorySalary, employeeHistoryReporting, employeeHistoryCategory
 } from "@/db/schema";
 
-import { employeeChangeRequests, organizationMemberships, locationMemberships, employeeRoleAssignments } from "@/db/schema";
+import { employeeChangeRequests, organizationMemberships, locationMemberships, employeeRoleAssignments, authUsers, authAccounts, organizationRoleAssignments } from "@/db/schema";
 import { loadAuthorizationGrants } from "@/lib/authorization";
 import { auth } from "@/lib/auth";
+import { hashPassword } from "better-auth/crypto";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions } from "@/lib/authorization-policy";
 import { recordAuditEvent } from "@/domains/audit/service";
-
+import { initializeEmployeeLeaves } from "@/domains/attendance/accrualEngine";
 const mobileNumberRegex = /^[0-9]{10}$/;
 const mobileNumberMessage = "Mobile number must be exactly 10 digits";
 const optionalMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMessage).or(z.literal('')).nullable().optional();
@@ -66,6 +67,12 @@ const employeeInputSchema = z.object({
   posId: z.string().trim().nullable().optional(),
   reportingEmployeeId: z.string().uuid().nullable().optional(),
   category: z.enum(["Permanent", "Temporary", "Part-time"]).optional(),
+  gender: z.enum(["Male", "Female", "Other"]).optional(),
+  maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"]).optional(),
+  residentialAddress: z.string().nullable().optional(),
+  bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
+  secondaryMobile: optionalMobileSchema,
+  departmentId: z.string().uuid().nullable().optional(),
   provisionAccess: z.object({
     phone: z.string().min(1),
     password: z.string().min(8),
@@ -87,6 +94,7 @@ const employeeInputSchema = z.object({
 const employeeUpdateSchema = z
   .object({
     jobTitle: z.string().trim().max(200).nullable().optional(),
+    employmentStartDate: z.string().date().optional(),
     employmentEndDate: z.string().date().nullable().optional(),
     aadhaarDocumentUrl: z.string().trim().nullable().optional(),
     photoUrl: z.string().trim().max(1024).nullable().optional(),
@@ -96,6 +104,7 @@ const employeeUpdateSchema = z
     biometricId: z.string().trim().max(100).nullable().optional(),
     posId: z.string().trim().nullable().optional(),
     reportingEmployeeId: z.string().uuid().nullable().optional(),
+    departmentId: z.string().uuid().nullable().optional(),
     category: z.enum(["Permanent", "Temporary", "Part-time"]).optional(),
     gender: z.enum(["Male", "Female", "Other"]).optional(),
     maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"]).optional(),
@@ -244,6 +253,8 @@ async function selectEmployee(
       biometricId: employees.biometricId,
       posId: employees.posId,
       reportingEmployeeId: employees.reportingEmployeeId,
+      departmentId: employees.departmentId,
+      departmentName: departments.name,
       category: employees.category,
       gender: employees.gender,
       maritalStatus: employees.maritalStatus,
@@ -261,6 +272,7 @@ async function selectEmployee(
     })
     .from(employees)
     .innerJoin(people, eq(people.id, employees.personId))
+    .leftJoin(departments, eq(employees.departmentId, departments.id))
     .where(eq(employees.id, employeeId));
 
   return rows[0] ?? null;
@@ -294,22 +306,46 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
   }
 
   let createdUserId: string | null = null;
+  let authEmailToUse: string | null = null;
+  let hashedPasswordToUse: string | null = null;
+
   if (parsed.data.provisionAccess) {
-    const authEmail = `${parsed.data.provisionAccess.phone}@kalki.internal`;
-    const authRes = await auth.api.signUpEmail({
-      headers: new Headers(),
-      body: {
-        email: authEmail,
-        password: parsed.data.provisionAccess.password,
-        name: parsed.data.person.displayName,
-        image: parsed.data.photoUrl ?? undefined,
-      }
-    });
-    createdUserId = authRes.user.id;
+    authEmailToUse = `${parsed.data.person.phone}@kalki.internal`;
+    const [existingUser] = await db.select().from(authUsers).where(eq(authUsers.email, authEmailToUse));
+    if (existingUser) {
+      throw new EmployeeServiceError(`The phone number is already registered for login access.`, "INVALID_INPUT");
+    }
+    
+    // Generate UUIDs ahead of time
+    createdUserId = crypto.randomUUID();
+    hashedPasswordToUse = await hashPassword(parsed.data.provisionAccess.password);
   }
 
   try {
     return await db.transaction(async (tx) => {
+      if (parsed.data.provisionAccess && createdUserId && authEmailToUse && hashedPasswordToUse) {
+        // Explicitly create authUsers and authAccounts to guarantee no zombie accounts and correct setup
+        await tx.insert(authUsers).values({
+          id: createdUserId,
+          name: parsed.data.person.displayName,
+          email: authEmailToUse,
+          emailVerified: false,
+          image: parsed.data.photoUrl ?? null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+        
+        await tx.insert(authAccounts).values({
+          id: crypto.randomUUID(),
+          accountId: createdUserId, // FIX: Better Auth expects accountId to equal userId
+          providerId: "credential",
+          issuer: "local:credential",
+          userId: createdUserId,
+          password: hashedPasswordToUse,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
       const locationRows = await tx
         .select({ id: locations.id })
         .from(locations)
@@ -367,6 +403,12 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         employmentEndDate: parsed.data.employmentEndDate ?? null,
         status: "DRAFT", // strictly default to DRAFT per Phase 2
         category: parsed.data.category ?? null,
+        gender: parsed.data.gender ?? null,
+        maritalStatus: parsed.data.maritalStatus ?? null,
+        residentialAddress: parsed.data.residentialAddress ?? null,
+        bloodGroup: parsed.data.bloodGroup ?? null,
+        secondaryMobile: parsed.data.secondaryMobile ?? null,
+        departmentId: parsed.data.departmentId ?? null,
         reportingEmployeeId: parsed.data.reportingEmployeeId ?? null,
         userId: createdUserId,
         aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl ?? null,
@@ -409,7 +451,7 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
           organizationId: parsed.data.organizationId,
         });
 
-        const locationIds = parsed.data.provisionAccess.locationIds && parsed.data.provisionAccess.locationIds.length > 0 
+        const locationIds = parsed.data.provisionAccess?.locationIds && parsed.data.provisionAccess.locationIds.length > 0 
           ? parsed.data.provisionAccess.locationIds 
           : [parsed.data.locationId];
 
@@ -438,9 +480,35 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         }
       }
 
+      if (parsed.data.salary) {
+        await tx.insert(employeeSalaryInfo).values({
+          organizationId: parsed.data.organizationId,
+          employeeId: newEmployee.id,
+          salaryType: parsed.data.salary.salaryType ?? "Monthly",
+          amount: parsed.data.salary.amount ?? "0",
+          effectiveFrom: parsed.data.salary.effectiveFrom ?? parsed.data.employmentStartDate,
+          paymentMethod: parsed.data.salary.paymentMethod ?? "BANK_TRANSFER",
+          accountHolderName: parsed.data.salary.accountHolderName ?? null,
+          accountNumber: parsed.data.salary.accountNumber ?? null,
+          bankName: parsed.data.salary.bankName ?? null,
+          ifscCode: parsed.data.salary.ifscCode ?? null,
+          gpayNumber: parsed.data.salary.gpayNumber ?? null,
+          bankingName: parsed.data.salary.bankingName ?? null,
+        });
+      }
+
+      await initializeEmployeeLeaves(
+        tx,
+        newEmployee.id,
+        parsed.data.organizationId,
+        parsed.data.locationId,
+        new Date(parsed.data.employmentStartDate)
+      );
+
       return selectEmployee(tx, newEmployee.id);
     });
   } catch (error) {
+    // No manual compensating transaction needed, auth logic is now inside the Drizzle tx!
     if (error instanceof EmployeeServiceError) throw error;
     const databaseError = error as {
       code?: string;
@@ -448,11 +516,16 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
     };
     if (databaseError.code === "23505" || databaseError.cause?.code === "23505") {
       throw new EmployeeServiceError(
-        "Employee code already exists in organization",
+        "A duplicate record already exists (e.g. employee code or email address is already taken).",
         "DUPLICATE_EMPLOYEE_CODE",
       );
     }
-    throw error;
+    
+    if (error instanceof Error) {
+      throw new EmployeeServiceError(error.message, "INVALID_INPUT");
+    }
+    
+    throw new EmployeeServiceError("An unknown error occurred during employee creation", "INVALID_INPUT");
   }
 }
 
@@ -581,6 +654,7 @@ export async function updateEmployee(
     }
     const employeeChanges = {
       ...(parsed.data.jobTitle !== undefined && { jobTitle: parsed.data.jobTitle }),
+      ...(parsed.data.employmentStartDate !== undefined && { employmentStartDate: parsed.data.employmentStartDate }),
       ...(parsed.data.employmentEndDate !== undefined && { employmentEndDate: parsed.data.employmentEndDate }),
       ...(parsed.data.aadhaarDocumentUrl !== undefined && { aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl }),
       ...(parsed.data.photoUrl !== undefined && { photoUrl: parsed.data.photoUrl }),
@@ -595,6 +669,7 @@ export async function updateEmployee(
       ...(parsed.data.maritalStatus !== undefined && { maritalStatus: parsed.data.maritalStatus }),
       ...(parsed.data.residentialAddress !== undefined && { residentialAddress: parsed.data.residentialAddress }),
       ...(parsed.data.bloodGroup !== undefined && { bloodGroup: parsed.data.bloodGroup }),
+      ...(parsed.data.departmentId !== undefined && { departmentId: parsed.data.departmentId }),
       updatedAt: new Date(),
     };
     
@@ -637,32 +712,48 @@ export async function updateEmployee(
     }
 
     if (parsed.data.salary !== undefined) {
-      const now = new Date();
-      await tx.delete(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employeeId));
-      await tx.insert(employeeSalaryInfo).values({
-        organizationId: current.organizationId,
-        employeeId: employeeId,
-        salaryType: parsed.data.salary.salaryType,
-        amount: parsed.data.salary.amount,
-        effectiveFrom: now.toISOString().split('T')[0],
-        paymentMethod: parsed.data.salary.paymentMethod,
-        accountHolderName: parsed.data.salary.accountHolderName ?? null,
-        accountNumber: parsed.data.salary.accountNumber ?? null,
-        bankName: parsed.data.salary.bankName ?? null,
-        ifscCode: parsed.data.salary.ifscCode ?? null,
-        gpayNumber: parsed.data.salary.gpayNumber ?? null,
-        bankingName: parsed.data.salary.bankingName ?? null,
-      });
+      const existingSalaryData = await tx.select().from(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employeeId)).limit(1);
+      const existingSalary = existingSalaryData[0];
+      
+      const hasSalaryChanged = !existingSalary || 
+        existingSalary.salaryType !== parsed.data.salary.salaryType ||
+        existingSalary.amount !== parsed.data.salary.amount ||
+        existingSalary.paymentMethod !== parsed.data.salary.paymentMethod ||
+        existingSalary.accountHolderName !== (parsed.data.salary.accountHolderName ?? null) ||
+        existingSalary.accountNumber !== (parsed.data.salary.accountNumber ?? null) ||
+        existingSalary.bankName !== (parsed.data.salary.bankName ?? null) ||
+        existingSalary.ifscCode !== (parsed.data.salary.ifscCode ?? null) ||
+        existingSalary.gpayNumber !== (parsed.data.salary.gpayNumber ?? null) ||
+        existingSalary.bankingName !== (parsed.data.salary.bankingName ?? null);
 
-      if (current.status !== "DRAFT") {
-        await tx.insert(employeeHistorySalary).values({
+      if (hasSalaryChanged) {
+        const now = new Date();
+        await tx.delete(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employeeId));
+        await tx.insert(employeeSalaryInfo).values({
           organizationId: current.organizationId,
           employeeId: employeeId,
           salaryType: parsed.data.salary.salaryType,
           amount: parsed.data.salary.amount,
-          effectiveFrom: now,
-          recordedBy: recordedByEmployeeId
+          effectiveFrom: now.toISOString().split('T')[0],
+          paymentMethod: parsed.data.salary.paymentMethod,
+          accountHolderName: parsed.data.salary.accountHolderName ?? null,
+          accountNumber: parsed.data.salary.accountNumber ?? null,
+          bankName: parsed.data.salary.bankName ?? null,
+          ifscCode: parsed.data.salary.ifscCode ?? null,
+          gpayNumber: parsed.data.salary.gpayNumber ?? null,
+          bankingName: parsed.data.salary.bankingName ?? null,
         });
+
+        if (current.status !== "DRAFT") {
+          await tx.insert(employeeHistorySalary).values({
+            organizationId: current.organizationId,
+            employeeId: employeeId,
+            salaryType: parsed.data.salary.salaryType,
+            amount: parsed.data.salary.amount,
+            effectiveFrom: now,
+            recordedBy: recordedByEmployeeId
+          });
+        }
       }
     }
 

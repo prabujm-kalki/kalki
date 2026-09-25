@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { createContext, useContext, useEffect, useMemo, useState, Suspense, type ReactNode } from "react";
 import { apiGet } from "@/lib/api";
 import { authClient } from "@/lib/auth-client";
+import { APP_MODULES } from "@/lib/modules";
 import { StatusMessage } from "@/components/StatusMessage";
 import type { SessionContext, SessionScope } from "@/components/work/types";
 import { ToastProvider } from "./ui/Toast";
@@ -114,18 +115,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 <div style={{ padding: '0 1.25rem 0.5rem', fontSize: '0.75rem', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)' }}>
                   Modules
                 </div>
-                {[
-                  { label: "Command Center", path: "/reports", module: "command-center" },
-                  { label: "People", path: "/people", module: "employee" },
-                  { label: "Attendance", path: "/attendance", module: "attendance" },
-                  { label: "Payroll", path: "/payroll", module: "payroll" },
-                  { label: "Purchasing", path: "/purchasing", module: "purchasing" },
-                  { label: "Inventory", path: "/inventory", module: "inventory" },
-                  { label: "Sales", path: "/sales", module: "sales" },
-                  { label: "CRM", path: "/crm", module: "crm" },
-                  { label: "Finance", path: "/finance", module: "finance" },
-                  { label: "Settings", path: "/settings", module: "settings" },
-                ]
+                {APP_MODULES
                   .filter(m => {
                     if (session.isOwner) return true;
                     if (!selected) return false;

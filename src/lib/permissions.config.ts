@@ -9,7 +9,7 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "employee", submodule: "general", actions: ["read", "create", "update", "approve"] },
   
   // Command Center
-  { module: "command-center", submodule: "dashboard", actions: ["read"] },
+  { module: "command-center", submodule: "general", actions: ["read"] },
   
   // Attendance
   { module: "attendance", submodule: "records", actions: ["read", "create", "update", "delete", "approve"] },

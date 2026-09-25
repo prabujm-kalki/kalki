@@ -23,7 +23,8 @@ function LoginForm() {
     setError(null);
 
     // .trim() prevents mobile autocomplete from injecting trailing spaces
-    const email = `${phone.trim()}@kalki.internal`;
+    const loginInput = phone.trim();
+    const email = loginInput.includes('@') ? loginInput : `${loginInput}@kalki.internal`;
 
     try {
       const result = await authClient.signIn.email({ email, password });
@@ -34,7 +35,7 @@ function LoginForm() {
         return;
       }
 
-      router.replace(searchParams.get("next") || "/work");
+      router.replace(searchParams.get("next") || "/");
     } catch (err) {
       setPending(false);
       // If a network crash happens, this will display the red error box instead of reloading!

@@ -113,6 +113,34 @@
       "when": 1789809380780,
       "tag": "0015_solid_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790002852463,
+      "tag": "0016_sour_joshua_kane",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790005516134,
+      "tag": "0017_eminent_talon",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790007473234,
+      "tag": "0018_first_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790034975130,
+      "tag": "0019_famous_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

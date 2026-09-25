@@ -10,6 +10,7 @@ import { EmployeeSalaryForm } from "./EmployeeSalaryForm";
 
 type EmployeeView = {
   id: string;
+  userId: string | null;
   employeeCode: string;
   jobTitle: string | null;
   employmentStartDate: string;
@@ -26,6 +27,7 @@ type EmployeeView = {
   residentialAddress: string | null;
   bloodGroup: string | null;
   reportingEmployeeId: string | null;
+  departmentName?: string | null;
   familyContacts: any[];
   salaryInfo: any | null;
   history: any;
@@ -88,6 +90,28 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
   const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [isProvisioning, setIsProvisioning] = useState(false);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+  const [provisionSuccess, setProvisionSuccess] = useState<string | null>(null);
+
+  async function handleProvisionAccess() {
+    if (!employee?.data) return;
+    if (!confirm("Are you sure you want to provision system access for this employee?")) return;
+    
+    setIsProvisioning(true);
+    setProvisionError(null);
+    setProvisionSuccess(null);
+    try {
+      const { provisionEmployeeAccess } = await import("@/domains/employees/actions");
+      await provisionEmployeeAccess(employee.data.id);
+      setProvisionSuccess("Access provisioned successfully! The default password is 'Password@123!'");
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      setProvisionError(err instanceof Error ? err.message : "Failed to provision access");
+    } finally {
+      setIsProvisioning(false);
+    }
+  }
 
   async function activateEmployee() {
     if (!selected || !employee?.data) return;
@@ -331,7 +355,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             )}
             {emp.status === "ACTIVE" && (
               <>
-                {session.isOwner && (
+                {session.isOwner && emp.userId && (
                   <button className="kalki-button kalki-button--secondary" onClick={() => void handleResetPassword()}>
                     Reset Password
                   </button>
@@ -394,6 +418,33 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                 <InfoItem label="Marital Status" value={emp.maritalStatus} />
                 <InfoItem label="Phone" value={emp.person.phone} />
                 <InfoItem label="Email" value={emp.person.email} />
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "16px" }}>
+                  <span style={{ fontSize: "12px", color: "var(--kalki-text-secondary)", fontWeight: 500 }}>System Access</span>
+                  <div style={{ marginTop: "2px" }}>
+                    {emp.userId ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div><span className="kalki-badge kalki-badge--success">Access Provisioned</span></div>
+                        {provisionSuccess && <span style={{ fontSize: "12px", color: "var(--kalki-success)" }}>{provisionSuccess}</span>}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <div>
+                          <button 
+                            className="kalki-button kalki-button--secondary kalki-button--sm" 
+                            onClick={handleProvisionAccess} 
+                            disabled={isProvisioning}
+                            title="Generate System Login Credentials"
+                          >
+                            {isProvisioning ? "Provisioning..." : "Provision System Access"}
+                          </button>
+                        </div>
+                        {provisionError && <span style={{ fontSize: "12px", color: "var(--kalki-danger)" }}>{provisionError}</span>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div style={{ gridColumn: "1 / -1" }}>
                   <InfoItem label="Residential Address" value={emp.residentialAddress} />
                 </div>
@@ -418,6 +469,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                 />
                 <InfoItem label="Category" value={emp.category} />
                 <InfoItem label="Date of Joining" value={new Date(emp.employmentStartDate).toLocaleDateString('en-GB').replace(/\//g, '-')} />
+                <InfoItem label="Department" value={emp.departmentName} />
                 <InfoItem label="Job Title" value={emp.jobTitle} />
                 <InfoItem 
                   label="Reporting To" 

@@ -6,6 +6,9 @@ import { authAccounts, authSessions, authUsers, authVerifications } from "@/db/s
 import { env } from "@/lib/env";
 
 export const auth = betterAuth({
+  logger: {
+    level: "debug",
+  },
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
@@ -19,7 +22,7 @@ export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   trustedOrigins: [
     "http://localhost:3001", 
-    "https://dis-thorough-enable-replace.trycloudflare.com"
+    env.BETTER_AUTH_URL
   ],
   emailAndPassword: { enabled: true },
   advanced: {

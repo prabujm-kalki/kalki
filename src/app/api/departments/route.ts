@@ -1,68 +1,73 @@
 import { NextResponse } from "next/server";
-import { requireAuthenticatedUser } from "@/lib/authorization";
 import { db } from "@/db";
 import { departments } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { requireAuthenticatedUser } from "@/lib/authorization";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireAuthenticatedUser(request);
-    if (!user) return new NextResponse("Unauthorized", { status: 401 });
+    await requireAuthenticatedUser(request);
+    const url = new URL(request.url);
+    const organizationId = url.searchParams.get("organizationId");
 
-    const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    if (!organizationId) return new NextResponse("Missing organizationId", { status: 400 });
+    if (!organizationId) {
+      return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
+    }
 
-    const results = await db
-      .select()
+    const orgDepartments = await db
+      .select({
+        id: departments.id,
+        name: departments.name,
+        code: departments.code,
+        isActive: departments.isActive,
+      })
       .from(departments)
-      .where(eq(departments.organizationId, organizationId))
-      .orderBy(departments.name);
+      .where(eq(departments.organizationId, organizationId));
 
-    return NextResponse.json({ departments: results });
-  } catch (err) {
-    console.error("GET /api/departments error:", err);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json({ departments: orgDepartments });
+  } catch (error) {
+    console.error("Failed to fetch departments:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const user = await requireAuthenticatedUser(request);
-    if (!user) return new NextResponse("Unauthorized", { status: 401 });
-
+    await requireAuthenticatedUser(request);
     const body = await request.json();
     const { organizationId, name, code } = body;
+
     if (!organizationId || !name || !code) {
-      return new NextResponse("Missing required fields", { status: 400 });
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const [created] = await db
-      .insert(departments)
-      .values({ organizationId, name, code, isActive: true })
-      .returning();
+    const [newDept] = await db.insert(departments).values({
+      organizationId,
+      name,
+      code,
+      isActive: true,
+    }).returning();
 
-    return NextResponse.json(created, { status: 201 });
-  } catch (err) {
-    console.error("POST /api/departments error:", err);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json({ department: newDept });
+  } catch (error) {
+    console.error("Failed to create department:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 export async function PATCH(request: Request) {
   try {
-    const user = await requireAuthenticatedUser(request);
-    if (!user) return new NextResponse("Unauthorized", { status: 401 });
-
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id");
-    if (!id) return new NextResponse("Missing id", { status: 400 });
+    await requireAuthenticatedUser(request);
+    const url = new URL(request.url);
+    const id = url.searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
 
     const body = await request.json();
     const { name, code, isActive } = body;
 
-    const [updated] = await db
-      .update(departments)
+    const [updated] = await db.update(departments)
       .set({
         ...(name !== undefined && { name }),
         ...(code !== undefined && { code }),
@@ -72,11 +77,9 @@ export async function PATCH(request: Request) {
       .where(eq(departments.id, id))
       .returning();
 
-    if (!updated) return new NextResponse("Not Found", { status: 404 });
-
-    return NextResponse.json(updated);
-  } catch (err) {
-    console.error("PATCH /api/departments error:", err);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json({ department: updated });
+  } catch (error) {
+    console.error("Failed to update department:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

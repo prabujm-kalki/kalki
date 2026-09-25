@@ -14,6 +14,9 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  varchar,
+  time,
+  decimal,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -106,6 +109,7 @@ export const people = pgTable(
     email: text("email"),
     dateOfBirth: date("date_of_birth"),
     isActive: boolean("is_active").notNull().default(true),
+    photoUrl: text("photo_url"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1198,3 +1202,187 @@ export const notificationPreferences = pgTable("notification_preferences", {
 }, (table) => [
   unique("notification_preferences_user_channel_unique").on(table.userId, table.channel),
 ]);
+
+export const biometricImportBatches = pgTable("biometric_import_batches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  uploadedBy: text("uploaded_by").notNull().references(() => authUsers.id),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  totalRows: integer("total_rows").notNull(),
+  successfulRows: integer("successful_rows").notNull(),
+  failedRows: integer("failed_rows").notNull(),
+  errors: jsonb("errors"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const rawBiometricPunches = pgTable("raw_biometric_punches", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  biometricId: varchar("biometric_id", { length: 100 }).notNull(),
+  employeeId: uuid("employee_id").references(() => employees.id),
+  punchTimestamp: timestamp("punch_timestamp", { withTimezone: true }).notNull(),
+  punchType: varchar("punch_type", { length: 20 }).default("UNKNOWN").notNull(), 
+  machineId: varchar("machine_id", { length: 100 }).notNull(),
+  sourceType: varchar("source_type", { length: 50 }).default("EXCEL_IMPORT").notNull(),
+  importBatchId: uuid("import_batch_id").references(() => biometricImportBatches.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const attendanceSummaries = pgTable("attendance_summaries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id),
+  attendanceDate: date("attendance_date").notNull(),
+  shiftDefinitionId: uuid("shift_definition_id").references(() => shiftDefinitions.id),
+  firstPunchIn: timestamp("first_punch_in", { withTimezone: true }),
+  lastPunchOut: timestamp("last_punch_out", { withTimezone: true }),
+  grossHours: decimal("gross_hours", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  breakMinutes: integer("break_minutes").default(0).notNull(),
+  netHours: decimal("net_hours", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  overtimeHours: decimal("overtime_hours", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  status: varchar("status", { length: 30 }).notNull(),
+  isRegularized: boolean("is_regularized").default(false).notNull(),
+  regularizationReason: text("regularization_reason"),
+  regularizedBy: text("regularized_by").references(() => authUsers.id),
+  regularizedAt: timestamp("regularized_at", { withTimezone: true }),
+  spreadOverExceeded: boolean("spread_over_exceeded").default(false).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const leaveTypes = pgTable("leave_types", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").references(() => locations.id),
+  code: varchar("code", { length: 20 }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  description: text("description"),
+  isPaid: boolean("is_paid").default(true).notNull(),
+  allowHalfDay: boolean("allow_half_day").default(true).notNull(),
+  requiresEvidence: boolean("requires_evidence").default(false).notNull(),
+  minNoticeDays: integer("min_notice_days").default(0).notNull(),
+  maxConsecutiveDays: integer("max_consecutive_days"),
+  sandwichRuleEnabled: boolean("sandwich_rule_enabled").default(false).notNull(),
+  annualAllocation: decimal("annual_allocation", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  accrualFrequency: varchar("accrual_frequency", { length: 20 }).default("YEARLY"),
+  accrualRate: decimal("accrual_rate", { precision: 5, scale: 2 }),
+  maxCarryForwardDays: decimal("max_carry_forward_days", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  carryForwardExpiryMonths: integer("carry_forward_expiry_months"),
+  isEncashable: boolean("is_encashable").default(false).notNull(),
+  encashmentMinTenureDays: integer("encashment_min_tenure_days").default(365).notNull(),
+  encashmentMinBalanceRetained: decimal("encashment_min_balance_retained", { precision: 5, scale: 2 }).default("3.00").notNull(),
+  encashmentOnlyAtYearEnd: boolean("encashment_only_at_year_end").default(true).notNull(),
+  minTenureDays: integer("min_tenure_days").default(0).notNull(),
+  restrictedUsageDays: jsonb("restricted_usage_days").default([]).notNull(),
+  allowedApplicationWindow: jsonb("allowed_application_window").default([]).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const leaveEncashmentRequests = pgTable("leave_encashment_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id),
+  leaveTypeId: uuid("leave_type_id").notNull().references(() => leaveTypes.id),
+  encashmentDays: decimal("encashment_days", { precision: 4, scale: 2 }).notNull(),
+  status: varchar("status", { length: 30 }).default("PENDING").notNull(),
+  payrollProcessed: boolean("payroll_processed").default(false).notNull(),
+  reason: text("reason").notNull(),
+  approverId: uuid("approver_id").references(() => employees.id),
+  actionedBy: text("actioned_by").references(() => authUsers.id),
+  actionedAt: timestamp("actioned_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const leaveRolePolicies = pgTable("leave_role_policies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  leaveTypeId: uuid("leave_type_id").notNull().references(() => leaveTypes.id, { onDelete: "cascade" }),
+  businessRoleId: uuid("business_role_id").notNull().references(() => businessRoles.id, { onDelete: "cascade" }),
+  customAccrualRate: decimal("custom_accrual_rate", { precision: 5, scale: 2 }),
+  maxConcurrentLeaves: integer("max_concurrent_leaves"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const leaveDepartmentPolicies = pgTable("leave_department_policies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  leaveTypeId: uuid("leave_type_id").notNull().references(() => leaveTypes.id, { onDelete: "cascade" }),
+  departmentId: uuid("department_id").notNull().references(() => departments.id, { onDelete: "cascade" }),
+  maxConcurrentLeaves: integer("max_concurrent_leaves"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const leaveRequests = pgTable("leave_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id),
+  leaveTypeId: uuid("leave_type_id").notNull().references(() => leaveTypes.id),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  totalDays: decimal("total_days", { precision: 4, scale: 2 }).notNull(),
+  isHalfDay: boolean("is_half_day").default(false).notNull(),
+  halfDaySession: varchar("half_day_session", { length: 20 }),
+  reason: text("reason").notNull(),
+  evidenceUrl: text("evidence_url"),
+  status: varchar("status", { length: 30 }).default("PENDING").notNull(),
+  approverId: uuid("approver_id").references(() => employees.id),
+  actionedBy: text("actioned_by").references(() => authUsers.id),
+  actionedAt: timestamp("actioned_at", { withTimezone: true }),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const employeeLeaveBalances = pgTable("employee_leave_balances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").references(() => locations.id),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  leaveTypeId: uuid("leave_type_id").notNull().references(() => leaveTypes.id, { onDelete: "cascade" }),
+  accrued: decimal("accrued", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  taken: decimal("taken", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  carriedForward: decimal("carried_forward", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  closingBalance: decimal("closing_balance", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("employee_leave_balances_unique").on(table.employeeId, table.leaveTypeId),
+  index("employee_leave_balances_emp_idx").on(table.employeeId),
+]);
+
+export const leaveAccrualExecutionLogs = pgTable("leave_accrual_execution_logs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  executionDate: date("execution_date").notNull(),
+  frequencyType: varchar("frequency_type", { length: 20 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull(),
+  executedAt: timestamp("executed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("leave_accrual_execution_logs_date_freq_unique").on(table.executionDate, table.frequencyType),
+]);
+
+export const shiftDefinitions = pgTable("shift_definitions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  code: varchar("code", { length: 20 }).notNull(),
+  name: varchar("name", { length: 100 }).notNull(),
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time").notNull(),
+  isFlexible: boolean("is_flexible").default(false).notNull(),
+  minHoursHalfDay: decimal("min_hours_half_day", { precision: 4, scale: 2 }).default("4.00").notNull(),
+  minHoursFullDay: decimal("min_hours_full_day", { precision: 4, scale: 2 }).default("8.00").notNull(),
+  restBreakMinutes: integer("rest_break_minutes").default(60).notNull(),
+  isCrossMidnight: boolean("is_cross_midnight").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});

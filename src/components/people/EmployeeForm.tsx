@@ -56,6 +56,8 @@ const formSchema = z.object({
   salaryAmount: z.number().optional(),
   salaryEffectiveFrom: z.string().optional(),
   paymentMethod: z.string().optional(),
+  
+  departmentId: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (data.maritalStatus === "Married") {
     if (!data.spouseName || data.spouseName.trim() === "") {
@@ -99,6 +101,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     bloodGroup: initialData?.bloodGroup || "",
     reportingEmployeeId: initialData?.reportingEmployeeId || "",
     secondaryMobile: initialData?.secondaryMobile || "",
+    departmentId: initialData?.departmentId || "",
     
     // Salary Data
     salaryType: initialData?.salaryInfo?.salaryType || "Monthly",
@@ -132,6 +135,14 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     fetch(`/api/locations?organizationId=${organizationId}`)
       .then(res => res.json())
       .then(data => setLocationsData(data))
+      .catch(console.error);
+  }, [organizationId]);
+
+  const [departmentsData, setDepartmentsData] = useState<{ departments: any[] } | null>(null);
+  useEffect(() => {
+    fetch(`/api/departments?organizationId=${organizationId}`)
+      .then(res => res.json())
+      .then(data => setDepartmentsData(data))
       .catch(console.error);
   }, [organizationId]);
   
@@ -362,6 +373,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
       };
 
       const commonFields = {
+        employmentStartDate: formData.employmentStartDate,
         jobTitle: formData.jobTitle || undefined,
         category: formData.category || undefined,
         gender: formData.gender || undefined,
@@ -370,6 +382,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         bloodGroup: formData.bloodGroup || undefined,
         reportingEmployeeId: formData.reportingEmployeeId || undefined,
         secondaryMobile: formData.secondaryMobile || undefined,
+        departmentId: formData.departmentId || undefined,
         biometricId: formData.biometricId,
         posId: formData.posId || undefined,
         person: personPayload,
@@ -401,7 +414,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         }
       } else {
         await apiSend("/api/employees", "POST", {
-          organizationId, locationId, employmentStartDate: formData.employmentStartDate, familyContacts: payloadContacts, ...commonFields,
+          organizationId, locationId, familyContacts: payloadContacts, ...commonFields, salary: salaryAmountNum ? salaryPayload : undefined,
           ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds, locationIds: selectedLocationIds } } : {})
         });
       }
@@ -447,17 +460,24 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
               <KalkiInput label="Email Address" type="email" error={fieldErrors.email} value={formData.email} onChange={e => handleChange("email", e.target.value)} disabled={pending} />
               <KalkiInput label="Secondary Mobile" type="tel" value={formData.secondaryMobile} onChange={e => handleChange("secondaryMobile", e.target.value)} disabled={pending} />
               
-              <KalkiInput label="Date of Birth" type="date" value={formData.dateOfBirth} onChange={e => handleChange("dateOfBirth", e.target.value)} disabled={pending} />
-              <KalkiSelect label="Gender" required value={formData.gender} onChange={e => handleChange("gender", e.target.value)} disabled={pending}>
+              <KalkiInput label="Date of Birth" type="date" error={fieldErrors.dateOfBirth} value={formData.dateOfBirth} onChange={e => handleChange("dateOfBirth", e.target.value)} disabled={pending} />
+              <KalkiSelect label="Gender" error={fieldErrors.gender} value={formData.gender} onChange={e => handleChange("gender", e.target.value)} disabled={pending}>
                 <option value="">Select...</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
               </KalkiSelect>
               
-              <KalkiSelect label="Blood Group" value={formData.bloodGroup} onChange={e => handleChange("bloodGroup", e.target.value)} disabled={pending}>
+              <KalkiSelect label="Blood Group" error={fieldErrors.bloodGroup} value={formData.bloodGroup} onChange={e => handleChange("bloodGroup", e.target.value)} disabled={pending}>
                 <option value="">Select...</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="O+">O+</option><option value="O-">O-</option><option value="AB+">AB+</option><option value="AB-">AB-</option>
               </KalkiSelect>
-              <KalkiSelect label="Marital Status" required value={formData.maritalStatus} onChange={e => handleChange("maritalStatus", e.target.value)} disabled={pending}>
+              <KalkiSelect label="Marital Status" error={fieldErrors.maritalStatus} value={formData.maritalStatus} onChange={e => handleChange("maritalStatus", e.target.value)} disabled={pending}>
                 <option value="">Select...</option><option value="Single">Single</option><option value="Married">Married</option><option value="Divorced">Divorced</option><option value="Widowed">Widowed</option>
               </KalkiSelect>
+              
+              {!initialData?.id && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', gridColumn: "1 / -1", marginTop: '0.5rem' }}>
+                  <input type="checkbox" id="provisionAccess" checked={provisionAccess} onChange={e => {setProvisionAccess(e.target.checked); setIsDirty(true);}} disabled={pending} />
+                  <label htmlFor="provisionAccess" style={{fontWeight: 600, fontSize: '0.9rem', margin: 0, color: 'var(--kalki-primary)'}}>Generate System Login Credentials</label>
+                </div>
+              )}
             </div>
             <div style={{marginTop: '1rem'}}>
               <KalkiTextarea label="Residential Address" value={formData.residentialAddress} onChange={e => handleChange("residentialAddress", e.target.value)} disabled={pending} rows={2} />
@@ -530,10 +550,17 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
           <KalkiSection title="Employment Information" icon="💼">
             <div className="kalki-grid-2-col">
-              <KalkiSelect label="Category" required value={formData.category} onChange={e => handleChange("category", e.target.value)} disabled={pending}>
+              <KalkiSelect label="Category" error={fieldErrors.category} value={formData.category} onChange={e => handleChange("category", e.target.value)} disabled={pending}>
                 <option value="">Select...</option><option value="Permanent">Permanent</option><option value="Temporary">Temporary</option><option value="Part-time">Part-time</option>
               </KalkiSelect>
               <KalkiInput label="Date of Joining" required type="date" error={fieldErrors.employmentStartDate} value={formData.employmentStartDate} onChange={e => handleChange("employmentStartDate", e.target.value)} disabled={pending} />
+              
+              <KalkiSelect label="Department" error={fieldErrors.departmentId} value={formData.departmentId} onChange={e => handleChange("departmentId", e.target.value)} disabled={pending}>
+                <option value="">Select Department...</option>
+                {departmentsData?.departments?.map((d: any) => (
+                  <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </KalkiSelect>
               
               <KalkiInput label="Job Title" value={formData.jobTitle} onChange={e => handleChange("jobTitle", e.target.value)} disabled={pending} />
               <KalkiSelect label="Reporting To" value={formData.reportingEmployeeId} onChange={e => handleChange("reportingEmployeeId", e.target.value)} disabled={pending}>
@@ -547,14 +574,14 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
           <KalkiSection title="Salary & Payment" icon="₹">
             <div className="kalki-grid-2-col">
-              <KalkiSelect label="Salary Type" required value={formData.salaryType} onChange={e => handleChange("salaryType", e.target.value)} disabled={pending}>
+              <KalkiSelect label="Salary Type" error={fieldErrors.salaryType} value={formData.salaryType} onChange={e => handleChange("salaryType", e.target.value)} disabled={pending}>
                 <option value="Monthly">Monthly</option>
                 <option value="Weekly">Weekly</option>
                 <option value="Daily">Daily</option>
               </KalkiSelect>
-              <KalkiInput label="Salary Amount (₹)" required type="number" step="0.01" value={formData.salaryAmount} onChange={e => handleChange("salaryAmount", e.target.value)} disabled={pending} />
-              <KalkiInput label="Effective From" required type="date" value={formData.salaryEffectiveFrom} onChange={e => handleChange("salaryEffectiveFrom", e.target.value)} disabled={pending} />
-              <KalkiSelect label="Payment Method" required value={formData.paymentMethod} onChange={e => handleChange("paymentMethod", e.target.value)} disabled={pending}>
+              <KalkiInput label="Salary Amount (₹)" type="number" error={fieldErrors.salaryAmount} step="0.01" value={formData.salaryAmount} onChange={e => handleChange("salaryAmount", e.target.value)} disabled={pending} />
+              <KalkiInput label="Effective From" type="date" error={fieldErrors.salaryEffectiveFrom} value={formData.salaryEffectiveFrom} onChange={e => handleChange("salaryEffectiveFrom", e.target.value)} disabled={pending} />
+              <KalkiSelect label="Payment Method" error={fieldErrors.paymentMethod} value={formData.paymentMethod} onChange={e => handleChange("paymentMethod", e.target.value)} disabled={pending}>
                 <option value="BANK_TRANSFER">Bank Transfer</option>
                 <option value="GPAY">GPay / UPI</option>
                 <option value="CASH">Cash</option>
@@ -562,16 +589,16 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
             </div>
             {formData.paymentMethod === "BANK_TRANSFER" && (
               <div className="kalki-grid-2-col" style={{ marginTop: '1rem' }}>
-                <KalkiInput label="Account Holder Name *" required value={formData.accountHolderName} onChange={e => handleChange("accountHolderName", e.target.value)} disabled={pending} />
-                <KalkiInput label="Account Number *" required value={formData.accountNumber} onChange={e => handleChange("accountNumber", e.target.value)} disabled={pending} />
-                <KalkiInput label="Bank Name *" required value={formData.bankName} onChange={e => handleChange("bankName", e.target.value)} disabled={pending} />
-                <KalkiInput label="IFSC Code *" required value={formData.ifscCode} onChange={e => handleChange("ifscCode", e.target.value)} disabled={pending} />
+                <KalkiInput label="Account Holder Name *" required error={fieldErrors.accountHolderName} value={formData.accountHolderName} onChange={e => handleChange("accountHolderName", e.target.value)} disabled={pending} />
+                <KalkiInput label="Account Number *" required error={fieldErrors.accountNumber} value={formData.accountNumber} onChange={e => handleChange("accountNumber", e.target.value)} disabled={pending} />
+                <KalkiInput label="Bank Name *" required error={fieldErrors.bankName} value={formData.bankName} onChange={e => handleChange("bankName", e.target.value)} disabled={pending} />
+                <KalkiInput label="IFSC Code *" required error={fieldErrors.ifscCode} value={formData.ifscCode} onChange={e => handleChange("ifscCode", e.target.value)} disabled={pending} />
               </div>
             )}
             {formData.paymentMethod === "GPAY" && (
               <div className="kalki-grid-2-col" style={{ marginTop: '1rem' }}>
-                <KalkiInput label="GPay Number *" required type="tel" value={formData.gpayNumber} onChange={e => handleChange("gpayNumber", e.target.value)} disabled={pending} />
-                <KalkiInput label="Banking Name *" required value={formData.bankingName} onChange={e => handleChange("bankingName", e.target.value)} disabled={pending} />
+                <KalkiInput label="GPay Number *" required type="tel" error={fieldErrors.gpayNumber} value={formData.gpayNumber} onChange={e => handleChange("gpayNumber", e.target.value)} disabled={pending} />
+                <KalkiInput label="Banking Name *" required error={fieldErrors.bankingName} value={formData.bankingName} onChange={e => handleChange("bankingName", e.target.value)} disabled={pending} />
               </div>
             )}
           </KalkiSection>
@@ -606,10 +633,6 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
           <KalkiSection title="System Access & Locations" icon="🛡️">
             {!initialData?.id && (
               <>
-                <div style={{display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem'}}>
-                  <input type="checkbox" id="provisionAccess" checked={provisionAccess} onChange={e => {setProvisionAccess(e.target.checked); setIsDirty(true);}} disabled={pending} />
-                  <label htmlFor="provisionAccess" style={{fontWeight: 600, fontSize: '0.9rem', margin: 0}}>Provision System Access</label>
-                </div>
 
                 {provisionAccess && (
                   <div style={{display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem'}}>

@@ -6,6 +6,7 @@ import { ChevronLeft, Shield, Calendar, BarChart2, Users, UserCircle, DollarSign
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { apiGet } from "@/lib/api";
+import { APP_MODULES } from "@/lib/modules";
 
 type Permission = {
   id: string;
@@ -72,6 +73,10 @@ function RolePermissionMatrixContent() {
           }
         }
         
+        // Normalize legacy names so they merge with current
+        module = module.toLowerCase();
+        if (module === "command_center") module = "command-center";
+        
         if (!grouped[module]) grouped[module] = {};
         if (!grouped[module][submodule]) grouped[module][submodule] = [];
         
@@ -133,7 +138,7 @@ function RolePermissionMatrixContent() {
     Array.from(rolePermissions).some(id => !initialRolePermissions.has(id));
 
   // Dynamically find all unique actions to create table columns
-  const standardActions = ["create", "read", "update", "delete", "approve"];
+  const standardActions = ["create", "read", "update", "delete", "write", "approve", "execute"];
   
   const getActionInfo = (action: string) => {
     switch(action) {
@@ -141,7 +146,9 @@ function RolePermissionMatrixContent() {
       case "read": return { icon: <FileText size={16} className="text-blue-500" />, label: "Read", color: "text-blue-600" };
       case "update": return { icon: <Edit size={16} className="text-amber-500" />, label: "Update", color: "text-amber-600" };
       case "delete": return { icon: <Trash2 size={16} className="text-red-500" />, label: "Delete", color: "text-red-600" };
+      case "write": return { icon: <Edit size={16} className="text-orange-500" />, label: "Write", color: "text-orange-600" };
       case "approve": return { icon: <CheckSquare size={16} className="text-purple-500" />, label: "Approve", color: "text-purple-600" };
+      case "execute": return { icon: <Settings size={16} className="text-indigo-500" />, label: "Execute", color: "text-indigo-600" };
       default: return { icon: null, label: action, color: "text-gray-600" };
     }
   };
@@ -252,7 +259,14 @@ function RolePermissionMatrixContent() {
                               >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontWeight: 500, color: 'var(--kalki-text-primary)', textTransform: 'capitalize' }}>
                                   {getModuleIcon(module)}
-                                  {module}
+                                  {
+                                    (function() {
+                                      let modId = module.toLowerCase();
+                                      if (modId === "command_center") modId = "command-center";
+                                      const appModule = APP_MODULES.find(m => m.module === modId);
+                                      return appModule ? appModule.label : module;
+                                    })()
+                                  }
                                 </div>
                               </td>
                             )}

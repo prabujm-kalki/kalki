@@ -66,7 +66,7 @@ export function DepartmentsDashboard() {
       <div className="panel-header">
         <div>
           <h2>Departments</h2>
-          <p className="muted">Manage functional areas within {selected.organizationId}</p>
+          <p className="muted">Manage functional areas within {selected.organizationName}</p>
         </div>
         {!isAdding && !editingId && (
           <button className="action-button" onClick={() => setIsAdding(true)}>Add Department</button>

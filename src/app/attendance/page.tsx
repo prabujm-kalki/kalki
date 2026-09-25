@@ -1,24 +1,31 @@
-import React, { Suspense } from "react";
-import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
-import { AppShell } from "@/components/AppShell";
-import { StatusMessage } from "@/components/StatusMessage";
+import { redirect } from "next/navigation";
+import { getSessionContext } from "@/domains/session/service";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
-export default function AttendancePage() {
-  return (
-    <Suspense fallback={<main className="app-main"><StatusMessage tone="loading">Loading...</StatusMessage></main>}>
-      <AppShell>
-        <div className="kalki-page">
-          <KalkiPageHeader 
-            title="Attendance" 
-          />
-          <div className="kalki-dashboard-grid" style={{ padding: '0 2rem' }}>
-            <div className="kalki-card">
-              <h3>Implementation Phase</h3>
-              <p>This module is currently under development.</p>
-            </div>
-          </div>
-        </div>
-      </AppShell>
-    </Suspense>
-  );
+export default async function AttendancePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>;
+}) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) return redirect("/login");
+
+  const context = await getSessionContext(session.user);
+  const scope = context.scopes[0];
+  const permissions = scope?.permissions || [];
+  
+  // Checking isOwner from user metadata or role if available, but checking the specific permission is safer.
+  const isOwner = (session.user as any).isOwner || (session.user as any).role === "owner" || (session.user as any).role === "admin";
+  const canViewRecords = isOwner || permissions.includes("attendance.records:read");
+
+  const params = await searchParams;
+  const qs = new URLSearchParams(params).toString();
+  const queryString = qs ? `?${qs}` : "";
+
+  if (canViewRecords) {
+    redirect(`/attendance/overview${queryString}`);
+  } else {
+    redirect(`/attendance/my-time${queryString}`);
+  }
 }
