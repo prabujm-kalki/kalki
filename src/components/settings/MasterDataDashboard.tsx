@@ -1,14 +1,15 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { DepartmentsDashboard } from "./DepartmentsDashboard";
 import { ShiftDefinitionsDashboard } from "./ShiftDefinitionsDashboard";
-import { Database, MapPin, Users, Clock } from "lucide-react";
+import { SalaryComponentsDashboard } from "./SalaryComponentsDashboard";
+import { Database, MapPin, Users, Clock, Banknote } from "lucide-react";
 
 export function MasterDataDashboard() {
   const { selected } = useSessionView();
-  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "roles" | "shifts">("departments");
+  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "roles" | "shifts" | "salary">("departments");
 
   if (!selected) {
     return <div style={{ padding: "2rem", textAlign: "center" }}>Please select an organization.</div>;
@@ -76,11 +77,27 @@ export function MasterDataDashboard() {
           >
             <Clock size={16} /> Shifts
           </button>
+          <button 
+            onClick={() => setActiveTab("salary")}
+            style={{ 
+              padding: "1rem 0", 
+              background: "none", 
+              border: "none",
+              borderBottom: activeTab === "salary" ? "2px solid var(--kalki-primary)" : "2px solid transparent",
+              color: activeTab === "salary" ? "var(--kalki-primary)" : "var(--kalki-text-secondary)",
+              fontWeight: activeTab === "salary" ? 600 : 500,
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "0.5rem"
+            }}
+          >
+            <Banknote size={16} /> Salary Components
+          </button>
         </div>
 
         <div>
           {activeTab === "departments" && <DepartmentsDashboard />}
           {activeTab === "shifts" && <ShiftDefinitionsDashboard />}
+          {activeTab === "salary" && <SalaryComponentsDashboard />}
           {activeTab === "locations" && <div style={{ padding: "3rem", textAlign: "center", color: "var(--kalki-text-secondary)" }}>Locations management module under development.</div>}
         </div>
       </div>
