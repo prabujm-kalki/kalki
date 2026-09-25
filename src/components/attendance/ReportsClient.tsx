@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect } from "react";
 import { generateAttendanceReport } from "@/domains/attendance/reportActions";
@@ -270,6 +270,7 @@ export default function ReportsClient({
                           <th>Break IN</th>
                           <th>Break OUT</th>
                           <th>Punch OUT</th>
+                          <th>Status / Anomalies</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -284,6 +285,39 @@ export default function ReportsClient({
                           
                           if (dayPunches.length === 0 && !employeeId) return null;
 
+                          // Anomaly calculation
+                          let anomalies = [];
+                          let status = dayPunches.length > 0 ? "PRESENT" : "ABSENT";
+                          
+                          if (pi && pi.shiftStartTime) {
+                            // Check for late punch
+                            const punchTime = new Date(pi.punchTimestamp);
+                            const shiftStartParts = pi.shiftStartTime.split(":");
+                            const expectedStart = new Date(punchTime);
+                            expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+                            
+                            const graceMs = (pi.shiftGracePeriod || 15) * 60 * 1000;
+                            if (punchTime.getTime() > expectedStart.getTime() + graceMs) {
+                              anomalies.push("LATE IN");
+                              status = "LATE";
+                            }
+
+                            // Check for half day / early out if they punched out
+                            if (po) {
+                              const punchOutTime = new Date(po.punchTimestamp);
+                              const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
+                              
+                              if (pi.shiftMinHoursHalfDay && hoursWorked < parseFloat(pi.shiftMinHoursHalfDay)) {
+                                anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                                status = "HALF DAY";
+                              }
+                            } else {
+                              anomalies.push("MISSING OUT PUNCH");
+                            }
+                          } else if (dayPunches.length > 0) {
+                            anomalies.push("NO SHIFT ASSIGNED");
+                          }
+
                           return (
                             <tr key={d}>
                               <td style={{ fontWeight: 500 }}>{d}</td>
@@ -291,6 +325,22 @@ export default function ReportsClient({
                               <td>{formatTime(bi)}</td>
                               <td>{formatTime(bo)}</td>
                               <td>{formatTime(po)}</td>
+                              <td>
+                                {status === "ABSENT" ? (
+                                  <span style={{ color: "var(--att-destructive)", fontWeight: 600 }}>ABSENT</span>
+                                ) : (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                                    <span style={{ color: status === "PRESENT" ? "var(--att-success)" : "#d97706", fontWeight: 600 }}>
+                                      {status}
+                                    </span>
+                                    {anomalies.map((a, i) => (
+                                      <span key={i} style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", background: "#fee2e2", color: "#b91c1c", borderRadius: "4px", width: "fit-content" }}>
+                                        {a}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
                             </tr>
                           );
                         })}

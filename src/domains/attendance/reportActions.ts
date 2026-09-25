@@ -7,7 +7,8 @@ import {
   people, 
   departments, 
   businessRoles,
-  employeeRoleAssignments
+  employeeRoleAssignments,
+  shiftDefinitions
 } from "@/db/schema";
 import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -70,6 +71,10 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     roleTitle: businessRoles.name,
     departmentId: employees.departmentId,
     roleId: employeeRoleAssignments.roleId,
+    shiftStartTime: shiftDefinitions.startTime,
+    shiftEndTime: shiftDefinitions.endTime,
+    shiftGracePeriod: shiftDefinitions.gracePeriodMinutes,
+    shiftMinHoursHalfDay: shiftDefinitions.minHoursHalfDay,
   })
   .from(rawBiometricPunches)
   .innerJoin(employees, eq(rawBiometricPunches.employeeId, employees.id))
@@ -77,6 +82,7 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
   .leftJoin(departments, eq(employees.departmentId, departments.id))
   .leftJoin(employeeRoleAssignments, eq(employees.id, employeeRoleAssignments.employeeId))
   .leftJoin(businessRoles, eq(employeeRoleAssignments.roleId, businessRoles.id))
+  .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id))
   .where(and(...conditions))
   .orderBy(desc(rawBiometricPunches.punchTimestamp));
 
@@ -103,5 +109,9 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     punchTimestamp: r.punchTimestamp,
     sourceType: r.sourceType,
     snapshotUrl: r.snapshotUrl,
+    shiftStartTime: r.shiftStartTime,
+    shiftEndTime: r.shiftEndTime,
+    shiftGracePeriod: r.shiftGracePeriod,
+    shiftMinHoursHalfDay: r.shiftMinHoursHalfDay,
   }));
 }
