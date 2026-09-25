@@ -6,6 +6,7 @@ import { AppShell } from "@/components/AppShell";
 import { DollarSign, FileText, History, HandCoins } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
 import { SalaryAdvancesTab } from "@/components/payroll/SalaryAdvancesTab";
+import { RunPayrollWizard } from "@/components/payroll/RunPayrollWizard";
 
 function PayrollDashboard() {
   const { selected } = useSessionView();
@@ -45,25 +46,9 @@ function PayrollDashboard() {
         </div>
 
         <div className="kalki-tab-content">
-            {activeTab === 'run' && (
-              <div className="kalki-card">
-                <div className="kalki-section-header">
-                  <h3 className="kalki-section-title">
-                    <DollarSign size={20} className="kalki-icon-accent" /> Run Monthly Payroll
-                  </h3>
-                </div>
-                <p className="kalki-text-muted" style={{ marginBottom: '1.5rem' }}>
-                  Select a month and location to process attendance data into generated payslips.
-                </p>
-                
-                <div style={{ padding: '2rem', textAlign: 'center', backgroundColor: 'var(--kalki-bg-secondary)', borderRadius: 'var(--kalki-radius-md)', border: '1px dashed var(--kalki-border)' }}>
-                  <p>Payroll Run Wizard will be implemented here.</p>
-                  <button className="kalki-btn kalki-btn-primary" style={{ marginTop: '1rem' }} disabled>
-                    Start Payroll Run
-                  </button>
-                </div>
-              </div>
-            )}
+              {activeTab === 'run' && selected && (
+                <RunPayrollWizard organizationId={selected.organizationId} locationId={selected.locationId} />
+              )}
 
             {activeTab === 'advances' && selected && (
               <SalaryAdvancesTab organizationId={selected.organizationId} locationId={selected.locationId} />
