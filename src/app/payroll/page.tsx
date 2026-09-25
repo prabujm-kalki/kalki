@@ -7,6 +7,7 @@ import { DollarSign, FileText, History, HandCoins } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
 import { SalaryAdvancesTab } from "@/components/payroll/SalaryAdvancesTab";
 import { RunPayrollWizard } from "@/components/payroll/RunPayrollWizard";
+import { PayslipHistoryTab } from "@/components/payroll/PayslipHistoryTab";
 
 function PayrollDashboard() {
   const { selected } = useSessionView();
@@ -54,39 +55,8 @@ function PayrollDashboard() {
               <SalaryAdvancesTab organizationId={selected.organizationId} locationId={selected.locationId} />
             )}
 
-            {activeTab === 'history' && (
-              <div className="kalki-card">
-                <div className="kalki-section-header">
-                  <h3 className="kalki-section-title">
-                    <History size={20} className="kalki-icon-accent" /> Payslip History & Reports
-                  </h3>
-                </div>
-                <p className="kalki-text-muted" style={{ marginBottom: '1.5rem' }}>
-                  View past payroll runs, download payslips, and generate statutory compliance reports (EPF, ESI, PT).
-                </p>
-
-                <div className="kalki-table-container">
-                  <table className="kalki-table">
-                    <thead>
-                      <tr>
-                        <th>Period</th>
-                        <th>Run Date</th>
-                        <th>Gross Total</th>
-                        <th>Net Total</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--kalki-text-muted)' }}>
-                          No previous payroll runs found.
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+            {activeTab === 'history' && selected && (
+              <PayslipHistoryTab organizationId={selected.organizationId} locationId={selected.locationId} />
             )}
           </div>
       </div>
