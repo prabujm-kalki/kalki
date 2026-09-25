@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { employees, people, salaryAdvances, employeeSalaryStructures, employeeSalaryStructureComponents, salaryComponents } from "@/db/schema";
+import { employees, people, salaryAdvances, employeeSalaryStructures, employeeSalaryStructureComponents, salaryComponents, attendanceSummaries, rawBiometricPunches } from "@/db/schema";
 import { and, eq, gte, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
@@ -89,10 +89,51 @@ export async function POST(request: Request) {
         }
       }
 
-      // Just a mock estimation based on check-ins
-      const totalPresent = 22; // default to 22 if no logs for testing
-      const totalDaysInPeriod = 30; // mock
-      const totalAbsent = totalDaysInPeriod - totalPresent;
+      // 4. Calculate actual present / absent from attendance logs
+      const startD = new Date(periodStart);
+      const endD = new Date(periodEnd);
+      endD.setHours(23, 59, 59, 999);
+      const totalDaysInPeriod = Math.max(1, Math.round((endD.getTime() - startD.getTime()) / (1000 * 60 * 60 * 24)));
+
+      const summaries = await db.select({ status: attendanceSummaries.status })
+        .from(attendanceSummaries)
+        .where(
+          and(
+            eq(attendanceSummaries.employeeId, emp.id),
+            gte(attendanceSummaries.attendanceDate, periodStart),
+            lte(attendanceSummaries.attendanceDate, periodEnd)
+          )
+        );
+
+      let totalPresent = 0;
+      for (const sum of summaries) {
+        if (sum.status === "PRESENT" || sum.status === "LATE") {
+          totalPresent++;
+        }
+      }
+
+      // Fallback: If attendance summaries haven't been generated yet, look at raw punches
+      if (totalPresent === 0) {
+        const rawPunches = await db.select({ timestamp: rawBiometricPunches.punchTimestamp })
+          .from(rawBiometricPunches)
+          .where(
+            and(
+              eq(rawBiometricPunches.employeeId, emp.id),
+              gte(rawBiometricPunches.punchTimestamp, startD),
+              lte(rawBiometricPunches.punchTimestamp, endD)
+            )
+          );
+        
+        // Count unique dates
+        const uniqueDates = new Set(rawPunches.map(p => {
+          const d = new Date(p.timestamp);
+          return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+        }));
+        
+        totalPresent = uniqueDates.size;
+      }
+
+      const totalAbsent = Math.max(0, totalDaysInPeriod - totalPresent);
 
       // Adjust gross pay based on attendance? For now we just use the fixed structure amount
       // In a real system, you would pro-rate it based on totalPresent / totalDaysInPeriod.
