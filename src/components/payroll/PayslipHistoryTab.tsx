@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { apiGet } from "@/lib/api";
 import { History, Download, FileText, CheckCircle2 } from "lucide-react";
+import jsPDF from "jspdf";
+import JSZip from "jszip";
 
 interface PayrollRun {
   id: string;
@@ -16,6 +18,7 @@ interface PayrollRun {
 export function PayslipHistoryTab({ organizationId, locationId }: { organizationId: string, locationId: string }) {
   const [runs, setRuns] = useState<PayrollRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchRuns() {
@@ -30,6 +33,54 @@ export function PayslipHistoryTab({ organizationId, locationId }: { organization
     }
     fetchRuns();
   }, [organizationId, locationId]);
+
+  const handleDownloadZip = async (runId: string) => {
+    setDownloadingId(runId);
+    try {
+      const { run, payslips } = await apiGet<any>(`/api/payroll/runs/${runId}/payslips`);
+      
+      const zip = new JSZip();
+
+      for (const row of payslips) {
+        const doc = new jsPDF();
+        
+        doc.setFontSize(22);
+        doc.text("Kalki BOS - Payslip", 105, 20, { align: "center" });
+        
+        doc.setFontSize(12);
+        doc.text(`Period: ${new Date(run.periodStart).toLocaleDateString()} to ${new Date(run.periodEnd).toLocaleDateString()}`, 105, 30, { align: "center" });
+
+        doc.setFontSize(14);
+        doc.text(`Employee: ${row.employee.name} (${row.employee.employeeCode})`, 20, 50);
+
+        doc.setFontSize(12);
+        doc.text(`Total Present: ${row.payslip.totalPresentDays} days`, 20, 60);
+        doc.text(`Total Absent: ${row.payslip.totalAbsentDays} days`, 20, 70);
+        
+        doc.text(`Gross Pay: Rs. ${row.payslip.grossAmount}`, 20, 90);
+        doc.text(`Deductions: Rs. ${row.payslip.deductionsAmount}`, 20, 100);
+        doc.text(`Net Pay: Rs. ${row.payslip.netAmount}`, 20, 120);
+        
+        const pdfOutput = doc.output('arraybuffer');
+        zip.file(`Payslip_${row.employee.employeeCode}.pdf`, pdfOutput);
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Payslips_Run_${runId.substring(0, 8)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to download payslips");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -100,8 +151,14 @@ export function PayslipHistoryTab({ organizationId, locationId }: { organization
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button className="kalki-btn kalki-btn-outline" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }} title="Download Payslips ZIP">
-                          <Download size={14} /> Payslips
+                        <button 
+                          className="kalki-btn kalki-btn-outline" 
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }} 
+                          title="Download Payslips ZIP"
+                          onClick={() => handleDownloadZip(run.id)}
+                          disabled={downloadingId === run.id}
+                        >
+                          <Download size={14} /> {downloadingId === run.id ? "Zipping..." : "Payslips"}
                         </button>
                         <button className="kalki-btn kalki-btn-secondary" style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }} title="Statutory Reports">
                           <FileText size={14} /> Reports
