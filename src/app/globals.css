@@ -717,3 +717,48 @@ input {
     grid-template-columns: 1fr;
   }
 }
+
+/* Kalki Global Module Navigation */
+.kalki-module-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 64px);
+  background-color: #f8fafc;
+  color: #1e293b;
+  font-family: inherit;
+}
+
+.kalki-module-topbar {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0 2rem;
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+}
+
+.kalki-module-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+  color: #64748b;
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.kalki-module-link:hover,
+.kalki-module-link.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+.kalki-module-content {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+

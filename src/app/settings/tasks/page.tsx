@@ -72,7 +72,7 @@ export default function TaskConfigurationPage() {
   };
 
   return (
-    <AppShell>
+    
       <div className="flex h-full flex-col">
         <header className="flex items-center justify-between border-b px-6 py-4">
           <div>
@@ -217,6 +217,6 @@ export default function TaskConfigurationPage() {
           )}
         </main>
       </div>
-    </AppShell>
+    
   );
 }

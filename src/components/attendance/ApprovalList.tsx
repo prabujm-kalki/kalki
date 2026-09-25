@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { actionLeaveRequest } from "@/domains/attendance/actions";
 
 type LeaveRequest = {
@@ -18,6 +18,12 @@ type LeaveRequest = {
 export default function ApprovalList({ requests }: { requests: LeaveRequest[] }) {
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
 
   const handleAction = async (id: string, status: "APPROVED" | "REJECTED") => {
     setLoadingId(id);
@@ -73,7 +79,7 @@ export default function ApprovalList({ requests }: { requests: LeaveRequest[] })
               <strong>Type:</strong> {req.leaveType}
             </p>
             <p style={{ margin: "0 0 0.25rem 0", color: "var(--att-text-muted)" }}>
-              <strong>Dates:</strong> {new Date(req.startDate).toLocaleDateString()} - {new Date(req.endDate).toLocaleDateString()}
+              <strong>Dates:</strong> {isMounted ? `${new Date(req.startDate).toLocaleDateString()} - ${new Date(req.endDate).toLocaleDateString()}` : "..."}
             </p>
             <p style={{ margin: "0 0 0.25rem 0", color: "var(--att-text-muted)" }}>
               <strong>Total Days:</strong> {req.totalDays}
@@ -94,13 +100,11 @@ export default function ApprovalList({ requests }: { requests: LeaveRequest[] })
             <button
               onClick={() => handleAction(req.id, "APPROVED")}
               disabled={loadingId === req.id}
+              className="att-button"
               style={{
                 padding: "0.5rem 1rem",
-                background: "#22c55e",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: loadingId === req.id ? "not-allowed" : "pointer"
+                background: "var(--att-success)",
+                color: "white"
               }}
             >
               {loadingId === req.id ? "..." : "Approve"}
@@ -108,13 +112,11 @@ export default function ApprovalList({ requests }: { requests: LeaveRequest[] })
             <button
               onClick={() => handleAction(req.id, "REJECTED")}
               disabled={loadingId === req.id}
+              className="att-button"
               style={{
                 padding: "0.5rem 1rem",
-                background: "#ef4444",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                cursor: loadingId === req.id ? "not-allowed" : "pointer"
+                background: "var(--att-destructive)",
+                color: "white"
               }}
             >
               {loadingId === req.id ? "..." : "Reject"}

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { LeaveApplicationForm } from "./LeaveApplicationForm";
@@ -9,7 +9,7 @@ type MyTimeTabsProps = {
   balances: any[];
   employeeId: string;
   organizationId: string;
-  locationId: string | null;
+  locationId: string;
 };
 
 export function MyTimeTabs(props: MyTimeTabsProps) {
@@ -39,3 +39,4 @@ export function MyTimeTabs(props: MyTimeTabsProps) {
     </div>
   );
 }
+

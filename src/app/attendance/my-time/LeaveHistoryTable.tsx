@@ -10,7 +10,15 @@ type LeaveRequest = {
   createdAt: Date;
 };
 
+import { useState, useEffect } from "react";
+
 export function LeaveHistoryTable({ requests }: { requests: LeaveRequest[] }) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   if (requests.length === 0) {
     return (
       <div className="att-card" style={{ marginTop: "2rem" }}>
@@ -38,11 +46,15 @@ export function LeaveHistoryTable({ requests }: { requests: LeaveRequest[] }) {
           <tbody>
             {requests.map((req) => (
               <tr key={req.id}>
-                <td>{new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}</td>
+                <td>{isMounted ? new Date(req.createdAt).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }) : "..."}</td>
                 <td style={{ fontWeight: "500" }}>{req.leaveTypeName}</td>
                 <td>
-                  {new Date(req.startDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })} 
-                  {new Date(req.startDate).getTime() !== new Date(req.endDate).getTime() && ` - ${new Date(req.endDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}`}
+                  {isMounted ? (
+                    <>
+                      {new Date(req.startDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })} 
+                      {new Date(req.startDate).getTime() !== new Date(req.endDate).getTime() && ` - ${new Date(req.endDate).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" })}`}
+                    </>
+                  ) : "..."}
                 </td>
                 <td>{req.totalDays}</td>
                 <td>

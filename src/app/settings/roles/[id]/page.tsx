@@ -69,13 +69,17 @@ function RolePermissionMatrixContent() {
             submodule = sm;
           } else {
             module = domain;
-            submodule = "General";
+            submodule = "Overview";
           }
         }
         
         // Normalize legacy names so they merge with current
         module = module.toLowerCase();
         if (module === "command_center") module = "command-center";
+        
+        if (submodule.toLowerCase() === "general") {
+          submodule = "Overview";
+        }
         
         if (!grouped[module]) grouped[module] = {};
         if (!grouped[module][submodule]) grouped[module][submodule] = [];
@@ -138,7 +142,7 @@ function RolePermissionMatrixContent() {
     Array.from(rolePermissions).some(id => !initialRolePermissions.has(id));
 
   // Dynamically find all unique actions to create table columns
-  const standardActions = ["create", "read", "update", "delete", "write", "approve", "execute"];
+  const standardActions = ["create", "read", "update", "delete", "approve"];
   
   const getActionInfo = (action: string) => {
     switch(action) {
@@ -146,9 +150,7 @@ function RolePermissionMatrixContent() {
       case "read": return { icon: <FileText size={16} className="text-blue-500" />, label: "Read", color: "text-blue-600" };
       case "update": return { icon: <Edit size={16} className="text-amber-500" />, label: "Update", color: "text-amber-600" };
       case "delete": return { icon: <Trash2 size={16} className="text-red-500" />, label: "Delete", color: "text-red-600" };
-      case "write": return { icon: <Edit size={16} className="text-orange-500" />, label: "Write", color: "text-orange-600" };
       case "approve": return { icon: <CheckSquare size={16} className="text-purple-500" />, label: "Approve", color: "text-purple-600" };
-      case "execute": return { icon: <Settings size={16} className="text-indigo-500" />, label: "Execute", color: "text-indigo-600" };
       default: return { icon: null, label: action, color: "text-gray-600" };
     }
   };
@@ -248,7 +250,18 @@ function RolePermissionMatrixContent() {
                   </thead>
                   <tbody>
                     {Object.entries(groupedPermissions).map(([module, submodules]) => {
-                      const subEntries = Object.entries(submodules);
+                      const subEntries = Object.entries(submodules).filter(([submodule, perms]) => {
+                        // Only keep submodules that have at least one valid action to render
+                        return perms.some(p => {
+                          const dbAction = p.code.split(":")[1] || p.code;
+                          if (standardActions.includes(dbAction)) return true;
+                          if (dbAction === "write" || dbAction === "execute") return true;
+                          return false;
+                        });
+                      });
+                      
+                      if (subEntries.length === 0) return null;
+
                       return subEntries.map(([submodule, perms], idx) => {
                         return (
                           <tr key={`${module}-${submodule}`}>
@@ -274,7 +287,13 @@ function RolePermissionMatrixContent() {
                               {submodule}
                             </td>
                             {standardActions.map(action => {
-                              const perm = perms.find(p => (p.code.split(":")[1] || p.code) === action);
+                              const perm = perms.find(p => {
+                                const dbAction = p.code.split(":")[1] || p.code;
+                                if (dbAction === action) return true;
+                                if (dbAction === "write" && (action === "create" || action === "update")) return true;
+                                if (dbAction === "execute" && action === "create") return true;
+                                return false;
+                              });
                               if (!perm) {
                                 return <td key={action} style={{ textAlign: 'center', color: '#cbd5e1' }}>-</td>;
                               }
@@ -344,9 +363,5 @@ function RolePermissionMatrixContent() {
 }
 
 export default function RolePermissionMatrixPage() {
-  return (
-    <AppShell>
-      <RolePermissionMatrixContent />
-    </AppShell>
-  );
+  return <RolePermissionMatrixContent />;
 }

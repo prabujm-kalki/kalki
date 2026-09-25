@@ -1,11 +1,12 @@
 import { db } from "@/db";
-import { leaveRequests, employees, leaveTypes, people, leaveEncashmentRequests } from "@/db/schema";
+import { leaveRequests, employees, leaveTypes, people, leaveEncashmentRequests, attendanceRegularizationRequests } from "@/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getSessionContext } from "@/domains/session/service";
 import ApprovalList from "@/components/attendance/ApprovalList";
 import EncashmentApprovalList from "@/components/attendance/EncashmentApprovalList";
+import RegularizationApprovalList from "@/components/attendance/RegularizationApprovalList";
 import { redirect } from "next/navigation";
 
 export default async function ApprovalsPage() {
@@ -98,6 +99,27 @@ export default async function ApprovalsPage() {
     eq(leaveRequests.actionedBy, session.user.id)
   );
 
+  // Fetch Regularization Requests
+  let regularizationConditions = eq(attendanceRegularizationRequests.status, "PENDING");
+  if (!canManage) {
+    // Regular manager can only see requests from their direct reports
+    regularizationConditions = and(regularizationConditions, eq(employees.reportingEmployeeId, currentEmpId!)) as any;
+  }
+  
+  const rawRegularizations = await db.select({
+    id: attendanceRegularizationRequests.id,
+    date: attendanceRegularizationRequests.date,
+    requestedPunchType: attendanceRegularizationRequests.requestedPunchType,
+    requestedTime: attendanceRegularizationRequests.requestedTime,
+    reason: attendanceRegularizationRequests.reason,
+    employeeName: people.displayName,
+    employeeCode: employees.employeeCode,
+  })
+  .from(attendanceRegularizationRequests)
+  .innerJoin(employees, eq(attendanceRegularizationRequests.employeeId, employees.id))
+  .innerJoin(people, eq(employees.personId, people.id))
+  .where(regularizationConditions);
+
   const historyRequests = await db.select({
     id: leaveRequests.id,
     startDate: leaveRequests.startDate,
@@ -125,6 +147,10 @@ export default async function ApprovalsPage() {
 
       <div className="att-card" style={{ marginBottom: "2rem" }}>
         <ApprovalList requests={rawRequests} />
+      </div>
+
+      <div className="att-card" style={{ marginBottom: "2rem" }}>
+        <RegularizationApprovalList requests={rawRegularizations} />
       </div>
 
       <div className="att-card" style={{ marginBottom: "2rem" }}>

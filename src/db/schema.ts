@@ -1,4 +1,4 @@
-import {
+﻿import {
   boolean,
   check,
   date,
@@ -140,6 +140,7 @@ export const employees = pgTable(
       .references(() => locations.id),
     departmentId: uuid("department_id")
       .references(() => departments.id),
+    defaultShiftId: uuid("default_shift_id").references(() => shiftDefinitions.id),
     employeeCode: text("employee_code").notNull(),
     jobTitle: text("job_title"),
     employmentStartDate: date("employment_start_date").notNull(),
@@ -1216,6 +1217,21 @@ export const biometricImportBatches = pgTable("biometric_import_batches", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const attendanceRegularizationRequests = pgTable("attendance_regularization_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id),
+  date: date("date").notNull(),
+  requestedPunchType: varchar("requested_punch_type", { length: 20 }).notNull(), // IN, OUT, BREAK_IN, BREAK_OUT
+  requestedTime: timestamp("requested_time", { withTimezone: true }).notNull(),
+  reason: text("reason").notNull(),
+  status: varchar("status", { length: 20 }).default("PENDING").notNull(), // PENDING, APPROVED, REJECTED
+  approvedBy: uuid("approved_by").references(() => employees.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const rawBiometricPunches = pgTable("raw_biometric_punches", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
@@ -1227,6 +1243,7 @@ export const rawBiometricPunches = pgTable("raw_biometric_punches", {
   machineId: varchar("machine_id", { length: 100 }).notNull(),
   sourceType: varchar("source_type", { length: 50 }).default("EXCEL_IMPORT").notNull(),
   importBatchId: uuid("import_batch_id").references(() => biometricImportBatches.id),
+  snapshotUrl: text("snapshot_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -1373,10 +1390,11 @@ export const shiftDefinitions = pgTable("shift_definitions", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   locationId: uuid("location_id").notNull().references(() => locations.id),
-  code: varchar("code", { length: 20 }).notNull(),
-  name: varchar("name", { length: 100 }).notNull(),
+  code: varchar("shift_code", { length: 20 }).notNull(),
+  name: varchar("shift_name", { length: 100 }).notNull(),
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
+  gracePeriodMinutes: integer("grace_period_minutes").default(15).notNull(),
   isFlexible: boolean("is_flexible").default(false).notNull(),
   minHoursHalfDay: decimal("min_hours_half_day", { precision: 4, scale: 2 }).default("4.00").notNull(),
   minHoursFullDay: decimal("min_hours_full_day", { precision: 4, scale: 2 }).default("8.00").notNull(),
@@ -1386,3 +1404,4 @@ export const shiftDefinitions = pgTable("shift_definitions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+

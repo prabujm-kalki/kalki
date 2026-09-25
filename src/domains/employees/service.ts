@@ -1,14 +1,14 @@
-import { and, eq, inArray, isNull, ne, desc } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { 
   employees, locations, people, organizations, departments,
   employeeFamilyContacts, employeeSalaryInfo,
   employeeHistoryStatus, employeeHistoryRole, employeeHistoryBranch,
-  employeeHistorySalary, employeeHistoryReporting, employeeHistoryCategory
+  employeeHistorySalary, employeeHistoryReporting, employeeHistoryCategory, auditEvents
 } from "@/db/schema";
 
-import { employeeChangeRequests, organizationMemberships, locationMemberships, employeeRoleAssignments, authUsers, authAccounts, organizationRoleAssignments } from "@/db/schema";
+import { employeeChangeRequests, organizationMemberships, locationMemberships, employeeRoleAssignments, authUsers, authAccounts, organizationRoleAssignments, shiftDefinitions } from "@/db/schema";
 import { loadAuthorizationGrants } from "@/lib/authorization";
 import { auth } from "@/lib/auth";
 import { hashPassword } from "better-auth/crypto";
@@ -73,6 +73,7 @@ const employeeInputSchema = z.object({
   bloodGroup: z.enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]).optional(),
   secondaryMobile: optionalMobileSchema,
   departmentId: z.string().uuid().nullable().optional(),
+  defaultShiftId: z.string().uuid().nullable().optional(),
   provisionAccess: z.object({
     phone: z.string().min(1),
     password: z.string().min(8),
@@ -105,6 +106,7 @@ const employeeUpdateSchema = z
     posId: z.string().trim().nullable().optional(),
     reportingEmployeeId: z.string().uuid().nullable().optional(),
     departmentId: z.string().uuid().nullable().optional(),
+    defaultShiftId: z.string().uuid().nullable().optional(),
     category: z.enum(["Permanent", "Temporary", "Part-time"]).optional(),
     gender: z.enum(["Male", "Female", "Other"]).optional(),
     maritalStatus: z.enum(["Single", "Married", "Divorced", "Widowed"]).optional(),
@@ -254,7 +256,9 @@ async function selectEmployee(
       posId: employees.posId,
       reportingEmployeeId: employees.reportingEmployeeId,
       departmentId: employees.departmentId,
+      defaultShiftId: employees.defaultShiftId,
       departmentName: departments.name,
+      shiftName: shiftDefinitions.name,
       category: employees.category,
       gender: employees.gender,
       maritalStatus: employees.maritalStatus,
@@ -273,6 +277,7 @@ async function selectEmployee(
     .from(employees)
     .innerJoin(people, eq(people.id, employees.personId))
     .leftJoin(departments, eq(employees.departmentId, departments.id))
+      .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id))
     .where(eq(employees.id, employeeId));
 
   return rows[0] ?? null;
@@ -409,6 +414,7 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         bloodGroup: parsed.data.bloodGroup ?? null,
         secondaryMobile: parsed.data.secondaryMobile ?? null,
         departmentId: parsed.data.departmentId ?? null,
+        defaultShiftId: parsed.data.defaultShiftId ?? null,
         reportingEmployeeId: parsed.data.reportingEmployeeId ?? null,
         userId: createdUserId,
         aadhaarDocumentUrl: parsed.data.aadhaarDocumentUrl ?? null,
@@ -486,7 +492,7 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
           employeeId: newEmployee.id,
           salaryType: parsed.data.salary.salaryType ?? "Monthly",
           amount: parsed.data.salary.amount ?? "0",
-          effectiveFrom: parsed.data.salary.effectiveFrom ?? parsed.data.employmentStartDate,
+          effectiveFrom: parsed.data.employmentStartDate ? new Date(parsed.data.employmentStartDate).toISOString() : new Date().toISOString(),
           paymentMethod: parsed.data.salary.paymentMethod ?? "BANK_TRANSFER",
           accountHolderName: parsed.data.salary.accountHolderName ?? null,
           accountNumber: parsed.data.salary.accountNumber ?? null,
@@ -563,6 +569,19 @@ export async function getEmployee(actor: Actor, employeeId: string) {
   const reportingHistory = await db.select().from(employeeHistoryReporting).where(eq(employeeHistoryReporting.employeeId, employee.id)).orderBy(employeeHistoryReporting.effectiveFrom);
   const categoryHistory = await db.select().from(employeeHistoryCategory).where(eq(employeeHistoryCategory.employeeId, employee.id)).orderBy(employeeHistoryCategory.effectiveFrom);
 
+  const fieldAuditHistory = await db.select({
+    id: auditEvents.id,
+    field: sql<string>`${auditEvents.metadata}->>'field'`,
+    oldValue: sql<string>`${auditEvents.metadata}->>'oldValue'`,
+    newValue: sql<string>`${auditEvents.metadata}->>'newValue'`,
+    actorRole: sql<string>`${auditEvents.metadata}->>'actorRole'`,
+    createdAt: auditEvents.createdAt,
+    actorName: authUsers.name,
+  }).from(auditEvents)
+    .leftJoin(authUsers, eq(auditEvents.actorUserId, authUsers.id))
+    .where(and(eq(auditEvents.entityId, employee.id), eq(auditEvents.eventType, "EMPLOYEE_FIELD_CHANGED")))
+    .orderBy(desc(auditEvents.createdAt));
+
   return {
     ...employee,
     familyContacts,
@@ -574,6 +593,7 @@ export async function getEmployee(actor: Actor, employeeId: string) {
       salary: salaryHistory,
       reporting: reportingHistory,
       category: categoryHistory,
+      audit: fieldAuditHistory,
     }
   };
 }
@@ -670,8 +690,44 @@ export async function updateEmployee(
       ...(parsed.data.residentialAddress !== undefined && { residentialAddress: parsed.data.residentialAddress }),
       ...(parsed.data.bloodGroup !== undefined && { bloodGroup: parsed.data.bloodGroup }),
       ...(parsed.data.departmentId !== undefined && { departmentId: parsed.data.departmentId }),
+      ...(parsed.data.defaultShiftId !== undefined && { defaultShiftId: parsed.data.defaultShiftId }),
       updatedAt: new Date(),
     };
+
+    const actorNameQuery = await tx.select({ name: authUsers.name }).from(authUsers).where(eq(authUsers.id, actor.id));
+    const actorName = actorNameQuery[0]?.name || "System";
+
+    const actorRoleQuery = await tx.select({ roleId: organizationRoleAssignments.roleId }).from(organizationRoleAssignments).where(and(eq(organizationRoleAssignments.userId, actor.id), eq(organizationRoleAssignments.organizationId, current.organizationId)));
+    const actorRole = actorRoleQuery[0]?.roleId === "admin" ? "System Owner" : "Admin";
+
+    const fieldLabels: Record<string, string> = {
+      jobTitle: "Job Title", employmentStartDate: "Date of Joining", employmentEndDate: "Date of Exit",
+      category: "Category", gender: "Gender", maritalStatus: "Marital Status", residentialAddress: "Residential Address",
+      bloodGroup: "Blood Group", departmentId: "Department", defaultShiftId: "Default Shift", reportingEmployeeId: "Reporting Manager"
+    };
+
+    for (const [key, newValue] of Object.entries(employeeChanges)) {
+      if (key === 'updatedAt') continue;
+      const oldValue = (current as any)[key];
+      if (oldValue !== newValue) {
+        await recordAuditEvent({
+          organizationId: current.organizationId,
+          locationId: current.locationId,
+          actorUserId: actor.id,
+          eventType: "EMPLOYEE_FIELD_CHANGED",
+          action: "UPDATE",
+          entityType: "employee",
+          entityId: current.id,
+          metadata: {
+            field: fieldLabels[key] || key,
+            oldValue: oldValue ? String(oldValue) : "None",
+            newValue: newValue ? String(newValue) : "None",
+            actorRole: actorRole,
+            actorName: actorName
+          }
+        }, tx);
+      }
+    }
     
     // We only call update if there are keys in employeeChanges besides updatedAt
     if (Object.keys(employeeChanges).length > 1) {
@@ -679,6 +735,21 @@ export async function updateEmployee(
         .update(employees)
         .set(employeeChanges)
         .where(eq(employees.id, employeeId));
+    }
+    if (parsed.data.employmentStartDate !== undefined && parsed.data.employmentStartDate !== current.employmentStartDate) {
+      const dStr = parsed.data.employmentStartDate;
+      const q1 = sql`UPDATE employee_history_status SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_status WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
+      const q2 = sql`UPDATE employee_history_salary SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_salary WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
+      const q3 = sql`UPDATE employee_history_category SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_category WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
+      const q4 = sql`UPDATE employee_history_branch SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_branch WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
+      const q5 = sql`UPDATE employee_history_reporting SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_reporting WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
+      const q6 = sql`UPDATE employee_history_role SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_role WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
+      await tx.execute(q1);
+      await tx.execute(q2);
+      await tx.execute(q3);
+      await tx.execute(q4);
+      await tx.execute(q5);
+      await tx.execute(q6);
     }
 
     if (parsed.data.accessLocations !== undefined && current.userId) {
@@ -717,7 +788,7 @@ export async function updateEmployee(
       
       const hasSalaryChanged = !existingSalary || 
         existingSalary.salaryType !== parsed.data.salary.salaryType ||
-        existingSalary.amount !== parsed.data.salary.amount ||
+        parseFloat(existingSalary.amount) !== parseFloat(parsed.data.salary.amount) ||
         existingSalary.paymentMethod !== parsed.data.salary.paymentMethod ||
         existingSalary.accountHolderName !== (parsed.data.salary.accountHolderName ?? null) ||
         existingSalary.accountNumber !== (parsed.data.salary.accountNumber ?? null) ||
@@ -1498,3 +1569,18 @@ export async function listEmployeeChangeRequests(actor: Actor, organizationId: s
   
   return q;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -2,10 +2,11 @@ import { AppShell } from "@/components/AppShell";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { AttendanceNav } from "./AttendanceNav";
-import "./attendance.css";
+import { SettingsNav } from "./SettingsNav";
 
-export default async function AttendanceLayout({
+
+
+export default async function SettingsLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -21,7 +22,7 @@ export default async function AttendanceLayout({
   return (
     <AppShell>
       <div className="kalki-module-layout">
-        <AttendanceNav />
+        <SettingsNav />
         <main className="kalki-module-content">
           {children}
         </main>

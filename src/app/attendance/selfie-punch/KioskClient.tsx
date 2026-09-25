@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Camera, CheckCircle2, XCircle, UserCheck } from "lucide-react";
 import * as faceapi from "@vladmandic/face-api";
-import { recordSelfiePunch, getKioskEmployees } from "@/domains/attendance/actions";
+import { recordSelfiePunch, getKioskEmployees, getDailyPunchState } from "@/domains/attendance/actions";
 import { useSessionView } from "@/components/AppShell";
 // We reuse the existing attendance.css for styling as requested
 import "../attendance.css";
@@ -22,6 +22,30 @@ export default function SelfiePunchKiosk() {
   >("loading-ai");
   
   const [failureCount, setFailureCount] = useState(0);
+  const [availableOptions, setAvailableOptions] = useState<string[]>(["PUNCH_IN"]);
+
+  useEffect(() => {
+    async function checkState() {
+      if (selectedEmployee && organizationId && locationId) {
+        try {
+          const punches = await getDailyPunchState(selectedEmployee.id, organizationId, locationId);
+          if (punches.length === 0) {
+            setAvailableOptions(["PUNCH_IN"]);
+          } else {
+            const last = punches[punches.length - 1];
+            if (last === "PUNCH_IN") setAvailableOptions(["BREAK_IN", "BREAK_OUT", "PUNCH_OUT"]);
+            else if (last === "BREAK_IN") setAvailableOptions(["BREAK_OUT", "PUNCH_OUT"]);
+            else if (last === "BREAK_OUT") setAvailableOptions(["PUNCH_OUT"]);
+            else if (last === "PUNCH_OUT") setAvailableOptions([]);
+          }
+        } catch (e) {
+          console.error(e);
+          setAvailableOptions(["PUNCH_IN", "BREAK_IN", "BREAK_OUT", "PUNCH_OUT"]);
+        }
+      }
+    }
+    checkState();
+  }, [selectedEmployee, organizationId, locationId]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -30,7 +54,9 @@ export default function SelfiePunchKiosk() {
     async function loadModels() {
       try {
         // Initialize TensorFlow backend first
+        // @ts-ignore
         await faceapi.tf.setBackend('webgl');
+        // @ts-ignore
         await faceapi.tf.ready();
         
         await Promise.all([
@@ -108,7 +134,7 @@ export default function SelfiePunchKiosk() {
     return () => stopCamera();
   }, [selectedEmployee, modelsLoaded]);
 
-  const captureAndVerify = async (punchType: "IN" | "OUT") => {
+  const captureAndVerify = async (punchType: "PUNCH_IN" | "PUNCH_OUT" | "BREAK_IN" | "BREAK_OUT") => {
     if (!videoRef.current || !selectedEmployee) return;
     setStatus("verifying");
 
@@ -259,25 +285,58 @@ export default function SelfiePunchKiosk() {
             <div className="camera-overlay-circle"></div>
           </div>
 
-          <div className="kiosk-actions">
-            <button 
-              className="btn btn-primary" 
-              onClick={() => captureAndVerify("IN")}
-              disabled={status === "verifying"}
-            >
-              {status === "verifying" ? "Verifying..." : "Punch IN"}
-            </button>
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => captureAndVerify("OUT")}
-              disabled={status === "verifying"}
-            >
-              {status === "verifying" ? "Verifying..." : "Punch OUT"}
-            </button>
+          <div className="kiosk-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            {availableOptions.length === 0 ? (
+              <div style={{ gridColumn: "span 2", textAlign: "center", padding: "1rem", color: "var(--att-success)" }}>
+                <strong>Shift Completed</strong>
+                <p style={{ fontSize: "0.875rem", margin: 0 }}>You have successfully punched out for the day.</p>
+              </div>
+            ) : (
+              <>
+                {availableOptions.includes("PUNCH_IN") && (
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => captureAndVerify("PUNCH_IN")}
+                    disabled={status === "verifying"}
+                  >
+                    {status === "verifying" ? "Verifying..." : "Punch IN"}
+                  </button>
+                )}
+                {availableOptions.includes("PUNCH_OUT") && (
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => captureAndVerify("PUNCH_OUT")}
+                    disabled={status === "verifying"}
+                    style={{ backgroundColor: "var(--att-destructive)", borderColor: "var(--att-destructive)" }}
+                  >
+                    {status === "verifying" ? "Verifying..." : "Punch OUT"}
+                  </button>
+                )}
+                {availableOptions.includes("BREAK_IN") && (
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => captureAndVerify("BREAK_IN")}
+                    disabled={status === "verifying"}
+                  >
+                    {status === "verifying" ? "Verifying..." : "Break IN"}
+                  </button>
+                )}
+                {availableOptions.includes("BREAK_OUT") && (
+                  <button 
+                    className="btn btn-secondary" 
+                    onClick={() => captureAndVerify("BREAK_OUT")}
+                    disabled={status === "verifying"}
+                  >
+                    {status === "verifying" ? "Verifying..." : "Break OUT"}
+                  </button>
+                )}
+              </>
+            )}
             <button 
               className="btn btn-text" 
               onClick={() => setSelectedEmployee(null)}
               disabled={status === "verifying"}
+              style={{ gridColumn: "span 2" }}
             >
               Cancel
             </button>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Clock, CalendarCheck, FileSpreadsheet, Settings } from "lucide-react";
+import { Clock, CalendarCheck, FileSpreadsheet, Settings, BarChart2 } from "lucide-react";
 
 import { useSessionView } from "@/components/AppShell";
 
@@ -18,15 +18,16 @@ export function AttendanceNav() {
   const canViewRecords = isOwner || permissions.includes("attendance.records:read");
   const canViewMyTime = isOwner || permissions.includes("attendance.my_time:read");
   const canViewApprovals = isOwner || permissions.includes("attendance.approvals:read");
+  const canViewReports = isOwner || permissions.includes("attendance.reports:view") || permissions.includes("attendance.reports:execute");
   const canViewConfig = isOwner || permissions.includes("attendance.configuration:read");
   const canSelfiePunch = isOwner || permissions.includes("attendance.selfie_punch:execute");
 
   return (
-    <nav className="att-topbar">
+    <nav className="kalki-module-topbar">
       {canSelfiePunch && (
         <Link 
           href={`/attendance/selfie-punch${qs}`} 
-          className={`att-topbar-link ${pathname === "/attendance/selfie-punch" ? "active" : ""}`}
+          className={`kalki-module-link ${pathname === "/attendance/selfie-punch" ? "active" : ""}`}
         >
           <Clock size={16} />
           Selfie Punch
@@ -35,7 +36,7 @@ export function AttendanceNav() {
       {canViewRecords && (
         <Link 
           href={`/attendance/overview${qs}`} 
-          className={`att-topbar-link ${pathname === "/attendance/overview" ? "active" : ""}`}
+          className={`kalki-module-link ${pathname === "/attendance/overview" ? "active" : ""}`}
         >
           <FileSpreadsheet size={16} />
           Overview & Upload
@@ -44,7 +45,7 @@ export function AttendanceNav() {
       {canViewMyTime && (
         <Link 
           href={`/attendance/my-time${qs}`} 
-          className={`att-topbar-link ${pathname === "/attendance/my-time" ? "active" : ""}`}
+          className={`kalki-module-link ${pathname === "/attendance/my-time" ? "active" : ""}`}
         >
           <Clock size={16} />
           My Time
@@ -53,16 +54,25 @@ export function AttendanceNav() {
       {canViewApprovals && (
         <Link 
           href={`/attendance/approvals${qs}`} 
-          className={`att-topbar-link ${pathname === "/attendance/approvals" ? "active" : ""}`}
+          className={`kalki-module-link ${pathname === "/attendance/approvals" ? "active" : ""}`}
         >
           <CalendarCheck size={16} />
           Approvals
         </Link>
       )}
+      {canViewReports && (
+        <Link 
+          href={`/attendance/reports${qs}`} 
+          className={`kalki-module-link ${pathname === "/attendance/reports" ? "active" : ""}`}
+        >
+          <BarChart2 size={16} />
+          Reports
+        </Link>
+      )}
       {canViewConfig && (
         <Link 
           href={`/attendance/settings${qs}`} 
-          className={`att-topbar-link ${pathname === "/attendance/settings" ? "active" : ""}`}
+          className={`kalki-module-link ${pathname === "/attendance/settings" ? "active" : ""}`}
         >
           <Settings size={16} />
           Configuration

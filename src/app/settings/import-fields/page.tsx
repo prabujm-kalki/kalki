@@ -63,7 +63,7 @@ export default function ImportFieldsSettingsPage() {
   };
 
   return (
-    <AppShell>
+    
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex justify-between items-center">
           <div>
@@ -143,6 +143,6 @@ export default function ImportFieldsSettingsPage() {
           )}
         </div>
       </div>
-    </AppShell>
+    
   );
 }

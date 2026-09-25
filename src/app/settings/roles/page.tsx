@@ -217,8 +217,8 @@ function RolesPageContent() {
 
 export default function RolesPage() {
   return (
-    <AppShell>
+    
       <RolesPageContent />
-    </AppShell>
+    
   );
 }

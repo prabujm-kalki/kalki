@@ -188,6 +188,30 @@ export async function processBiometricUpload(
       }
     });
 
+    // 6. Automatically process daily attendance summaries for all dates in this batch
+    if (successfulRows > 0) {
+      const datesToProcess = Array.from(new Set(newPunchesToInsert.map(p => new Date(p.punchTimestamp).toISOString().split('T')[0])));
+      const { processDailyAttendance } = await import("./service");
+      
+      let processingErrors = 0;
+      for (const dateStr of datesToProcess) {
+        try {
+          await processDailyAttendance(organizationId, locationId, new Date(dateStr));
+        } catch (err) {
+          console.error(`Failed to process attendance for ${dateStr}:`, err);
+          processingErrors++;
+        }
+      }
+      
+      if (processingErrors > 0) {
+        return {
+          success: true, // Still success since raw import worked
+          message: `Imported ${successfulRows} records, but failed to process attendance for ${processingErrors} day(s). Ensure you have configured an active Shift Definition.`,
+          stats: { total: parsedBatch.length, successfulRows, failedRows, errors: errors.length },
+        };
+      }
+    }
+
     return {
       success: true,
       message: `Successfully imported ${successfulRows} records. ${failedRows} duplicates skipped.`,
@@ -778,7 +802,7 @@ export async function forwardEncashment(id: string, newApproverId: string) {
 
 export async function recordSelfiePunch(payload: {
   employeeId: string;
-  punchType: "IN" | "OUT";
+  punchType: "PUNCH_IN" | "PUNCH_OUT" | "BREAK_IN" | "BREAK_OUT";
   snapshotBase64?: string;
   organizationId: string;
   locationId: string;
@@ -818,6 +842,23 @@ export async function recordSelfiePunch(payload: {
       throw new Error("Employee not found");
     }
 
+    let snapshotUrl: string | null = null;
+    if (payload.snapshotBase64) {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      
+      const punchesDir = path.join(process.cwd(), "public", "uploads", "punches");
+      await fs.mkdir(punchesDir, { recursive: true });
+      
+      // Remove data:image/jpeg;base64, etc.
+      const base64Data = payload.snapshotBase64.replace(/^data:image\/\w+;base64,/, "");
+      const fileName = `${payload.employeeId}_${Date.now()}.jpg`;
+      const filePath = path.join(punchesDir, fileName);
+      
+      await fs.writeFile(filePath, base64Data, "base64");
+      snapshotUrl = `/uploads/punches/${fileName}`;
+    }
+
     // Insert append-only record
     await db.insert(rawBiometricPunches).values({
       organizationId: payload.organizationId,
@@ -828,9 +869,16 @@ export async function recordSelfiePunch(payload: {
       punchType: payload.punchType,
       sourceType: "SELFIE_KIOSK",
       machineId: "KIOSK_BROWSER",
+      snapshotUrl: snapshotUrl,
     });
 
-    // Optionally: trigger daily attendance reconciliation here
+    // Trigger daily attendance reconciliation here so the dashboard immediately updates
+    try {
+      const { processDailyAttendance } = await import("./service");
+      await processDailyAttendance(payload.organizationId, payload.locationId, new Date());
+    } catch (err) {
+      console.warn("Failed to process daily attendance after selfie punch. The punch was recorded, but dashboard may not update if Shift Definitions are missing.", err);
+    }
 
     return { success: true };
   } catch (error) {
@@ -838,3 +886,36 @@ export async function recordSelfiePunch(payload: {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
 }
+
+export async function getDailyPunchState(employeeId: string, organizationId: string, locationId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const { rawBiometricPunches } = await import("@/db/schema");
+  const { gte, lte } = await import("drizzle-orm");
+
+  const today = new Date();
+  const startOfDay = new Date(today);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(today);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const punches = await db.select({
+    punchType: rawBiometricPunches.punchType,
+    punchTimestamp: rawBiometricPunches.punchTimestamp,
+  })
+  .from(rawBiometricPunches)
+  .where(
+    and(
+      eq(rawBiometricPunches.employeeId, employeeId),
+      eq(rawBiometricPunches.organizationId, organizationId),
+      gte(rawBiometricPunches.punchTimestamp, startOfDay),
+      lte(rawBiometricPunches.punchTimestamp, endOfDay)
+    )
+  )
+  .orderBy(rawBiometricPunches.punchTimestamp);
+
+  const punchTypes = punches.map(p => p.punchType);
+  return punchTypes;
+}
+

@@ -623,6 +623,40 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             </div>
           </section>
 
+          {emp.history.audit && emp.history.audit.length > 0 && (
+            <section className="kalki-section">
+              <div className="kalki-section-header">
+                <h2 className="kalki-section-title">Detailed Field Changes</h2>
+              </div>
+              <div className="kalki-section-content" style={{ padding: 0 }}>
+                <div className="kalki-table-container">
+                  <table className="kalki-table">
+                    <thead>
+                      <tr>
+                        <th>Date & Time</th>
+                        <th>Field Changed</th>
+                        <th>Previous Value</th>
+                        <th>New Value</th>
+                        <th>Changed By</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {emp.history.audit.map((h: any) => (
+                        <tr key={h.id}>
+                          <td>{new Date(h.createdAt).toLocaleString('en-GB')}</td>
+                          <td><strong>{h.field}</strong></td>
+                          <td>{h.oldValue}</td>
+                          <td>{h.newValue}</td>
+                          <td>{h.actorName} <span style={{color: "var(--kalki-text-secondary)", fontSize: "12px"}}>— {h.actorRole}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          )}
+
         </div>
 
         <div className="kalki-form-secondary">
@@ -668,7 +702,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                       ))}
                     </select>
                     <button type="submit" className="kalki-button kalki-button--primary" disabled={!selectedRole || assigning}>
-                      {assigning ? "Assigning…" : "+ Assign"}
+                      {assigning ? "Assigning..." : "+ Assign"}
                     </button>
                   </form>
                 )}

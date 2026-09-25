@@ -9,6 +9,7 @@ import { LeaveBalances } from "./LeaveBalances";
 import { LeaveApplicationForm } from "./LeaveApplicationForm";
 import { EncashmentApplicationForm } from "./EncashmentApplicationForm";
 import { LeaveHistoryTable } from "./LeaveHistoryTable";
+import { RegularizationRequestForm } from "./RegularizationRequestForm";
 
 import { MyTimeTabs } from "./MyTimeTabs";
 
@@ -121,6 +122,7 @@ export default async function MyTimePage() {
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "2rem" }}>
+        <RegularizationRequestForm />
         <LeaveHistoryTable requests={mergedHistory as any} />
       </div>
     </div>

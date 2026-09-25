@@ -177,7 +177,7 @@ export function LeaveConfigForm({
               value={code} 
               onChange={e => setCode(e.target.value)}
               placeholder="e.g. SL, CL, PL"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
               required 
             />
           </label>
@@ -189,7 +189,7 @@ export function LeaveConfigForm({
               value={name} 
               onChange={e => setName(e.target.value)}
               placeholder="e.g. Sick Leave"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
               required 
             />
           </label>
@@ -218,11 +218,11 @@ export function LeaveConfigForm({
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1rem", marginBottom: "1rem", padding: "1rem", background: "#f8f9fa", borderRadius: "var(--att-radius)", border: "1px solid #e9ecef" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
               Encashment Min Tenure (Days)
-              <input type="number" value={encashmentMinTenureDays} onChange={e => setEncashmentMinTenureDays(e.target.value)} min="0" style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }} />
+              <input type="number" value={encashmentMinTenureDays} onChange={e => setEncashmentMinTenureDays(e.target.value)} min="0" className="att-input-premium" />
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
               Min Balance Retained (Days)
-              <input type="number" value={encashmentMinBalanceRetained} onChange={e => setEncashmentMinBalanceRetained(e.target.value)} min="0" step="0.5" style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }} />
+              <input type="number" value={encashmentMinBalanceRetained} onChange={e => setEncashmentMinBalanceRetained(e.target.value)} min="0" step="0.5" className="att-input-premium" />
             </label>
             <label style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "0.5rem", fontWeight: 500, marginTop: "1.5rem" }}>
               <input type="checkbox" checked={encashmentOnlyAtYearEnd} onChange={e => setEncashmentOnlyAtYearEnd(e.target.checked)} />
@@ -240,7 +240,7 @@ export function LeaveConfigForm({
               onChange={e => setAnnualAllocation(e.target.value)}
               min="0"
               step="0.5"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
               required 
             />
           </label>
@@ -250,7 +250,7 @@ export function LeaveConfigForm({
             <select 
               value={accrualFrequency} 
               onChange={e => setAccrualFrequency(e.target.value)}
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
             >
               <option value="YEARLY">Yearly</option>
               <option value="MONTHLY">Monthly</option>
@@ -266,7 +266,7 @@ export function LeaveConfigForm({
               onChange={e => setAccrualRate(e.target.value)}
               min="0"
               step="0.1"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
             />
           </label>
 
@@ -278,7 +278,7 @@ export function LeaveConfigForm({
               onChange={e => setCarryForwardExpiryMonths(e.target.value)}
               min="0"
               placeholder="e.g. 2"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
             />
           </label>
 
@@ -290,7 +290,7 @@ export function LeaveConfigForm({
               onChange={e => setMinTenureDays(e.target.value)}
               min="0"
               placeholder="e.g. 90"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
             />
           </label>
 
@@ -302,7 +302,7 @@ export function LeaveConfigForm({
               onChange={e => setMinNoticeDays(e.target.value)}
               min="0"
               placeholder="e.g. 14"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
             />
           </label>
 
@@ -314,7 +314,7 @@ export function LeaveConfigForm({
               onChange={e => setMaxConsecutiveDays(e.target.value)}
               min="1"
               placeholder="e.g. 5"
-              style={{ padding: "0.5rem", borderRadius: "var(--att-radius)", border: "1px solid var(--att-border)" }}
+              className="att-input-premium"
             />
           </label>
         </div>
@@ -438,7 +438,7 @@ export function LeaveConfigForm({
                     >
                       <option value="">Select Department</option>
                       {departments.map(d => (
-                        <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                        <option key={d.id} value={d.id}>{d.name} ({(d as any).code})</option>
                       ))}
                     </select>
                   </label>

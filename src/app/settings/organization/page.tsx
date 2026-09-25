@@ -3,8 +3,8 @@ import { OrganizationDashboard } from "@/components/settings/OrganizationDashboa
 
 export default function OrganizationPage() {
   return (
-    <AppShell>
+    
       <OrganizationDashboard />
-    </AppShell>
+    
   );
 }
