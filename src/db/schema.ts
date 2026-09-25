@@ -1,4 +1,4 @@
-﻿import {
+import {
   boolean,
   check,
   date,
@@ -227,9 +227,6 @@ export const employeeSalaryInfo = pgTable("employee_salary_info", {
   id: uuid("id").defaultRandom().primaryKey(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
-  salaryType: text("salary_type", { enum: ["Daily", "Weekly", "Monthly"] }).notNull(),
-  amount: numeric("amount").notNull(),
-  effectiveFrom: date("effective_from").notNull(),
   paymentMethod: text("payment_method", { enum: ["BANK_TRANSFER", "GPAY", "CASH"] }).notNull(),
   accountHolderName: text("account_holder_name"),
   accountNumber: text("account_number"),
@@ -285,17 +282,7 @@ export const employeeHistoryBranch = pgTable("employee_history_branch", {
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const employeeHistorySalary = pgTable("employee_history_salary", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
-  employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
-  salaryType: text("salary_type", { enum: ["Daily", "Weekly", "Monthly"] }).notNull(),
-  amount: numeric("amount").notNull(),
-  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
-  effectiveTo: timestamp("effective_to", { withTimezone: true }),
-  recordedBy: uuid("recorded_by").references(() => employees.id),
-  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
-});
+// Decoupled compensation history - moved to Payroll Module
 
 export const employeeHistoryReporting = pgTable("employee_history_reporting", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -1405,3 +1392,42 @@ export const shiftDefinitions = pgTable("shift_definitions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+
+// ==========================================
+// PAYROLL MODULE
+// ==========================================
+
+export const salaryComponents = pgTable("salary_components", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  name: text("name").notNull(),
+  type: text("type", { enum: ["EARNING", "DEDUCTION"] }).notNull(),
+  isTaxable: boolean("is_taxable").notNull().default(true),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const employeeSalaryStructures = pgTable("employee_salary_structures", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
+  
+  isEpfApplicable: boolean("is_epf_applicable").notNull().default(false),
+  isEsiApplicable: boolean("is_esi_applicable").notNull().default(false),
+  isPtApplicable: boolean("is_pt_applicable").notNull().default(false),
+
+  effectiveFrom: date("effective_from").notNull(),
+  effectiveTo: date("effective_to"),
+  isActive: boolean("is_active").notNull().default(true),
+  
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const employeeSalaryStructureComponents = pgTable("employee_salary_structure_components", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  structureId: uuid("structure_id").notNull().references(() => employeeSalaryStructures.id, { onDelete: "cascade" }),
+  componentId: uuid("component_id").notNull().references(() => salaryComponents.id),
+  amount: numeric("amount").notNull(),
+});

@@ -3,9 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { 
   employees, locations, people, organizations, departments,
-  employeeFamilyContacts, employeeSalaryInfo,
-  employeeHistoryStatus, employeeHistoryRole, employeeHistoryBranch,
-  employeeHistorySalary, employeeHistoryReporting, employeeHistoryCategory, auditEvents
+  employeeFamilyContacts,
+  employeeHistoryStatus, employeeHistoryRole, employeeHistoryBranch, employeeHistoryReporting, employeeHistoryCategory, auditEvents
 } from "@/db/schema";
 
 import { employeeChangeRequests, organizationMemberships, locationMemberships, employeeRoleAssignments, authUsers, authAccounts, organizationRoleAssignments, shiftDefinitions } from "@/db/schema";
@@ -19,30 +18,6 @@ import { initializeEmployeeLeaves } from "@/domains/attendance/accrualEngine";
 const mobileNumberRegex = /^[0-9]{10}$/;
 const mobileNumberMessage = "Mobile number must be exactly 10 digits";
 const optionalMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMessage).or(z.literal('')).nullable().optional();
-
-export const salaryInputSchema = z.object({
-  salaryType: z.enum(["Daily", "Weekly", "Monthly"]),
-  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
-  paymentMethod: z.enum(["BANK_TRANSFER", "GPAY", "CASH"]),
-  accountHolderName: z.string().nullable().optional(),
-  accountNumber: z.string().nullable().optional(),
-  bankName: z.string().nullable().optional(),
-  ifscCode: z.string().nullable().optional(),
-  gpayNumber: optionalMobileSchema,
-  bankingName: z.string().nullable().optional(),
-}).superRefine((val, ctx) => {
-  if (val.paymentMethod === "BANK_TRANSFER") {
-    if (!val.accountHolderName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["accountHolderName"] });
-    if (!val.accountNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["accountNumber"] });
-    if (!val.bankName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["bankName"] });
-    if (!val.ifscCode) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for bank transfer", path: ["ifscCode"] });
-  } else if (val.paymentMethod === "GPAY") {
-    if (!val.gpayNumber) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for GPay", path: ["gpayNumber"] });
-    if (!val.bankingName) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Required for GPay", path: ["bankingName"] });
-  }
-});
-export type SalaryInput = z.infer<typeof salaryInputSchema>;
-
 export const familyContactSchema = z.object({
   category: z.enum(["EMERGENCY_CONTACT", "SPOUSE", "PARENT", "CHILD"]),
   name: z.string().optional(),
@@ -88,8 +63,7 @@ const employeeInputSchema = z.object({
     email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
     dateOfBirth: z.string().date().nullable().optional(),
   }),
-  familyContacts: z.array(familyContactSchema).optional(),
-  salary: salaryInputSchema.optional(),
+  familyContacts: z.array(familyContactSchema).optional()
 });
 
 const employeeUpdateSchema = z
@@ -124,14 +98,12 @@ const employeeUpdateSchema = z
       })
       .optional(),
     familyContacts: z.array(familyContactSchema).optional(),
-    salary: salaryInputSchema.optional(),
     accessLocations: z.array(z.string().uuid()).optional(),
   })
   .strict();
 
 export const proposeEmployeeChangeSchema = employeeUpdateSchema.extend({
-  locationId: z.string().uuid().optional(),
-  salary: salaryInputSchema.optional(),
+  locationId: z.string().uuid().optional()
 });
 export type ProposeEmployeeChangeInput = z.infer<typeof proposeEmployeeChangeSchema>;
 
@@ -486,22 +458,22 @@ export async function createEmployee(actor: Actor, input: CreateEmployeeInput) {
         }
       }
 
-      if (parsed.data.salary) {
-        await tx.insert(employeeSalaryInfo).values({
-          organizationId: parsed.data.organizationId,
-          employeeId: newEmployee.id,
-          salaryType: parsed.data.salary.salaryType ?? "Monthly",
-          amount: parsed.data.salary.amount ?? "0",
-          effectiveFrom: parsed.data.employmentStartDate ? new Date(parsed.data.employmentStartDate).toISOString() : new Date().toISOString(),
-          paymentMethod: parsed.data.salary.paymentMethod ?? "BANK_TRANSFER",
-          accountHolderName: parsed.data.salary.accountHolderName ?? null,
-          accountNumber: parsed.data.salary.accountNumber ?? null,
-          bankName: parsed.data.salary.bankName ?? null,
-          ifscCode: parsed.data.salary.ifscCode ?? null,
-          gpayNumber: parsed.data.salary.gpayNumber ?? null,
-          bankingName: parsed.data.salary.bankingName ?? null,
-        });
-      }
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
 
       await initializeEmployeeLeaves(
         tx,
@@ -560,12 +532,12 @@ export async function getEmployee(actor: Actor, employeeId: string) {
   }
 
   const familyContacts = await db.select().from(employeeFamilyContacts).where(eq(employeeFamilyContacts.employeeId, employee.id));
-  const salaryInfoRows = await db.select().from(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employee.id));
+// REMOVED
   
   const statusHistory = await db.select().from(employeeHistoryStatus).where(eq(employeeHistoryStatus.employeeId, employee.id)).orderBy(employeeHistoryStatus.effectiveFrom);
   const branchHistory = await db.select().from(employeeHistoryBranch).where(eq(employeeHistoryBranch.employeeId, employee.id)).orderBy(employeeHistoryBranch.effectiveFrom);
   const roleHistory = await db.select().from(employeeHistoryRole).where(eq(employeeHistoryRole.employeeId, employee.id)).orderBy(employeeHistoryRole.effectiveFrom);
-  const salaryHistory = await db.select().from(employeeHistorySalary).where(eq(employeeHistorySalary.employeeId, employee.id)).orderBy(employeeHistorySalary.effectiveFrom);
+// REMOVED
   const reportingHistory = await db.select().from(employeeHistoryReporting).where(eq(employeeHistoryReporting.employeeId, employee.id)).orderBy(employeeHistoryReporting.effectiveFrom);
   const categoryHistory = await db.select().from(employeeHistoryCategory).where(eq(employeeHistoryCategory.employeeId, employee.id)).orderBy(employeeHistoryCategory.effectiveFrom);
 
@@ -585,12 +557,12 @@ export async function getEmployee(actor: Actor, employeeId: string) {
   return {
     ...employee,
     familyContacts,
-    salaryInfo: salaryInfoRows[0] ?? null,
+// REMOVED
     history: {
       status: statusHistory,
       branch: branchHistory,
       role: roleHistory,
-      salary: salaryHistory,
+// REMOVED
       reporting: reportingHistory,
       category: categoryHistory,
       audit: fieldAuditHistory,
@@ -782,51 +754,7 @@ export async function updateEmployee(
       }
     }
 
-    if (parsed.data.salary !== undefined) {
-      const existingSalaryData = await tx.select().from(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employeeId)).limit(1);
-      const existingSalary = existingSalaryData[0];
-      
-      const hasSalaryChanged = !existingSalary || 
-        existingSalary.salaryType !== parsed.data.salary.salaryType ||
-        parseFloat(existingSalary.amount) !== parseFloat(parsed.data.salary.amount) ||
-        existingSalary.paymentMethod !== parsed.data.salary.paymentMethod ||
-        existingSalary.accountHolderName !== (parsed.data.salary.accountHolderName ?? null) ||
-        existingSalary.accountNumber !== (parsed.data.salary.accountNumber ?? null) ||
-        existingSalary.bankName !== (parsed.data.salary.bankName ?? null) ||
-        existingSalary.ifscCode !== (parsed.data.salary.ifscCode ?? null) ||
-        existingSalary.gpayNumber !== (parsed.data.salary.gpayNumber ?? null) ||
-        existingSalary.bankingName !== (parsed.data.salary.bankingName ?? null);
 
-      if (hasSalaryChanged) {
-        const now = new Date();
-        await tx.delete(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, employeeId));
-        await tx.insert(employeeSalaryInfo).values({
-          organizationId: current.organizationId,
-          employeeId: employeeId,
-          salaryType: parsed.data.salary.salaryType,
-          amount: parsed.data.salary.amount,
-          effectiveFrom: now.toISOString().split('T')[0],
-          paymentMethod: parsed.data.salary.paymentMethod,
-          accountHolderName: parsed.data.salary.accountHolderName ?? null,
-          accountNumber: parsed.data.salary.accountNumber ?? null,
-          bankName: parsed.data.salary.bankName ?? null,
-          ifscCode: parsed.data.salary.ifscCode ?? null,
-          gpayNumber: parsed.data.salary.gpayNumber ?? null,
-          bankingName: parsed.data.salary.bankingName ?? null,
-        });
-
-        if (current.status !== "DRAFT") {
-          await tx.insert(employeeHistorySalary).values({
-            organizationId: current.organizationId,
-            employeeId: employeeId,
-            salaryType: parsed.data.salary.salaryType,
-            amount: parsed.data.salary.amount,
-            effectiveFrom: now,
-            recordedBy: recordedByEmployeeId
-          });
-        }
-      }
-    }
 
     if (parsed.data.reportingEmployeeId !== undefined && parsed.data.reportingEmployeeId !== current.reportingEmployeeId) {
       await tx.insert(employeeHistoryReporting).values({
@@ -936,10 +864,7 @@ export async function transitionEmployeeLifecycle(
         throw new EmployeeServiceError("Spouse details are required for married employees", "INVALID_LIFECYCLE_TRANSITION");
       }
 
-      const salaryInfo = await tx.select().from(employeeSalaryInfo).where(eq(employeeSalaryInfo.employeeId, current.id));
-      if (salaryInfo.length === 0) {
-        throw new EmployeeServiceError("Salary info is required for activation", "INVALID_LIFECYCLE_TRANSITION");
-      }
+
 
       await recordAuditEvent({
         organizationId: current.organizationId,
@@ -965,11 +890,7 @@ export async function transitionEmployeeLifecycle(
           organizationId: current.organizationId, employeeId: current.id, reportingEmployeeId: current.reportingEmployeeId, effectiveFrom: now, recordedBy: recordedByEmployeeId,
         });
       }
-      if (salaryInfo[0]) {
-        await tx.insert(employeeHistorySalary).values({
-          organizationId: current.organizationId, employeeId: current.id, salaryType: salaryInfo[0].salaryType, amount: salaryInfo[0].amount.toString(), effectiveFrom: now, recordedBy: recordedByEmployeeId,
-        });
-      }
+
     }
     
     if (nextStatus === "INACTIVE" && current.status === "ACTIVE") {
@@ -1269,27 +1190,7 @@ export async function approveEmployeeChange(
       });
     }
 
-    // Salary update
-    if (payload.salary) {
-      await tx.update(employeeSalaryInfo).set({ isActive: false, updatedAt: now }).where(eq(employeeSalaryInfo.employeeId, emp.id));
-      await tx.insert(employeeSalaryInfo).values({
-        organizationId: emp.organizationId,
-        employeeId: emp.id,
-        salaryType: payload.salary.salaryType,
-        amount: payload.salary.amount,
-        effectiveFrom: now.toISOString().split('T')[0], // date string
-        paymentMethod: payload.salary.paymentMethod,
-        accountHolderName: payload.salary.accountHolderName ?? null,
-        accountNumber: payload.salary.accountNumber ?? null,
-        bankName: payload.salary.bankName ?? null,
-        ifscCode: payload.salary.ifscCode ?? null,
-        gpayNumber: payload.salary.gpayNumber ?? null,
-        bankingName: payload.salary.bankingName ?? null,
-      });
-      await tx.insert(employeeHistorySalary).values({
-        organizationId: emp.organizationId, employeeId: emp.id, salaryType: payload.salary.salaryType, amount: payload.salary.amount, effectiveFrom: now, recordedBy: recordedByEmployeeId
-      });
-    }
+
 
     const [updated] = await tx.update(employeeChangeRequests)
       .set({ status: "APPROVED", reviewComment: reviewComment ?? null, reviewerUserId: actor.id, updatedAt: now })
@@ -1311,78 +1212,78 @@ export async function approveEmployeeChange(
   });
 }
 
-export async function setEmployeeSalaryInfo(actor: Actor, employeeId: string, input: SalaryInput) {
-  requireActor(actor);
-  const parsed = salaryInputSchema.safeParse(input);
-  if (!parsed.success) {
-    throw new EmployeeServiceError("Invalid salary input", "INVALID_INPUT");
-  }
-  
-  return db.transaction(async (tx) => {
-    const currentRows = await tx.select().from(employees).where(eq(employees.id, employeeId)).for("update");
-    if (currentRows.length === 0) throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
-    const current = currentRows[0];
-
-    const actorEmployeeRows = await tx.select({ id: employees.id }).from(employees).where(eq(employees.userId, actor.id));
-    const recordedByEmployeeId = actorEmployeeRows[0]?.id ?? null;
-
-    if (current.status !== "DRAFT") {
-      const grants = await loadAuthorizationGrants(actor.id);
-      if (!grants.isOwner) {
-        throw new EmployeeServiceError("Only owners can directly edit salary of active employees. Others must propose a change.", "ACCESS_DENIED");
-      }
-    } else {
-      await requireEmployeeAccess(
-        actor,
-        current.organizationId,
-        current.locationId,
-        employeePermissions.update,
-      );
-    }
-
-    const now = new Date();
-    await tx.update(employeeSalaryInfo).set({ isActive: false, updatedAt: now }).where(eq(employeeSalaryInfo.employeeId, employeeId));
-    
-    await tx.insert(employeeSalaryInfo).values({
-      organizationId: current.organizationId,
-      employeeId: employeeId,
-      salaryType: parsed.data.salaryType,
-      amount: parsed.data.amount,
-      effectiveFrom: now.toISOString().split('T')[0],
-      paymentMethod: parsed.data.paymentMethod,
-      accountHolderName: parsed.data.accountHolderName ?? null,
-      accountNumber: parsed.data.accountNumber ?? null,
-      bankName: parsed.data.bankName ?? null,
-      ifscCode: parsed.data.ifscCode ?? null,
-      gpayNumber: parsed.data.gpayNumber ?? null,
-      bankingName: parsed.data.bankingName ?? null,
-    });
-
-    if (current.status !== "DRAFT") {
-      await tx.insert(employeeHistorySalary).values({
-        organizationId: current.organizationId,
-        employeeId: employeeId,
-        salaryType: parsed.data.salaryType,
-        amount: parsed.data.amount,
-        effectiveFrom: now,
-        recordedBy: recordedByEmployeeId
-      });
-    }
-
-    await recordAuditEvent({
-      organizationId: current.organizationId,
-      locationId: current.locationId,
-      actorUserId: actor.id,
-      eventType: "EMPLOYEE_SALARY_UPDATED",
-      action: "UPDATE",
-      entityType: "employee",
-      entityId: employeeId,
-      metadata: { status: current.status }
-    }, tx);
-
-    return true;
-  });
-}
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
+// REMOVED
 
 export type HierarchyNode = {
   id: string;

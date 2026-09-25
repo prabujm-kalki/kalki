@@ -6,7 +6,7 @@ import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import { EmployeeForm } from "./EmployeeForm";
-import { EmployeeSalaryForm } from "./EmployeeSalaryForm";
+
 
 type EmployeeView = {
   id: string;
@@ -542,16 +542,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             </div>
             {isEditingSalary ? (
               <div className="kalki-section-content" style={{ background: "#f8fafc", borderBottom: "1px solid var(--kalki-border)" }}>
-                <EmployeeSalaryForm 
-                  employeeId={emp.id}
-                  initialData={emp.salaryInfo}
-                  isProposal={isProposalRequired}
-                  onCancel={() => setIsEditingSalary(false)}
-                  onSuccess={() => {
-                    setIsEditingSalary(false);
-                    setRefreshKey(k => k + 1);
-                  }}
-                />
+                
               </div>
             ) : null}
             <div className="kalki-section-content">

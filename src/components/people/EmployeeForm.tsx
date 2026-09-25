@@ -50,11 +50,6 @@ const formSchema = z.object({
   
   fatherName: z.string().optional(),
   motherName: z.string().optional(),
-  
-  // Salary fields
-  salaryType: z.string().optional(),
-  salaryAmount: z.number().optional(),
-  salaryEffectiveFrom: z.string().optional(),
   paymentMethod: z.string().optional(),
   
   departmentId: z.string().optional().nullable(),
@@ -102,11 +97,6 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     reportingEmployeeId: initialData?.reportingEmployeeId || "",
     secondaryMobile: initialData?.secondaryMobile || "",
     departmentId: initialData?.departmentId || "",
-    
-    // Salary Data
-    salaryType: initialData?.salaryInfo?.salaryType || "Monthly",
-    salaryAmount: initialData?.salaryInfo?.amount || "",
-    salaryEffectiveFrom: initialData?.salaryInfo?.effectiveFrom || new Date().toISOString().split("T")[0],
     paymentMethod: initialData?.salaryInfo?.paymentMethod || "BANK_TRANSFER",
     accountHolderName: initialData?.salaryInfo?.accountHolderName || "",
     accountNumber: initialData?.salaryInfo?.accountNumber || "",
@@ -268,11 +258,11 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     setPending(true);
     setFieldErrors({});
 
-    const salaryAmountNum = formData.salaryAmount ? Number(formData.salaryAmount) : undefined;
+    
 
     const validationResult = formSchema.safeParse({ 
       ...formData, 
-      salaryAmount: salaryAmountNum,
+      
       spouseName, 
       spouseMobile 
     });
@@ -389,18 +379,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         ...documentPayload,
       };
 
-      const salaryPayload = {
-        salaryType: formData.salaryType || undefined,
-        amount: salaryAmountNum !== undefined ? String(salaryAmountNum) : undefined,
-        paymentMethod: formData.paymentMethod || undefined,
-        accountHolderName: formData.accountHolderName || undefined,
-        accountNumber: formData.accountNumber || undefined,
-        bankName: formData.bankName || undefined,
-        ifscCode: formData.ifscCode || undefined,
-        gpayNumber: formData.gpayNumber || undefined,
-        bankingName: formData.bankingName || undefined,
-      };
-
+      
       if (initialData?.id) {
         if (isProposal) {
           const reason = prompt("Please provide a reason for proposing this change:");
@@ -408,13 +387,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
             setPending(false);
             return;
           }
-          await apiSend(`/api/employees/proposals`, "POST", { employeeId: initialData.id, reason, ...commonFields, salary: salaryAmountNum ? salaryPayload : undefined, accessLocations: selectedLocationIds });
+          await apiSend(`/api/employees/proposals`, "POST", { employeeId: initialData.id, reason, ...commonFields,  accessLocations: selectedLocationIds });
         } else {
-          await apiSend(`/api/employees?id=${initialData.id}`, "PATCH", { ...commonFields, familyContacts: payloadContacts, salary: salaryAmountNum ? salaryPayload : undefined, accessLocations: selectedLocationIds });
+          await apiSend(`/api/employees?id=${initialData.id}`, "PATCH", { ...commonFields, familyContacts: payloadContacts,  accessLocations: selectedLocationIds });
         }
       } else {
         await apiSend("/api/employees", "POST", {
-          organizationId, locationId, familyContacts: payloadContacts, ...commonFields, salary: salaryAmountNum ? salaryPayload : undefined,
+          organizationId, locationId, familyContacts: payloadContacts, ...commonFields, 
           ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds, locationIds: selectedLocationIds } } : {})
         });
       }
@@ -572,36 +551,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
             </div>
           </KalkiSection>
 
-          <KalkiSection title="Salary & Payment" icon="₹">
-            <div className="kalki-grid-2-col">
-              <KalkiSelect label="Salary Type" error={fieldErrors.salaryType} value={formData.salaryType} onChange={e => handleChange("salaryType", e.target.value)} disabled={pending}>
-                <option value="Monthly">Monthly</option>
-                <option value="Weekly">Weekly</option>
-                <option value="Daily">Daily</option>
-              </KalkiSelect>
-              <KalkiInput label="Salary Amount (₹)" type="number" error={fieldErrors.salaryAmount} step="0.01" value={formData.salaryAmount} onChange={e => handleChange("salaryAmount", e.target.value)} disabled={pending} />
-              <KalkiInput label="Effective From" type="date" error={fieldErrors.salaryEffectiveFrom} value={formData.salaryEffectiveFrom} onChange={e => handleChange("salaryEffectiveFrom", e.target.value)} disabled={pending} />
-              <KalkiSelect label="Payment Method" error={fieldErrors.paymentMethod} value={formData.paymentMethod} onChange={e => handleChange("paymentMethod", e.target.value)} disabled={pending}>
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                <option value="GPAY">GPay / UPI</option>
-                <option value="CASH">Cash</option>
-              </KalkiSelect>
-            </div>
-            {formData.paymentMethod === "BANK_TRANSFER" && (
-              <div className="kalki-grid-2-col" style={{ marginTop: '1rem' }}>
-                <KalkiInput label="Account Holder Name *" required error={fieldErrors.accountHolderName} value={formData.accountHolderName} onChange={e => handleChange("accountHolderName", e.target.value)} disabled={pending} />
-                <KalkiInput label="Account Number *" required error={fieldErrors.accountNumber} value={formData.accountNumber} onChange={e => handleChange("accountNumber", e.target.value)} disabled={pending} />
-                <KalkiInput label="Bank Name *" required error={fieldErrors.bankName} value={formData.bankName} onChange={e => handleChange("bankName", e.target.value)} disabled={pending} />
-                <KalkiInput label="IFSC Code *" required error={fieldErrors.ifscCode} value={formData.ifscCode} onChange={e => handleChange("ifscCode", e.target.value)} disabled={pending} />
-              </div>
-            )}
-            {formData.paymentMethod === "GPAY" && (
-              <div className="kalki-grid-2-col" style={{ marginTop: '1rem' }}>
-                <KalkiInput label="GPay Number *" required type="tel" error={fieldErrors.gpayNumber} value={formData.gpayNumber} onChange={e => handleChange("gpayNumber", e.target.value)} disabled={pending} />
-                <KalkiInput label="Banking Name *" required error={fieldErrors.bankingName} value={formData.bankingName} onChange={e => handleChange("bankingName", e.target.value)} disabled={pending} />
-              </div>
-            )}
-          </KalkiSection>
+          
 
         </div>
 

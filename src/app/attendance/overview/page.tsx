@@ -1,8 +1,8 @@
 import { BiometricUploader } from "./BiometricUploader";
 import { Users, AlertCircle, Clock, Image as ImageIcon } from "lucide-react";
 import { db } from "@/db";
-import { attendanceSummaries, leaveRequests, rawBiometricPunches, employees, people } from "@/db/schema";
-import { eq, and, lte, gte, desc } from "drizzle-orm";
+import { attendanceSummaries, leaveRequests, rawBiometricPunches, employees, people, shiftDefinitions } from "@/db/schema";
+import { eq, and, lte, gte, desc, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -39,21 +39,74 @@ export default async function AttendanceOverviewPage({
   const userEmployeeId = userEmpList[0]?.id;
   const isManagerOnly = !context.isOwner; // If not owner, restrict to their direct reports
 
-  // Fetch present today
-  const presentLogs = await db.select().from(attendanceSummaries).where(
+  // Fetch today's punches (Live Data)
+  const todayPunches = await db.select({
+    employeeId: rawBiometricPunches.employeeId,
+    punchTimestamp: rawBiometricPunches.punchTimestamp,
+    punchType: rawBiometricPunches.punchType
+  })
+  .from(rawBiometricPunches)
+  .where(
     and(
-      eq(attendanceSummaries.attendanceDate, todayStr),
-      eq(attendanceSummaries.status, "PRESENT")
+      eq(rawBiometricPunches.organizationId, scope.organizationId),
+      gte(rawBiometricPunches.punchTimestamp, startOfDay)
     )
   );
 
-  // Fetch late ins
-  const lateLogs = await db.select().from(attendanceSummaries).where(
-    and(
-      eq(attendanceSummaries.attendanceDate, todayStr),
-      eq(attendanceSummaries.status, "LATE")
-    )
-  );
+  const presentEmployeeIds = new Set(todayPunches.map(p => p.employeeId));
+  const presentCount = presentEmployeeIds.size;
+
+  let lateCount = 0;
+  if (presentCount > 0) {
+    const allEmployees = await db.select({
+      id: employees.id,
+      shift: {
+        startTime: shiftDefinitions.startTime,
+        gracePeriodMinutes: shiftDefinitions.gracePeriodMinutes
+      }
+    })
+    .from(employees)
+    .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id))
+    .where(
+      and(
+        eq(employees.organizationId, scope.organizationId),
+        inArray(employees.id, Array.from(presentEmployeeIds).filter(Boolean) as string[])
+      )
+    );
+
+    const employeeMap = new Map(allEmployees.map(e => [e.id, e]));
+
+    // Find first punch-in for each employee today
+    const firstPunchMap = new Map<string, Date>();
+    for (const p of todayPunches) {
+      if (!p.employeeId) continue;
+      if (p.punchType === "PUNCH_IN") {
+        const existing = firstPunchMap.get(p.employeeId);
+        if (!existing || p.punchTimestamp < existing) {
+          firstPunchMap.set(p.employeeId, p.punchTimestamp);
+        }
+      }
+    }
+
+    // Calculate late count
+    for (const [empId, punchTime] of firstPunchMap.entries()) {
+      const emp = employeeMap.get(empId);
+      if (emp && emp.shift && emp.shift.startTime) {
+        const [sh, sm, ss] = emp.shift.startTime.split(':').map(Number);
+        
+        const expectedTime = new Date(startOfDay);
+        expectedTime.setHours(sh, sm, ss || 0, 0);
+        
+        if (emp.shift.gracePeriodMinutes) {
+          expectedTime.setMinutes(expectedTime.getMinutes() + emp.shift.gracePeriodMinutes);
+        }
+
+        if (punchTime > expectedTime) {
+          lateCount++;
+        }
+      }
+    }
+  }
 
   // Fetch absent from summaries
   const absentLogs = await db.select().from(attendanceSummaries).where(
@@ -107,8 +160,7 @@ export default async function AttendanceOverviewPage({
   .orderBy(desc(rawBiometricPunches.punchTimestamp))
   .limit(20);
 
-  const presentCount = presentLogs.length;
-  const lateCount = lateLogs.length;
+  // Present and Late are computed dynamically above
   const absentCount = absentLogs.length + leavesToday.length;
 
   return (
