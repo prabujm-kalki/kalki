@@ -6,6 +6,7 @@ import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import { EmployeeForm } from "./EmployeeForm";
+import { EmployeeCompensationTab } from "@/components/payroll/EmployeeCompensationTab";
 
 
 type EmployeeView = {
@@ -533,46 +534,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             </div>
           </section>
 
-          <section className="kalki-section">
-            <div className="kalki-section-header">
-              <h2 className="kalki-section-title">Salary & Payment</h2>
-              <button className="kalki-button kalki-button--ghost kalki-button--sm" onClick={() => setIsEditingSalary(true)} disabled={!!pendingProposal}>
-                {isProposalRequired ? "Propose Salary Change" : "Edit"}
-              </button>
-            </div>
-            {isEditingSalary ? (
-              <div className="kalki-section-content" style={{ background: "#f8fafc", borderBottom: "1px solid var(--kalki-border)" }}>
-                
-              </div>
-            ) : null}
-            <div className="kalki-section-content">
-              {!emp.salaryInfo ? (
-                <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
-                  No salary information recorded.
-                </div>
-              ) : (
-                <div className="kalki-grid-2-col">
-                  <InfoItem label="Salary Type" value={emp.salaryInfo.salaryType} />
-                  <InfoItem label="Amount" value={`₹${emp.salaryInfo.amount}`} strong />
-                  <InfoItem label="Payment Method" value={emp.salaryInfo.paymentMethod.replace('_', ' ')} />
-                  {emp.salaryInfo.paymentMethod === 'BANK_TRANSFER' && (
-                    <>
-                      <InfoItem label="Account Holder" value={emp.salaryInfo.accountHolderName} />
-                      <InfoItem label="Account Number" value={emp.salaryInfo.accountNumber} />
-                      <InfoItem label="Bank" value={emp.salaryInfo.bankName} />
-                      <InfoItem label="IFSC" value={emp.salaryInfo.ifscCode} />
-                    </>
-                  )}
-                  {emp.salaryInfo.paymentMethod === 'GPAY' && (
-                    <>
-                      <InfoItem label="GPay Number" value={emp.salaryInfo.gpayNumber} />
-                      <InfoItem label="Banking Name" value={emp.salaryInfo.bankingName} />
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
+          <EmployeeCompensationTab employeeId={emp.id} organizationId={selected.organizationId} />
 
           <section className="kalki-section">
             <div className="kalki-section-header">
