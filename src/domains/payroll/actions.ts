@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { db } from "@/db";
-import { employeeSalaryStructures, employeeSalaryStructureComponents, salaryComponents } from "@/db/schema";
+import { employeeSalaryStructures, employeeSalaryStructureComponents, salaryComponents, salaryAdvances } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 
@@ -60,4 +60,44 @@ export async function upsertSalaryStructure(input: UpsertSalaryStructureInput) {
     
     return structure;
   });
+}
+
+export const createSalaryAdvanceSchema = z.object({
+  organizationId: z.string().uuid(),
+  locationId: z.string().uuid(),
+  employeeId: z.string().uuid(),
+  amount: z.string().min(1, "Amount is required"),
+  reason: z.string().optional(),
+  dateGiven: z.string().optional(),
+  repaymentMethod: z.enum(["DEDUCT_FROM_PAYROLL", "MANUAL_CASH"]).default("DEDUCT_FROM_PAYROLL"),
+});
+
+import { headers } from "next/headers";
+
+export async function createSalaryAdvance(input: z.infer<typeof createSalaryAdvanceSchema>) {
+  try {
+    const reqHeaders = await headers();
+    const session = await auth.api.getSession({ headers: reqHeaders });
+    if (!session?.user) {
+      return { error: "Unauthorized" };
+    }
+
+    const parsed = createSalaryAdvanceSchema.parse(input);
+    
+    await db.insert(salaryAdvances).values({
+      organizationId: parsed.organizationId,
+      locationId: parsed.locationId,
+      employeeId: parsed.employeeId,
+      amount: parsed.amount,
+      reason: parsed.reason || null,
+      dateGiven: parsed.dateGiven ? new Date(parsed.dateGiven) : new Date(),
+      repaymentMethod: parsed.repaymentMethod,
+      status: 'PENDING',
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error creating salary advance:", error);
+    return { error: "Failed to record salary advance." };
+  }
 }

@@ -4,8 +4,11 @@ import React, { useState } from "react";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { AppShell } from "@/components/AppShell";
 import { DollarSign, FileText, History, HandCoins } from "lucide-react";
+import { useSessionView } from "@/components/AppShell";
+import { SalaryAdvancesTab } from "@/components/payroll/SalaryAdvancesTab";
 
 export default function PayrollDashboardPage() {
+  const { selected } = useSessionView();
   const [activeTab, setActiveTab] = useState<"run" | "advances" | "history">("run");
 
   return (
@@ -18,29 +21,31 @@ export default function PayrollDashboardPage() {
 
         <div className="kalki-dashboard-grid" style={{ padding: '0 2rem' }}>
           
-          <div className="kalki-tabs-container">
-            <div className="kalki-tabs-list">
-              <button
-                className={`kalki-tab ${activeTab === 'run' ? 'active' : ''}`}
-                onClick={() => setActiveTab('run')}
-              >
-                <DollarSign size={18} /> Run Payroll
-              </button>
-              <button
-                className={`kalki-tab ${activeTab === 'advances' ? 'active' : ''}`}
-                onClick={() => setActiveTab('advances')}
-              >
-                <HandCoins size={18} /> Salary Advances
-              </button>
-              <button
-                className={`kalki-tab ${activeTab === 'history' ? 'active' : ''}`}
-                onClick={() => setActiveTab('history')}
-              >
-                <History size={18} /> Payslip History
-              </button>
-            </div>
+          <div className="kalki-module-nav" style={{ borderBottom: '1px solid var(--kalki-border)', marginBottom: '2rem' }}>
+            <button
+              className={`kalki-module-link ${activeTab === 'run' ? 'active' : ''}`}
+              onClick={() => setActiveTab('run')}
+              style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer' }}
+            >
+              <DollarSign size={18} /> Run Payroll
+            </button>
+            <button
+              className={`kalki-module-link ${activeTab === 'advances' ? 'active' : ''}`}
+              onClick={() => setActiveTab('advances')}
+              style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer' }}
+            >
+              <HandCoins size={18} /> Salary Advances
+            </button>
+            <button
+              className={`kalki-module-link ${activeTab === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTab('history')}
+              style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer' }}
+            >
+              <History size={18} /> Payslip History
+            </button>
+          </div>
 
-            <div className="kalki-tab-content">
+          <div className="kalki-tab-content">
               {activeTab === 'run' && (
                 <div className="kalki-card">
                   <div className="kalki-section-header">
@@ -62,42 +67,8 @@ export default function PayrollDashboardPage() {
                 </div>
               )}
 
-              {activeTab === 'advances' && (
-                <div className="kalki-card">
-                  <div className="kalki-section-header">
-                    <h3 className="kalki-section-title">
-                      <HandCoins size={20} className="kalki-icon-accent" /> Salary Advances & Deductions
-                    </h3>
-                    <button className="kalki-btn kalki-btn-primary">
-                      Record Advance
-                    </button>
-                  </div>
-                  <p className="kalki-text-muted" style={{ marginBottom: '1.5rem' }}>
-                    Track and manage employee loans and advances that need to be deducted from upcoming payrolls.
-                  </p>
-                  
-                  {/* Placeholder for Data Table */}
-                  <div className="kalki-table-container">
-                    <table className="kalki-table">
-                      <thead>
-                        <tr>
-                          <th>Employee</th>
-                          <th>Amount</th>
-                          <th>Date Given</th>
-                          <th>Status</th>
-                          <th>Method</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--kalki-text-muted)' }}>
-                            No active salary advances found.
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+              {activeTab === 'advances' && selected && (
+                <SalaryAdvancesTab organizationId={selected.organizationId} locationId={selected.locationId} />
               )}
 
               {activeTab === 'history' && (
@@ -135,8 +106,6 @@ export default function PayrollDashboardPage() {
                 </div>
               )}
             </div>
-          </div>
-
         </div>
       </div>
     </AppShell>
