@@ -103,7 +103,7 @@ export default function ReportsClient({
       });
 
       if (reportType === "DETAILED") {
-        const headers = ["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT"];
+        const headers = ["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT", "Status / Anomalies"];
         const rows: string[][] = [];
         filteredEmployees.forEach(emp => {
           dates.forEach(d => {
@@ -116,6 +116,39 @@ export default function ReportsClient({
               
               const formatTime = (p: any) => p ? new Date(p.punchTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-";
               
+              // Anomaly calculation for CSV
+              let anomalies = [];
+              let status = "PRESENT";
+              
+              if (pi && pi.shiftStartTime) {
+                const punchTime = new Date(pi.punchTimestamp);
+                const shiftStartParts = pi.shiftStartTime.split(":");
+                const expectedStart = new Date(punchTime);
+                expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+                
+                const graceMs = (pi.shiftGracePeriod || 15) * 60 * 1000;
+                if (punchTime.getTime() > expectedStart.getTime() + graceMs) {
+                  anomalies.push("LATE IN");
+                  status = "LATE";
+                }
+
+                if (po) {
+                  const punchOutTime = new Date(po.punchTimestamp);
+                  const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
+                  
+                  if (pi.shiftMinHoursHalfDay && hoursWorked < parseFloat(pi.shiftMinHoursHalfDay)) {
+                    anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                    status = "HALF DAY";
+                  }
+                } else {
+                  anomalies.push("MISSING OUT PUNCH");
+                }
+              } else if (dayPunches.length > 0) {
+                anomalies.push("NO SHIFT ASSIGNED");
+              }
+
+              const anomalyText = anomalies.length > 0 ? `[${status}] ${anomalies.join(", ")}` : status;
+
               rows.push([
                 emp.code,
                 emp.name,
@@ -123,10 +156,11 @@ export default function ReportsClient({
                 formatTime(pi),
                 formatTime(bi),
                 formatTime(bo),
-                formatTime(po)
+                formatTime(po),
+                anomalyText
               ]);
             } else if (employeeId) {
-              rows.push([emp.code, emp.name, d, "-", "-", "-", "-"]);
+              rows.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT"]);
             }
           });
         });
