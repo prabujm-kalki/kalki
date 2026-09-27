@@ -17,8 +17,7 @@ export function SettingsNav() {
     { name: "Master Data", href: `/settings/master-data`, icon: <Database size={16} /> },
     { name: "Access & Roles", href: `/settings/roles`, icon: <Shield size={16} /> },
     { name: "Users", href: `/settings/users`, icon: <Users size={16} /> },
-    // If they have import-fields, we could add it, but it wasn't on the dashboard
-    // { name: "Import Fields", href: `/settings/import-fields`, icon: <Database size={16} /> },
+    { name: "Statutory Settings", href: `/settings/statutory`, icon: <Database size={16} /> },
   ];
 
   return (

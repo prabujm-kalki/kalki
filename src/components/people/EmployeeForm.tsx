@@ -12,6 +12,7 @@ import { KalkiSection } from "../ui/KalkiSection";
 import { KalkiPageHeader } from "../ui/KalkiPageHeader";
 import { KalkiActionBar } from "../ui/KalkiActionBar";
 import { KalkiFileUpload } from "../ui/KalkiFileUpload";
+import { getShifts } from "@/domains/settings/shiftActions";
 
 type EmployeeFormProps = {
   organizationId: string;
@@ -53,6 +54,7 @@ const formSchema = z.object({
   paymentMethod: z.string().optional(),
   
   departmentId: z.string().optional().nullable(),
+  defaultShiftId: z.string().optional().nullable(),
 }).superRefine((data, ctx) => {
   if (data.maritalStatus === "Married") {
     if (!data.spouseName || data.spouseName.trim() === "") {
@@ -97,6 +99,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     reportingEmployeeId: initialData?.reportingEmployeeId || "",
     secondaryMobile: initialData?.secondaryMobile || "",
     departmentId: initialData?.departmentId || "",
+    defaultShiftId: initialData?.defaultShiftId || "",
     paymentMethod: initialData?.salaryInfo?.paymentMethod || "BANK_TRANSFER",
     accountHolderName: initialData?.salaryInfo?.accountHolderName || "",
     accountNumber: initialData?.salaryInfo?.accountNumber || "",
@@ -127,6 +130,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
       .then(data => setLocationsData(data))
       .catch(console.error);
   }, [organizationId]);
+
+  const [shiftsData, setShiftsData] = useState<any[]>([]);
+  useEffect(() => {
+    getShifts(organizationId, locationId)
+      .then(data => setShiftsData(data))
+      .catch(console.error);
+  }, [organizationId, locationId]);
 
   const [departmentsData, setDepartmentsData] = useState<{ departments: any[] } | null>(null);
   useEffect(() => {
@@ -373,6 +383,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         reportingEmployeeId: formData.reportingEmployeeId || undefined,
         secondaryMobile: formData.secondaryMobile || undefined,
         departmentId: formData.departmentId || undefined,
+        defaultShiftId: formData.defaultShiftId || undefined,
         biometricId: formData.biometricId,
         posId: formData.posId || undefined,
         person: personPayload,
@@ -538,6 +549,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
                 <option value="">Select Department...</option>
                 {departmentsData?.departments?.map((d: any) => (
                   <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                ))}
+              </KalkiSelect>
+              
+              <KalkiSelect label="Default Shift" error={fieldErrors.defaultShiftId} value={formData.defaultShiftId} onChange={e => handleChange("defaultShiftId", e.target.value)} disabled={pending}>
+                <option value="">Select Shift...</option>
+                {shiftsData?.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                 ))}
               </KalkiSelect>
               

@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev -p 3001",
+    "tunnel": "npx ngrok http --domain=detached-manned-shining.ngrok-free.dev 3001",
     "db:sync-perms": "tsx --env-file=.env scripts/sync-permissions.ts",
     "build": "npm run db:sync-perms && next build",
     "start": "next start -p 3001",

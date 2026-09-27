@@ -14,6 +14,7 @@ type EmployeeView = {
   userId: string | null;
   employeeCode: string;
   jobTitle: string | null;
+  shiftName: string | null;
   employmentStartDate: string;
   employmentEndDate: string | null;
   status: string;
@@ -471,6 +472,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                 <InfoItem label="Category" value={emp.category} />
                 <InfoItem label="Date of Joining" value={new Date(emp.employmentStartDate).toLocaleDateString('en-GB').replace(/\//g, '-')} />
                 <InfoItem label="Department" value={emp.departmentName} />
+                <InfoItem label="Shift" value={emp.shiftName || "Not Assigned"} />
                 <InfoItem label="Job Title" value={emp.jobTitle} />
                 <InfoItem 
                   label="Reporting To" 

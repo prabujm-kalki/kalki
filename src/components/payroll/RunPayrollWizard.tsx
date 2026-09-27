@@ -17,18 +17,51 @@ type PayrollPreview = {
 
 export function RunPayrollWizard({ organizationId, locationId }: { organizationId: string, locationId: string }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [payBasis, setPayBasis] = useState("MONTHLY");
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedWeek, setSelectedWeek] = useState("");
   
   const [loading, setLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PayrollPreview[]>([]);
   
   const [error, setError] = useState<string | null>(null);
 
+  const getDatesFromWeek = (weekStr: string) => {
+    const [yearStr, wStr] = weekStr.split("-W");
+    const year = parseInt(yearStr, 10);
+    const week = parseInt(wStr, 10);
+    const jan1 = new Date(year, 0, 1);
+    const daysOffset = jan1.getDay() <= 4 ? (jan1.getDay() === 0 ? 1 : 1 - jan1.getDay()) : 8 - jan1.getDay();
+    const firstMonday = new Date(year, 0, 1 + daysOffset);
+    const start = new Date(firstMonday.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
+    const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+    const format = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return { s: format(start), e: format(end) };
+  };
+
   const handleGeneratePreview = async () => {
-    if (!periodStart || !periodEnd) {
-      setError("Please select both start and end dates.");
-      return;
+    let pStart = periodStart;
+    let pEnd = periodEnd;
+
+    if (payBasis === "MONTHLY") {
+      if (!selectedMonth) return setError("Please select a month.");
+      const [year, month] = selectedMonth.split("-");
+      const sDate = new Date(Number(year), Number(month) - 1, 1);
+      const eDate = new Date(Number(year), Number(month), 0);
+      pStart = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, "0")}-${String(sDate.getDate()).padStart(2, "0")}`;
+      pEnd = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, "0")}-${String(eDate.getDate()).padStart(2, "0")}`;
+    } else if (payBasis === "WEEKLY") {
+      if (!selectedWeek) return setError("Please select a week.");
+      const { s, e } = getDatesFromWeek(selectedWeek);
+      pStart = s;
+      pEnd = e;
+    } else {
+      if (!pStart || !pEnd) {
+        setError("Please select both start and end dates.");
+        return;
+      }
     }
     
     setLoading(true);
@@ -37,8 +70,9 @@ export function RunPayrollWizard({ organizationId, locationId }: { organizationI
       const res = await apiSend(`/api/payroll/preview`, "POST", {
         organizationId,
         locationId,
-        periodStart,
-        periodEnd
+        periodStart: pStart,
+        periodEnd: pEnd,
+        payBasis
       }) as any;
       
       if (res.error) {
@@ -47,24 +81,42 @@ export function RunPayrollWizard({ organizationId, locationId }: { organizationI
         setPreviewData(res.preview);
         setStep(2);
       }
-    } catch (e) {
-      console.error(e);
-      setError("Failed to generate preview.");
+    } catch (e: any) {
+      if (e && e.message) {
+        setError(e.message);
+      } else {
+        setError("Failed to generate preview.");
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleFinalize = async () => {
+    let pStart = periodStart;
+    let pEnd = periodEnd;
+
+    if (payBasis === "MONTHLY") {
+      const [year, month] = selectedMonth.split("-");
+      const eDate = new Date(Number(year), Number(month), 0);
+      pStart = `${year}-${month}-01`;
+      pEnd = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, "0")}-${String(eDate.getDate()).padStart(2, "0")}`;
+    } else if (payBasis === "WEEKLY") {
+      const { s, e } = getDatesFromWeek(selectedWeek);
+      pStart = s;
+      pEnd = e;
+    }
+
     setLoading(true);
     setError(null);
     try {
       const res = await apiSend(`/api/payroll/finalize`, "POST", {
         organizationId,
         locationId,
-        periodStart,
-        periodEnd,
-        previewData
+        periodStart: pStart,
+        periodEnd: pEnd,
+        previewData,
+        payBasis
       }) as any;
       
       if (res.error) {
@@ -86,7 +138,7 @@ export function RunPayrollWizard({ organizationId, locationId }: { organizationI
         <CheckCircle size={64} className="kalki-icon-success" style={{ margin: '0 auto 1.5rem', color: '#10b981' }} />
         <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>Payroll Run Completed!</h2>
         <p className="kalki-text-muted" style={{ marginBottom: '2rem' }}>
-          Payslips have been successfully generated for the period {periodStart} to {periodEnd}.
+          Payslips have been successfully generated for the period {payBasis === "MONTHLY" ? selectedMonth : payBasis === "WEEKLY" ? selectedWeek : `${periodStart} to ${periodEnd}`}.
         </p>
         <button className="kalki-btn kalki-btn-secondary" onClick={() => { setStep(1); setPreviewData([]); }}>
           Run Another Payroll
@@ -99,7 +151,7 @@ export function RunPayrollWizard({ organizationId, locationId }: { organizationI
     <div className="kalki-card">
       <div className="kalki-section-header">
         <h3 className="kalki-section-title">
-          <DollarSign size={20} className="kalki-icon-accent" /> Run Monthly Payroll
+          <DollarSign size={20} className="kalki-icon-accent" /> Run {payBasis.charAt(0) + payBasis.slice(1).toLowerCase()} Payroll
         </h3>
       </div>
       
@@ -114,26 +166,67 @@ export function RunPayrollWizard({ organizationId, locationId }: { organizationI
           <p className="kalki-text-muted" style={{ marginBottom: '1.5rem' }}>
             Select the pay period. The system will automatically fetch attendance logs, calculate gross pay from active salary structures, and deduct any pending salary advances.
           </p>
-          
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-            <div className="kalki-form-group" style={{ flex: 1 }}>
-              <label>Period Start Date</label>
-              <input 
-                type="date" 
-                className="kalki-input" 
-                value={periodStart}
-                onChange={e => setPeriodStart(e.target.value)}
-              />
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem", marginBottom: "2rem" }}>
+            <div className="kalki-form-group">
+              <label>Pay Basis / Frequency</label>
+              <select
+                className="kalki-input"
+                value={payBasis}
+                onChange={(e) => setPayBasis(e.target.value)}
+                style={{ maxWidth: "300px" }}
+              >
+                <option value="HOURLY">Hourly Batch</option>
+                <option value="DAILY">Daily Batch</option>
+                <option value="WEEKLY">Weekly Batch</option>
+                <option value="MONTHLY">Monthly Batch</option>
+              </select>
             </div>
-            <div className="kalki-form-group" style={{ flex: 1 }}>
-              <label>Period End Date</label>
-              <input 
-                type="date" 
-                className="kalki-input" 
-                value={periodEnd}
-                onChange={e => setPeriodEnd(e.target.value)}
-              />
-            </div>
+            
+            {payBasis === "MONTHLY" ? (
+              <div className="kalki-form-group">
+                <label>Select Month</label>
+                <input
+                  type="month"
+                  className="kalki-input"
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{ maxWidth: "300px" }}
+                />
+              </div>
+            ) : payBasis === "WEEKLY" ? (
+              <div className="kalki-form-group">
+                <label>Select Week</label>
+                <input
+                  type="week"
+                  className="kalki-input"
+                  value={selectedWeek}
+                  onChange={(e) => setSelectedWeek(e.target.value)}
+                  style={{ maxWidth: "300px" }}
+                />
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <div className="kalki-form-group" style={{ flex: 1 }}>
+                  <label>Period Start Date</label>
+                  <input 
+                    type="date" 
+                    className="kalki-input" 
+                    value={periodStart}
+                    onChange={e => setPeriodStart(e.target.value)}
+                  />
+                </div>
+                <div className="kalki-form-group" style={{ flex: 1 }}>
+                  <label>Period End Date</label>
+                  <input 
+                    type="date" 
+                    className="kalki-input" 
+                    value={periodEnd}
+                    onChange={e => setPeriodEnd(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
           </div>
           
           <button 
@@ -151,7 +244,7 @@ export function RunPayrollWizard({ organizationId, locationId }: { organizationI
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <div>
               <h4 style={{ fontWeight: 600, fontSize: '1.1rem' }}>Review Payroll Calculations</h4>
-              <p className="kalki-text-muted" style={{ fontSize: '0.9rem' }}>Period: {periodStart} to {periodEnd}</p>
+              <p className="kalki-text-muted" style={{ fontSize: '0.9rem' }}>Period: {payBasis === "MONTHLY" ? selectedMonth : payBasis === "WEEKLY" ? selectedWeek : `${periodStart} to ${periodEnd}`}</p>
             </div>
             <button className="kalki-btn kalki-btn-secondary" onClick={() => setStep(1)}>
               Back to Settings

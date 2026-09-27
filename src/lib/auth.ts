@@ -22,7 +22,8 @@ export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   trustedOrigins: [
     "http://localhost:3001", 
-    env.BETTER_AUTH_URL
+    env.BETTER_AUTH_URL,
+    "http://192.168.31.96:3001"
   ],
   emailAndPassword: { enabled: true },
   advanced: {

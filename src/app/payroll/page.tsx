@@ -6,12 +6,15 @@ import { AppShell } from "@/components/AppShell";
 import { DollarSign, FileText, History, HandCoins } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
 import { SalaryAdvancesTab } from "@/components/payroll/SalaryAdvancesTab";
-import { RunPayrollWizard } from "@/components/payroll/RunPayrollWizard";
+import { PayrollRunsTab } from "@/components/payroll/PayrollRunsTab";
 import { PayslipHistoryTab } from "@/components/payroll/PayslipHistoryTab";
+import { PayConfigurationTab } from "@/components/payroll/PayConfigurationTab";
+import { FnFSettlementTab } from "@/components/payroll/FnFSettlementTab";
+import { Landmark, UserMinus } from "lucide-react";
 
 function PayrollDashboard() {
   const { selected } = useSessionView();
-  const [activeTab, setActiveTab] = useState<"run" | "advances" | "history">("run");
+  const [activeTab, setActiveTab] = useState<"run" | "advances" | "history" | "config" | "fnf">("run");
 
   return (
     <div className="kalki-page">
@@ -22,13 +25,20 @@ function PayrollDashboard() {
 
       <div className="kalki-dashboard-grid" style={{ padding: '0 2rem' }}>
         
-        <div className="kalki-module-nav" style={{ borderBottom: '1px solid var(--kalki-border)', marginBottom: '2rem' }}>
+        <div className="kalki-module-nav">
           <button
             className={`kalki-module-link ${activeTab === 'run' ? 'active' : ''}`}
             onClick={() => setActiveTab('run')}
             style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer' }}
           >
             <DollarSign size={18} /> Run Payroll
+          </button>
+          <button
+            className={`kalki-module-link ${activeTab === 'config' ? 'active' : ''}`}
+            onClick={() => setActiveTab('config')}
+            style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer' }}
+          >
+            <Landmark size={18} /> Pay Configuration
           </button>
           <button
             className={`kalki-module-link ${activeTab === 'advances' ? 'active' : ''}`}
@@ -44,12 +54,23 @@ function PayrollDashboard() {
           >
             <History size={18} /> Payslip History
           </button>
+          <button
+            className={`kalki-module-link ${activeTab === 'fnf' ? 'active' : ''}`}
+            onClick={() => setActiveTab('fnf')}
+            style={{ background: 'none', borderTop: 'none', borderLeft: 'none', borderRight: 'none', cursor: 'pointer', color: 'var(--kalki-danger)' }}
+          >
+            <UserMinus size={18} /> F&F Settlement
+          </button>
         </div>
 
         <div className="kalki-tab-content">
               {activeTab === 'run' && selected && (
-                <RunPayrollWizard organizationId={selected.organizationId} locationId={selected.locationId} />
+                <PayrollRunsTab organizationId={selected.organizationId} locationId={selected.locationId} />
               )}
+
+            {activeTab === 'config' && selected && (
+              <PayConfigurationTab organizationId={selected.organizationId} locationId={selected.locationId} />
+            )}
 
             {activeTab === 'advances' && selected && (
               <SalaryAdvancesTab organizationId={selected.organizationId} locationId={selected.locationId} />
@@ -57,6 +78,10 @@ function PayrollDashboard() {
 
             {activeTab === 'history' && selected && (
               <PayslipHistoryTab organizationId={selected.organizationId} locationId={selected.locationId} />
+            )}
+
+            {activeTab === 'fnf' && selected && (
+              <FnFSettlementTab organizationId={selected.organizationId} locationId={selected.locationId} />
             )}
           </div>
       </div>

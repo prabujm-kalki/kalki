@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       locationId,
       periodStart,
       periodEnd,
-      status: "COMPLETED",
+      status: "DRAFT",
       processedByUserId: session.user.id,
       runDate: new Date(),
     }).returning({ id: payrollRuns.id });
@@ -40,28 +40,11 @@ export async function POST(request: Request) {
         deductionsAmount: String(preview.deductions),
         totalPresentDays: String(preview.totalPresent),
         totalAbsentDays: String(preview.totalAbsent),
-        status: "GENERATED",
+        status: "DRAFT",
       }).returning({ id: payslips.id });
 
-      // Mark salary advances as paid
-      if (preview.advanceDeductions > 0) {
-        const advancesToPay = await db.select({ id: salaryAdvances.id, amount: salaryAdvances.amount })
-          .from(salaryAdvances)
-          .where(
-            and(
-              eq(salaryAdvances.employeeId, preview.employeeId),
-              eq(salaryAdvances.status, "PENDING"),
-              eq(salaryAdvances.repaymentMethod, "DEDUCT_FROM_PAYROLL")
-            )
-          );
-
-        for (const adv of advancesToPay) {
-          // You could insert a repayment here using salaryAdvanceRepayments, but I don't import it.
-          await db.update(salaryAdvances)
-            .set({ status: "PAID" })
-            .where(eq(salaryAdvances.id, adv.id));
-        }
-      }
+      // Note: We do NOT mark salary advances as paid here. 
+      // This is a DRAFT payroll run. Advances will be marked paid when the payroll is LOCKED/PAID.
     }
 
     return NextResponse.json({ success: true, runId: run.id });

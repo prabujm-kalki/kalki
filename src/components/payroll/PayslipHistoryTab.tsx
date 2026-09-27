@@ -23,8 +23,8 @@ export function PayslipHistoryTab({ organizationId, locationId }: { organization
   useEffect(() => {
     async function fetchRuns() {
       try {
-        const res = await apiGet<PayrollRun[]>(`/api/payroll/runs?organizationId=${organizationId}&locationId=${locationId}`);
-        setRuns(res);
+        const res = await apiGet<any>(`/api/payroll/runs?organizationId=${organizationId}&locationId=${locationId}`);
+        setRuns(res.runs || []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -57,9 +57,9 @@ export function PayslipHistoryTab({ organizationId, locationId }: { organization
         doc.text(`Total Present: ${row.payslip.totalPresentDays} days`, 20, 60);
         doc.text(`Total Absent: ${row.payslip.totalAbsentDays} days`, 20, 70);
         
-        doc.text(`Gross Pay: Rs. ${row.payslip.grossAmount}`, 20, 90);
-        doc.text(`Deductions: Rs. ${row.payslip.deductionsAmount}`, 20, 100);
-        doc.text(`Net Pay: Rs. ${row.payslip.netAmount}`, 20, 120);
+        doc.text(`Gross Pay: Rs. ${Number(row.payslip.grossAmount).toFixed(2)}`, 20, 90);
+        doc.text(`Deductions: Rs. ${Number(row.payslip.deductionsAmount).toFixed(2)}`, 20, 100);
+        doc.text(`Net Pay: Rs. ${Number(row.payslip.netAmount).toFixed(2)}`, 20, 120);
         
         const pdfOutput = doc.output('arraybuffer');
         zip.file(`Payslip_${row.employee.employeeCode}.pdf`, pdfOutput);

@@ -45,8 +45,8 @@ export async function GET(request: Request) {
         .from(employeeSalaryStructureComponents)
         .innerJoin(salaryComponents, eq(employeeSalaryStructureComponents.componentId, salaryComponents.id))
         .where(eq(employeeSalaryStructureComponents.structureId, activeStructure.id));
-      
-      componentsWithDetails = structComps;
+      const uniqueStructComps = Array.from(new Map(structComps.map(c => [c.component.name, c])).values());
+      componentsWithDetails = uniqueStructComps;
     }
 
     return NextResponse.json({ 
@@ -66,22 +66,49 @@ export async function POST(request: Request) {
     await requireAuthenticatedUser(request);
     const body = await request.json();
     
-    // Deactivate previous active structures
-    if (body.employeeId) {
-      await db.update(employeeSalaryStructures)
-        .set({ isActive: false, effectiveTo: body.effectiveFrom || new Date().toISOString() })
-        .where(and(
-          eq(employeeSalaryStructures.employeeId, body.employeeId),
-          eq(employeeSalaryStructures.isActive, true)
-        ));
+    // Validate
+    if (!body.organizationId || !body.employeeId || !body.effectiveFrom) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Call the server action directly (it handles transaction, validation, and insertion)
-    const structure = await upsertSalaryStructure(body);
+    // Deactivate previous active structures
+    await db.update(employeeSalaryStructures)
+      .set({ isActive: false, effectiveTo: body.effectiveFrom })
+      .where(and(
+        eq(employeeSalaryStructures.employeeId, body.employeeId),
+        eq(employeeSalaryStructures.isActive, true)
+      ));
+
+    const structure = await db.transaction(async (tx) => {
+      // Insert header
+      const [newStruct] = await tx.insert(employeeSalaryStructures).values({
+        organizationId: body.organizationId,
+        employeeId: body.employeeId,
+        effectiveFrom: body.effectiveFrom,
+        payBasis: body.payBasis || "MONTHLY",
+        isEpfApplicable: body.isEpfApplicable || false,
+        isEsiApplicable: body.isEsiApplicable || false,
+        isPtApplicable: body.isPtApplicable || false,
+        isActive: true
+      }).returning();
+      
+      // Insert components
+      if (body.components && body.components.length > 0) {
+        await tx.insert(employeeSalaryStructureComponents).values(
+          body.components.map((c: any) => ({
+            structureId: newStruct.id,
+            componentId: c.componentId,
+            amount: c.amount,
+          }))
+        );
+      }
+      
+      return newStruct;
+    });
 
     return NextResponse.json({ structure });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to upsert salary structure:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Internal Server Error" }, { status: 500 });
   }
 }

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { payrollRuns, payslips } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { payrollRuns } from "@/db/schema";
+import { and, eq, desc } from "drizzle-orm";
 
 export async function GET(request: Request) {
   try {
@@ -11,39 +11,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const organizationId = searchParams.get("organizationId");
-    const locationId = searchParams.get("locationId");
+    const url = new URL(request.url);
+    const organizationId = url.searchParams.get("organizationId");
+    const locationId = url.searchParams.get("locationId");
 
     if (!organizationId || !locationId) {
-      return NextResponse.json({ error: "Missing required parameters" }, { status: 400 });
+      return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
     }
 
-    // Fetch payroll runs and calculate sums of payslips
-    const runs = await db.select({
-      id: payrollRuns.id,
-      periodStart: payrollRuns.periodStart,
-      periodEnd: payrollRuns.periodEnd,
-      runDate: payrollRuns.runDate,
-      status: payrollRuns.status,
-      payslipsCount: sql<number>`count(${payslips.id})`.mapWith(Number),
-      totalGross: sql<number>`sum(CAST(${payslips.grossAmount} AS NUMERIC))`.mapWith(Number),
-      totalNet: sql<number>`sum(CAST(${payslips.netAmount} AS NUMERIC))`.mapWith(Number)
-    })
-    .from(payrollRuns)
-    .leftJoin(payslips, eq(payslips.payrollRunId, payrollRuns.id))
-    .where(
-      and(
-        eq(payrollRuns.organizationId, organizationId),
-        eq(payrollRuns.locationId, locationId)
+    const runs = await db.select()
+      .from(payrollRuns)
+      .where(
+        and(
+          eq(payrollRuns.organizationId, organizationId),
+          eq(payrollRuns.locationId, locationId)
+        )
       )
-    )
-    .groupBy(payrollRuns.id)
-    .orderBy(desc(payrollRuns.runDate));
+      .orderBy(desc(payrollRuns.runDate));
 
-    return NextResponse.json(runs);
-  } catch (error) {
-    console.error("Error fetching payroll runs:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ runs });
+  } catch (error: any) {
+    console.error("Failed to fetch payroll runs:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

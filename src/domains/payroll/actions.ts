@@ -23,8 +23,9 @@ export type UpsertSalaryStructureInput = z.infer<typeof upsertSalaryStructureSch
 
 export async function upsertSalaryStructure(input: UpsertSalaryStructureInput) {
   // Validate auth
+  const reqHeaders = await headers();
   const session = await auth.api.getSession({
-    headers: new Headers() // Assuming NextJS App Router Server Action context
+    headers: reqHeaders
   });
   
   if (!session) {

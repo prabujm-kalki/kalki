@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import "./globals.css";
+import { GlobalAlert } from "@/components/GlobalAlert";
 
 export const metadata = {
   title: "Kalki BOS",
@@ -9,7 +10,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <GlobalAlert />
+        {children}
+      </body>
     </html>
   );
 }

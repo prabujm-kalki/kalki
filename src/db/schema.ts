@@ -1413,6 +1413,7 @@ export const employeeSalaryStructures = pgTable("employee_salary_structures", {
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   employeeId: uuid("employee_id").notNull().references(() => employees.id, { onDelete: "cascade" }),
   
+  payBasis: varchar("pay_basis", { length: 50 }).notNull().default("MONTHLY"),
   isEpfApplicable: boolean("is_epf_applicable").notNull().default(false),
   isEsiApplicable: boolean("is_esi_applicable").notNull().default(false),
   isPtApplicable: boolean("is_pt_applicable").notNull().default(false),
@@ -1500,3 +1501,30 @@ export const payslipComponents = pgTable("payslip_components", {
   amount: numeric("amount").notNull(),
 });
 
+
+
+// ==========================================
+// STATUTORY SETTINGS
+// ==========================================
+
+export const organizationStatutorySettings = pgTable("organization_statutory_settings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  
+  // EPF Settings
+  epfEmployeeContributionRate: numeric("epf_employee_contribution_rate").notNull().default('12.00'),
+  epfEmployerContributionRate: numeric("epf_employer_contribution_rate").notNull().default('12.00'),
+  epfWageCeiling: numeric("epf_wage_ceiling").notNull().default('15000.00'),
+  epfIncludeEmployerContributionInCTC: boolean("epf_include_employer_in_ctc").notNull().default(true),
+  
+  // ESI Settings
+  esiEmployeeContributionRate: numeric("esi_employee_contribution_rate").notNull().default('0.75'),
+  esiEmployerContributionRate: numeric("esi_employer_contribution_rate").notNull().default('3.25'),
+  esiWageCeiling: numeric("esi_wage_ceiling").notNull().default('21000.00'),
+  esiIncludeEmployerContributionInCTC: boolean("esi_include_employer_in_ctc").notNull().default(true),
+  
+  // PT Settings
+  ptState: varchar("pt_state", { length: 255 }),
+
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

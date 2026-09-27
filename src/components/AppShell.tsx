@@ -39,7 +39,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<{ session: SessionContext }>("/api/session-context").then((payload) => {
+    apiGet<{ session: SessionContext }>(`/api/session-context?t=${Date.now()}`).then((payload) => {
       if (!cancelled) setSession(payload.session);
     }).catch((caught) => {
       if (cancelled) return;

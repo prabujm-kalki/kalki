@@ -53,7 +53,9 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
     ]).then(([structData, compsData]) => {
       if (cancelled) return;
       setStructure({ requestKey, data: structData.structure });
-      setAvailableComponents(compsData.components);
+      const activeComps = (compsData.components || []).filter((c: any) => c.isActive !== false);
+      const uniqueComps = Array.from(new Map(activeComps.map((c: any) => [c.name, c])).values());
+      setAvailableComponents(uniqueComps as ComponentDef[]);
       
       if (structData.structure) {
         setIsEpfApplicable(structData.structure.isEpfApplicable);
@@ -87,7 +89,8 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
     setError(null);
 
     try {
-      const componentsToSave = Object.entries(componentAmounts)
+      const availableCompIds = new Set(availableComponents.map(c => c.id));
+      const componentsToSave = Object.entries(componentAmounts).filter(([compId]) => availableCompIds.has(compId))
         .filter(([_, amount]) => amount && parseFloat(amount) > 0)
         .map(([componentId, amount]) => ({
           componentId,
@@ -123,6 +126,12 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
   if (loading) return <div style={{ padding: "1rem" }}><StatusMessage tone="loading">Loading compensation details...</StatusMessage></div>;
 
   const s = structure.data;
+
+  // Deduplicate active structure components by name to hide ghost duplicates
+  if (s && !isEditing) {
+    const uniqueSComps = Array.from(new Map(s.components.map(c => [c.component.name, c])).values());
+    s.components = uniqueSComps;
+  }
 
   // Calculate totals
   let totalEarnings = 0;
@@ -242,7 +251,7 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
                   {s.components.filter(c => c.component.type === "EARNING").map(c => (
                     <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
                       <span>{c.component.name}</span>
-                      <span>₹{c.amount}</span>
+                      <span>₹{Number(c.amount).toFixed(2)}</span>
                     </div>
                   ))}
                   <div style={{ borderTop: "1px solid var(--kalki-border)", marginTop: "0.5rem", paddingTop: "0.5rem", display: "flex", justifyContent: "space-between", fontWeight: 600 }}>
@@ -258,7 +267,7 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
                   {s.components.filter(c => c.component.type === "DEDUCTION").map(c => (
                     <div key={c.id} style={{ display: "flex", justifyContent: "space-between", fontSize: "14px" }}>
                       <span>{c.component.name}</span>
-                      <span>₹{c.amount}</span>
+                      <span>₹{Number(c.amount).toFixed(2)}</span>
                     </div>
                   ))}
                   <div style={{ borderTop: "1px solid var(--kalki-border)", marginTop: "0.5rem", paddingTop: "0.5rem", display: "flex", justifyContent: "space-between", fontWeight: 600 }}>

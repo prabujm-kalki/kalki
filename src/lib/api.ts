@@ -17,7 +17,14 @@ async function parseJson(response: Response) {
 }
 
 export async function apiGet<T>(path: string) {
-  const response = await fetch(path, { credentials: "include" });
+  const response = await fetch(path, { 
+    credentials: "include",
+    cache: "no-store",
+    headers: {
+      "Pragma": "no-cache",
+      "Cache-Control": "no-cache"
+    }
+  });
   return parseJson(response) as Promise<T>;
 }
 
