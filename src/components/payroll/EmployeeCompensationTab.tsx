@@ -42,6 +42,12 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
   const [componentAmounts, setComponentAmounts] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  // Exit/Termination Form State
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [exitReason, setExitReason] = useState("");
+  const [exitDate, setExitDate] = useState("");
+  const [isSubmittingExit, setIsSubmittingExit] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     const requestKey = `${employeeId}-${refreshKey}`;
@@ -116,6 +122,31 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
     }
   }
 
+  async function submitExit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!exitDate || !exitReason) {
+      alert("Please provide both a reason and the last working day.");
+      return;
+    }
+    
+    setIsSubmittingExit(true);
+    try {
+      await apiSend(`/api/employees/exits`, "POST", {
+        organizationId,
+        employeeId,
+        type: "TERMINATION",
+        reason: exitReason,
+        requestedLastWorkingDay: exitDate,
+      });
+      alert("Exit / F&F settlement initiated successfully.");
+      setShowExitModal(false);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to initiate exit.");
+    } finally {
+      setIsSubmittingExit(false);
+    }
+  }
+
   function handleAmountChange(compId: string, value: string) {
     setComponentAmounts(prev => ({
       ...prev,
@@ -152,9 +183,14 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
       <div className="kalki-section-header">
         <h2 className="kalki-section-title">Compensation & Payroll</h2>
         {!isEditing && (
-          <button className="kalki-button kalki-button--ghost kalki-button--sm" onClick={() => setIsEditing(true)}>
-            {s ? "Revise Structure" : "Set up Structure"}
-          </button>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button className="kalki-button kalki-button--danger kalki-button--sm" onClick={() => setShowExitModal(true)}>
+              Initiate Exit / F&F
+            </button>
+            <button className="kalki-button kalki-button--ghost kalki-button--sm" onClick={() => setIsEditing(true)}>
+              {s ? "Revise Structure" : "Set up Structure"}
+            </button>
+          </div>
         )}
       </div>
       
@@ -285,6 +321,28 @@ export function EmployeeCompensationTab({ employeeId, organizationId }: { employ
           </div>
         )}
       </div>
+
+      {showExitModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div className="kalki-card" style={{ width: "400px", padding: "24px" }}>
+            <h3 style={{ margin: "0 0 16px 0" }}>Initiate Exit / F&F Settlement</h3>
+            <form onSubmit={submitExit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div className="kalki-form-group">
+                <label>Set Last Working Day</label>
+                <input type="date" className="kalki-input" required value={exitDate} onChange={e => setExitDate(e.target.value)} disabled={isSubmittingExit} />
+              </div>
+              <div className="kalki-form-group">
+                <label>Reason / Notes</label>
+                <textarea className="kalki-input" required rows={4} value={exitReason} onChange={e => setExitReason(e.target.value)} disabled={isSubmittingExit} />
+              </div>
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "8px" }}>
+                <button type="button" className="kalki-button kalki-button--secondary" onClick={() => setShowExitModal(false)} disabled={isSubmittingExit}>Cancel</button>
+                <button type="submit" className="kalki-button kalki-button--danger" disabled={isSubmittingExit}>{isSubmittingExit ? "Submitting..." : "Initiate Exit"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

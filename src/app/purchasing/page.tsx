@@ -7,7 +7,7 @@ import { getDashboardData } from "@/domains/purchasing/dashboard";
 
 export const dynamic = 'force-dynamic';
 
-export default async function PurchasingDashboardPage() {
+export default async function PurchasingDashboardPage(props: any) {
   const data = await getDashboardData();
 
   return (
@@ -26,9 +26,6 @@ export default async function PurchasingDashboardPage() {
               style={{ padding: '0.4rem 1rem 0.4rem 2.25rem', borderRadius: '0.375rem', border: '1px solid var(--border-color)', width: '250px', fontSize: '0.875rem' }}
             />
           </div>
-          <button className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 1rem', fontSize: '0.875rem' }}>
-            + Create New Purchase Order
-          </button>
         </div>
       </div>
 

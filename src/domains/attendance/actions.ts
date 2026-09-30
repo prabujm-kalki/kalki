@@ -17,7 +17,7 @@ export async function getKioskEmployees(organizationId: string, locationId: stri
   const scope = context.scopes.find(s => s.organizationId === organizationId && s.locationId === locationId);
   
   if (!scope) throw new Error("Forbidden: Invalid location scope");
-  if (!context.isOwner && !scope.permissions.includes("attendance.selfie_punch:execute") && !scope.permissions.includes("people.employees:read")) {
+  if (!context.isOwner && !scope.permissions.includes("attendance.selfie_punch:execute") && !scope.permissions.includes("attendance.selfie_punch:create") && !scope.permissions.includes("people.employees:read")) {
     throw new Error("Forbidden: Missing kiosk execution permissions");
   }
 
@@ -824,7 +824,7 @@ export async function recordSelfiePunch(payload: {
     }
 
     if (!context.isOwner) {
-      const hasSelfiePunchAccess = scope.permissions.includes("attendance.selfie_punch:execute");
+      const hasSelfiePunchAccess = scope.permissions.includes("attendance.selfie_punch:execute") || scope.permissions.includes("attendance.selfie_punch:create");
       if (!hasSelfiePunchAccess) {
         throw new Error("Forbidden: Missing selfie-punch permission.");
       }

@@ -1,9 +1,9 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { vendors, vendorItems, inventoryLedger, inventoryEventTypes, purchaseSchedules } from "@/db/schema";
+import { vendors, vendorItems, purchaseOrders, purchaseOrderLines, inventoryLedger, inventoryEventTypes, purchaseSchedules, taskDefinitions, items } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
-import { employeePermissions, type EmployeePermission } from "@/lib/authorization-policy";
+import { inventoryPermissions, type EmployeePermission } from "@/lib/authorization-policy";
 
 type Actor = { id: string } | null;
 
@@ -16,7 +16,8 @@ export class InventoryServiceError extends Error {
       | "INVALID_INPUT"
       | "NOT_FOUND"
       | "DUPLICATE_RECORD"
-      | "INSUFFICIENT_STOCK",
+      | "INSUFFICIENT_STOCK"
+      | "CREDIT_EXCEEDED",
   ) {
     super(message);
     this.name = "InventoryServiceError";
@@ -41,6 +42,17 @@ const scopeSchema = z.object({
   locationId: z.string().uuid(),
 });
 
+export const PaymentTermsMap: Record<string, number> = {
+  "DUE_ON_RECEIPT": 0,
+  "CASH_IN_ADVANCE": 0,
+  "NET_7": 7,
+  "NET_15": 15,
+  "NET_30": 30,
+  "NET_45": 45,
+  "NET_60": 60,
+  "NET_90": 90,
+};
+
 const createVendorSchema = scopeSchema.extend({
   name: z.string().trim().min(1).max(200),
   contactDetails: z.object({
@@ -48,9 +60,20 @@ const createVendorSchema = scopeSchema.extend({
     phone: z.string().optional(),
     email: z.string().email().optional(),
   }).default({}),
-  paymentTerms: z.string().nullable().optional(),
+  paymentTerms: z.enum(Object.keys(PaymentTermsMap) as [string, ...string[]]).nullable().optional(),
   creditDays: z.number().int().min(0).nullable().optional(),
-}).strict();
+  creditLimitAmount: z.number().min(0).nullable().optional(),
+  poDeliveryMethod: z.enum(["WHATSAPP", "EMAIL", "MANUAL"]).optional().default("WHATSAPP"),
+  poWhatsappPreference: z.enum(["TEXT_ONLY", "PDF_LINK_ONLY", "TEXT_AND_PDF_LINK"]).optional().default("TEXT_AND_PDF_LINK"),
+}).strict().refine((data) => {
+  if (data.paymentTerms) {
+    return data.creditDays === PaymentTermsMap[data.paymentTerms];
+  }
+  return true;
+}, {
+  message: "Credit days must strictly match the selected payment terms standard.",
+  path: ["creditDays"]
+});
 
 export type CreateVendorInput = z.infer<typeof createVendorSchema>;
 
@@ -59,7 +82,7 @@ export async function createVendor(actor: Actor, input: CreateVendorInput) {
   const parsed = createVendorSchema.safeParse(input);
   if (!parsed.success) throw new InventoryServiceError("Invalid vendor input", "INVALID_INPUT");
   
-  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireScopeAccess(actor, parsed.data, inventoryPermissions.create);
 
   const [vendor] = await db.insert(vendors).values({
     organizationId: parsed.data.organizationId,
@@ -68,6 +91,9 @@ export async function createVendor(actor: Actor, input: CreateVendorInput) {
     contactDetails: parsed.data.contactDetails,
     paymentTerms: parsed.data.paymentTerms ?? null,
     creditDays: parsed.data.creditDays ?? null,
+    creditLimitAmount: parsed.data.creditLimitAmount?.toString() ?? null,
+    poDeliveryMethod: parsed.data.poDeliveryMethod,
+    poWhatsappPreference: parsed.data.poWhatsappPreference,
   }).returning();
 
   return vendor;
@@ -83,7 +109,10 @@ const updateVendorSchema = scopeSchema.extend({
   }).optional(),
   paymentTerms: z.string().nullable().optional(),
   creditDays: z.number().int().min(0).nullable().optional(),
+  creditLimitAmount: z.number().min(0).nullable().optional(),
   isActive: z.boolean().optional(),
+  poDeliveryMethod: z.enum(["WHATSAPP", "EMAIL", "MANUAL"]).optional(),
+  poWhatsappPreference: z.enum(["TEXT_ONLY", "PDF_LINK_ONLY", "TEXT_AND_PDF_LINK"]).optional(),
 }).strict();
 
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>;
@@ -93,14 +122,17 @@ export async function updateVendor(actor: Actor, input: UpdateVendorInput) {
   const parsed = updateVendorSchema.safeParse(input);
   if (!parsed.success) throw new InventoryServiceError("Invalid vendor input", "INVALID_INPUT");
   
-  await requireScopeAccess(actor, parsed.data, employeePermissions.update);
+  await requireScopeAccess(actor, parsed.data, inventoryPermissions.update);
 
   const [vendor] = await db.update(vendors).set({
     ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
     ...(parsed.data.contactDetails !== undefined ? { contactDetails: parsed.data.contactDetails } : {}),
     ...(parsed.data.paymentTerms !== undefined ? { paymentTerms: parsed.data.paymentTerms } : {}),
     ...(parsed.data.creditDays !== undefined ? { creditDays: parsed.data.creditDays } : {}),
+    ...(parsed.data.creditLimitAmount !== undefined ? { creditLimitAmount: parsed.data.creditLimitAmount?.toString() ?? null } : {}),
     ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
+    ...(parsed.data.poDeliveryMethod !== undefined ? { poDeliveryMethod: parsed.data.poDeliveryMethod } : {}),
+    ...(parsed.data.poWhatsappPreference !== undefined ? { poWhatsappPreference: parsed.data.poWhatsappPreference } : {}),
   }).where(and(
     eq(vendors.id, parsed.data.vendorId),
     eq(vendors.organizationId, parsed.data.organizationId),
@@ -114,7 +146,7 @@ export async function updateVendor(actor: Actor, input: UpdateVendorInput) {
 export async function listVendors(actor: Actor, scope: z.infer<typeof scopeSchema>) {
   requireActor(actor);
   if (!scopeSchema.safeParse(scope).success) throw new InventoryServiceError("Invalid scope", "INVALID_INPUT");
-  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireScopeAccess(actor, scope, inventoryPermissions.read);
 
   return db.select().from(vendors).where(and(
     eq(vendors.organizationId, scope.organizationId),
@@ -125,6 +157,7 @@ export async function listVendors(actor: Actor, scope: z.infer<typeof scopeSchem
 
 const addVendorItemSchema = scopeSchema.extend({
   vendorId: z.string().uuid(),
+  itemId: z.string().uuid(),
   itemName: z.string().trim().min(1).max(200),
   itemCode: z.string().nullable().optional(),
   unitOfMeasure: z.string().min(1).max(50),
@@ -139,12 +172,29 @@ export async function addVendorItem(actor: Actor, input: AddVendorItemInput) {
   const parsed = addVendorItemSchema.safeParse(input);
   if (!parsed.success) throw new InventoryServiceError("Invalid vendor item input", "INVALID_INPUT");
   
-  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireScopeAccess(actor, parsed.data, inventoryPermissions.create);
+
+  // Check if exists
+  const existing = await db.select().from(vendorItems).where(
+    and(
+      eq(vendorItems.vendorId, parsed.data.vendorId),
+      eq(vendorItems.itemId, parsed.data.itemId)
+    )
+  );
+  if (existing.length > 0) {
+    const [updated] = await db.update(vendorItems).set({
+      isActive: true,
+      minimumStock: parsed.data.minimumStock ?? null,
+      normalQuantity: parsed.data.normalQuantity ?? null,
+    }).where(eq(vendorItems.id, existing[0].id)).returning();
+    return updated;
+  }
 
   const [item] = await db.insert(vendorItems).values({
     organizationId: parsed.data.organizationId,
     locationId: parsed.data.locationId,
     vendorId: parsed.data.vendorId,
+    itemId: parsed.data.itemId,
     itemName: parsed.data.itemName,
     itemCode: parsed.data.itemCode ?? null,
     unitOfMeasure: parsed.data.unitOfMeasure,
@@ -160,14 +210,27 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
   if (!scopeSchema.safeParse(scope).success || !z.string().uuid().safeParse(vendorId).success) {
     throw new InventoryServiceError("Invalid input", "INVALID_INPUT");
   }
-  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireScopeAccess(actor, scope, inventoryPermissions.read);
 
-  return db.select().from(vendorItems).where(and(
+  const res = await db.select({
+    vendorItem: vendorItems,
+    itemName: items.nameEn,
+    unitOfMeasure: items.unit
+  })
+  .from(vendorItems)
+  .innerJoin(items, eq(vendorItems.itemId, items.id))
+  .where(and(
     eq(vendorItems.organizationId, scope.organizationId),
     eq(vendorItems.locationId, scope.locationId),
     eq(vendorItems.vendorId, vendorId),
     eq(vendorItems.isActive, true)
   ));
+
+  return res.map(r => ({
+    ...r.vendorItem,
+    itemName: r.itemName,
+    unitOfMeasure: r.unitOfMeasure
+  }));
 }
 
 const recordMovementSchema = scopeSchema.extend({
@@ -186,7 +249,7 @@ export async function recordInventoryMovement(actor: Actor, input: RecordMovemen
   const parsed = recordMovementSchema.safeParse(input);
   if (!parsed.success) throw new InventoryServiceError("Invalid movement input", "INVALID_INPUT");
   
-  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireScopeAccess(actor, parsed.data, inventoryPermissions.create);
 
   // We use a transaction to lock the latest ledger row and append a new one securely
   const ledgerEntry = await db.transaction(async (tx) => {
@@ -233,7 +296,7 @@ export async function getInventoryBalance(actor: Actor, scope: z.infer<typeof sc
   if (!scopeSchema.safeParse(scope).success || !z.string().uuid().safeParse(vendorItemId).success) {
     throw new InventoryServiceError("Invalid input", "INVALID_INPUT");
   }
-  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireScopeAccess(actor, scope, inventoryPermissions.read);
 
   const [latest] = await db.select({ balanceAfter: inventoryLedger.balanceAfter })
     .from(inventoryLedger)
@@ -262,7 +325,7 @@ export async function createPurchaseSchedule(actor: Actor, input: CreatePurchase
   const parsed = purchaseScheduleSchema.safeParse(input);
   if (!parsed.success) throw new InventoryServiceError("Invalid purchase schedule input", "INVALID_INPUT");
   
-  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireScopeAccess(actor, parsed.data, inventoryPermissions.create);
 
   const [schedule] = await db.insert(purchaseSchedules).values({
     organizationId: parsed.data.organizationId,
@@ -273,6 +336,30 @@ export async function createPurchaseSchedule(actor: Actor, input: CreatePurchase
     reminderTime: parsed.data.reminderTime,
   }).returning();
 
+  // Create the corresponding Task Engine Blueprint
+  // We use standard cron notation derived from the inputs
+  const cronExpr = parsed.data.frequencyRule === "daily" 
+    ? `0 ${parsed.data.reminderTime.split(':')[0]} * * *` 
+    : `0 9 * * 1`; // Default to weekly for others in demo
+  
+  await db.insert(taskDefinitions).values({
+    organizationId: parsed.data.organizationId,
+    module: "purchase",
+    title: `Purchase Order - ${parsed.data.frequencyRule.toUpperCase()}`,
+    description: `Generate PO for vendor ${parsed.data.vendorId}`,
+    triggerType: "time",
+    triggerConfig: { cron: cronExpr },
+    targetRoleId: parsed.data.responsibleRoleId,
+    priority: "high",
+    evidenceRequirementType: "none", // They will proceed to the module to complete it
+    contextTemplate: { 
+      actionUrl: `/purchasing/manual?vendorId=${parsed.data.vendorId}`,
+      actionLabel: "Proceed to PO Generation",
+      linkedScheduleId: schedule.id,
+      locationId: parsed.data.locationId
+    }
+  });
+
   return schedule;
 }
 
@@ -281,7 +368,7 @@ export async function listPurchaseSchedules(actor: Actor, scope: z.infer<typeof 
   if (!scopeSchema.safeParse(scope).success) {
     throw new InventoryServiceError("Invalid input", "INVALID_INPUT");
   }
-  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireScopeAccess(actor, scope, inventoryPermissions.read);
 
   const conditions = [
     eq(purchaseSchedules.organizationId, scope.organizationId),
@@ -302,7 +389,7 @@ export async function getInventoryDashboard(actor: Actor, scope: z.infer<typeof 
   if (!scopeSchema.safeParse(scope).success) {
     throw new InventoryServiceError("Invalid input", "INVALID_INPUT");
   }
-  await requireScopeAccess(actor, scope, employeePermissions.read);
+  await requireScopeAccess(actor, scope, inventoryPermissions.read);
 
   const items = await db.select({
     id: vendorItems.id,
@@ -342,3 +429,89 @@ export async function getInventoryDashboard(actor: Actor, scope: z.infer<typeof 
 }
 
 
+
+
+const createPOSchema = scopeSchema.extend({
+  vendorId: z.string().uuid(),
+  paymentMethod: z.string().default('credit'),
+  lines: z.array(z.object({
+    itemId: z.string().uuid(),
+    orderedQuantity: z.number().positive(),
+    unitRate: z.number().nonnegative()
+  })).min(1),
+}).strict();
+
+export type CreatePOInput = z.infer<typeof createPOSchema>;
+
+export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
+  requireActor(actor);
+  const parsed = createPOSchema.safeParse(input);
+  if (!parsed.success) {
+    const errorMsg = "Invalid PO input: " + parsed.error.issues.map(i => i.path.join(".") + " " + i.message).join(", ");
+    throw new InventoryServiceError(errorMsg, "INVALID_INPUT");
+  }
+  
+  await requireScopeAccess(actor, parsed.data, inventoryPermissions.create); // Use appropriate permission
+
+  const { organizationId, locationId, vendorId, paymentMethod, lines } = parsed.data;
+
+  // Calculate total
+  const totalAmount = lines.reduce((acc, line) => acc + (line.orderedQuantity * line.unitRate), 0);
+
+  // Credit limit check if not cash
+  if (paymentMethod !== 'cash') {
+    const [vendor] = await db.select().from(vendors).where(eq(vendors.id, vendorId));
+    if (!vendor) throw new InventoryServiceError("Vendor not found", "NOT_FOUND");
+    
+    if (vendor.creditLimitAmount !== null) {
+      const limit = parseFloat(vendor.creditLimitAmount);
+      // In a real app, calculate current outstanding balance. Assuming 0 for now as stub.
+      const currentOutstanding = 0; 
+      if (currentOutstanding + totalAmount > limit) {
+        throw new InventoryServiceError(`Credit limit exceeded. Limit: ₹${limit}, Order: ₹${totalAmount}`, "CREDIT_EXCEEDED");
+      }
+    }
+  }
+
+  const result = await db.transaction(async (tx) => {
+    const [po] = await tx.insert(purchaseOrders).values({
+      organizationId,
+      locationId,
+      vendorId,
+      totalAmount: totalAmount.toString(),
+      paymentMethod,
+      status: 'draft',
+      publicToken: crypto.randomUUID(),
+    }).returning();
+
+    const poLines = lines.map(line => ({
+      poId: po.id,
+      itemId: line.itemId,
+      orderedQuantity: line.orderedQuantity.toString(),
+      unitRate: line.unitRate.toString()
+    }));
+
+    await tx.insert(purchaseOrderLines).values(poLines);
+    
+    return po;
+  });
+
+  return result;
+}
+
+export async function removeVendorItem(actor: Actor, scope: z.infer<typeof scopeSchema>, vendorItemId: string) {
+  requireActor(actor);
+  if (!scopeSchema.safeParse(scope).success || !z.string().uuid().safeParse(vendorItemId).success) {
+    throw new InventoryServiceError("Invalid input", "INVALID_INPUT");
+  }
+  await requireScopeAccess(actor, scope, inventoryPermissions.update);
+
+  // Soft delete by setting isActive to false
+  await db.update(vendorItems)
+    .set({ isActive: false, updatedAt: new Date() })
+    .where(and(
+      eq(vendorItems.id, vendorItemId),
+      eq(vendorItems.organizationId, scope.organizationId),
+      eq(vendorItems.locationId, scope.locationId)
+    ));
+}

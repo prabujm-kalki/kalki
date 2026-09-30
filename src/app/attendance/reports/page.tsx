@@ -18,7 +18,7 @@ export default async function AttendanceReportsPage() {
   // Basic initial auth check for rendering the page
   let hasReportsAccess = context.isOwner;
   if (!hasReportsAccess) {
-    hasReportsAccess = context.scopes.some(s => s.permissions.includes("attendance.reports:view") || s.permissions.includes("attendance.reports:execute"));
+    hasReportsAccess = context.scopes.some(s => s.permissions.includes("attendance.reports:view") || s.permissions.includes("attendance.reports:execute") || s.permissions.includes("attendance.reports:read"));
   }
 
   if (!hasReportsAccess) {

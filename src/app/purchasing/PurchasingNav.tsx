@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
-import { LayoutDashboard, Box, Store, Settings, BookOpen } from "lucide-react";
+import { LayoutDashboard, Box, Store, Settings, BookOpen, ShoppingCart } from "lucide-react";
 
 export function PurchasingNav() {
   const pathname = usePathname();
@@ -13,6 +13,7 @@ export function PurchasingNav() {
 
   const links = [
     { name: "Dashboard", href: `/purchasing`, exact: true, icon: <LayoutDashboard size={16} /> },
+    { name: "Create PO", href: `/purchasing/purchase-orders/create`, exact: false, icon: <ShoppingCart size={16} /> },
     { name: "Items", href: `/purchasing/items`, exact: false, icon: <Box size={16} /> },
     { name: "Vendors", href: `/purchasing/vendors`, exact: false, icon: <Store size={16} /> },
     { name: "Configuration", href: `/purchasing/configuration`, exact: false, icon: <Settings size={16} /> },

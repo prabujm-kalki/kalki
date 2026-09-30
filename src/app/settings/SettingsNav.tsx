@@ -11,10 +11,11 @@ export function SettingsNav() {
   
   const query = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "";
 
-  // The navigation links match what was in the dashboard cards
   const links = [
+    { name: "General Settings", href: `/settings/general`, icon: <Network size={16} /> },
     { name: "Organization Chart", href: `/settings/organization`, icon: <Network size={16} /> },
     { name: "Master Data", href: `/settings/master-data`, icon: <Database size={16} /> },
+    { name: "Tasks Engine", href: `/settings/tasks`, icon: <Network size={16} /> },
     { name: "Access & Roles", href: `/settings/roles`, icon: <Shield size={16} /> },
     { name: "Users", href: `/settings/users`, icon: <Users size={16} /> },
     { name: "Statutory Settings", href: `/settings/statutory`, icon: <Database size={16} /> },

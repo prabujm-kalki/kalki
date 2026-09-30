@@ -26,6 +26,12 @@ export default function TaskConfigurationPage() {
   const [triggerType, setTriggerType] = useState("event");
   const [actionType, setActionType] = useState("task");
 
+  const [roles, setRoles] = useState<any[]>([]);
+  const [targetRoleId, setTargetRoleId] = useState("");
+  const [escalationRoleId, setEscalationRoleId] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("08:00");
+  const [deadlineHours, setDeadlineHours] = useState("4");
+
   const loadTasks = () => {
     setLoading(true);
     fetch("/api/settings/tasks")
@@ -41,13 +47,27 @@ export default function TaskConfigurationPage() {
       });
   };
 
+  const loadRoles = () => {
+    fetch("/api/settings/roles")
+      .then((res) => res.json())
+      .then((data) => setRoles(Array.isArray(data) ? data : []))
+      .catch((err) => console.error(err));
+  };
+
   useEffect(() => {
     loadTasks();
+    loadRoles();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const triggerConfig: any = {};
+      if (triggerType === "time") {
+        triggerConfig.timeOfDay = scheduleTime;
+      }
+      triggerConfig.deadlineHours = Number(deadlineHours);
+
       const res = await fetch("/api/settings/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -56,11 +76,16 @@ export default function TaskConfigurationPage() {
           module,
           triggerType,
           actionType,
+          targetRoleId: targetRoleId || null,
+          escalationRoleId: escalationRoleId || null,
+          triggerConfig,
         }),
       });
       if (res.ok) {
         setIsModalOpen(false);
         setTitle("");
+        setTargetRoleId("");
+        setEscalationRoleId("");
         loadTasks();
       } else {
         alert("Failed to create task");
@@ -183,17 +208,53 @@ export default function TaskConfigurationPage() {
                         <option value="time">Time-Based</option>
                       </select>
                     </div>
+                    {triggerType === "time" && (
+                      <div>
+                        <label className="mb-1 block text-sm font-medium text-gray-700">Time of Day</label>
+                        <input 
+                          type="time" 
+                          value={scheduleTime}
+                          onChange={(e) => setScheduleTime(e.target.value)}
+                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">Action Type</label>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">Assigned Role</label>
                       <select 
-                        value={actionType}
-                        onChange={(e) => setActionType(e.target.value)}
+                        value={targetRoleId}
+                        onChange={(e) => setTargetRoleId(e.target.value)}
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       >
-                        <option value="task">Actionable Task</option>
-                        <option value="reminder">Reminder</option>
+                        <option value="">Any / Location Level</option>
+                        {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                       </select>
                     </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-gray-700">Deadline (Hours)</label>
+                      <input 
+                        type="number" 
+                        min="1"
+                        value={deadlineHours}
+                        onChange={(e) => setDeadlineHours(e.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Escalation Role (Optional)</label>
+                    <select 
+                      value={escalationRoleId}
+                      onChange={(e) => setEscalationRoleId(e.target.value)}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value="">Default Management</option>
+                      {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
                   </div>
 
                   <div className="mt-6 flex justify-end gap-3">

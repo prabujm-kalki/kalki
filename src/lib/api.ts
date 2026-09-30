@@ -28,7 +28,7 @@ export async function apiGet<T>(path: string) {
   return parseJson(response) as Promise<T>;
 }
 
-export async function apiSend<T>(path: string, method: "POST" | "PATCH", body: unknown) {
+export async function apiSend<T>(path: string, method: "POST" | "PATCH" | "PUT" | "DELETE", body?: unknown) {
   const response = await fetch(path, {
     method,
     credentials: "include",

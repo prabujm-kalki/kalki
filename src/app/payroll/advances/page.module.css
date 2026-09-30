@@ -1,0 +1,161 @@
+.container {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #333;
+}
+.header {
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #111;
+}
+.subtitle {
+  color: #666;
+  margin: 0;
+}
+.card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #eee;
+}
+.tableWrapper {
+  overflow-x: auto;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+}
+.table th {
+  background: #f8f9fa;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+  font-size: 14px;
+}
+.table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 14px;
+  vertical-align: middle;
+}
+.noData {
+  text-align: center;
+  padding: 32px;
+  color: #666;
+}
+.btn {
+  background: #000;
+  color: #fff;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.2s;
+}
+.btn:hover {
+  opacity: 0.8;
+}
+.btnOutline {
+  background: transparent;
+  color: #000;
+  border: 1px solid #ccc;
+}
+.btnApprove {
+  background: #137333;
+}
+.btnReject {
+  background: transparent;
+  color: #d93025;
+  border: 1px solid #d93025;
+}
+.badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.badgePending { background: #fef7e0; color: #b06000; }
+.badgeApproved { background: #e6f4ea; color: #137333; }
+.badgeRejected { background: #fce8e6; color: #c5221f; }
+
+/* Modal */
+.modalOverlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+.modalContent {
+  background: white;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 500px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.modalHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.modalTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+.closeBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+}
+.formGroup {
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.label {
+  font-weight: 500;
+  font-size: 14px;
+}
+.input, .select {
+  padding: 10px 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 14px;
+  width: 100%;
+}
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+.error {
+  color: #d93025;
+  font-size: 13px;
+  margin-top: 4px;
+}

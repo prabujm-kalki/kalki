@@ -18,6 +18,7 @@ type VendorView = {
   };
   paymentTerms: string | null;
   creditDays: number | null;
+  creditLimitAmount?: number | null;
 };
 
 type VendorItemView = {
@@ -48,6 +49,7 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
   const [items, setItems] = useState<{ requestKey: string; list: VendorItemView[] } | null>(null);
   const [schedules, setSchedules] = useState<{ requestKey: string; list: PurchaseScheduleView[] } | null>(null);
   const [roles, setRoles] = useState<{ requestKey: string; list: RoleView[] } | null>(null);
+  const [masterItems, setMasterItems] = useState<any[]>([]);
   
   const [error, setError] = useState<{ requestKey: string; message: string } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -93,8 +95,9 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
       apiGet<{ items: VendorView[] }>(`/api/vendors?${query.toString()}`),
       apiGet<{ items: VendorItemView[] }>(`/api/vendor-items?${query.toString()}&vendorId=${vendorId}`),
       apiGet<{ items: PurchaseScheduleView[] }>(`/api/purchase-schedules?${query.toString()}&vendorId=${vendorId}`),
-      apiGet<{ roles: RoleView[] }>(`/api/role-definitions?${query.toString()}`)
-    ]).then(([vendorsPayload, itemsPayload, schedulesPayload, rolesPayload]) => {
+      apiGet<{ roles: RoleView[] }>(`/api/role-definitions?${query.toString()}`),
+      apiGet<{ items: any[] }>(`/api/items?${query.toString()}`)
+    ]).then(([vendorsPayload, itemsPayload, schedulesPayload, rolesPayload, itemsMasterPayload]) => {
       if (cancelled) return;
       setError(null);
       const v = vendorsPayload.items.find((v) => v.id === vendorId);
@@ -106,6 +109,7 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
       setItems({ requestKey, list: itemsPayload.items });
       setSchedules({ requestKey, list: schedulesPayload.items });
       setRoles({ requestKey, list: rolesPayload.roles });
+      setMasterItems(itemsMasterPayload.items);
     }).catch((caught) => {
       if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load vendor profile" });
     });
@@ -115,27 +119,42 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
     };
   }, [selected, vendorId, refreshKey]);
 
-  async function handleAddItem(event: FormEvent<HTMLFormElement>) {
+  async function handleRemoveItem(vendorItemId: string) {
+    if (!selected) return;
+    if (!confirm("Are you sure you want to remove this item from the catalogue?")) return;
+    try {
+      await apiSend(`/api/vendor-items/${vendorItemId}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`, "DELETE", {});
+      setRefreshKey((k) => k + 1);
+    } catch (caught) {
+      alert(caught instanceof Error ? caught.message : "Failed to remove item");
+    }
+  }
+
+    async function handleAddItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     setAddingItem(true);
     setItemError(null);
     const formData = new FormData(event.currentTarget);
+    const itemId = formData.get("itemId") as string;
+    const selectedItem = masterItems.find(i => i.id === itemId);
+    
     try {
       await apiSend("/api/vendor-items", "POST", {
         organizationId: selected.organizationId,
         locationId: selected.locationId,
         vendorId,
-        itemName: formData.get("itemName") as string,
-        itemCode: formData.get("itemCode") as string || undefined,
-        unitOfMeasure: formData.get("unitOfMeasure") as string,
+        itemId: itemId,
+        itemName: selectedItem.nameEn,
+        itemCode: undefined,
+        unitOfMeasure: selectedItem.unit,
         normalQuantity: formData.get("normalQuantity") as string || undefined,
         minimumStock: formData.get("minimumStock") as string || undefined,
       });
       setShowItemForm(false);
       setRefreshKey((k) => k + 1);
     } catch (caught) {
-      setItemError(caught instanceof Error ? caught.message : "Failed to add item");
+      setItemError(caught instanceof Error ? caught.message : "Failed to assign item");
     } finally {
       setAddingItem(false);
     }
@@ -216,8 +235,9 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
             </div>
             <div>
               <strong>Commercials</strong>
-              <p>Payment Terms: {v.paymentTerms || "N/A"}</p>
-              <p>Credit Days: {v.creditDays !== null ? v.creditDays : "N/A"}</p>
+              <p>Payment Terms: {v.paymentTerms ? v.paymentTerms.replace(/_/g, ' ').toUpperCase() : "N/A"}</p>
+              <p>Credit Days: {v.paymentTerms === 'DUE_ON_RECEIPT' || v.paymentTerms === 'CASH_IN_ADVANCE' || v.paymentTerms?.toLowerCase() === 'cash' ? '0' : (v.creditDays !== null ? v.creditDays : "N/A")}</p>
+              <p>Credit Limit: {v.creditLimitAmount !== null && v.creditLimitAmount !== undefined ? `₹${v.creditLimitAmount}` : "N/A"}</p>
             </div>
           </div>
         )}
@@ -294,35 +314,32 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
         </div>
 
         {showItemForm && (
-          <form onSubmit={(e) => void handleAddItem(e)} style={{ marginTop: "1rem", padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-            <h4>Add New Item to Catalogue</h4>
+                    <form onSubmit={(e) => void handleAddItem(e)} style={{ marginTop: "1rem", padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
+            <h4>Assign Item to Catalogue</h4>
             {itemError && <StatusMessage tone="error">{itemError}</StatusMessage>}
             <div className="grid" style={{ marginTop: "1rem" }}>
               <label>
-                Item Name *
-                <input name="itemName" required disabled={addingItem} />
+                Select Item *
+                <select name="itemId" required disabled={addingItem}>
+                  <option value="">-- Choose an item --</option>
+                  {masterItems.map(item => (
+                    <option key={item.id} value={item.id}>{item.nameEn} ({item.unit})</option>
+                  ))}
+                </select>
               </label>
               <label>
-                Item Code
-                <input name="itemCode" disabled={addingItem} />
-              </label>
-              <label>
-                Unit of Measure (e.g. kg, L, pcs) *
-                <input name="unitOfMeasure" required disabled={addingItem} />
-              </label>
-              <label>
-                Normal Quantity Suggestion
+                Target Stock (Usual Qty)
                 <input name="normalQuantity" type="number" step="0.01" disabled={addingItem} />
               </label>
               <label>
-                Minimum Stock Level
+                Reorder Level (Min Stock)
                 <input name="minimumStock" type="number" step="0.01" disabled={addingItem} />
               </label>
             </div>
             <div className="form-actions" style={{ marginTop: "1rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
               <button type="button" onClick={() => setShowItemForm(false)} disabled={addingItem}>Cancel</button>
               <button type="submit" className="action-button" disabled={addingItem}>
-                {addingItem ? "Adding…" : "Add Item"}
+                {addingItem ? "Assigning…" : "Assign Item"}
               </button>
             </div>
           </form>
@@ -338,8 +355,10 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
                   <th style={{ padding: "0.5rem" }}>Name</th>
                   <th style={{ padding: "0.5rem" }}>Code</th>
                   <th style={{ padding: "0.5rem" }}>UoM</th>
+                  <th style={{ padding: "0.5rem" }}>Reorder Level (Min)</th>
                   <th style={{ padding: "0.5rem" }}>Usual Qty</th>
                   <th style={{ padding: "0.5rem" }}>Last Rate</th>
+                  <th style={{ padding: "0.5rem", textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -348,8 +367,12 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
                     <td style={{ padding: "0.5rem" }}><strong>{item.itemName}</strong></td>
                     <td style={{ padding: "0.5rem" }}>{item.itemCode || "-"}</td>
                     <td style={{ padding: "0.5rem" }}>{item.unitOfMeasure}</td>
+                    <td style={{ padding: "0.5rem" }}>{item.minimumStock || "-"}</td>
                     <td style={{ padding: "0.5rem" }}>{item.normalQuantity || "-"}</td>
                     <td style={{ padding: "0.5rem" }}>{item.lastRate ? `₹${item.lastRate}` : "-"}</td>
+                    <td style={{ padding: "0.5rem", textAlign: "right" }}>
+                      <button type="button" onClick={() => handleRemoveItem(item.id)} style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", fontSize: "0.75rem", textDecoration: "underline" }}>Remove</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

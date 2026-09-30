@@ -35,7 +35,7 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
 
   // Basic RBAC check
   if (!context.isOwner) {
-    if (!scope?.permissions.includes("attendance.reports:view") && !scope?.permissions.includes("attendance.reports:execute")) {
+    if (!scope?.permissions.includes("attendance.reports:view") && !scope?.permissions.includes("attendance.reports:execute") && !scope?.permissions.includes("attendance.reports:read")) {
       throw new Error("Forbidden: Missing reports view permission");
     }
   }
@@ -75,6 +75,7 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     shiftEndTime: shiftDefinitions.endTime,
     shiftGracePeriod: shiftDefinitions.gracePeriodMinutes,
     shiftMinHoursHalfDay: shiftDefinitions.minHoursHalfDay,
+    shiftMinHoursFullDay: shiftDefinitions.minHoursFullDay,
   })
   .from(rawBiometricPunches)
   .innerJoin(employees, eq(rawBiometricPunches.employeeId, employees.id))
@@ -113,5 +114,6 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     shiftEndTime: r.shiftEndTime,
     shiftGracePeriod: r.shiftGracePeriod,
     shiftMinHoursHalfDay: r.shiftMinHoursHalfDay,
+    shiftMinHoursFullDay: r.shiftMinHoursFullDay,
   }));
 }

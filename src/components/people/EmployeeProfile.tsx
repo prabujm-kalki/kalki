@@ -6,8 +6,6 @@ import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import { EmployeeForm } from "./EmployeeForm";
-import { EmployeeCompensationTab } from "@/components/payroll/EmployeeCompensationTab";
-
 
 type EmployeeView = {
   id: string;
@@ -95,6 +93,10 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
   const [provisionSuccess, setProvisionSuccess] = useState<string | null>(null);
+  const [showResignationModal, setShowResignationModal] = useState(false);
+  const [resignationReason, setResignationReason] = useState("");
+  const [resignationDate, setResignationDate] = useState("");
+  const [isSubmittingResignation, setIsSubmittingResignation] = useState(false);
 
   async function handleProvisionAccess() {
     if (!employee?.data) return;
@@ -184,6 +186,33 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
     }
   }
 
+  async function submitResignation(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selected || !employee?.data) return;
+    if (!resignationDate || !resignationReason) {
+      alert("Please provide both a reason and your requested last working day.");
+      return;
+    }
+    
+    setIsSubmittingResignation(true);
+    try {
+      await apiSend(`/api/employees/exits`, "POST", {
+        organizationId: selected.organizationId,
+        employeeId: employee.data.id,
+        type: "RESIGNATION",
+        reason: resignationReason,
+        requestedLastWorkingDay: resignationDate,
+      });
+      alert("Resignation request submitted successfully.");
+      setShowResignationModal(false);
+      setRefreshKey(k => k + 1);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to submit resignation.");
+    } finally {
+      setIsSubmittingResignation(false);
+    }
+  }
+
   useEffect(() => {
     if (!selected) return;
     const requestKey = `${selected.organizationId}:${selected.locationId}:${employeeId}`;
@@ -191,9 +220,9 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
 
     Promise.all([
       apiGet<{ employee: EmployeeView }>(`/api/employees?id=${employeeId}`),
-      apiGet<{ assignments: RoleAssignmentView[] }>(`/api/employee-role-assignments?organizationId=${selected.organizationId}&locationId=${selected.locationId}&employeeId=${employeeId}`),
-      apiGet<{ roles: RoleDefinitionView[] }>(`/api/role-definitions?organizationId=${selected.organizationId}&locationId=${selected.locationId}`),
-      apiGet<{ data: any[] }>(`/api/employees/proposals?employeeId=${employeeId}`)
+      apiGet<{ assignments: RoleAssignmentView[] }>(`/api/employee-role-assignments?organizationId=${selected.organizationId}&locationId=${selected.locationId}&employeeId=${employeeId}`).catch(() => ({ assignments: [] as RoleAssignmentView[] })),
+      apiGet<{ roles: RoleDefinitionView[] }>(`/api/role-definitions?organizationId=${selected.organizationId}&locationId=${selected.locationId}`).catch(() => ({ roles: [] as RoleDefinitionView[] })),
+      apiGet<{ data: any[] }>(`/api/employees/proposals?employeeId=${employeeId}`).catch(() => ({ data: [] }))
     ]).then(async ([empPayload, assignsPayload, rolesPayload, proposalsPayload]) => {
       if (cancelled) return;
       setError(null);
@@ -340,11 +369,20 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
           &lt; Back to People
         </Link>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <div>
-            <h1 className="kalki-page-title">{emp.person.displayName}</h1>
-            <p className="kalki-page-description">
-              {emp.employeeCode} &middot; {emp.jobTitle ?? "No job title"}
-            </p>
+          <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+            {emp.photoUrl ? (
+              <img src={emp.photoUrl} alt={emp.person.displayName} style={{ width: "64px", height: "64px", borderRadius: "50%", objectFit: "cover", border: "1px solid var(--kalki-border)" }} />
+            ) : (
+              <div style={{ width: "64px", height: "64px", borderRadius: "50%", backgroundColor: "var(--kalki-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", color: "var(--kalki-text-secondary)", fontWeight: 600, border: "1px solid var(--kalki-border)" }}>
+                {emp.person.displayName.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div>
+              <h1 className="kalki-page-title" style={{ margin: 0, marginBottom: "4px" }}>{emp.person.displayName}</h1>
+              <p className="kalki-page-description" style={{ margin: 0 }}>
+                {emp.employeeCode} &middot; {emp.jobTitle ?? "No job title"}
+              </p>
+            </div>
           </div>
           <div style={{ display: "flex", gap: "12px" }}>
             <button className="kalki-button kalki-button--secondary" onClick={() => setIsEditing(true)} disabled={!!pendingProposal}>
@@ -357,32 +395,70 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             )}
             {emp.status === "ACTIVE" && (
               <>
+                {session.user.id === emp.userId && (
+                  <button className="kalki-button kalki-button--secondary" onClick={() => setShowResignationModal(true)}>
+                    Submit Resignation
+                  </button>
+                )}
                 {session.isOwner && emp.userId && (
                   <button className="kalki-button kalki-button--secondary" onClick={() => void handleResetPassword()}>
                     Reset Password
                   </button>
                 )}
-                <button className="kalki-button kalki-button--danger" onClick={() => void deactivateEmployee()} disabled={isDeactivating}>
-                  Deactivate
-                </button>
-                <button className="kalki-button kalki-button--danger" onClick={() => void exitEmployee()} disabled={isDeactivating}>
-                  Mark Exited
-                </button>
+                {session.user.id !== emp.userId && (
+                  <>
+                    <button className="kalki-button kalki-button--danger" onClick={() => void deactivateEmployee()} disabled={isDeactivating}>
+                      Deactivate
+                    </button>
+                    <button className="kalki-button kalki-button--danger" onClick={() => void exitEmployee()} disabled={isDeactivating}>
+                      Mark Exited
+                    </button>
+                  </>
+                )}
               </>
             )}
             {emp.status === "INACTIVE" && (
               <>
-                <button className="kalki-button kalki-button--secondary" style={{ color: "var(--kalki-success)", borderColor: "var(--kalki-success)" }} onClick={() => void reactivateEmployee()} disabled={isActivating}>
-                  Reactivate
-                </button>
-                <button className="kalki-button kalki-button--danger" onClick={() => void exitEmployee()} disabled={isDeactivating}>
-                  Mark Exited
-                </button>
+                {session.user.id !== emp.userId && (
+                  <>
+                    <button className="kalki-button kalki-button--secondary" style={{ color: "var(--kalki-success)", borderColor: "var(--kalki-success)" }} onClick={() => void reactivateEmployee()} disabled={isActivating}>
+                      Reactivate
+                    </button>
+                    <button className="kalki-button kalki-button--danger" onClick={() => void exitEmployee()} disabled={isDeactivating}>
+                      Mark Exited
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
         </div>
       </div>
+
+      {showResignationModal && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div className="kalki-card" style={{ width: "400px", padding: "24px" }}>
+            <h3 style={{ margin: "0 0 16px 0" }}>Submit Resignation</h3>
+            <p style={{ color: "var(--kalki-danger)", fontSize: "14px", marginBottom: "16px", fontWeight: 500 }}>
+              Once the resignation request is submitted, it cannot be reverted.
+            </p>
+            <form onSubmit={submitResignation} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div className="kalki-form-group">
+                <label>Requested Last Working Day</label>
+                <input type="date" className="kalki-input" required value={resignationDate} onChange={e => setResignationDate(e.target.value)} disabled={isSubmittingResignation} />
+              </div>
+              <div className="kalki-form-group">
+                <label>Reason for Resignation</label>
+                <textarea className="kalki-input" required rows={4} value={resignationReason} onChange={e => setResignationReason(e.target.value)} disabled={isSubmittingResignation} />
+              </div>
+              <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end", marginTop: "8px" }}>
+                <button type="button" className="kalki-button kalki-button--secondary" onClick={() => setShowResignationModal(false)} disabled={isSubmittingResignation}>Cancel</button>
+                <button type="submit" className="kalki-button kalki-button--primary" disabled={isSubmittingResignation}>{isSubmittingResignation ? "Submitting..." : "Submit Request"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {pendingProposal && (
         <div className="kalki-section" style={{ border: "2px solid #f59e0b" }}>
@@ -536,49 +612,50 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
             </div>
           </section>
 
-          <EmployeeCompensationTab employeeId={emp.id} organizationId={selected.organizationId} />
 
-          <section className="kalki-section">
-            <div className="kalki-section-header">
-              <h2 className="kalki-section-title">Employment History</h2>
-            </div>
-            <div className="kalki-section-content">
-              {(!emp.history || (emp.history.status?.length === 0 && emp.history.category?.length === 0 && emp.history.salary?.length === 0)) ? (
-                <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
-                  No employment changes recorded yet.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                  {emp.history.status?.length > 0 && (
-                    <div>
-                      <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Status Changes</h4>
-                      <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
-                        {emp.history.status.map((h: any) => (
-                          <li key={h.id} style={{ marginBottom: "4px" }}>
-                            <strong>{h.status}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                  {emp.history.salary?.length > 0 && (
-                    <div>
-                      <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Salary Changes</h4>
-                      <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
-                        {emp.history.salary.map((h: any) => (
-                          <li key={h.id} style={{ marginBottom: "4px" }}>
-                            <strong>{h.salaryType} - ₹{h.amount}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </section>
+          {session.user.id !== emp.userId && (
+            <section className="kalki-section">
+              <div className="kalki-section-header">
+                <h2 className="kalki-section-title">Employment History</h2>
+              </div>
+              <div className="kalki-section-content">
+                {(!emp.history || (emp.history.status?.length === 0 && emp.history.category?.length === 0 && emp.history.salary?.length === 0)) ? (
+                  <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
+                    No employment changes recorded yet.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {emp.history.status?.length > 0 && (
+                      <div>
+                        <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Status Changes</h4>
+                        <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
+                          {emp.history.status.map((h: any) => (
+                            <li key={h.id} style={{ marginBottom: "4px" }}>
+                              <strong>{h.status}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {emp.history.salary?.length > 0 && (
+                      <div>
+                        <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Salary Changes</h4>
+                        <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
+                          {emp.history.salary.map((h: any) => (
+                            <li key={h.id} style={{ marginBottom: "4px" }}>
+                              <strong>{h.salaryType} - ₹{h.amount}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
 
-          {emp.history.audit && emp.history.audit.length > 0 && (
+          {session.user.id !== emp.userId && emp.history.audit && emp.history.audit.length > 0 && (
             <section className="kalki-section">
               <div className="kalki-section-header">
                 <h2 className="kalki-section-title">Detailed Field Changes</h2>
@@ -614,58 +691,63 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
 
         </div>
 
-        <div className="kalki-form-secondary">
-          
-          <section className="kalki-section">
-            <div className="kalki-section-header">
-              <h2 className="kalki-section-title">Roles & Access</h2>
-            </div>
-            <div className="kalki-section-content">
-              {assignments.items.length === 0 ? (
-                <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic", marginBottom: "16px" }}>
-                  No roles assigned.
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
-                  {assignments.items.map((assign) => (
-                    <div key={assign.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", border: "1px solid var(--kalki-border)", borderRadius: "var(--radius-sm)" }}>
-                      <div>
-                        <span style={{ fontSize: "14px", fontWeight: 500, display: "block" }}>{assign.role.name}</span>
-                      </div>
-                      <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: "var(--kalki-danger)", padding: "4px 8px" }} onClick={() => void handleRemoveRole(assign.id, assign.role.name)}>
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              
-              <div style={{ borderTop: "1px solid var(--kalki-border)", paddingTop: "16px" }}>
-                <h4 style={{ margin: "0 0 12px 0", fontSize: "13px", fontWeight: 600 }}>Assign a new role</h4>
-                {assignError ? <StatusMessage tone="error">{assignError}</StatusMessage> : null}
-                
-                {availableRoles.length === 0 ? (
-                  <p style={{ fontSize: "13px", color: "var(--kalki-text-secondary)", margin: 0 }}>No roles defined yet.</p>
-                ) : unassignedRoles.length === 0 ? (
-                  <p style={{ fontSize: "13px", color: "var(--kalki-text-secondary)", margin: 0 }}>All available roles assigned.</p>
+        {session.user.id !== emp.userId && (
+          <div className="kalki-form-secondary">
+            
+            <section className="kalki-section">
+              <div className="kalki-section-header">
+                <h2 className="kalki-section-title">Roles & Access</h2>
+              </div>
+              <div className="kalki-section-content">
+                {assignments.items.length === 0 ? (
+                  <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic", marginBottom: "16px" }}>
+                    No roles assigned.
+                  </div>
                 ) : (
-                  <form onSubmit={(e) => void assignRole(e)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <select className="kalki-select" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} disabled={assigning}>
-                      <option value="" disabled>Choose a role...</option>
-                      {unassignedRoles.map((role) => (
-                        <option key={role.id} value={role.id}>{role.name}</option>
-                      ))}
-                    </select>
-                    <button type="submit" className="kalki-button kalki-button--primary" disabled={!selectedRole || assigning}>
-                      {assigning ? "Assigning..." : "+ Assign"}
-                    </button>
-                  </form>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
+                    {assignments.items.map((assign) => (
+                      <div key={assign.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", border: "1px solid var(--kalki-border)", borderRadius: "var(--radius-sm)" }}>
+                        <div>
+                          <span style={{ fontSize: "14px", fontWeight: 500, display: "block" }}>{assign.role.name}</span>
+                        </div>
+                        {session.user.id !== emp.userId && (
+                          <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: "var(--kalki-danger)", padding: "4px 8px" }} onClick={() => void handleRemoveRole(assign.id, assign.role.name)}>
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {session.user.id !== emp.userId && (
+                  <div style={{ borderTop: "1px solid var(--kalki-border)", paddingTop: "16px" }}>
+                    <h4 style={{ margin: "0 0 12px 0", fontSize: "13px", fontWeight: 600 }}>Assign a new role</h4>
+                    {assignError ? <StatusMessage tone="error">{assignError}</StatusMessage> : null}
+                    
+                    {availableRoles.length === 0 ? (
+                      <p style={{ fontSize: "13px", color: "var(--kalki-text-secondary)", margin: 0 }}>No roles defined yet.</p>
+                    ) : unassignedRoles.length === 0 ? (
+                      <p style={{ fontSize: "13px", color: "var(--kalki-text-secondary)", margin: 0 }}>All available roles assigned.</p>
+                    ) : (
+                      <form onSubmit={(e) => void assignRole(e)} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                        <select className="kalki-select" value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} disabled={assigning}>
+                          <option value="" disabled>Choose a role...</option>
+                          {unassignedRoles.map((role) => (
+                            <option key={role.id} value={role.id}>{role.name}</option>
+                          ))}
+                        </select>
+                        <button type="submit" className="kalki-button kalki-button--primary" disabled={!selectedRole || assigning}>
+                          {assigning ? "Assigning..." : "+ Assign"}
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          </section>
-
-        </div>
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -8,8 +8,15 @@ import { leaveRequests, employees, leaveTypes, people } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import ApprovalList from "@/components/attendance/ApprovalList";
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
+  const params = await searchParams;
+  const qs = new URLSearchParams(params).toString();
+  const queryString = qs ? `?${qs}` : "";
   
   let rawRequests: any[] = [];
   
@@ -66,25 +73,37 @@ export default async function DashboardPage() {
           <div>
             <h2 className="text-xl font-semibold mb-4" style={{ color: "var(--att-primary)" }}>Modules</h2>
             <div className="kalki-dashboard-grid" style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              <Link href="/people" className="kalki-card p-4 border rounded-md hover:bg-gray-50 flex items-center justify-between transition-colors">
-                <h2 className="text-lg font-semibold m-0">People</h2>
-                <span className="text-gray-400">→</span>
+              <Link href={`/people${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>People</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
               </Link>
-              <Link href="/attendance" className="kalki-card p-4 border rounded-md hover:bg-gray-50 flex items-center justify-between transition-colors">
-                <h2 className="text-lg font-semibold m-0">Attendance</h2>
-                <span className="text-gray-400">→</span>
+              <Link href={`/attendance${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Attendance</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
               </Link>
-              <Link href="/payroll" className="kalki-card p-4 border rounded-md hover:bg-gray-50 flex items-center justify-between transition-colors">
-                <h2 className="text-lg font-semibold m-0">Payroll</h2>
-                <span className="text-gray-400">→</span>
+              <Link href={`/payroll${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Payroll</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
               </Link>
-              <Link href="/crm" className="kalki-card p-4 border rounded-md hover:bg-gray-50 flex items-center justify-between transition-colors">
-                <h2 className="text-lg font-semibold m-0">CRM</h2>
-                <span className="text-gray-400">→</span>
+              <Link href={`/purchasing${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Purchasing</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
               </Link>
-              <Link href="/settings" className="kalki-card p-4 border rounded-md hover:bg-gray-50 flex items-center justify-between transition-colors">
-                <h2 className="text-lg font-semibold m-0">Settings</h2>
-                <span className="text-gray-400">→</span>
+              <Link href={`/inventory${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Inventory</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
+              </Link>
+              <Link href={`/crm${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>CRM</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
+              </Link>
+              <Link href={`/tasks${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Task Engine</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
+              </Link>
+              <Link href={`/settings${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Settings</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
               </Link>
             </div>
           </div>

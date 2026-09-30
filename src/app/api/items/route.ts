@@ -6,9 +6,9 @@ import { requireAuthenticatedUser } from '@/lib/authorization';
 import { z } from 'zod';
 
 const itemSchema = z.object({
-  nameEn: z.string().min(1),
-  nameTa: z.string().min(1),
-  nameHi: z.string().min(1),
+  nameEn: z.string().min(1, 'English name is required'),
+  nameTa: z.string().optional().default(''),
+  nameHi: z.string().optional().default(''),
   currentPrice: z.number().positive(),
   maxPrice: z.number().positive(),
   unit: z.string().min(1),
@@ -27,6 +27,7 @@ const itemSchema = z.object({
   fridaySurge: z.number().nonnegative().optional(),
   saturdaySurge: z.number().nonnegative().optional(),
   isActive: z.boolean(),
+  isTrackable: z.boolean().optional().default(true),
   vendorIds: z.array(z.string().uuid()).min(1, 'At least one vendor is required'),
   organizationId: z.string().uuid(),
   locationId: z.string().uuid(),
@@ -88,6 +89,7 @@ export async function POST(req: NextRequest) {
         fridaySurge: parsed.fridaySurge?.toString() || '0',
         saturdaySurge: parsed.saturdaySurge?.toString() || '0',
         isActive: parsed.isActive,
+        isTrackable: parsed.isTrackable,
       }).returning({ id: items.id });
 
       // Link vendors

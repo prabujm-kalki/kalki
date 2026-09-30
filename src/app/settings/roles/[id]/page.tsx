@@ -284,7 +284,7 @@ function RolePermissionMatrixContent() {
                               </td>
                             )}
                             <td style={{ fontWeight: 500, color: 'var(--kalki-text-secondary)', textTransform: 'capitalize', borderRight: '1px solid var(--kalki-border)', verticalAlign: 'middle' }}>
-                              {submodule}
+                              {submodule.replace(/_/g, ' ')}
                             </td>
                             {standardActions.map(action => {
                               const perm = perms.find(p => {

@@ -13,10 +13,12 @@ export default function CreateItemPage() {
     nameTa: '',
     nameHi: '',
     isActive: true,
+    isTrackable: true,
     currentPrice: '',
     maxPrice: '',
     unit: 'Kg',
     baseMinStock: '',
+    targetStock: '',
     orderFrequency: { daily: true, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
     customIntervalDays: '',
     fridaySurge: 25,
@@ -73,10 +75,20 @@ export default function CreateItemPage() {
       
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(JSON.stringify(data.error) || 'Failed to save');
+        if (Array.isArray(data.error)) {
+          const messages = data.error.map((e: any) => {
+            const field = e.path && e.path.length > 0 ? e.path[e.path.length - 1] : '';
+            return field ? `${field}: ${e.message}` : e.message;
+          });
+          throw new Error(messages.join(' | '));
+        }
+        throw new Error(data.error || 'Failed to save');
       }
-      
-      router.push('/purchasing/items');
+      const nextQuery = new URLSearchParams({
+        organizationId: selected?.organizationId || '',
+        locationId: selected?.locationId || '',
+      });
+      router.push(`/purchasing/items?${nextQuery.toString()}`);
     } catch (err: any) {
       setError(err.message);
     }
@@ -116,6 +128,10 @@ export default function CreateItemPage() {
           </div>
           <div className="grid-2">
             <div className="field">
+              <label>Reorder Quantity (Target Stock)</label>
+              <input type="number" value={formData.targetStock} onChange={e => setFormData(p => ({ ...p, targetStock: e.target.value }))} />
+            </div>
+            <div className="field">
               <label>Item Name (English) *</label>
               <input 
                 type="text" 
@@ -132,6 +148,20 @@ export default function CreateItemPage() {
               <label>Item Name (Hindi) *</label>
               <input type="text" value={formData.nameHi} onChange={e => setFormData(p => ({ ...p, nameHi: e.target.value }))} />
             </div>
+          </div>
+          <div className="field" style={{ marginTop: '1rem' }}>
+            <label className="row" style={{ cursor: 'pointer', gap: '0.5rem', fontWeight: 600 }}>
+              <input 
+                type="checkbox" 
+                checked={formData.isTrackable} 
+                onChange={(e) => setFormData(p => ({ ...p, isTrackable: e.target.checked }))} 
+                style={{ width: '1.2rem', height: '1.2rem' }}
+              />
+              Trackable Inventory Item
+            </label>
+            <p className="text-muted" style={{ fontSize: '0.85rem', marginTop: '0.25rem' }}>
+              Uncheck for items (like Salt, Tamarind) that are ordered and received, but their daily POS consumption is NOT strictly tracked.
+            </p>
           </div>
         </div>
 
@@ -204,7 +234,7 @@ export default function CreateItemPage() {
           </div>
           <div className="grid-2">
             <div className="field">
-              <label>Base Min Stock * (Required day-to-day minimum)</label>
+              <label>Base Minimum Stock *</label>
               <input type="number" value={formData.baseMinStock} onChange={e => setFormData(p => ({ ...p, baseMinStock: e.target.value }))} />
             </div>
             <div className="field">

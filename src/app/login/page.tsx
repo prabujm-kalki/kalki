@@ -28,13 +28,27 @@ function LoginForm() {
 
     try {
       const result = await authClient.signIn.email({ email, password });
-      setPending(false);
-
+      
       if (result.error) {
+        setPending(false);
         setError(result.error.message ?? "Sign-in failed");
         return;
       }
 
+      // Verify that the employee is active (not EXITED or DRAFT)
+      try {
+        const res = await fetch("/api/session-context?t=" + Date.now());
+        if (!res.ok) {
+          throw new Error("Account is no longer active.");
+        }
+      } catch (err) {
+        await authClient.signOut();
+        setPending(false);
+        setError("Your account is no longer active.");
+        return;
+      }
+
+      setPending(false);
       router.replace(searchParams.get("next") || "/");
     } catch (err) {
       setPending(false);

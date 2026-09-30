@@ -1,11 +1,17 @@
 export const employeePermissions = {
-  read: "employee:read",
-  create: "employee:create",
-  update: "employee:update",
+  read: "employee.directory:read",
+  create: "employee.directory:create",
+  update: "employee.directory:update",
+} as const;
+
+export const inventoryPermissions = {
+  read: "purchasing.dashboard:read",
+  create: "purchasing.items:create",
+  update: "purchasing.items:update",
 } as const;
 
 export type EmployeePermission =
-  (typeof employeePermissions)[keyof typeof employeePermissions];
+  (typeof employeePermissions)[keyof typeof employeePermissions] | (typeof inventoryPermissions)[keyof typeof inventoryPermissions];
 
 export type AuthorizationInput = {
   organizationId: string;

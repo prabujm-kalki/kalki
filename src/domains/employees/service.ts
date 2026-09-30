@@ -99,6 +99,12 @@ const employeeUpdateSchema = z
       .optional(),
     familyContacts: z.array(familyContactSchema).optional(),
     accessLocations: z.array(z.string().uuid()).optional(),
+    provisionAccess: z.object({
+      phone: z.string().min(1),
+      password: z.string().min(8),
+      roleIds: z.array(z.string().uuid()).optional(),
+      locationIds: z.array(z.string().uuid()).optional(),
+    }).optional(),
   })
   .strict();
 
@@ -147,7 +153,7 @@ async function requireEmployeeAccess(
   actor: { id: string },
   organizationId: string,
   locationId: string,
-  permission: "employee:read" | "employee:create" | "employee:update",
+  permission: string,
 ) {
   const authorized = await authorizeEmployeeOperation({
     userId: actor.id,
@@ -518,12 +524,37 @@ export async function getEmployee(actor: Actor, employeeId: string) {
   }
 
   try {
-    await requireEmployeeAccess(
-      actor,
-      employee.organizationId,
-      employee.locationId,
-      employeePermissions.read,
-    );
+    if (employee.userId !== actor.id) {
+      const actorEmployeeRows = await db.select({ reportingEmployeeId: employees.reportingEmployeeId })
+        .from(employees).where(eq(employees.userId, actor.id)).limit(1);
+      const isMyManager = actorEmployeeRows.length > 0 && actorEmployeeRows[0].reportingEmployeeId === employee.id;
+
+      if (!isMyManager) {
+        await requireEmployeeAccess(
+          actor,
+          employee.organizationId,
+          employee.locationId,
+          employeePermissions.read,
+        );
+      } else {
+        const { authorizeEmployeeOperation } = await import("@/lib/authorization");
+        const allowed = await authorizeEmployeeOperation({
+          userId: actor.id,
+          organizationId: employee.organizationId,
+          locationId: employee.locationId,
+        });
+        if (!allowed) throw new EmployeeServiceError("Employee access denied", "ACCESS_DENIED");
+      }
+    } else {
+      // If the actor is fetching their own profile, ensure they at least have access to the org/loc
+      const { authorizeEmployeeOperation } = await import("@/lib/authorization");
+      const allowed = await authorizeEmployeeOperation({
+        userId: actor.id,
+        organizationId: employee.organizationId,
+        locationId: employee.locationId,
+      });
+      if (!allowed) throw new EmployeeServiceError("Employee access denied", "ACCESS_DENIED");
+    }
   } catch (error) {
     if (error instanceof EmployeeServiceError && error.code === "ACCESS_DENIED") {
       throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
@@ -623,7 +654,79 @@ export async function updateEmployee(
     }
   }
 
+  let createdUserId: string | null = null;
+  let authEmailToUse: string | null = null;
+  let hashedPasswordToUse: string | null = null;
+
+  if (parsed.data.provisionAccess && !current.userId) {
+    const { hashPassword } = await import("better-auth/crypto");
+    authEmailToUse = `${parsed.data.provisionAccess.phone}@kalki.internal`;
+    const [existingUser] = await db.select().from(authUsers).where(eq(authUsers.email, authEmailToUse));
+    if (existingUser) {
+      throw new EmployeeServiceError(`The phone number is already registered for login access.`, "INVALID_INPUT");
+    }
+    
+    createdUserId = crypto.randomUUID();
+    hashedPasswordToUse = await hashPassword(parsed.data.provisionAccess.password);
+  }
+
   return db.transaction(async (tx) => {
+    if (parsed.data.provisionAccess && createdUserId && authEmailToUse && hashedPasswordToUse) {
+      await tx.insert(authUsers).values({
+        id: createdUserId,
+        name: current.person.displayName,
+        email: authEmailToUse,
+        emailVerified: false,
+        image: current.photoUrl ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      await tx.insert(authAccounts).values({
+        id: crypto.randomUUID(),
+        accountId: createdUserId,
+        providerId: "credential",
+        issuer: "local:credential",
+        userId: createdUserId,
+        password: hashedPasswordToUse,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      
+      // Grant basic memberships and roles
+      await tx.insert(organizationMemberships).values({
+        userId: createdUserId,
+        organizationId: current.organizationId,
+      });
+
+      const locationIds = parsed.data.provisionAccess.locationIds && parsed.data.provisionAccess.locationIds.length > 0 
+        ? parsed.data.provisionAccess.locationIds 
+        : [current.locationId];
+
+      for (const locId of locationIds) {
+        await tx.insert(locationMemberships).values({
+          userId: createdUserId,
+          organizationId: current.organizationId,
+          locationId: locId,
+        });
+      }
+
+      const roleIds = parsed.data.provisionAccess.roleIds || [];
+      for (const roleId of roleIds) {
+        await tx.insert(employeeRoleAssignments).values({
+          organizationId: current.organizationId,
+          employeeId: current.id,
+          roleId: roleId,
+        });
+        
+        await tx.insert(organizationRoleAssignments).values({
+          userId: createdUserId,
+          organizationId: current.organizationId,
+          roleId: roleId,
+        });
+      }
+    }
+
     const actorEmployeeRows = await tx.select({ id: employees.id }).from(employees).where(eq(employees.userId, actor.id));
     const recordedByEmployeeId = actorEmployeeRows[0]?.id ?? null;
 
@@ -663,6 +766,7 @@ export async function updateEmployee(
       ...(parsed.data.bloodGroup !== undefined && { bloodGroup: parsed.data.bloodGroup }),
       ...(parsed.data.departmentId !== undefined && { departmentId: parsed.data.departmentId }),
       ...(parsed.data.defaultShiftId !== undefined && { defaultShiftId: parsed.data.defaultShiftId }),
+      ...(createdUserId !== null && { userId: createdUserId }),
       updatedAt: new Date(),
     };
 
@@ -946,6 +1050,7 @@ export async function listEmployees(
   return db
     .select({
       id: employees.id,
+      userId: employees.userId,
       organizationId: employees.organizationId,
       locationId: employees.locationId,
       employeeCode: employees.employeeCode,
@@ -1013,12 +1118,14 @@ export async function proposeEmployeeChange(
     throw new EmployeeServiceError("Only active employees can have change requests", "INVALID_LIFECYCLE_TRANSITION");
   }
 
-  await requireEmployeeAccess(
-    actor,
-    current.organizationId,
-    current.locationId,
-    employeePermissions.update,
-  );
+  if (current.userId !== actor.id) {
+    await requireEmployeeAccess(
+      actor,
+      current.organizationId,
+      current.locationId,
+      employeePermissions.update,
+    );
+  }
 
   return db.transaction(async (tx) => {
     // Prevent concurrent pending requests for the same employee
@@ -1133,7 +1240,7 @@ export async function approveEmployeeChange(
     const emp = employeeRows[0];
 
     const payload = request.proposedPayload as any;
-    if (payload.targetEmployeeUpdatedAt && new Date(payload.targetEmployeeUpdatedAt).getTime() !== emp.updatedAt.getTime()) {
+    if (payload.targetEmployeeUpdatedAt && Math.abs(new Date(payload.targetEmployeeUpdatedAt).getTime() - emp.updatedAt.getTime()) > 1000) {
       throw new EmployeeServiceError("The employee record has been modified since this request was created", "STALE_REQUEST");
     }
 
@@ -1156,15 +1263,23 @@ export async function approveEmployeeChange(
       hasPersonChanges = Object.keys(personChanges).length > 1;
     }
 
-    if (payload.jobTitle !== undefined) { employeeChanges.jobTitle = payload.jobTitle; hasEmployeeChanges = true; }
-    if (payload.category !== undefined) { employeeChanges.category = payload.category; hasEmployeeChanges = true; }
-    if (payload.locationId !== undefined) { employeeChanges.locationId = payload.locationId; hasEmployeeChanges = true; }
+    const simpleFields = [
+      'jobTitle', 'category', 'locationId', 'employmentStartDate', 'employmentEndDate',
+      'aadhaarDocumentUrl', 'photoUrl', 'otherDocument1Url', 'otherDocument2Url', 'otherDocument3Url',
+      'residentialAddress', 'bloodGroup', 'gender', 'maritalStatus', 'biometricId', 'defaultShiftId', 'departmentId'
+    ];
+    for (const field of simpleFields) {
+      if (payload[field] !== undefined) {
+        employeeChanges[field] = payload[field];
+        hasEmployeeChanges = true;
+      }
+    }
+
     if (payload.reportingEmployeeId !== undefined) {
       await validateReportingAssignment(tx, emp.id, payload.reportingEmployeeId, emp.organizationId);
       employeeChanges.reportingEmployeeId = payload.reportingEmployeeId; 
       hasEmployeeChanges = true;
     }
-    // ...other fields if needed...
 
     if (hasPersonChanges) {
       await tx.update(people).set(personChanges).where(eq(people.id, emp.personId));

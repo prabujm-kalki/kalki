@@ -22,10 +22,13 @@ export const PERMISSIONS_REGISTRY: PermissionDefinition[] = [
   { code: "attendance.selfie_punch:execute", name: "Selfie Punch Kiosk" },
 
   // People Module
-  { code: "people.employees:read", name: "View Employees" },
-  { code: "people.employees:create", name: "Create Employees" },
-  { code: "people.employees:update", name: "Update Employees" },
-  { code: "people.employees:delete", name: "Delete Employees" },
+  { code: "employee.directory:read", name: "View Employees" },
+  { code: "employee.directory:create", name: "Create Employees" },
+  { code: "employee.directory:update", name: "Update Employees" },
+  { code: "employee.directory:delete", name: "Delete Employees" },
+  { code: "employee.my_advances:read", name: "View My Advances" },
+  { code: "payroll.advances:read", name: "View Advances & Loans" },
+  { code: "payroll.advances:write", name: "Manage Advances & Loans" },
 
   // Command Center
   { code: "command_center:read", name: "View Command Center" },

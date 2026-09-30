@@ -768,7 +768,20 @@ export async function getEmployeeRoleAssignment(actor: Actor, scope: z.infer<typ
 export async function listEmployeeRoleAssignments(actor: Actor, scope: z.infer<typeof employeeScopeSchema>) {
   requireActor(actor);
   if (!employeeScopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid employee role assignment scope", "INVALID_INPUT");
-  await requireScopeAccess(actor, scope, employeePermissions.read);
+  
+  const employee = await db.select({ userId: employees.userId }).from(employees).where(eq(employees.id, scope.employeeId)).limit(1);
+  const isSelf = employee.length > 0 && employee[0].userId === actor.id;
+  if (!isSelf) {
+    await requireScopeAccess(actor, scope, employeePermissions.read);
+  } else {
+    const { authorizeEmployeeOperation } = await import("@/lib/authorization");
+    const allowed = await authorizeEmployeeOperation({
+      userId: actor.id,
+      organizationId: scope.organizationId,
+      locationId: scope.locationId,
+    });
+    if (!allowed) throw new RolesWorkServiceError("Access denied", "ACCESS_DENIED");
+  }
   await requireEmployeeInScope(scope);
   return db.select({
     id: employeeRoleAssignments.id,

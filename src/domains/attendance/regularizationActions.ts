@@ -39,15 +39,29 @@ export async function submitRegularizationRequest(payload: {
   const existingPunches = await db.select().from(rawBiometricPunches).where(
     and(
       eq(rawBiometricPunches.employeeId, employee.id),
-      eq(rawBiometricPunches.punchType, payload.requestedPunchType),
       gte(rawBiometricPunches.punchTimestamp, startOfDay),
       lte(rawBiometricPunches.punchTimestamp, endOfDay)
     )
   );
 
-  if (existingPunches.length > 0) {
+  if (existingPunches.some(p => p.punchType === payload.requestedPunchType)) {
     return { error: `You have already recorded a ${payload.requestedPunchType.replace("_", " ")} on this date.` };
   }
+
+  // Validate chronological order
+  const tempPunches = [...existingPunches, { punchType: payload.requestedPunchType, punchTimestamp: payload.requestedTime }];
+
+  const pi = tempPunches.find(p => p.punchType === "PUNCH_IN")?.punchTimestamp;
+  const bi = tempPunches.find(p => p.punchType === "BREAK_IN")?.punchTimestamp;
+  const bo = tempPunches.find(p => p.punchType === "BREAK_OUT")?.punchTimestamp;
+  const po = tempPunches.find(p => p.punchType === "PUNCH_OUT")?.punchTimestamp;
+
+  if (pi && bi && pi.getTime() > bi.getTime()) return { error: "Break In time cannot be earlier than Punch In time." };
+  if (bi && bo && bi.getTime() > bo.getTime()) return { error: "Break Out time cannot be earlier than Break In time." };
+  if (bo && po && bo.getTime() > po.getTime()) return { error: "Punch Out time cannot be earlier than Break Out time." };
+  if (pi && po && pi.getTime() > po.getTime()) return { error: "Punch Out time cannot be earlier than Punch In time." };
+  if (pi && bo && pi.getTime() > bo.getTime()) return { error: "Break Out time cannot be earlier than Punch In time." };
+  if (bi && po && bi.getTime() > po.getTime()) return { error: "Punch Out time cannot be earlier than Break In time." };
 
   const existingRequests = await db.select().from(attendanceRegularizationRequests).where(
     and(
@@ -74,6 +88,45 @@ export async function submitRegularizationRequest(payload: {
   });
 
   return { success: true };
+}
+
+export async function getMissingPunchTypesForDate(date: string, organizationId: string, locationId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) throw new Error("Unauthorized");
+  
+  const empRecords = await db.select().from(employees).where(
+    and(eq(employees.userId, session.user.id), eq(employees.organizationId, organizationId))
+  );
+  const employee = empRecords[0];
+  if (!employee) return [];
+
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const { gte, lte } = await import("drizzle-orm");
+
+  const existingPunches = await db.select().from(rawBiometricPunches).where(
+    and(
+      eq(rawBiometricPunches.employeeId, employee.id),
+      gte(rawBiometricPunches.punchTimestamp, startOfDay),
+      lte(rawBiometricPunches.punchTimestamp, endOfDay)
+    )
+  );
+
+  const hasPI = existingPunches.some(p => p.punchType === "PUNCH_IN");
+  const hasBI = existingPunches.some(p => p.punchType === "BREAK_IN");
+  const hasBO = existingPunches.some(p => p.punchType === "BREAK_OUT");
+  const hasPO = existingPunches.some(p => p.punchType === "PUNCH_OUT");
+
+  const available = [];
+  if (!hasPI) available.push({ value: "PUNCH_IN", label: "Punch IN" });
+  if (!hasBI) available.push({ value: "BREAK_IN", label: "Break IN" });
+  if (!hasBO) available.push({ value: "BREAK_OUT", label: "Break OUT" });
+  if (!hasPO) available.push({ value: "PUNCH_OUT", label: "Punch OUT" });
+
+  return available;
 }
 
 export async function processRegularizationRequest(requestId: string, action: "APPROVE" | "REJECT") {

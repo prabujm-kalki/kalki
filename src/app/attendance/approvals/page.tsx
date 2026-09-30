@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { leaveRequests, employees, leaveTypes, people, leaveEncashmentRequests, attendanceRegularizationRequests } from "@/db/schema";
+import { leaveRequests, employees, leaveTypes, people, leaveEncashmentRequests, attendanceRegularizationRequests, employeeAdvanceRequests, advanceTypeDefinitions } from "@/db/schema";
 import { eq, and, or } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -7,6 +7,7 @@ import { getSessionContext } from "@/domains/session/service";
 import ApprovalList from "@/components/attendance/ApprovalList";
 import EncashmentApprovalList from "@/components/attendance/EncashmentApprovalList";
 import RegularizationApprovalList from "@/components/attendance/RegularizationApprovalList";
+import AdvanceApprovalList from "@/components/payroll/AdvanceApprovalList";
 import { redirect } from "next/navigation";
 
 export default async function ApprovalsPage() {
@@ -138,6 +139,26 @@ export default async function ApprovalsPage() {
   .where(historyConditions as any)
   .orderBy(leaveRequests.actionedAt);
 
+  // Fetch Advance Requests
+  let advanceConditions = eq(employeeAdvanceRequests.status, "PENDING");
+  if (!canManage) {
+    advanceConditions = and(advanceConditions, eq(employees.reportingEmployeeId, currentEmpId!)) as any;
+  }
+  
+  const rawAdvances = await db.select({
+    id: employeeAdvanceRequests.id,
+    requestedAmount: employeeAdvanceRequests.requestedAmount,
+    advanceTypeName: advanceTypeDefinitions.name,
+    employeeName: people.displayName,
+    employeeCode: employees.employeeCode,
+    repaymentMonths: employeeAdvanceRequests.repaymentMonths,
+  })
+  .from(employeeAdvanceRequests)
+  .innerJoin(employees, eq(employeeAdvanceRequests.employeeId, employees.id))
+  .innerJoin(people, eq(employees.personId, people.id))
+  .innerJoin(advanceTypeDefinitions, eq(employeeAdvanceRequests.advanceTypeId, advanceTypeDefinitions.id))
+  .where(advanceConditions);
+
   return (
     <div>
       <header className="att-header">
@@ -150,7 +171,17 @@ export default async function ApprovalsPage() {
       </div>
 
       <div className="att-card" style={{ marginBottom: "2rem" }}>
+        <h3 style={{ margin: "0 0 1.5rem 0", fontSize: "1.25rem", color: "var(--att-primary)" }}>
+          Attendance Regularization Requests
+        </h3>
         <RegularizationApprovalList requests={rawRegularizations} />
+      </div>
+
+      <div className="att-card" style={{ marginBottom: "2rem" }}>
+        <h3 style={{ margin: "0 0 1.5rem 0", fontSize: "1.25rem", color: "var(--att-primary)" }}>
+          Advance & Loan Requests
+        </h3>
+        <AdvanceApprovalList requests={rawAdvances as any} />
       </div>
 
       <div className="att-card" style={{ marginBottom: "2rem" }}>

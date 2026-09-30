@@ -109,7 +109,7 @@ export default function ReportsClient({
           dates.forEach(d => {
             const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
             if (dayPunches.length > 0) {
-              const pi = dayPunches.find(p => p.punchType === "PUNCH_IN");
+              const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
               const bi = dayPunches.find(p => p.punchType === "BREAK_IN");
               const bo = dayPunches.find(p => p.punchType === "BREAK_OUT");
               const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
@@ -136,9 +136,17 @@ export default function ReportsClient({
                   const punchOutTime = new Date(po.punchTimestamp);
                   const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
                   
-                  if (pi.shiftMinHoursHalfDay && hoursWorked < parseFloat(pi.shiftMinHoursHalfDay)) {
-                    anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
-                    status = "HALF DAY";
+                  if (pi.shiftMinHoursHalfDay) {
+                    const minHalf = parseFloat(pi.shiftMinHoursHalfDay);
+                    const minFull = pi.shiftMinHoursFullDay ? parseFloat(pi.shiftMinHoursFullDay) : minHalf * 2;
+                    
+                    if (hoursWorked < minHalf) {
+                      anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                      status = "ABSENT";
+                    } else if (hoursWorked < minFull) {
+                      anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                      status = "HALF DAY";
+                    }
                   }
                 } else {
                   anomalies.push("MISSING OUT PUNCH");
@@ -310,7 +318,7 @@ export default function ReportsClient({
                       <tbody>
                         {dates.map(d => {
                           const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
-                          const pi = dayPunches.find(p => p.punchType === "PUNCH_IN");
+                          const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
                           const bi = dayPunches.find(p => p.punchType === "BREAK_IN");
                           const bo = dayPunches.find(p => p.punchType === "BREAK_OUT");
                           const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
@@ -341,9 +349,17 @@ export default function ReportsClient({
                               const punchOutTime = new Date(po.punchTimestamp);
                               const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
                               
-                              if (pi.shiftMinHoursHalfDay && hoursWorked < parseFloat(pi.shiftMinHoursHalfDay)) {
-                                anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
-                                status = "HALF DAY";
+                              if (pi.shiftMinHoursHalfDay) {
+                                const minHalf = parseFloat(pi.shiftMinHoursHalfDay);
+                                const minFull = pi.shiftMinHoursFullDay ? parseFloat(pi.shiftMinHoursFullDay) : minHalf * 2;
+                                
+                                if (hoursWorked < minHalf) {
+                                  anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                                  status = "ABSENT";
+                                } else if (hoursWorked < minFull) {
+                                  anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                                  status = "HALF DAY";
+                                }
                               }
                             } else {
                               anomalies.push("MISSING OUT PUNCH");

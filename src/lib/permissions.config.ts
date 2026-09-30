@@ -5,17 +5,29 @@ export type PermissionConfig = {
 };
 
 export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
-  // Employee / People
-  { module: "employee", submodule: "general", actions: ["read", "create", "update", "approve"] },
+  // Dashboard / Command Center
+  { module: "command-center", submodule: "overview", actions: ["read"] },
   
-  // Command Center
-  { module: "command-center", submodule: "general", actions: ["read"] },
+  // People
+  { module: "employee", submodule: "my_profile", actions: ["read"] },
+  { module: "employee", submodule: "my_advances", actions: ["read"] },
+  { module: "employee", submodule: "directory", actions: ["read", "create", "update", "delete"] },
+  { module: "employee", submodule: "compensation", actions: ["read", "update"] },
   
   // Attendance
-  { module: "attendance", submodule: "records", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "attendance", submodule: "overview", actions: ["read"] },
+  { module: "attendance", submodule: "my_time", actions: ["read", "create", "update"] },
+  { module: "attendance", submodule: "approvals", actions: ["read", "approve"] },
+  { module: "attendance", submodule: "reports", actions: ["read"] },
+  { module: "attendance", submodule: "configuration", actions: ["read", "update"] },
+  { module: "attendance", submodule: "selfie_punch", actions: ["create"] },
   
   // Payroll
-  { module: "payroll", submodule: "salary", actions: ["read", "create", "update", "approve"] },
+  { module: "payroll", submodule: "processing", actions: ["read", "create", "update", "approve"] },
+  { module: "payroll", submodule: "advances", actions: ["read", "create", "update", "approve"] },
+  { module: "payroll", submodule: "configuration", actions: ["read", "create", "update"] },
+  { module: "payroll", submodule: "payslips", actions: ["read"] },
+  { module: "payroll", submodule: "settlements", actions: ["read", "create", "update", "approve"] },
   
   // Purchasing
   { module: "purchasing", submodule: "dashboard", actions: ["read"] },
@@ -37,6 +49,9 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "finance", submodule: "transactions", actions: ["read", "create", "update", "approve"] },
   
   // Settings
+  { module: "settings", submodule: "organization_chart", actions: ["read", "update"] },
+  { module: "settings", submodule: "data_master", actions: ["read", "create", "update", "delete"] },
   { module: "settings", submodule: "roles", actions: ["read", "create", "update", "delete"] },
-  { module: "settings", submodule: "organization", actions: ["read", "update"] }
+  { module: "settings", submodule: "users", actions: ["read", "create", "update", "delete"] },
+  { module: "settings", submodule: "statutory_settings", actions: ["read", "update"] }
 ];

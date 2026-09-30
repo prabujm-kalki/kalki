@@ -1,0 +1,1 @@
+import { db } from './src/db/index.ts'; import { sql } from 'drizzle-orm'; async function run() { try { await db.execute(sql\ALTER TABLE advance_type_definitions ADD COLUMN IF NOT EXISTS max_ceiling_amount numeric;\); console.log('Added max_ceiling_amount column successfully'); } catch(e) { console.error(e); } process.exit(0); } run();

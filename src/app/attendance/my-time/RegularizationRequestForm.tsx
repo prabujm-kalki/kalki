@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { submitRegularizationRequest } from "@/domains/attendance/regularizationActions";
+import { useState, useEffect } from "react";
+import { submitRegularizationRequest, getMissingPunchTypesForDate } from "@/domains/attendance/regularizationActions";
 import { useSessionView } from "@/components/AppShell";
 import { useRouter } from "next/navigation";
 
@@ -11,15 +11,43 @@ export function RegularizationRequestForm() {
 
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
-  const [punchType, setPunchType] = useState("PUNCH_IN");
+  const [punchType, setPunchType] = useState("");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  
+  const [availablePunches, setAvailablePunches] = useState<{value: string, label: string}[]>([]);
+  const [isLoadingPunches, setIsLoadingPunches] = useState(false);
+
+  useEffect(() => {
+    if (!date || !selected) {
+      setAvailablePunches([]);
+      setPunchType("");
+      return;
+    }
+    
+    setIsLoadingPunches(true);
+    getMissingPunchTypesForDate(date, selected.organizationId, selected.locationId)
+      .then(punches => {
+        setAvailablePunches(punches);
+        if (punches.length > 0) {
+          setPunchType(punches[0].value);
+        } else {
+          setPunchType("");
+        }
+      })
+      .catch(err => console.error(err))
+      .finally(() => setIsLoadingPunches(false));
+  }, [date, selected]);
 
   if (!selected) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!punchType) {
+      alert("No punch type selected. You may have already recorded all punches for this day.");
+      return;
+    }
     setStatus("submitting");
     try {
       const combinedDateTime = new Date(`${date}T${time}`);
@@ -105,11 +133,14 @@ export function RegularizationRequestForm() {
             value={punchType} 
             onChange={e => setPunchType(e.target.value)}
             className="att-input-premium"
+            disabled={!date || isLoadingPunches || availablePunches.length === 0}
           >
-            <option value="PUNCH_IN">Punch IN</option>
-            <option value="PUNCH_OUT">Punch OUT</option>
-            <option value="BREAK_IN">Break IN</option>
-            <option value="BREAK_OUT">Break OUT</option>
+            {!date && <option value="">Select a date first...</option>}
+            {date && isLoadingPunches && <option value="">Loading available punches...</option>}
+            {date && !isLoadingPunches && availablePunches.length === 0 && <option value="">All punches already recorded</option>}
+            {availablePunches.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
           </select>
         </div>
 

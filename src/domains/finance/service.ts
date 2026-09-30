@@ -1,4 +1,4 @@
-import { and, desc, eq, sum } from "drizzle-orm";
+import { and, desc, eq, sum, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import {
@@ -6,6 +6,7 @@ import {
   payments,
   paymentAllocations,
   vendorLedger,
+  vendors,
 } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions, type EmployeePermission } from "@/lib/authorization-policy";
@@ -298,4 +299,47 @@ export async function getVendorLedger(actor: Actor, scope: z.infer<typeof scopeS
       )
     )
     .orderBy(desc(vendorLedger.recordedAt));
+}
+
+export async function validateVendorCreditLimit(actor: Actor, vendorId: string, newPoAmount: number) {
+  requireActor(actor);
+  const [vendor] = await db.select().from(vendors).where(eq(vendors.id, vendorId));
+  if (!vendor) throw new FinanceServiceError("Vendor not found", "NOT_FOUND");
+
+  // Check for overdue invoices
+  const overdueInvoices = await db.select().from(supplierInvoices).where(
+    and(
+      eq(supplierInvoices.vendorId, vendorId),
+      eq(supplierInvoices.status, "APPROVED"),
+      sql`${supplierInvoices.dueDate} < CURRENT_DATE`
+    )
+  );
+
+  if (overdueInvoices.length > 0) {
+    throw new FinanceServiceError(
+      `Vendor has ${overdueInvoices.length} overdue unpaid invoices. Cannot proceed with new PO.`, 
+      "ACCESS_DENIED"
+    );
+  }
+
+  // Check credit limit
+  if (vendor.creditLimitAmount !== null) {
+    const [latestLedger] = await db.select({ balanceAfter: vendorLedger.balanceAfter })
+      .from(vendorLedger)
+      .where(eq(vendorLedger.vendorId, vendorId))
+      .orderBy(desc(vendorLedger.recordedAt))
+      .limit(1);
+
+    const currentBalance = latestLedger ? parseFloat(latestLedger.balanceAfter) : 0;
+    const creditLimit = parseFloat(vendor.creditLimitAmount);
+
+    if (currentBalance + newPoAmount > creditLimit) {
+      throw new FinanceServiceError(
+        `Credit limit exceeded. Current Balance: ${currentBalance}, New PO: ${newPoAmount}, Limit: ${creditLimit}`,
+        "ACCESS_DENIED"
+      );
+    }
+  }
+
+  return true;
 }

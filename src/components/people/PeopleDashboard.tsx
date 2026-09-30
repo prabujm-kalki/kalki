@@ -88,27 +88,7 @@ export function PeopleDashboard() {
 
   return (
     <div className="stack">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', background: 'var(--kalki-surface)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--kalki-border)' }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--kalki-primary)' }}>People & Roles</span>
-            <span style={{ color: 'var(--kalki-border)' }}>/</span>
-            <span style={{ fontSize: '0.85rem', color: 'var(--kalki-text-secondary)' }}>{selected.organizationName} &middot; {selected.locationName}</span>
-          </div>
-          <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.25rem', color: 'var(--kalki-text)' }}>Employees</h2>
-          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--kalki-text-secondary)' }}>Manage employees, their roles, and access across this location.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--kalki-text-secondary)' }}>
-            {employees.items.length} total
-          </span>
-          {!showForm && (
-            <button type="button" className="kalki-button kalki-button--primary kalki-button--sm" onClick={() => setShowForm(true)}>
-              + Add Employee
-            </button>
-          )}
-        </div>
-      </div>
+
 
       {showForm && (
         <EmployeeForm
@@ -136,7 +116,7 @@ export function PeopleDashboard() {
                 href={`/people/${proposal.employeeId}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
               >
                 <div className="panel-header">
-                  <h4>{proposal.employee?.person?.displayName} <span className="muted">({proposal.employee?.employeeCode})</span></h4>
+                  <h4>{proposal.employeeDisplayName || 'Unknown Employee'} <span className="muted">({proposal.employeeCode})</span></h4>
                   <span style={{ fontSize: "0.85em", fontWeight: "600", padding: "0.2rem 0.6rem", borderRadius: "999px", background: '#fef9c3', color: '#854d0e' }}>
                     PENDING
                   </span>
@@ -151,7 +131,7 @@ export function PeopleDashboard() {
       )}
 
       <div className="panel" style={{ padding: "1rem", marginBottom: "1rem" }}>
-        <div className="row" style={{ gap: "1rem" }}>
+        <div className="row" style={{ gap: "1rem", alignItems: "center" }}>
           <input 
             type="text" 
             placeholder="Search by name or ID..." 
@@ -167,9 +147,15 @@ export function PeopleDashboard() {
             <option value="ALL">All Statuses</option>
             <option value="DRAFT">Draft</option>
             <option value="ACTIVE">Active</option>
+            <option value="NOTICE_PERIOD">Notice Period</option>
             <option value="INACTIVE">Inactive</option>
             <option value="EXITED">Exited</option>
           </select>
+          {!showForm && (
+            <button type="button" className="kalki-button kalki-button--primary kalki-button--sm" onClick={() => setShowForm(true)}>
+              + Add Employee
+            </button>
+          )}
         </div>
       </div>
 
@@ -203,10 +189,10 @@ export function PeopleDashboard() {
                       fontWeight: "600", 
                       padding: "0.15rem 0.5rem", 
                       borderRadius: "999px", 
-                      background: emp.status === 'ACTIVE' ? '#dcfce7' : emp.status === 'DRAFT' ? '#fef9c3' : '#f1f5f9', 
-                      color: emp.status === 'ACTIVE' ? '#166534' : emp.status === 'DRAFT' ? '#854d0e' : '#475569' 
+                      background: emp.status === 'ACTIVE' ? '#dcfce7' : emp.status === 'DRAFT' ? '#fef9c3' : emp.status === 'NOTICE_PERIOD' ? '#ffedd5' : emp.status === 'EXITED' ? '#fee2e2' : '#f1f5f9', 
+                      color: emp.status === 'ACTIVE' ? '#166534' : emp.status === 'DRAFT' ? '#854d0e' : emp.status === 'NOTICE_PERIOD' ? '#c2410c' : emp.status === 'EXITED' ? '#991b1b' : '#475569' 
                     }}>
-                      {emp.status}
+                      {emp.status === 'NOTICE_PERIOD' ? 'NOTICE PERIOD' : emp.status}
                     </span>
                   </td>
                   <td style={{ padding: "0.4rem 0.5rem", textAlign: "right" }}>

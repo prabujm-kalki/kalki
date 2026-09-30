@@ -15,12 +15,12 @@ export function AttendanceNav() {
   const permissions = selected?.permissions || [];
   const isOwner = session?.isOwner;
 
-  const canViewRecords = isOwner || permissions.includes("attendance.records:read");
+  const canViewRecords = isOwner || permissions.includes("attendance.records:read") || permissions.includes("attendance.overview:read");
   const canViewMyTime = isOwner || permissions.includes("attendance.my_time:read");
   const canViewApprovals = isOwner || permissions.includes("attendance.approvals:read");
-  const canViewReports = isOwner || permissions.includes("attendance.reports:view") || permissions.includes("attendance.reports:execute");
+  const canViewReports = isOwner || permissions.includes("attendance.reports:view") || permissions.includes("attendance.reports:execute") || permissions.includes("attendance.reports:read");
   const canViewConfig = isOwner || permissions.includes("attendance.configuration:read");
-  const canSelfiePunch = isOwner || permissions.includes("attendance.selfie_punch:execute");
+  const canSelfiePunch = isOwner || permissions.includes("attendance.selfie_punch:execute") || permissions.includes("attendance.selfie_punch:create");
 
   return (
     <nav className="kalki-module-topbar">

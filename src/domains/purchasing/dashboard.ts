@@ -1,98 +1,212 @@
 import { db } from "@/db";
-import { purchaseOrders, vendors } from "@/db/schema";
-import { eq, sum, count, desc } from "drizzle-orm";
+import { purchaseOrders, vendors, vendorItems, organizations } from "@/db/schema";
+import { eq, sum, count, desc, and, gte, lt, sql } from "drizzle-orm";
 import { Activity } from "@/components/purchasing/RecentActivityFeed";
 
 export async function getDashboardData() {
-  // 1. Total Spend (MTD) - Simplified to total sum of all POs for now
-  const spendResult = await db
-    .select({ total: sum(purchaseOrders.totalAmount) })
-    .from(purchaseOrders);
-  const totalSpend = Number(spendResult[0]?.total || 0);
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyFiveDaysAgo = new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000);
 
-  // 2. Pending Orders Count
-  const pendingOrdersResult = await db
+  const totalSpendPromise = db
+    .select({ total: sum(purchaseOrders.totalAmount) })
+    .from(purchaseOrders)
+    .where(gte(purchaseOrders.createdAt, startOfMonth));
+
+  const pastSpendPromise = db
+    .select({ total: sum(purchaseOrders.totalAmount) })
+    .from(purchaseOrders)
+    .where(and(
+      gte(purchaseOrders.createdAt, startOfLastMonth),
+      lt(purchaseOrders.createdAt, startOfMonth)
+    ));
+
+  const pendingOrdersPromise = db
     .select({ count: count() })
     .from(purchaseOrders)
-    .where(eq(purchaseOrders.status, 'draft')); // Assuming 'draft' is the pending state
-  const pendingOrdersCount = Number(pendingOrdersResult[0]?.count || 0);
+    .where(eq(purchaseOrders.status, 'draft'));
 
-  // Urgent Orders - mock logic for now (e.g., 20% of pending)
-  const urgentOrdersCount = Math.floor(pendingOrdersCount * 0.2);
+  const urgentOrdersPromise = db
+    .select({ count: count() })
+    .from(purchaseOrders)
+    .where(and(
+      eq(purchaseOrders.status, 'draft'),
+      lt(purchaseOrders.createdAt, twoDaysAgo)
+    ));
 
-  // 3. Expected Outflow - mock for now or sum of non-draft POs
-  const outflowResult = await db
+  const processingTimePromise = db
+    .select({
+      avgTime: sql<number>`avg(extract(epoch from (updated_at - created_at)))`
+    })
+    .from(purchaseOrders)
+    .where(sql`status != 'draft'`);
+
+  const outflowPromise = db
     .select({ total: sum(purchaseOrders.totalAmount) })
     .from(purchaseOrders)
-    .where(eq(purchaseOrders.status, 'approved')); // Example status
-  const expectedOutflow = Number(outflowResult[0]?.total || totalSpend * 0.3); // fallback if no approved
+    .where(and(
+      eq(purchaseOrders.status, 'approved'),
+      gte(purchaseOrders.createdAt, sevenDaysAgo)
+    ));
 
-  // 4. Low-Stock Alerts - hardcoded for this iteration
-  const lowStockItemsCount = 5;
+  const pastOutflowPromise = db
+    .select({ total: sum(purchaseOrders.totalAmount) })
+    .from(purchaseOrders)
+    .where(and(
+      eq(purchaseOrders.status, 'approved'),
+      gte(purchaseOrders.createdAt, thirtyFiveDaysAgo),
+      lt(purchaseOrders.createdAt, sevenDaysAgo)
+    ));
 
-  // 5. Recent Activity Feed
-  const recentPOs = await db
+  const lowStockPromise = db.execute(sql`
+    WITH LatestLedger AS (
+      SELECT DISTINCT ON (vendor_item_id) vendor_item_id, balance_after
+      FROM inventory_ledger
+      ORDER BY vendor_item_id, recorded_at DESC
+    )
+    SELECT COUNT(*) as low_stock_count
+    FROM vendor_items vi
+    LEFT JOIN LatestLedger ll ON vi.id = ll.vendor_item_id
+    WHERE COALESCE(ll.balance_after, 0) <= COALESCE(vi.minimum_stock, 0)
+      AND vi.is_active = true
+      AND vi.minimum_stock > 0
+  `);
+
+  const recentPOsPromise = db
     .select({
       id: purchaseOrders.id,
       status: purchaseOrders.status,
       totalAmount: purchaseOrders.totalAmount,
       createdAt: purchaseOrders.createdAt,
+      publicToken: purchaseOrders.publicToken,
       vendorName: vendors.name,
+      vendorPhone: vendors.contactDetails,
+      poDeliveryMethod: vendors.poDeliveryMethod,
+      poWhatsappPreference: vendors.poWhatsappPreference,
+      whatsappPoTemplate: organizations.whatsappPoTemplate,
     })
     .from(purchaseOrders)
     .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
+    .leftJoin(organizations, eq(purchaseOrders.organizationId, organizations.id))
     .orderBy(desc(purchaseOrders.createdAt))
     .limit(5);
 
-  const activities: Activity[] = recentPOs.map(po => ({
-    id: po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5), // short ID
+  const monthlySpendPromise = db.execute(sql`
+    SELECT to_char(created_at, 'Mon') as name, SUM(total_amount) as total
+    FROM purchase_orders
+    WHERE created_at >= date_trunc('year', CURRENT_DATE)
+    GROUP BY to_char(created_at, 'Mon'), extract(month from created_at)
+    ORDER BY extract(month from created_at)
+  `);
+
+  const categoryPromise = db.execute(sql`
+    SELECT 'General' as name, SUM(total_amount) as value
+    FROM purchase_orders
+  `);
+
+  const [
+    totalSpendResult,
+    pastSpendResult,
+    pendingOrdersCountResult,
+    urgentOrdersCountResult,
+    processingTimeResult,
+    outflowResult,
+    pastOutflowResult,
+    lowStockResult,
+    recentPOs,
+    monthlySpendResult,
+    categoryResult
+  ] = await Promise.all([
+    totalSpendPromise,
+    pastSpendPromise,
+    pendingOrdersPromise,
+    urgentOrdersPromise,
+    processingTimePromise,
+    outflowPromise,
+    pastOutflowPromise,
+    lowStockPromise,
+    recentPOsPromise,
+    monthlySpendPromise,
+    categoryPromise
+  ]);
+
+  const totalSpend = Number(totalSpendResult[0]?.total || 0);
+  const pastTotal = Number(pastSpendResult[0]?.total || 0);
+  const spendVsLastMonthPercent = pastTotal === 0 
+    ? (totalSpend > 0 ? 100 : 0) 
+    : ((totalSpend - pastTotal) / pastTotal) * 100;
+  
+  const pendingOrdersCount = Number(pendingOrdersCountResult[0]?.count || 0);
+  const urgentOrdersCount = Number(urgentOrdersCountResult[0]?.count || 0);
+
+  const avgProcessingSeconds = processingTimeResult[0]?.avgTime || 0;
+  const avgProcessingDays = avgProcessingSeconds > 0 ? (avgProcessingSeconds / 86400).toFixed(1) : "0";
+
+  const expectedOutflow = Number(outflowResult[0]?.total || 0);
+  const pastTotalOutflow = Number(pastOutflowResult[0]?.total || 0);
+  const avgWeeklyOutflow = pastTotalOutflow / 4;
+  const outflowVsAvgPercent = avgWeeklyOutflow === 0
+    ? (expectedOutflow > 0 ? 100 : 0)
+    : ((expectedOutflow - avgWeeklyOutflow) / avgWeeklyOutflow) * 100;
+
+  // Type assertion or check depending on the driver
+  const rows = (lowStockResult as any).rows || lowStockResult;
+  const lowStockItemsCount = Number(rows[0]?.low_stock_count || 0);
+
+  const activities: any[] = recentPOs.map(po => ({
+    id: po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
+    realId: po.id,
     type: "Purchase Order",
     entity: po.vendorName || 'Unknown Vendor',
     date: po.createdAt.toLocaleDateString(),
-    status: po.status === 'draft' ? 'Pending Approval' : 'Approved',
+    status: po.status === 'draft' ? 'Pending Approval' : po.status.charAt(0).toUpperCase() + po.status.slice(1),
     value: Number(po.totalAmount),
+    publicToken: po.publicToken,
+    vendorPhone: po.vendorPhone,
+    poDeliveryMethod: po.poDeliveryMethod,
+    poWhatsappPreference: po.poWhatsappPreference,
+    whatsappPoTemplate: po.whatsappPoTemplate,
   }));
 
-  // 6. Pending Approvals (for Actions component)
   const pendingApprovals = recentPOs
     .filter(po => po.status === 'draft')
     .map(po => ({
       id: po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
+      realId: po.id,
       amount: Number(po.totalAmount),
-      vendorName: po.vendorName || 'Unknown Vendor'
+      vendorName: po.vendorName || 'Unknown Vendor',
+      publicToken: po.publicToken,
+      vendorPhone: po.vendorPhone,
+      poDeliveryMethod: po.poDeliveryMethod,
+      poWhatsappPreference: po.poWhatsappPreference,
+    whatsappPoTemplate: po.whatsappPoTemplate,
     }));
 
-  // 7. Charts Data
-  // Mocking charts data as we don't have historical months or categories setup yet
-  const spendTrendData = [
-    { name: "Apr", spend: totalSpend * 0.8 },
-    { name: "May", spend: totalSpend * 0.6 },
-    { name: "Jun", spend: totalSpend * 0.9 },
-    { name: "Jul", spend: totalSpend },
-    { name: "Aug", spend: totalSpend * 0.7 },
-    { name: "Sep", spend: totalSpend * 0.85 },
-  ];
+  const msRows = (monthlySpendResult as any).rows || monthlySpendResult;
+  const spendTrendData = msRows.map((r: any) => ({ name: r.name as string, spend: Number(r.total) }));
 
-  const categoryData = [
-    { name: "Raw Materials", value: totalSpend * 0.5 },
-    { name: "Office Supplies", value: totalSpend * 0.15 },
-    { name: "IT Equipment", value: totalSpend * 0.2 },
-    { name: "Services", value: totalSpend * 0.15 },
-  ];
+  const catRows = (categoryResult as any).rows || categoryResult;
+  const categoryData = catRows.map((r: any) => ({ name: r.name as string, value: Number(r.value) }));
 
   return {
     metrics: {
       totalSpend,
+      spendVsLastMonthPercent,
       pendingOrdersCount,
       urgentOrdersCount,
+      avgProcessingDays,
       expectedOutflow,
-      lowStockItemsCount
+      outflowVsAvgPercent,
+      lowStockItemsCount,
     },
     activities,
     pendingApprovals,
     charts: {
-      spendTrendData,
-      categoryData
+      spendTrendData: spendTrendData.length > 0 ? spendTrendData : [{ name: 'Jan', spend: 0 }],
+      categoryData: categoryData.length > 0 && categoryData[0]?.value ? categoryData : [{ name: 'General', value: 0 }],
     }
   };
 }

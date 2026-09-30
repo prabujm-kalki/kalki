@@ -17,7 +17,7 @@ export default async function AttendancePage({
   
   // Checking isOwner from user metadata or role if available, but checking the specific permission is safer.
   const isOwner = (session.user as any).isOwner || (session.user as any).role === "owner" || (session.user as any).role === "admin";
-  const canViewRecords = isOwner || permissions.includes("attendance.records:read");
+  const canViewRecords = isOwner || permissions.includes("attendance.records:read") || permissions.includes("attendance.overview:read");
 
   const params = await searchParams;
   const qs = new URLSearchParams(params).toString();
