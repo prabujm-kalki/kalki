@@ -2,6 +2,12 @@ import { Client } from "pg";
 import "dotenv/config";
 
 async function main() {
+  if (!process.argv.includes("--confirm-wipe-all-data")) {
+    console.error("ERROR: This script will permanently delete all data in the database.");
+    console.error("To proceed, you must run this script with the --confirm-wipe-all-data flag.");
+    process.exit(1);
+  }
+
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
   });

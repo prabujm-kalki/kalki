@@ -238,6 +238,13 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
           </div>
           <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Add New Vendor</span>
         </Link>
+
+        <Link href={`/purchasing/schedules${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+          <div style={{ padding: '0.25rem', backgroundColor: '#f3e8ff', color: '#9333ea', borderRadius: '0.25rem' }}>
+            <FileCheck size={14} />
+          </div>
+          <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Routine Tasks</span>
+        </Link>
       </div>
 
       <div style={{ marginTop: '1.5rem' }}>

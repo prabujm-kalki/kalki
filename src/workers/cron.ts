@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import { runLeaveAccruals } from "../domains/attendance/accrualEngine";
 import { generateDailyStockTasks } from "../domains/purchasing/stockAssessmentTasks";
+import { generateRoutinePurchaseTasks } from "../domains/purchasing/purchaseScheduleTasks";
 import { runEscalationSweeper } from "../domains/tasks/sweeper";
 
 // Helper for error logging
@@ -20,7 +21,19 @@ cron.schedule("* * * * *", async () => {
   }
 });
 
-// 0. Hourly Task Engine Check for Daily Stock Assessment
+// 0.1 Minute-by-Minute Routine Purchase Task Generator
+cron.schedule("* * * * *", async () => {
+  try {
+    const result = await generateRoutinePurchaseTasks();
+    if (result.success && result.tasksCreated > 0) {
+      console.log(`[CRON] Generated ${result.tasksCreated} Routine Purchase Task(s).`);
+    }
+  } catch (error) {
+    logError("Routine Purchase Tasks Generator", error);
+  }
+});
+
+// 0.2 Hourly Task Engine Check for Daily Stock Assessment
 cron.schedule("0 * * * *", async () => {
   console.log("[CRON] Checking for Scheduled Daily Stock Assessment Tasks...");
   try {

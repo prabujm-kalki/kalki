@@ -4,17 +4,22 @@ import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, FormEvent } from "react";
 
 export default function CreatePOPage() {
   const { selected } = useSessionView();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const scheduleId = searchParams.get('scheduleId');
+  const queryVendorId = searchParams.get('vendorId');
+  const isRoutineMode = !!scheduleId;
   
   const [vendors, setVendors] = useState<any[]>([]);
   const [vendorItems, setVendorItems] = useState<any[]>([]);
   
-  const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [selectedVendorId, setSelectedVendorId] = useState(queryVendorId || "");
   const [paymentMethod, setPaymentMethod] = useState("credit");
   
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +66,12 @@ export default function CreatePOPage() {
       vendorId: selectedVendorId
     });
     apiGet<{ items: any[] }>(`/api/vendor-items?${query.toString()}`).then(res => {
-      setVendorItems(res.items.map(i => ({ ...i, orderedQuantity: 0, unitRate: i.lastRate || 0 })));
+      setVendorItems(res.items.map(i => ({ 
+        ...i, 
+        orderedQuantity: 0, 
+        availableStock: '', // Used for routine mode
+        unitRate: i.lastRate || 0 
+      })));
     }).catch(console.error);
   }, [selected, selectedVendorId]);
 
@@ -72,30 +82,41 @@ export default function CreatePOPage() {
     setError(null);
 
     try {
-      const lines = vendorItems
-        .filter(item => Number(item.orderedQuantity) > 0)
-        .map(item => {
-          if (!item.itemId) {
-            throw new Error(`Item "${item.itemName}" must be mapped to a master catalog item before it can be purchased.`);
-          }
-          return {
-            itemId: item.itemId,
-            orderedQuantity: Number(item.orderedQuantity),
-            unitRate: Number(item.unitRate)
-          };
-        });
+      const linesToSubmit = isRoutineMode ? 
+        vendorItems.map(item => {
+          const avail = Number(item.availableStock || 0);
+          const minStock = Number(item.minimumStock || item.baseMinStock || 0);
+          const calculatedQty = (avail < minStock) ? Number(item.normalQuantity || item.targetStock || 1) : 0;
+          return { ...item, calculatedQty };
+        }).filter(item => item.calculatedQty > 0)
+        : vendorItems.filter(item => Number(item.orderedQuantity) > 0);
 
-      if (lines.length === 0) {
+      const lines = linesToSubmit.map(item => {
+        if (!item.itemId) {
+          throw new Error(`Item "${item.itemName}" must be mapped to a master catalog item before it can be purchased.`);
+        }
+        return {
+          itemId: item.itemId,
+          orderedQuantity: isRoutineMode ? item.calculatedQty : Number(item.orderedQuantity),
+          unitRate: Number(item.unitRate)
+        };
+      });
+
+      if (lines.length === 0 && !isRoutineMode) {
         throw new Error("You must order at least 1 item.");
       }
 
-      const payload = {
+      const payload: any = {
         organizationId: selected.organizationId,
         locationId: selected.locationId,
         vendorId: selectedVendorId,
         paymentMethod: paymentMethod,
         lines: lines
       };
+      
+      if (scheduleId) {
+        payload.scheduleId = scheduleId;
+      }
 
       await apiSend('/api/purchase-orders', 'POST', payload);
       alert("Purchase Order created successfully!");
@@ -112,7 +133,9 @@ export default function CreatePOPage() {
   return (
     <div className="app-main">
       <Link href="/purchasing" className="nav-link">&larr; Back to Purchasing</Link>
-      <h1 className="page-title" style={{ marginTop: "1rem" }}>Create Purchase Order</h1>
+      <h1 className="page-title" style={{ marginTop: "1rem" }}>
+        {isRoutineMode ? "Routine Assessment" : "Create Purchase Order"}
+      </h1>
       
       <form className="panel" onSubmit={handleSubmit} style={{ marginTop: "1rem" }}>
         {error && <StatusMessage tone="error">{error}</StatusMessage>}
@@ -120,7 +143,7 @@ export default function CreatePOPage() {
         <div className="grid-2">
           <div className="field">
             <label>Select Vendor</label>
-            <select required value={selectedVendorId} onChange={e => setSelectedVendorId(e.target.value)} disabled={submitting}>
+            <select required value={selectedVendorId} onChange={e => setSelectedVendorId(e.target.value)} disabled={submitting || isRoutineMode}>
               <option value="" disabled>Choose vendor...</option>
               {vendors.map(v => (
                 <option key={v.id} value={v.id}>{v.name} (Credit Limit: {v.creditLimitAmount ? `₹${v.creditLimitAmount}` : 'None'})</option>
@@ -129,7 +152,7 @@ export default function CreatePOPage() {
           </div>
           <div className="field">
             <label>Payment Method</label>
-            <select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} disabled={submitting}>
+            <select required value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} disabled={submitting || isRoutineMode}>
               <option value="credit">Standard Credit (Uses Vendor Limit)</option>
               <option value="cash">Cash Upfront / Due on Receipt (Bypasses Limit)</option>
             </select>
@@ -138,35 +161,79 @@ export default function CreatePOPage() {
 
         {selectedVendorId && vendorItems.length > 0 && (
           <div style={{ marginTop: "2rem" }}>
-            <h3>Items to Order</h3>
+            <h3>{isRoutineMode ? "Assess Inventory" : "Items to Order"}</h3>
             <table className="kalki-table" style={{ marginTop: "1rem" }}>
               <thead>
                 <tr>
                   <th>Item</th>
                   <th>UoM</th>
-                  <th>Quantity</th>
+                  {isRoutineMode ? (
+                    <>
+                      <th>Configuration</th>
+                      <th>Available Stock</th>
+                      <th>Auto-Calculated Order</th>
+                    </>
+                  ) : (
+                    <th>Quantity</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {vendorItems.map((item, index) => (
-                  <tr key={item.id}>
-                    <td>{item.itemName}</td>
-                    <td>{item.unitOfMeasure}</td>
-                    <td>
-                      <input 
-                        type="number" 
-                        min="0" 
-                        value={item.orderedQuantity} 
-                        onChange={e => {
-                          const next = [...vendorItems];
-                          next[index].orderedQuantity = e.target.value;
-                          setVendorItems(next);
-                        }} 
-                        style={{ width: "100px" }}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {vendorItems.map((item, index) => {
+                  const avail = Number(item.availableStock || 0);
+                  const minStock = Number(item.minimumStock || item.baseMinStock || 0);
+                  const needsOrder = isRoutineMode && (avail < minStock);
+                  const autoQty = needsOrder ? Number(item.normalQuantity || item.targetStock || 1) : 0;
+                  const purchaseUnitDisplay = item.purchaseUnit ? ` ${item.purchaseUnit}` : '';
+                  
+                  return (
+                    <tr key={item.id}>
+                      <td>{item.itemName}</td>
+                      <td>{item.unitOfMeasure}</td>
+                      {isRoutineMode ? (
+                        <>
+                          <td style={{ fontSize: '12px', color: '#6b7280' }}>
+                            Min: {item.minimumStock || item.baseMinStock || 0} {item.unitOfMeasure} <br/>
+                            Reorder: {item.normalQuantity || item.targetStock || 1}{purchaseUnitDisplay}
+                          </td>
+                          <td>
+                            <input 
+                              type="number" 
+                              min="0" 
+                              placeholder={`Qty in ${item.unitOfMeasure}`}
+                              value={item.availableStock} 
+                              onChange={e => {
+                                const next = [...vendorItems];
+                                next[index].availableStock = e.target.value;
+                                setVendorItems(next);
+                              }} 
+                              style={{ width: "120px" }}
+                            />
+                          </td>
+                          <td>
+                            <span style={{ fontWeight: needsOrder ? 'bold' : 'normal', color: needsOrder ? '#16a34a' : '#9ca3af' }}>
+                              {autoQty > 0 ? `${autoQty}${purchaseUnitDisplay}` : 'No order needed'}
+                            </span>
+                          </td>
+                        </>
+                      ) : (
+                        <td>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            value={item.orderedQuantity} 
+                            onChange={e => {
+                              const next = [...vendorItems];
+                              next[index].orderedQuantity = e.target.value;
+                              setVendorItems(next);
+                            }} 
+                            style={{ width: "100px" }}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

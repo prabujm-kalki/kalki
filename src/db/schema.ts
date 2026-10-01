@@ -1267,6 +1267,8 @@ export const items = pgTable(
     currentPrice: numeric("current_price").notNull(),
     maxPrice: numeric("max_price").notNull(),
     unit: text("unit").notNull(),
+    purchaseUnit: text("purchase_unit"),
+    purchaseUnitConversion: numeric("purchase_unit_conversion"),
     baseMinStock: numeric("base_min_stock").notNull(),
     targetStock: numeric("target_stock"),
     orderFrequency: jsonb("order_frequency").notNull().default({}),
@@ -2854,3 +2856,94 @@ export const escalationPolicies = pgTable("escalation_policies", {
     .notNull()
     .defaultNow(),
 });
+
+// ==========================================
+// KALKI UNIVERSAL AUTOMATION BUS (KUAB)
+// ==========================================
+
+export const kuabEvents = pgTable(
+  "kuab_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    eventType: varchar("event_type", { length: 255 }).notNull(), // e.g., 'ATTENDANCE_MISSING_PUNCH'
+    sourceModule: varchar("source_module", { length: 255 }).notNull(), // e.g., 'ATTENDANCE'
+    payload: jsonb("payload").notNull().default({}),
+    status: varchar("status", { length: 50 }).notNull().default("PROCESSED"), // PENDING, PROCESSED, FAILED
+    errorMessage: text("error_message"),
+    emittedAt: timestamp("emitted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("kuab_events_org_idx").on(table.organizationId),
+    index("kuab_events_type_idx").on(table.eventType),
+    index("kuab_events_status_idx").on(table.status),
+  ]
+);
+
+export const kuabTasks = pgTable(
+  "kuab_tasks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    eventId: uuid("event_id").references(() => kuabEvents.id), // The event that triggered this task
+    title: varchar("title", { length: 255 }).notNull(),
+    description: text("description"),
+    assignedToEmployeeId: uuid("assigned_to_employee_id")
+      .notNull()
+      .references(() => employees.id),
+    assignedToRoleId: uuid("assigned_to_role_id")
+      .references(() => businessRoles.id),
+    status: varchar("status", { length: 50 }).notNull().default("PENDING"), // PENDING, COMPLETED, ESCALATED, CANCELLED
+    dueDate: timestamp("due_date", { withTimezone: true }).notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    escalationLevel: integer("escalation_level").notNull().default(0),
+    metadata: jsonb("metadata").notNull().default({}),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("kuab_tasks_org_idx").on(table.organizationId),
+    index("kuab_tasks_assignee_idx").on(table.assignedToEmployeeId),
+    index("kuab_tasks_status_idx").on(table.status),
+  ]
+);
+
+export const kuabEscalationRules = pgTable(
+  "kuab_escalation_rules",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    module: varchar("module", { length: 255 }).notNull(),
+    eventType: varchar("event_type", { length: 255 }).notNull(),
+    escalationLevel: integer("escalation_level").notNull(),
+    delayMinutes: integer("delay_minutes").notNull(), // How long after task due date to escalate
+    actionType: varchar("action_type", { length: 100 }).notNull(), // NOTIFY_MANAGER, REASSIGN, NOTIFY_HR
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("kuab_escalation_rules_unique").on(
+      table.organizationId,
+      table.eventType,
+      table.escalationLevel
+    ),
+  ]
+);

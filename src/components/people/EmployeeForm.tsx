@@ -303,7 +303,10 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
     try {
       if (provisionAccess && roleIds.length === 0) {
-        throw new Error("At least one role must be selected to provision access.");
+        setFieldErrors(prev => ({ ...prev, roleIds: "At least one role must be selected to provision access." }));
+        addToast({ type: 'error', message: 'Employee could not be saved', description: 'Please assign at least one role.' });
+        setPending(false);
+        return;
       }
 
       const uploadedUrls = await uploadFiles();
@@ -617,17 +620,19 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
                     </div>
                     <KalkiInput label="Initial Password" required type="password" minLength={8} value={provisionPassword} onChange={e => {setProvisionPassword(e.target.value); setIsDirty(true);}} disabled={pending} />
                     
-                    <div className="kalki-field">
+                    <div className={`kalki-field ${fieldErrors.roleIds ? 'is-invalid' : ''}`}>
                       <label className="kalki-label">Assign Roles *</label>
                       <select multiple size={5} value={roleIds} onChange={e => {
                           const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
                           setRoleIds(selectedOptions);
+                          if (selectedOptions.length > 0) setFieldErrors(prev => ({ ...prev, roleIds: undefined as any }));
                           setIsDirty(true);
-                        }} disabled={pending} className="kalki-select" style={{ fontSize: '0.85rem', padding: '0.25rem' }}>
+                        }} disabled={pending} className="kalki-select" style={{ fontSize: '0.85rem', padding: '0.25rem', borderColor: fieldErrors.roleIds ? 'var(--kalki-danger)' : undefined }}>
                         {rolesData?.roles?.filter((r: any) => r.isActive).map((r: any) => (
                           <option key={r.id} value={r.id} style={{ padding: '0.25rem 0.5rem' }}>{r.name}</option>
                         ))}
                       </select>
+                      {fieldErrors.roleIds && <div className="kalki-error-text" style={{ color: 'var(--kalki-danger)', fontSize: '0.75rem', marginTop: '0.25rem' }}>{fieldErrors.roleIds}</div>}
                     </div>
                   </div>
                 )}

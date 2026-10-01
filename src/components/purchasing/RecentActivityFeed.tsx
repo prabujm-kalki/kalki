@@ -99,7 +99,7 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                         <td style={{ padding: '0.5rem' }}>
                           <input 
                             type="number" 
-                            value={line.receivedQuantity !== undefined ? line.receivedQuantity : line.orderedQuantity} 
+                            value={line.receivedQuantity ?? line.orderedQuantity ?? ''} 
                             onChange={(e) => {
                               const newLines = [...receiveLines];
                               newLines[idx].receivedQuantity = e.target.value;

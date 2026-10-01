@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AppShell } from "@/components/AppShell";
 import { Users } from "lucide-react";
 import Link from "next/link";
+import { apiGet } from "@/lib/api";
 
 type User = {
   id: string;
@@ -16,9 +16,7 @@ export default function UsersSettingsPage() {
   const [loading, setLoading] = useState(true);
 
   const loadUsers = () => {
-    setLoading(true);
-    fetch("/api/settings/users")
-      .then((res) => res.json())
+    apiGet<User[]>("/api/settings/users")
       .then((data) => {
         setUsers(Array.isArray(data) ? data : []);
         setLoading(false);

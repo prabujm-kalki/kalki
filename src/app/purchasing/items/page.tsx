@@ -88,9 +88,9 @@ export default function ItemsPage() {
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <button className="secondary-button" title="Edit Item" style={{ padding: '0.25rem 0.5rem' }} onClick={() => alert("Edit item functionality is coming in Phase 3!")}>
+                      <Link href={`/purchasing/items/${item.id}${query}`} className="secondary-button" title="Edit Item" style={{ padding: '0.25rem 0.5rem', display: 'inline-flex' }}>
                         <Edit size={16} />
-                      </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}

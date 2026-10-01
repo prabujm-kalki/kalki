@@ -19,6 +19,8 @@
     "e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:backup": "tsx --env-file=.env scripts/backup.ts",
+    "db:restore": "tsx --env-file=.env scripts/restore.ts",
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {

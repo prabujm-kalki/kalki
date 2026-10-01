@@ -148,6 +148,20 @@
       "when": 1790340795867,
       "tag": "0020_payroll_decoupling",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790833106962,
+      "tag": "0021_busy_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790848094826,
+      "tag": "0022_many_the_captain",
+      "breakpoints": true
     }
   ]
 }

@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
-import { vendors, vendorItems, purchaseOrders, purchaseOrderLines, inventoryLedger, inventoryEventTypes, purchaseSchedules, taskDefinitions, items } from "@/db/schema";
+import { vendors, vendorItems, purchaseOrders, purchaseOrderLines, inventoryLedger, inventoryEventTypes, purchaseSchedules, taskDefinitions, items, taskInstances } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { inventoryPermissions, type EmployeePermission } from "@/lib/authorization-policy";
 
@@ -215,7 +215,11 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
   const res = await db.select({
     vendorItem: vendorItems,
     itemName: items.nameEn,
-    unitOfMeasure: items.unit
+    unitOfMeasure: items.unit,
+    baseMinStock: items.baseMinStock,
+    targetStock: items.targetStock,
+    purchaseUnit: items.purchaseUnit,
+    purchaseUnitConversion: items.purchaseUnitConversion,
   })
   .from(vendorItems)
   .innerJoin(items, eq(vendorItems.itemId, items.id))
@@ -229,7 +233,11 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
   return res.map(r => ({
     ...r.vendorItem,
     itemName: r.itemName,
-    unitOfMeasure: r.unitOfMeasure
+    unitOfMeasure: r.unitOfMeasure,
+    baseMinStock: r.baseMinStock,
+    targetStock: r.targetStock,
+    purchaseUnit: r.purchaseUnit,
+    purchaseUnitConversion: r.purchaseUnitConversion,
   }));
 }
 
@@ -434,11 +442,12 @@ export async function getInventoryDashboard(actor: Actor, scope: z.infer<typeof 
 const createPOSchema = scopeSchema.extend({
   vendorId: z.string().uuid(),
   paymentMethod: z.string().default('credit'),
+  scheduleId: z.string().uuid().optional(),
   lines: z.array(z.object({
     itemId: z.string().uuid(),
     orderedQuantity: z.number().positive(),
     unitRate: z.number().nonnegative()
-  })).min(1),
+  })),
 }).strict();
 
 export type CreatePOInput = z.infer<typeof createPOSchema>;
@@ -453,7 +462,11 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
   
   await requireScopeAccess(actor, parsed.data, inventoryPermissions.create); // Use appropriate permission
 
-  const { organizationId, locationId, vendorId, paymentMethod, lines } = parsed.data;
+  const { organizationId, locationId, vendorId, paymentMethod, scheduleId, lines } = parsed.data;
+
+  if (lines.length === 0 && !scheduleId) {
+    throw new InventoryServiceError("You must order at least 1 item.", "INVALID_INPUT");
+  }
 
   // Calculate total
   const totalAmount = lines.reduce((acc, line) => acc + (line.orderedQuantity * line.unitRate), 0);
@@ -474,26 +487,45 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
   }
 
   const result = await db.transaction(async (tx) => {
-    const [po] = await tx.insert(purchaseOrders).values({
-      organizationId,
-      locationId,
-      vendorId,
-      totalAmount: totalAmount.toString(),
-      paymentMethod,
-      status: 'draft',
-      publicToken: crypto.randomUUID(),
-    }).returning();
-
-    const poLines = lines.map(line => ({
-      poId: po.id,
-      itemId: line.itemId,
-      orderedQuantity: line.orderedQuantity.toString(),
-      unitRate: line.unitRate.toString()
-    }));
-
-    await tx.insert(purchaseOrderLines).values(poLines);
+    let po = null;
     
-    return po;
+    if (lines.length > 0) {
+      [po] = await tx.insert(purchaseOrders).values({
+        organizationId,
+        locationId,
+        vendorId,
+        totalAmount: totalAmount.toString(),
+        paymentMethod,
+        status: scheduleId ? 'pending_audit' : 'draft',
+        publicToken: crypto.randomUUID(),
+      }).returning();
+
+      const poLines = lines.map(line => ({
+        poId: po.id,
+        itemId: line.itemId,
+        orderedQuantity: line.orderedQuantity.toString(),
+        unitRate: line.unitRate.toString()
+      }));
+
+      await tx.insert(purchaseOrderLines).values(poLines);
+    }
+    
+    if (scheduleId) {
+      // Mark ALL task instances associated with this schedule as completed
+      const activeInstances = await tx.select().from(taskInstances).where(eq(taskInstances.status, 'pending'));
+      const targetInstanceIds = activeInstances
+        .filter(i => (i.contextData as any)?.scheduleId === scheduleId)
+        .map(i => i.id);
+
+      for (const id of targetInstanceIds) {
+        await tx.update(taskInstances).set({
+          status: 'completed',
+          completedAt: new Date()
+        }).where(eq(taskInstances.id, id));
+      }
+    }
+
+    return po || { success: true, message: "Assessment completed without PO" };
   });
 
   return result;

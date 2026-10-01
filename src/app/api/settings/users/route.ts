@@ -3,6 +3,8 @@ import { db } from "@/db";
 import { authUsers } from "@/db/schema";
 import { requireAuthenticatedUser } from "@/lib/authorization";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const user = await requireAuthenticatedUser(request);

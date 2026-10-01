@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { Save, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useSessionView } from '@/components/AppShell';
-import { apiGet } from '@/lib/api';
+import { apiGet, apiPut } from '@/lib/api';
 import { KalkiInput } from "@/components/ui/KalkiInput";
 import { KalkiSelect } from "@/components/ui/KalkiSelect";
 import { KalkiButton } from "@/components/ui/KalkiButton";
@@ -13,7 +13,9 @@ import { KalkiSection } from "@/components/ui/KalkiSection";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { KalkiActionBar } from "@/components/ui/KalkiActionBar";
 
-export default function CreateItemPage() {
+export default function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
+  const itemId = resolvedParams.id;
   const [formData, setFormData] = useState({
     nameEn: '',
     nameTa: '',
@@ -36,6 +38,7 @@ export default function CreateItemPage() {
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { selected } = useSessionView();
   
@@ -47,10 +50,41 @@ export default function CreateItemPage() {
       organizationId: selected.organizationId,
       locationId: selected.locationId,
     });
+    
+    // Fetch Vendors
     apiGet<{ items: { id: string; name: string }[] }>(`/api/vendors?${query.toString()}`)
       .then(payload => setVendorList(payload.items))
       .catch(console.error);
-  }, [selected]);
+      
+    // Fetch Item Data
+    apiGet<{ item: any, vendorIds: string[] }>(`/api/items/${itemId}?${query.toString()}`)
+      .then(payload => {
+        setFormData({
+          nameEn: payload.item.nameEn || '',
+          nameTa: payload.item.nameTa || '',
+          nameHi: payload.item.nameHi || '',
+          isActive: payload.item.isActive,
+          isTrackable: payload.item.isTrackable,
+          currentPrice: payload.item.currentPrice || '',
+          maxPrice: payload.item.maxPrice || '',
+          unit: payload.item.unit || 'Kg',
+          baseMinStock: payload.item.baseMinStock || '',
+          targetStock: payload.item.targetStock || '',
+          purchaseUnit: payload.item.purchaseUnit || '',
+          purchaseUnitConversion: payload.item.purchaseUnitConversion?.toString() || '',
+          orderFrequency: payload.item.orderFrequency || { daily: true, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
+          customIntervalDays: payload.item.orderFrequency?.customIntervalDays?.toString() || '',
+          fridaySurge: payload.item.fridaySurge || 25,
+          saturdaySurge: payload.item.saturdaySurge || 30,
+          linkedVendors: payload.vendorIds || [],
+        });
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message || "Failed to load item data.");
+        setLoading(false);
+      });
+  }, [selected, itemId]);
 
   const handleSave = async () => {
     setError(null);
@@ -61,8 +95,8 @@ export default function CreateItemPage() {
     
     setSaving(true);
     try {
-      const res = await fetch('/api/items', {
-        method: 'POST',
+      const res = await fetch(`/api/items/${itemId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
@@ -71,7 +105,7 @@ export default function CreateItemPage() {
           currentPrice: Number(formData.currentPrice),
           maxPrice: Number(formData.maxPrice),
           baseMinStock: Number(formData.baseMinStock),
-          targetStock: Number(formData.targetStock),
+          targetStock: formData.targetStock ? Number(formData.targetStock) : undefined,
           purchaseUnit: formData.purchaseUnit || undefined,
           purchaseUnitConversion: formData.purchaseUnitConversion ? Number(formData.purchaseUnitConversion) : undefined,
           orderFrequency: {
@@ -125,10 +159,14 @@ export default function CreateItemPage() {
     </div>
   );
 
+  if (loading) {
+    return <div className="app-main"><div className="status-message">Loading...</div></div>;
+  }
+
   return (
     <div className="app-main">
       <KalkiPageHeader 
-        title="CREATE NEW ITEM"
+        title="EDIT ITEM"
         breadcrumbs={<Link href={`/purchasing/items${selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : ''}`} className="nav-link">&larr; Back to Items</Link>}
         actions={StatusActions}
       />
@@ -311,7 +349,7 @@ export default function CreateItemPage() {
           isLoading={saving}
           style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
         >
-          <Save size={18} /> Save & Create Item
+          <Save size={18} /> Update Item
         </KalkiButton>
       </KalkiActionBar>
     </div>

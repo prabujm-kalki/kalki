@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { db } from '@/db';
-import { items, vendorItems, vendors } from '@/db/schema';
+import { items, vendorItems } from '@/db/schema';
 import { requireAuthenticatedUser } from '@/lib/authorization';
 import { z } from 'zod';
 
@@ -36,8 +36,9 @@ const itemSchema = z.object({
   locationId: z.string().uuid(),
 });
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: itemId } = await params;
     const user = await requireAuthenticatedUser(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -48,24 +49,36 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Missing organizationId or locationId' }, { status: 400 });
     }
 
-    const fetchedItems = await db.select()
+    const [item] = await db.select()
       .from(items)
       .where(and(
+        eq(items.id, itemId),
         eq(items.organizationId, organizationId),
-        eq(items.locationId, locationId),
-        eq(items.isActive, true)
-      ))
-      .orderBy(desc(items.createdAt));
+        eq(items.locationId, locationId)
+      ));
 
-    return NextResponse.json({ items: fetchedItems });
+    if (!item) {
+      return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+    }
+
+    const linkedVendors = await db.select({ vendorId: vendorItems.vendorId })
+      .from(vendorItems)
+      .where(and(
+        eq(vendorItems.itemId, item.id),
+        eq(vendorItems.organizationId, organizationId),
+        eq(vendorItems.locationId, locationId)
+      ));
+
+    return NextResponse.json({ item, vendorIds: linkedVendors.map(v => v.vendorId) });
   } catch (error) {
-    console.error('Error fetching items:', error);
+    console.error('Error fetching item:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: itemId } = await params;
     const user = await requireAuthenticatedUser(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -77,49 +90,53 @@ export async function POST(req: NextRequest) {
     const organizationId = parsed.organizationId;
     const locationId = parsed.locationId;
 
-    const result = await db.transaction(async (tx) => {
-      const [newItem] = await tx.insert(items).values({
-        organizationId,
-        locationId,
-        nameEn: parsed.nameEn,
-        nameTa: parsed.nameTa,
-        nameHi: parsed.nameHi,
-        currentPrice: parsed.currentPrice.toString(),
-        maxPrice: parsed.maxPrice.toString(),
-        unit: parsed.unit,
-        purchaseUnit: parsed.purchaseUnit,
-        purchaseUnitConversion: parsed.purchaseUnitConversion?.toString(),
-        baseMinStock: parsed.baseMinStock.toString(),
-        targetStock: parsed.targetStock?.toString(),
-        orderFrequency: parsed.orderFrequency,
-        fridaySurge: parsed.fridaySurge?.toString() || '0',
-        saturdaySurge: parsed.saturdaySurge?.toString() || '0',
-        isActive: parsed.isActive,
-        isTrackable: parsed.isTrackable,
-      }).returning({ id: items.id });
+    await db.transaction(async (tx) => {
+      await tx.update(items)
+        .set({
+          nameEn: parsed.nameEn,
+          nameTa: parsed.nameTa,
+          nameHi: parsed.nameHi,
+          currentPrice: parsed.currentPrice.toString(),
+          maxPrice: parsed.maxPrice.toString(),
+          unit: parsed.unit,
+          purchaseUnit: parsed.purchaseUnit,
+          purchaseUnitConversion: parsed.purchaseUnitConversion?.toString() ?? null,
+          baseMinStock: parsed.baseMinStock.toString(),
+          targetStock: parsed.targetStock?.toString() ?? null,
+          orderFrequency: parsed.orderFrequency,
+          fridaySurge: parsed.fridaySurge?.toString() || '0',
+          saturdaySurge: parsed.saturdaySurge?.toString() || '0',
+          isActive: parsed.isActive,
+          isTrackable: parsed.isTrackable,
+        })
+        .where(and(
+          eq(items.id, itemId),
+          eq(items.organizationId, organizationId),
+          eq(items.locationId, locationId)
+        ));
 
-      // Link vendors
+      // Re-link vendors by deleting and re-inserting
+      await tx.delete(vendorItems).where(eq(vendorItems.itemId, itemId));
+
       if (parsed.vendorIds.length > 0) {
         const vendorLinks = parsed.vendorIds.map(vendorId => ({
           organizationId,
           locationId,
           vendorId,
-          itemId: newItem.id,
-          itemName: parsed.nameEn, // Sync item name for legacy/denormalized reference
+          itemId: itemId,
+          itemName: parsed.nameEn,
           unitOfMeasure: parsed.unit,
         }));
         await tx.insert(vendorItems).values(vendorLinks);
       }
-
-      return newItem;
     });
 
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
-    console.error('Error creating item:', error);
+    console.error('Error updating item:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
