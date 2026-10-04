@@ -51,6 +51,7 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
   const [receiveLines, setReceiveLines] = useState<any[]>([]);
   const [loadingLines, setLoadingLines] = useState(false);
   const [submittingReceive, setSubmittingReceive] = useState(false);
+  const [processOwnerProof, setProcessOwnerProof] = useState<File | null>(null);
 
   return (
     <div className="card" style={{ padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
@@ -95,8 +96,8 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                   <tbody>
                     {receiveLines.map((line, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '0.5rem' }}>{line.itemName} - {line.orderedQuantity}</td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem' }}>{line.itemName} - {line.orderedQuantity} {line.unitOfMeasure}</td>
+                        <td style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <input 
                             type="number" 
                             value={line.receivedQuantity ?? line.orderedQuantity ?? ''} 
@@ -105,14 +106,25 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                               newLines[idx].receivedQuantity = e.target.value;
                               setReceiveLines(newLines);
                             }}
-                            style={{ width: '100%', padding: '0.25rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem' }}
+                            style={{ width: '80px', padding: '0.25rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem' }}
                           />
+                          <span>{line.unitOfMeasure}</span>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
+            </div>
+            
+            <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ marginBottom: '0.5rem', fontWeight: 'bold', fontSize: '0.85rem' }}>Proof of Delivery (Optional)</div>
+              <input 
+                type="file" 
+                accept="image/*,.pdf"
+                onChange={(e) => setProcessOwnerProof(e.target.files?.[0] || null)}
+                style={{ fontSize: '0.85rem', width: '100%', padding: '0.5rem', border: '1px dashed #cbd5e1', borderRadius: '0.25rem' }}
+              />
             </div>
             
             <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', backgroundColor: '#f8fafc' }}>
@@ -129,13 +141,18 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                     const payloadLines = receiveLines.map(l => ({
                       id: l.id,
                       orderedQuantity: l.orderedQuantity,
-                      receivedQuantity: l.receivedQuantity !== undefined ? l.receivedQuantity : l.orderedQuantity
+                      receivedQuantity: l.receivedQuantity !== undefined && l.receivedQuantity !== null ? l.receivedQuantity : l.orderedQuantity
                     }));
+                    
+                    const formData = new FormData();
+                    formData.append('receivedLines', JSON.stringify(payloadLines));
+                    if (processOwnerProof) {
+                      formData.append('processOwnerProof', processOwnerProof);
+                    }
                     
                     const res = await fetch(`/api/purchase-orders/${receivingPo.realId}/receive`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ receivedLines: payloadLines })
+                      body: formData
                     });
                     
                     if (res.ok) {
@@ -248,7 +265,7 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                         >{activity.status === 'Sent_to_vendor' ? 'Sent via WhatsApp' : 'Send via WhatsApp'}
                         </button>
                       )}
-                      {(activity.status === 'Approved' || activity.status === 'Sent_to_vendor') && (
+                      {(activity.status === 'Approved' || activity.status === 'Sent_to_vendor' || activity.status === 'Pending_receipt') && (
                         <button 
                           onClick={async () => {
                             setReceivingPo(activity);
@@ -274,11 +291,10 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                         </button>
                       )}
                     </>
+                  ) : activity.type === 'Routine Assessment' ? (
+                    <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'not-allowed' }} disabled>N/A</button>
                   ) : (
-                    <>
-                      <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'white', fontSize: '0.65rem', cursor: 'pointer' }}>View</button>
-                      <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'white', fontSize: '0.65rem', cursor: 'pointer' }}>Receive</button>
-                    </>
+                    <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'white', fontSize: '0.65rem', cursor: 'pointer' }}>View</button>
                   )}
                 </div>
               </td>

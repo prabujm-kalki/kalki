@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createRoleDefinition, getRoleDefinition, listRoleDefinitions, RolesWorkServiceError, setBusinessRoleActive, setRoleChecklistActive, setRoleChecklistItemActive, setRoleKpiActive, setRoleResponsibilityActive, setRoleResponsibilityWorkDefinition } from "@/domains/roles-work/service";
 import { requireAuthenticatedUser } from "@/lib/authorization";
+import { db } from "@/db";
+import { businessRoles } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 const scopeSchema = z.object({ organizationId: z.string().uuid(), locationId: z.string().uuid() });
 
@@ -17,8 +20,36 @@ export async function GET(request: Request) {
   } catch (error) { return serviceErrorResponse(error); }
 }
 
-export async function POST() {
-  return NextResponse.json({ error: "Method Not Allowed. Roles are predefined." }, { status: 405 });
+export async function POST(request: Request) {
+  const user = await requireAuthenticatedUser(request);
+  if (!user) return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const organizationId = String(body.organizationId ?? "");
+    const identifier = String(body.identifier ?? "");
+    const name = String(body.name ?? "");
+    const purpose = String(body.purpose ?? "");
+    const departmentId = body.departmentId ? String(body.departmentId) : null;
+    const reportsToRoleId = body.reportsToRoleId ? String(body.reportsToRoleId) : null;
+    
+    // Support for location-specific vs global roles
+    const isGlobal = body.isGlobal === true;
+    const locationId = isGlobal ? null : String(body.locationId ?? "");
+
+    const [role] = await db.insert(businessRoles).values({
+      organizationId,
+      locationId: locationId || null, // null if empty string
+      identifier,
+      name,
+      purpose,
+      departmentId,
+      reportsToRoleId,
+    }).returning({ id: businessRoles.id });
+
+    return NextResponse.json({ role });
+  } catch (error) { 
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to create role" }, { status: 500 });
+  }
 }
 
 export async function PATCH(request: Request) {
@@ -34,6 +65,25 @@ export async function PATCH(request: Request) {
       roleId,
       isActive: body.isActive as boolean,
     };
+
+    if (typeof body.name === "string") {
+      const isGlobal = body.isGlobal === true;
+      const locationId = isGlobal ? null : String(body.locationId ?? "");
+
+      const [role] = await db.update(businessRoles)
+        .set({
+          name: body.name,
+          purpose: String(body.purpose ?? ""),
+          departmentId: body.departmentId ? String(body.departmentId) : null,
+          reportsToRoleId: body.reportsToRoleId ? String(body.reportsToRoleId) : null,
+          identifier: String(body.identifier ?? ""),
+          locationId: locationId || null,
+        })
+        .where(eq(businessRoles.id, roleId))
+        .returning({ id: businessRoles.id });
+      return NextResponse.json({ role });
+    }
+
     const childKeys = [
       typeof body.responsibilityId === "string" ? "responsibilityId" : null,
       typeof body.kpiId === "string" ? "kpiId" : null,

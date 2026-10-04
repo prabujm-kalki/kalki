@@ -42,6 +42,7 @@ export function VendorForm({
         organizationId,
         locationId,
         name: formData.get("name") as string,
+        shortCode: formData.get("shortCode") as string || undefined,
         contactDetails: {
           name: formData.get("contactName") as string || undefined,
           phone: formData.get("contactPhone") as string || undefined,
@@ -77,6 +78,10 @@ export function VendorForm({
         <div className="field">
           <label>Vendor Name (Company) *</label>
           <input name="name" required disabled={submitting} defaultValue={initialData?.name} />
+        </div>
+        <div className="field">
+          <label>Short Code (For PO numbers) *</label>
+          <input name="shortCode" required disabled={submitting} defaultValue={initialData?.shortCode} placeholder="e.g. SAKTHI" style={{ textTransform: 'uppercase' }} />
         </div>
         <div className="field">
           <label>Contact Person Name</label>

@@ -70,6 +70,7 @@ export default function CreatePOPage() {
         ...i, 
         orderedQuantity: 0, 
         availableStock: '', // Used for routine mode
+        calculatedQty: '', // Used for manual override
         unitRate: i.lastRate || 0 
       })));
     }).catch(console.error);
@@ -83,12 +84,7 @@ export default function CreatePOPage() {
 
     try {
       const linesToSubmit = isRoutineMode ? 
-        vendorItems.map(item => {
-          const avail = Number(item.availableStock || 0);
-          const minStock = Number(item.minimumStock || item.baseMinStock || 0);
-          const calculatedQty = (avail < minStock) ? Number(item.normalQuantity || item.targetStock || 1) : 0;
-          return { ...item, calculatedQty };
-        }).filter(item => item.calculatedQty > 0)
+        vendorItems.filter(item => Number(item.calculatedQty) > 0)
         : vendorItems.filter(item => Number(item.orderedQuantity) > 0);
 
       const lines = linesToSubmit.map(item => {
@@ -97,7 +93,7 @@ export default function CreatePOPage() {
         }
         return {
           itemId: item.itemId,
-          orderedQuantity: isRoutineMode ? item.calculatedQty : Number(item.orderedQuantity),
+          orderedQuantity: isRoutineMode ? Number(item.calculatedQty) : Number(item.orderedQuantity),
           unitRate: Number(item.unitRate)
         };
       });
@@ -180,10 +176,6 @@ export default function CreatePOPage() {
               </thead>
               <tbody>
                 {vendorItems.map((item, index) => {
-                  const avail = Number(item.availableStock || 0);
-                  const minStock = Number(item.minimumStock || item.baseMinStock || 0);
-                  const needsOrder = isRoutineMode && (avail < minStock);
-                  const autoQty = needsOrder ? Number(item.normalQuantity || item.targetStock || 1) : 0;
                   const purchaseUnitDisplay = item.purchaseUnit ? ` ${item.purchaseUnit}` : '';
                   
                   return (
@@ -194,26 +186,67 @@ export default function CreatePOPage() {
                         <>
                           <td style={{ fontSize: '12px', color: '#6b7280' }}>
                             Min: {item.minimumStock || item.baseMinStock || 0} {item.unitOfMeasure} <br/>
-                            Reorder: {item.normalQuantity || item.targetStock || 1}{purchaseUnitDisplay}
+                            {item.replenishmentStrategy === 'fixed' 
+                              ? `Reorder: ${item.reorderQuantity || 1}${purchaseUnitDisplay}`
+                              : `Target: ${item.normalQuantity || item.targetStock || 0} ${item.unitOfMeasure}`
+                            }
                           </td>
                           <td>
                             <input 
                               type="number" 
                               min="0" 
+                              step="any"
                               placeholder={`Qty in ${item.unitOfMeasure}`}
                               value={item.availableStock} 
                               onChange={e => {
                                 const next = [...vendorItems];
-                                next[index].availableStock = e.target.value;
+                                const val = e.target.value;
+                                next[index].availableStock = val;
+                                
+                                if (val === '') {
+                                  next[index].calculatedQty = '';
+                                } else {
+                                  const avail = Number(val);
+                                  const minStock = Number(item.minimumStock || item.baseMinStock || 0);
+                                  if (avail <= minStock) {
+                                    if (item.replenishmentStrategy === 'fixed') {
+                                      let reorderQty = Number(item.reorderQuantity || 1);
+                                      if (item.purchaseUnit && item.purchaseUnit !== item.unitOfMeasure && item.purchaseUnitConversion && item.purchaseUnitConversion > 0) {
+                                        reorderQty = Number((reorderQty / item.purchaseUnitConversion).toFixed(3));
+                                      }
+                                      next[index].calculatedQty = reorderQty;
+                                    } else {
+                                      const target = Number(item.normalQuantity || item.targetStock || 0);
+                                      let shortfall = Math.max(0, target - avail);
+                                      if (item.purchaseUnit && item.purchaseUnit !== item.unitOfMeasure && item.purchaseUnitConversion && item.purchaseUnitConversion > 0) {
+                                        shortfall = Number((shortfall / item.purchaseUnitConversion).toFixed(3));
+                                      }
+                                      next[index].calculatedQty = shortfall;
+                                    }
+                                  } else {
+                                    next[index].calculatedQty = 0;
+                                  }
+                                }
+                                
                                 setVendorItems(next);
                               }} 
                               style={{ width: "120px" }}
                             />
                           </td>
                           <td>
-                            <span style={{ fontWeight: needsOrder ? 'bold' : 'normal', color: needsOrder ? '#16a34a' : '#9ca3af' }}>
-                              {autoQty > 0 ? `${autoQty}${purchaseUnitDisplay}` : 'No order needed'}
-                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={item.calculatedQty}
+                              onChange={e => {
+                                const next = [...vendorItems];
+                                next[index].calculatedQty = e.target.value;
+                                setVendorItems(next);
+                              }}
+                              style={{ width: "100px", fontWeight: Number(item.calculatedQty) > 0 ? 'bold' : 'normal' }}
+                            />
+                            <span style={{ marginLeft: '4px', color: '#6b7280', fontSize: '12px' }}>{purchaseUnitDisplay}</span>
                           </td>
                         </>
                       ) : (
@@ -221,6 +254,7 @@ export default function CreatePOPage() {
                           <input 
                             type="number" 
                             min="0" 
+                            step="any"
                             value={item.orderedQuantity} 
                             onChange={e => {
                               const next = [...vendorItems];
@@ -325,7 +359,7 @@ export default function CreatePOPage() {
                         {po.status === 'sent_to_vendor' ? 'Sent (Resend)' : 'Send via WhatsApp'}
                       </button>
                     )}
-                    {po.status === 'sent_to_vendor' && (
+                    {(po.status === 'sent_to_vendor' || po.status === 'pending_receipt') && (
                       <Link href={`/purchasing/receive/${po.id}`} style={{ padding: '4px 8px', backgroundColor: '#3b82f6', color: 'white', textDecoration: 'none', borderRadius: '4px', fontSize: '12px', display: 'inline-block', marginRight: '8px' }}>
                         Receive Goods
                       </Link>

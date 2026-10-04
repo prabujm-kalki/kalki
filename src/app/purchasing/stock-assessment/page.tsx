@@ -12,6 +12,8 @@ interface VendorItem {
   minimumStock: number;
   normalQuantity: number;
   lastRate: number;
+  baseMinStock?: number;
+  targetStock?: number;
 }
 
 export default function StockAssessmentPage() {
@@ -19,9 +21,10 @@ export default function StockAssessmentPage() {
   const router = useRouter();
   const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   const taskId = searchParams.get("taskId");
+  const urlVendorId = searchParams.get("vendorId");
 
   const [vendors, setVendors] = useState<any[]>([]);
-  const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [selectedVendorId, setSelectedVendorId] = useState(urlVendorId || "");
   const [vendorItems, setVendorItems] = useState<VendorItem[]>([]);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
@@ -176,8 +179,8 @@ export default function StockAssessmentPage() {
                   <tr key={item.id} style={{ borderBottom: idx === vendorItems.length - 1 ? "none" : "1px solid var(--border-color)" }}>
                     <td style={{ padding: "12px" }}>{item.itemName}</td>
                     <td style={{ padding: "12px" }}>{item.unitOfMeasure}</td>
-                    <td style={{ padding: "12px", textAlign: "center", color: "var(--text-muted)" }}>{Number(item.minimumStock)}</td>
-                    <td style={{ padding: "12px", textAlign: "center", color: "var(--text-muted)" }}>{Number(item.normalQuantity)}</td>
+                    <td style={{ padding: "12px", textAlign: "center", color: "var(--text-muted)" }}>{Number(item.minimumStock || item.baseMinStock || 0)}</td>
+                    <td style={{ padding: "12px", textAlign: "center", color: "var(--text-muted)" }}>{Number(item.normalQuantity || item.targetStock || 0)}</td>
                     <td style={{ padding: "12px", textAlign: "center" }}>
                       <input 
                         type="number"

@@ -16,6 +16,8 @@ const itemSchema = z.object({
   purchaseUnitConversion: z.number().positive().optional(),
   baseMinStock: z.number().nonnegative(),
   targetStock: z.number().nonnegative().optional(),
+  replenishmentStrategy: z.string().optional().default('top_up'),
+  reorderQuantity: z.number().nonnegative().optional(),
   orderFrequency: z.object({
     daily: z.boolean().optional(),
     mon: z.boolean().optional(),
@@ -34,6 +36,8 @@ const itemSchema = z.object({
   vendorIds: z.array(z.string().uuid()).min(1, 'At least one vendor is required'),
   organizationId: z.string().uuid(),
   locationId: z.string().uuid(),
+  categoryId: z.string().uuid().optional().nullable(),
+  subcategoryId: z.string().uuid().optional().nullable(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -103,11 +107,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           purchaseUnitConversion: parsed.purchaseUnitConversion?.toString() ?? null,
           baseMinStock: parsed.baseMinStock.toString(),
           targetStock: parsed.targetStock?.toString() ?? null,
+          replenishmentStrategy: parsed.replenishmentStrategy,
+          reorderQuantity: parsed.reorderQuantity?.toString() ?? null,
           orderFrequency: parsed.orderFrequency,
           fridaySurge: parsed.fridaySurge?.toString() || '0',
           saturdaySurge: parsed.saturdaySurge?.toString() || '0',
           isActive: parsed.isActive,
           isTrackable: parsed.isTrackable,
+          categoryId: parsed.categoryId || null,
+          subcategoryId: parsed.subcategoryId || null,
         })
         .where(and(
           eq(items.id, itemId),

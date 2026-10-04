@@ -29,6 +29,8 @@ type VendorItemView = {
   normalQuantity: string | null;
   minimumStock: string | null;
   lastRate: string | null;
+  baseMinStock?: string | null;
+  targetStock?: string | null;
 };
 
 type PurchaseScheduleView = {
@@ -367,8 +369,8 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
                     <td style={{ padding: "0.5rem" }}><strong>{item.itemName}</strong></td>
                     <td style={{ padding: "0.5rem" }}>{item.itemCode || "-"}</td>
                     <td style={{ padding: "0.5rem" }}>{item.unitOfMeasure}</td>
-                    <td style={{ padding: "0.5rem" }}>{item.minimumStock || "-"}</td>
-                    <td style={{ padding: "0.5rem" }}>{item.normalQuantity || "-"}</td>
+                    <td style={{ padding: "0.5rem" }}>{item.minimumStock || item.baseMinStock || "-"}</td>
+                    <td style={{ padding: "0.5rem" }}>{item.normalQuantity || item.targetStock || "-"}</td>
                     <td style={{ padding: "0.5rem" }}>{item.lastRate ? `₹${item.lastRate}` : "-"}</td>
                     <td style={{ padding: "0.5rem", textAlign: "right" }}>
                       <button type="button" onClick={() => handleRemoveItem(item.id)} style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", fontSize: "0.75rem", textDecoration: "underline" }}>Remove</button>

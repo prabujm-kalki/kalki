@@ -14,11 +14,13 @@ export default async function CashierPage() {
   const rawPos = await db
     .select({
       id: purchaseOrders.id,
+      poNumber: purchaseOrders.poNumber,
       status: purchaseOrders.status,
       vendorName: vendors.name,
       totalAmount: purchaseOrders.totalAmount,
       cashierBillAmount: purchaseOrders.cashierBillAmount,
       publicToken: purchaseOrders.publicToken,
+      processOwnerAttachments: purchaseOrders.processOwnerAttachments,
       createdAt: purchaseOrders.createdAt,
     })
     .from(purchaseOrders)

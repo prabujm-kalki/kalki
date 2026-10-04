@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { taskInstances, taskDefinitions } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or, inArray } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,6 +23,44 @@ export async function GET(req: NextRequest) {
       eq(taskInstances.organizationId, organizationId),
       eq(taskInstances.status, "audit_pending")
     ];
+
+    const { employees, employeeRoleAssignments } = await import("@/db/schema");
+
+    // Fetch user's business roles via employee mapping
+    const employeeRows = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(
+        eq(employees.userId, session.user.id),
+        eq(employees.organizationId, organizationId)
+      ));
+
+    let userRoleIds: string[] = [];
+    
+    if (employeeRows.length > 0) {
+      const employeeIds = employeeRows.map(e => e.id);
+      
+      const roleAssignmentRows = await db
+        .select({ roleId: employeeRoleAssignments.roleId })
+        .from(employeeRoleAssignments)
+        .where(and(
+          inArray(employeeRoleAssignments.employeeId, employeeIds),
+          eq(employeeRoleAssignments.isActive, true)
+        ));
+        
+      userRoleIds = [...new Set(roleAssignmentRows.map(r => r.roleId))];
+    }
+
+    if (userRoleIds.length > 0) {
+      conditions.push(
+        or(
+          eq(taskInstances.assignedUserId, session.user.id),
+          inArray(taskInstances.assignedRoleId, userRoleIds)
+        )
+      );
+    } else {
+      conditions.push(eq(taskInstances.assignedUserId, session.user.id));
+    }
 
     const results = await db
       .select({

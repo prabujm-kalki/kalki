@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     // Default organization for now, replace with actual user's org if needed
     // Assuming the frontend sends it or we get it from session.
     const body = await request.json();
-    const { organizationId, locationId, vendorId, responsibleRoleId, frequencyRule, reminderTime } = body;
+    const { organizationId, locationId, vendorId, responsibleRoleId, frequencyRule, reminderTime, priority, taskDefinitionId } = body;
 
     const [newSchedule] = await db.insert(purchaseSchedules).values({
       id: crypto.randomUUID(),
@@ -19,6 +19,8 @@ export async function POST(request: Request) {
       responsibleRoleId,
       frequencyRule,
       reminderTime,
+      priority: priority || "medium",
+      taskDefinitionId: taskDefinitionId || null,
     }).returning();
 
     return NextResponse.json({ success: true, schedule: newSchedule });

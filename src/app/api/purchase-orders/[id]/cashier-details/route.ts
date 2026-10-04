@@ -39,6 +39,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .select({
         line: purchaseOrderLines,
         itemName: items.nameEn,
+        purchaseUnit: items.purchaseUnit,
+        baseUnit: items.unit,
         
         vendorItemLastRate: vendorItems.lastRate,
       })
@@ -64,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       lines: lines.map(l => ({
         ...l.line,
         itemName: l.itemName,
-        
+        unitOfMeasure: l.purchaseUnit || l.baseUnit,
         suggestedRate: l.vendorItemLastRate || l.line.unitRate, // Fallback to ordered rate if no lastRate
       }))
     });

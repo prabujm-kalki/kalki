@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { taskInstances, taskAuditLogs } from "@/db/schema";
+import { taskInstances, taskAuditLogs, taskDefinitions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
@@ -13,12 +13,40 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const { id: taskId } = await props.params;
     const body = await req.json();
-    const { action, comments } = body; // action = "approve" or "reject"
+    const { action, comments, extensionPercentage = 100 } = body; // action = "approve" or "reject"
 
-    const [task] = await db.select().from(taskInstances).where(eq(taskInstances.id, taskId)).limit(1);
+    const [taskRecord] = await db
+      .select({
+        instance: taskInstances,
+        targetRoleId: taskDefinitions.targetRoleId,
+        targetUserId: taskDefinitions.targetUserId,
+        completionTimeMins: taskDefinitions.completionTimeMins
+      })
+      .from(taskInstances)
+      .leftJoin(taskDefinitions, eq(taskInstances.definitionId, taskDefinitions.id))
+      .where(eq(taskInstances.id, taskId))
+      .limit(1);
     
-    if (!task) {
+    if (!taskRecord || !taskRecord.instance) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    const task = taskRecord.instance;
+    let originalRoleId = taskRecord.targetRoleId;
+    let originalUserId = taskRecord.targetUserId;
+
+    // Smart fallback to find original assignment for generated tasks where definition doesn't hold it
+    if (!originalRoleId && !originalUserId) {
+      if ((task.contextData as any)?.scheduleId) {
+        const { purchaseSchedules } = await import("@/db/schema");
+        const [sched] = await db.select({ responsibleRoleId: purchaseSchedules.responsibleRoleId })
+          .from(purchaseSchedules)
+          .where(eq(purchaseSchedules.id, (task.contextData as any).scheduleId))
+          .limit(1);
+        if (sched?.responsibleRoleId) {
+          originalRoleId = sched.responsibleRoleId;
+        }
+      }
     }
 
     if (task.status !== "audit_pending") {
@@ -27,15 +55,30 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     // Phase 4: Handle Audit Action
     let nextStatus: "completed" | "in_progress" = "completed";
+    let updatePayload: any = {
+      status: "completed",
+      updatedAt: new Date(),
+    };
+
     if (action === "reject") {
       nextStatus = "in_progress"; // Send back to the user
+      
+      const originalMins = taskRecord.completionTimeMins || 60; // Default to 60 if null
+      const grantedMins = Math.round(originalMins * (extensionPercentage / 100));
+      const newDueAt = new Date(Date.now() + (grantedMins * 60 * 1000));
+
+      updatePayload = {
+        status: nextStatus,
+        updatedAt: new Date(),
+        dueAt: newDueAt,
+        assignedRoleId: originalRoleId || task.assignedRoleId, // Restore original role
+        assignedUserId: originalUserId || task.assignedUserId, // Restore original user
+        escalationLevel: 0 // Reset escalation so they get standard time again
+      };
     }
 
     // Update Task
-    const [updated] = await db.update(taskInstances).set({
-      status: nextStatus,
-      updatedAt: new Date(),
-    }).where(eq(taskInstances.id, taskId)).returning();
+    const [updated] = await db.update(taskInstances).set(updatePayload).where(eq(taskInstances.id, taskId)).returning();
 
     // Log the audit action (escalation history/audit log)
     // Assuming taskAuditLogs exists in the system to track these touches

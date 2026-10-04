@@ -19,13 +19,15 @@ export function RoleDefinitionForm({ organizationId, locationId, initialData, de
   const [error, setError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    identifier: initialData?.identifier || "",
     name: initialData?.name || "",
     purpose: initialData?.purpose || "",
     departmentId: initialData?.departmentId || "",
     reportsToRoleId: initialData?.reportsToRoleId || "",
-    permissions: initialData?.authorityConfig?.permissions || ([] as string[]),
   });
+  
+  const [isGlobal, setIsGlobal] = useState<boolean>(
+    initialData ? initialData.locationId === null : false
+  );
 
   function handleChange(field: string, value: string | string[]) {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -39,12 +41,12 @@ export function RoleDefinitionForm({ organizationId, locationId, initialData, de
       const payload = {
         organizationId,
         locationId,
-        identifier: formData.identifier,
+        isGlobal,
+        identifier: formData.name.toUpperCase().replace(/\s+/g, '_'),
         name: formData.name,
         purpose: formData.purpose,
         departmentId: formData.departmentId || null,
         reportsToRoleId: formData.reportsToRoleId || null,
-        permissions: formData.permissions,
       };
 
       if (initialData?.id) {
@@ -63,15 +65,11 @@ export function RoleDefinitionForm({ organizationId, locationId, initialData, de
     <form onSubmit={(e) => void submit(e)} className="panel stack">
       <div className="panel-header">
         <h3>{initialData ? "Edit Role" : "Add New Role"}</h3>
-        <button type="button" className="secondary-button" onClick={onCancel} disabled={pending}>Cancel</button>
       </div>
       {error ? <StatusMessage tone="error">{error}</StatusMessage> : null}
       
       <div className="grid-2">
-        <div className="field">
-          <label>Identifier (e.g. CHEF, MGR) *</label>
-          <input required type="text" value={formData.identifier} onChange={(e) => handleChange("identifier", e.target.value.toUpperCase())} disabled={pending} />
-        </div>
+
         <div className="field">
           <label>Role Name *</label>
           <input required type="text" value={formData.name} onChange={(e) => handleChange("name", e.target.value)} disabled={pending} />
@@ -94,39 +92,21 @@ export function RoleDefinitionForm({ organizationId, locationId, initialData, de
             {roles.filter(r => r.id !== initialData?.id).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </div>
-      </div>
-
-      <div className="panel" style={{ marginTop: "1.5rem" }}>
-        <h4>Baseline Permissions</h4>
-        <p className="muted" style={{ marginBottom: "1rem" }}>Select the modules this role can access by default.</p>
-        <div className="grid-2">
-          {["employee", "inventory", "purchase", "sales", "finance", "settings"].map((mod) => (
-            <label key={mod} style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-              <input 
-                type="checkbox" 
-                checked={formData.permissions.includes(`${mod}:read`)}
-                onChange={(e) => {
-                  const perms = new Set<string>(formData.permissions);
-                  if (e.target.checked) {
-                    perms.add(`${mod}:read`);
-                    perms.add(`${mod}:create`);
-                    perms.add(`${mod}:update`);
-                  } else {
-                    perms.delete(`${mod}:read`);
-                    perms.delete(`${mod}:create`);
-                    perms.delete(`${mod}:update`);
-                  }
-                  handleChange("permissions", Array.from(perms));
-                }}
-                disabled={pending}
-              />
-              {mod.charAt(0).toUpperCase() + mod.slice(1)} Module Access
-            </label>
-          ))}
+        <div className="field" style={{ gridColumn: "1 / -1", marginTop: "0.5rem" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "normal", cursor: "pointer" }}>
+            <input 
+              type="checkbox" 
+              checked={isGlobal} 
+              onChange={(e) => setIsGlobal(e.target.checked)} 
+              disabled={pending} 
+            />
+            Global Role (Organization-wide, same across all locations)
+          </label>
         </div>
-      </div>
-
-      <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end" }}>
+      </div>      <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+        <button type="button" className="secondary-button" onClick={onCancel} disabled={pending}>
+          Cancel
+        </button>
         <button type="submit" className="action-button" disabled={pending}>
           {pending ? "Saving…" : "Save Role"}
         </button>

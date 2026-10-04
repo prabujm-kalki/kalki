@@ -14,10 +14,12 @@ interface ConfigFormProps {
     responsibleRoleId: string;
     frequencyRule: string;
     reminderTime: string;
+    taskDefinitionId: string | null;
   };
+  taskDefinitions?: { id: string; title: string }[];
 }
 
-export default function RoutineConfigForm({ vendors, roles, initialData }: ConfigFormProps) {
+export default function RoutineConfigForm({ vendors, roles, initialData, taskDefinitions = [] }: ConfigFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { selected } = useSessionView();
@@ -42,7 +44,9 @@ export default function RoutineConfigForm({ vendors, roles, initialData }: Confi
   const [dayOfMonth, setDayOfMonth] = useState(
     isMonthly ? initRule.split(":")[1] : "1"
   );
-  const [reminderTime, setReminderTime] = useState(initialData?.reminderTime || "21:00");
+  const [reminderTime, setReminderTime] = useState(initialData?.reminderTime || "09:00");
+  const [priority, setPriority] = useState((initialData as any)?.priority || "medium");
+  const [taskDefinitionId, setTaskDefinitionId] = useState(initialData?.taskDefinitionId || "");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +80,8 @@ export default function RoutineConfigForm({ vendors, roles, initialData }: Confi
           responsibleRoleId: roleId,
           frequencyRule: finalRule,
           reminderTime,
+          priority,
+          taskDefinitionId: taskDefinitionId || null,
         }),
       });
 
@@ -220,6 +226,39 @@ export default function RoutineConfigForm({ vendors, roles, initialData }: Confi
                 className="kalki-input"
                 required
               />
+            </div>
+
+            <div className="kalki-field">
+              <label className="kalki-label">Task Execution Rule / Policy <span className="kalki-required">*</span></label>
+              <select 
+                value={taskDefinitionId} 
+                onChange={(e) => setTaskDefinitionId(e.target.value)}
+                className="kalki-select"
+                required
+              >
+                <option value="">-- Select Task Rule --</option>
+                {taskDefinitions.map(td => (
+                  <option key={td.id} value={td.id}>{td.title}</option>
+                ))}
+              </select>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--kalki-text-secondary)' }}>
+                This sets the completion timeout and escalation policy.
+              </p>
+            </div>
+            
+            <div className="kalki-field">
+              <label className="kalki-label">Priority <span className="kalki-required">*</span></label>
+              <select 
+                value={priority} 
+                onChange={(e) => setPriority(e.target.value)}
+                className="kalki-select"
+                required
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Very High</option>
+              </select>
             </div>
           </div>
 

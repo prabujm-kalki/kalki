@@ -4,11 +4,20 @@ import { DashboardActions } from "@/components/purchasing/DashboardActions";
 import { RecentActivityFeed } from "@/components/purchasing/RecentActivityFeed";
 import { Search } from "lucide-react";
 import { getDashboardData } from "@/domains/purchasing/dashboard";
+import { requireAuthenticatedUser, loadAuthorizationGrants } from "@/lib/authorization";
+import { headers } from "next/headers";
 
 export const dynamic = 'force-dynamic';
 
 export default async function PurchasingDashboardPage(props: any) {
-  const data = await getDashboardData();
+  const actor = await requireAuthenticatedUser(new Request("https://localhost", { headers: await headers() }));
+  let isOwner = false;
+  if (actor) {
+    const grants = await loadAuthorizationGrants(actor.id);
+    isOwner = grants.isOwner;
+  }
+
+  const data = await getDashboardData(isOwner);
 
   return (
     <div className="dashboard-container" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '0.5rem' }}>

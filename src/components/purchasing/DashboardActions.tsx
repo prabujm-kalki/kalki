@@ -16,6 +16,10 @@ interface PendingApproval {
   poDeliveryMethod?: string | null;
   poWhatsappPreference?: string | null;
   whatsappPoTemplate?: string | null;
+  status?: string;
+  cashierBillAmount?: string | number | null;
+  cashierAttachments?: any;
+  processOwnerAttachments?: any;
 }
 
 interface DashboardActionsProps {
@@ -52,7 +56,20 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
       const res = await fetch(`/api/public/po?token=${approval.publicToken}`);
       if (res.ok) {
         const data = await res.json();
-        setReviewLines(data.lines || []);
+        // If final stage, we should edit receivedQuantity, else orderedQuantity
+        const lines = data.lines || [];
+        setReviewLines(lines.map((l: any) => ({
+          ...l,
+          // Use receivedQuantity for display/editing if it exists and status is audited
+          editQuantity: approval.status === 'audited' ? (l.receivedQuantity || l.orderedQuantity) : l.orderedQuantity
+        })));
+        
+        if (approval.status === 'audited' && data.po) {
+          setReviewingApproval({
+            ...approval,
+            cashierBillAmount: data.po.cashierBillAmount
+          });
+        }
       } else {
         alert("Failed to load PO lines");
       }
@@ -65,7 +82,7 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
 
   const updateLineQty = (idx: number, val: string) => {
     const newLines = [...reviewLines];
-    newLines[idx].orderedQuantity = val;
+    newLines[idx].editQuantity = val;
     setReviewLines(newLines);
   };
   
@@ -75,27 +92,37 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
     setReviewLines(newLines);
   };
 
-  const handleApprove = async () => {
+  const handleApprove = async (action: 'accept' | 'reject' | 'return' = 'accept') => {
     if (!reviewingApproval) return;
     const approval = reviewingApproval;
-    const { id, realId, publicToken, poDeliveryMethod, vendorPhone, whatsappPoTemplate } = approval;
+    const { id, realId, publicToken, poDeliveryMethod, vendorPhone, whatsappPoTemplate, status } = approval;
     
     try {
       setLoadingId(realId);
+      // Map editQuantity correctly depending on the stage
+      const apiLines = reviewLines.map(l => {
+        if (status === 'audited') {
+          return { ...l, receivedQuantity: l.editQuantity };
+        } else {
+          return { ...l, orderedQuantity: l.editQuantity };
+        }
+      });
+      
       const res = await fetch(`/api/purchase-orders/${realId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lines: reviewLines })
+        body: JSON.stringify({ lines: apiLines, action })
       });
       if (res.ok) {
         setReviewingApproval(null);
-        if (poDeliveryMethod === 'WHATSAPP') {
+        // Only send WhatsApp if it's the first stage approval
+        if (poDeliveryMethod === 'WHATSAPP' && approval.status !== 'audited' && action === 'accept') {
           if (window.confirm('Do you want to send the list through WhatsApp?')) {
             const publicUrl = window.location.origin + '/public/po/' + publicToken;
             
             // Recalculate amount dynamically if lines were edited
-            const newTotal = reviewLines.reduce((acc, l) => acc + (Number(l.orderedQuantity) * Number(l.unitRate)), 0);
-            const itemsList = reviewLines.map(l => `${l.itemName} - ${l.orderedQuantity}`).join('\n');
+            const newTotal = apiLines.reduce((acc, l) => acc + (Number(l.orderedQuantity) * Number(l.unitRate)), 0);
+            const itemsList = apiLines.map(l => `${l.itemName} - ${l.orderedQuantity}`).join('\n');
             
             const template = whatsappPoTemplate || 'Hello, please find Purchase Order #{poId} for {amount}.\n\n{items}\n\nView and download the PDF here: {link}';
             
@@ -118,7 +145,7 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
         }
         router.refresh();
       } else {
-        alert("Failed to approve PO");
+        alert(`Failed to ${action} PO`);
       }
     } catch (e) {
       alert("An error occurred");
@@ -175,14 +202,20 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
                     {reviewLines.map((line, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '0.5rem' }}>{line.itemName}</td>
-                        <td style={{ padding: '0.5rem' }}>
+                        <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>
                           <input 
                             type="number" 
-                            value={line.orderedQuantity} 
+                            step="any"
+                            value={line.editQuantity} 
                             onChange={(e) => updateLineQty(idx, e.target.value)}
                             style={{ width: '60px', padding: '0.25rem', border: '1px solid #ccc', borderRadius: '0.25rem' }}
-                          />
+                          /> <span style={{ marginLeft: '4px' }}>{line.unitOfMeasure}</span>
                         </td>
+                        {reviewingApproval.status === 'audited' && (
+                          <td style={{ padding: '0.5rem', textAlign: 'right', color: '#64748b' }}>
+                            ₹{line.unitRate}
+                          </td>
+                        )}
                         <td style={{ padding: '0.5rem', textAlign: 'right' }}>
                           <button onClick={() => removeLine(idx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>
                             <Trash2 size={16} />
@@ -191,17 +224,61 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
                       </tr>
                     ))}
                     {reviewLines.length === 0 && (
-                      <tr><td colSpan={3} style={{ textAlign: 'center', padding: '1rem' }}>No items left</td></tr>
+                      <tr><td colSpan={reviewingApproval.status === 'audited' ? 4 : 3} style={{ textAlign: 'center', padding: '1rem' }}>No items left</td></tr>
                     )}
                   </tbody>
                 </table>
+              )}
+              
+              {reviewingApproval.status === 'audited' && reviewingApproval.cashierBillAmount && (
+                <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>Cashier Bill Amount: </strong> ₹{reviewingApproval.cashierBillAmount}
+                  </div>
+                  {reviewingApproval.cashierAttachments && reviewingApproval.cashierAttachments.length > 0 && (
+                    <a 
+                      href={reviewingApproval.cashierAttachments[0]} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ padding: '0.25rem 0.75rem', backgroundColor: '#16a34a', color: 'white', borderRadius: '0.25rem', textDecoration: 'none', fontSize: '0.875rem', fontWeight: '500' }}
+                    >
+                      View Bill
+                    </a>
+                  )}
+                </div>
+              )}
+              
+              {reviewingApproval.processOwnerAttachments && reviewingApproval.processOwnerAttachments.length > 0 && (
+                <div style={{ marginTop: '0.5rem', padding: '1rem', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>Process Owner: </strong> Proof of Delivery Attached
+                  </div>
+                  <a 
+                    href={reviewingApproval.processOwnerAttachments[0]} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ padding: '0.25rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', borderRadius: '0.25rem', textDecoration: 'none', fontSize: '0.875rem', fontWeight: '500' }}
+                  >
+                    View Delivery Proof
+                  </a>
+                </div>
               )}
             </div>
             
             <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', backgroundColor: '#f8fafc' }}>
               <button onClick={() => setReviewingApproval(null)} style={{ padding: '0.5rem 1rem', border: '1px solid #ccc', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={handleApprove} disabled={loadingId === reviewingApproval.realId || reviewLines.length === 0} style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
-                {loadingId === reviewingApproval.realId ? 'Approving...' : 'Confirm & Approve'}
+              {reviewingApproval.status === 'audited' && (
+                <button onClick={() => handleApprove('return')} disabled={loadingId === reviewingApproval.realId} style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#eab308', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+                  {loadingId === reviewingApproval.realId ? '...' : 'Return'}
+                </button>
+              )}
+              {reviewingApproval.status === 'audited' && (
+                <button onClick={() => handleApprove('reject')} disabled={loadingId === reviewingApproval.realId} style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#ef4444', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+                  {loadingId === reviewingApproval.realId ? '...' : 'Reject'}
+                </button>
+              )}
+              <button onClick={() => handleApprove('accept')} disabled={loadingId === reviewingApproval.realId || reviewLines.length === 0} style={{ padding: '0.5rem 1rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#16a34a', color: 'white', fontWeight: 'bold', cursor: 'pointer' }}>
+                {loadingId === reviewingApproval.realId ? 'Processing...' : 'Confirm & Approve'}
               </button>
             </div>
           </div>

@@ -32,10 +32,12 @@ export function OrganizationDashboard() {
   const { selected } = useSessionView();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [assignments, setAssignments] = useState<{ roleId: string; displayName: string }[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [showAddDept, setShowAddDept] = useState(false);
   const [showAddPos, setShowAddPos] = useState(false);
+  const [editingRole, setEditingRole] = useState<any | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -45,12 +47,14 @@ export function OrganizationDashboard() {
 
     Promise.all([
       apiGet<{ departments: Department[] }>(`/api/departments?organizationId=${selected.organizationId}`),
-      apiGet<{ roles: Position[] }>(`/api/role-definitions?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)
+      apiGet<{ roles: Position[] }>(`/api/role-definitions?organizationId=${selected.organizationId}&locationId=${selected.locationId}`),
+      apiGet<{ assignments: { roleId: string; displayName: string }[] }>(`/api/role-definitions/assignments?organizationId=${selected.organizationId}`)
     ])
-    .then(([deptRes, roleRes]) => {
+    .then(([deptRes, roleRes, assignRes]) => {
       if (cancelled) return;
       setDepartments(deptRes.departments || []);
       setPositions(roleRes.roles || []);
+      setAssignments(assignRes.assignments || []);
       setLoading(false);
     })
     .catch((err) => {
@@ -80,23 +84,38 @@ export function OrganizationDashboard() {
       }
     });
 
+    // Enforce "Owner" at top
+    const ownerIndex = roots.findIndex(r => r.position.name.toLowerCase() === 'owner');
+    if (ownerIndex !== -1 && roots.length > 1) {
+      const ownerNode = roots[ownerIndex];
+      roots.forEach((r, idx) => {
+        if (idx !== ownerIndex) ownerNode.children.push(r);
+      });
+      return [ownerNode];
+    }
+
     return roots;
   };
 
   const tree = buildTree(positions);
 
-  const getDeptName = (deptId: string | null) => {
-    if (!deptId) return "Unassigned";
-    const d = departments.find(d => d.id === deptId);
-    return d ? d.name : "Unknown";
+  const getAssignedNames = (roleId: string) => {
+    const assigned = assignments.filter(a => a.roleId === roleId);
+    if (assigned.length === 0) return "UNASSIGNED";
+    return assigned.map(a => a.displayName).join(", ");
   };
 
   const OrgNodeComponent = ({ node }: { node: OrgNode }) => {
     return (
       <li>
-        <div className="org-card">
+        <div 
+          className="org-card" 
+          onClick={() => { setEditingRole(node.position); setShowAddDept(false); setShowAddPos(false); }}
+          style={{ cursor: "pointer" }}
+          title="Click to edit position"
+        >
           <div className="org-card-title">{node.position.name}</div>
-          <div className="org-card-dept">{getDeptName(node.position.departmentId)}</div>
+          <div className="org-card-dept">{getAssignedNames(node.position.id)}</div>
         </div>
         {node.children.length > 0 && (
           <ul>
@@ -111,51 +130,32 @@ export function OrganizationDashboard() {
 
   return (
     <div className="flex h-full flex-col bg-gray-50 relative">
-      <header className="flex items-center justify-between border-b bg-white px-6 py-4 shadow-sm z-10">
-        <div>
-          <h1 className="text-xl font-semibold flex items-center gap-2 text-gray-800">
-            <Network className="h-6 w-6 text-indigo-600" /> 
-            Organizational Structure
-          </h1>
-          <p className="text-sm text-gray-500 mt-1">Visualize and manage your Departments and Reporting Hierarchy.</p>
-        </div>
-        <div className="flex gap-3">
-          <button 
-            onClick={() => { setShowAddPos(false); setShowAddDept(true); }}
-            className="flex items-center gap-2 rounded-md bg-white border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Department
-          </button>
-          <button 
-            onClick={() => { setShowAddDept(false); setShowAddPos(true); }}
-            className="flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-indigo-700 transition-colors"
-          >
-            <Plus className="h-4 w-4" /> Position
-          </button>
-        </div>
-      </header>
-
-      <main className="flex-1 overflow-auto p-8 relative">
+      <main className="flex-1 overflow-auto p-8 pt-20 relative">
         {showAddDept && (
-          <div className="mb-8 max-w-xl mx-auto">
-            <DepartmentForm 
-              organizationId={selected.organizationId}
-              onCancel={() => setShowAddDept(false)}
-              onSuccess={() => { setShowAddDept(false); setRefreshKey(k => k + 1); }}
-            />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+              <DepartmentForm 
+                organizationId={selected.organizationId}
+                onCancel={() => { setShowAddDept(false); setEditingRole(null); }}
+                onSuccess={() => { setShowAddDept(false); setEditingRole(null); setRefreshKey(k => k + 1); }}
+              />
+            </div>
           </div>
         )}
 
-        {showAddPos && (
-          <div className="mb-8 max-w-2xl mx-auto">
-            <RoleDefinitionForm
-              organizationId={selected.organizationId}
-              locationId={selected.locationId}
-              departments={departments}
-              roles={positions}
-              onCancel={() => setShowAddPos(false)}
-              onSuccess={() => { setShowAddPos(false); setRefreshKey(k => k + 1); }}
-            />
+        {(showAddPos || editingRole) && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black bg-opacity-50 p-4">
+            <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl">
+              <RoleDefinitionForm
+                organizationId={selected.organizationId}
+                locationId={selected.locationId}
+                initialData={editingRole || undefined}
+                departments={departments}
+                roles={positions}
+                onCancel={() => { setShowAddPos(false); setEditingRole(null); }}
+                onSuccess={() => { setShowAddPos(false); setEditingRole(null); setRefreshKey(k => k + 1); }}
+              />
+            </div>
           </div>
         )}
 

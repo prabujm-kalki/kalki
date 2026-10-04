@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseOrders, purchaseOrderLines } from "@/db/schema";
 import { requireAuthenticatedUser } from "@/lib/authorization";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { promises as fs } from "fs";
+import path from "path";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,10 +14,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const { id } = await params;
-    const { receivedLines } = await req.json();
-
-    if (!receivedLines || !Array.isArray(receivedLines)) {
+    const formData = await req.formData();
+    
+    const receivedLinesStr = formData.get("receivedLines");
+    if (!receivedLinesStr || typeof receivedLinesStr !== 'string') {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+    
+    const receivedLines = JSON.parse(receivedLinesStr);
+    if (!Array.isArray(receivedLines)) {
+      return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
     }
 
     // Verify PO
@@ -26,6 +34,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!po) {
       return NextResponse.json({ error: "PO not found" }, { status: 404 });
+    }
+
+    // Handle process owner proof file upload
+    const proofFile = formData.get("processOwnerProof") as File | null;
+    let processOwnerAttachments: string[] | null = null;
+    
+    if (proofFile) {
+      const uploadDir = path.join(process.cwd(), "public", "uploads", "process_owner");
+      await fs.mkdir(uploadDir, { recursive: true });
+      
+      const fileExt = proofFile.name.split('.').pop();
+      const fileName = `${id}_${Date.now()}.${fileExt}`;
+      const filePath = path.join(uploadDir, fileName);
+      
+      const buffer = Buffer.from(await proofFile.arrayBuffer());
+      await fs.writeFile(filePath, buffer);
+      
+      processOwnerAttachments = [`/uploads/process_owner/${fileName}`];
     }
 
     // Update lines
@@ -46,9 +72,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .where(eq(purchaseOrderLines.id, line.id));
     }
 
-    // Update PO status
+    // Update PO status and attachments
+    const updateData: any = { status: 'received' };
+    if (processOwnerAttachments) {
+      updateData.processOwnerAttachments = processOwnerAttachments;
+    }
+
     await db.update(purchaseOrders)
-      .set({ status: 'received' })
+      .set(updateData)
       .where(eq(purchaseOrders.id, id));
 
     return NextResponse.json({ message: "Goods receipt processed successfully" });

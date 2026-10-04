@@ -20,6 +20,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     nameEn: '',
     nameTa: '',
     nameHi: '',
+    categoryId: '',
+    subcategoryId: '',
     isActive: true,
     isTrackable: true,
     currentPrice: '',
@@ -27,6 +29,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     unit: 'Kg',
     baseMinStock: '',
     targetStock: '',
+    replenishmentStrategy: 'top_up',
+    reorderQuantity: '',
     purchaseUnit: '',
     purchaseUnitConversion: '',
     // Hidden fields with defaults for API requirements
@@ -38,11 +42,37 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [translating, setTranslating] = useState(false);
+
+  const handleAutoTranslate = async () => {
+    if (!formData.nameEn) return;
+    setTranslating(true);
+    try {
+      const [resTa, resHi] = await Promise.all([
+        fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ta&dt=t&q=${encodeURIComponent(formData.nameEn)}`),
+        fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=hi&dt=t&q=${encodeURIComponent(formData.nameEn)}`)
+      ]);
+      const dataTa = await resTa.json();
+      const dataHi = await resHi.json();
+      setFormData(prev => ({
+        ...prev,
+        nameTa: dataTa[0]?.[0]?.[0] || prev.nameTa,
+        nameHi: dataHi[0]?.[0]?.[0] || prev.nameHi,
+      }));
+    } catch (err) {
+      console.error("Translation failed", err);
+      alert("Failed to auto-translate. Please try manually.");
+    } finally {
+      setTranslating(false);
+    }
+  };
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { selected } = useSessionView();
   
   const [vendorList, setVendorList] = useState<{ id: string; name: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [subcategories, setSubcategories] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     if (!selected) return;
@@ -63,6 +93,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           nameEn: payload.item.nameEn || '',
           nameTa: payload.item.nameTa || '',
           nameHi: payload.item.nameHi || '',
+          categoryId: payload.item.categoryId || '',
+          subcategoryId: payload.item.subcategoryId || '',
           isActive: payload.item.isActive,
           isTrackable: payload.item.isTrackable,
           currentPrice: payload.item.currentPrice || '',
@@ -70,6 +102,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           unit: payload.item.unit || 'Kg',
           baseMinStock: payload.item.baseMinStock || '',
           targetStock: payload.item.targetStock || '',
+          replenishmentStrategy: payload.item.replenishmentStrategy || 'top_up',
+          reorderQuantity: payload.item.reorderQuantity || '',
           purchaseUnit: payload.item.purchaseUnit || '',
           purchaseUnitConversion: payload.item.purchaseUnitConversion?.toString() || '',
           orderFrequency: payload.item.orderFrequency || { daily: true, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
@@ -84,7 +118,24 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         setError(err.message || "Failed to load item data.");
         setLoading(false);
       });
+      
+    fetch(`/api/item-categories?organizationId=${selected.organizationId}`)
+      .then(res => res.json())
+      .then(data => setCategories(Array.isArray(data) ? data : []))
+      .catch(console.error);
   }, [selected, itemId]);
+
+  useEffect(() => {
+    if (formData.categoryId) {
+      fetch(`/api/item-subcategories?categoryId=${formData.categoryId}`)
+        .then(res => res.json())
+        .then(data => setSubcategories(Array.isArray(data) ? data : []))
+        .catch(console.error);
+    } else {
+      setSubcategories([]);
+      setFormData(prev => ({ ...prev, subcategoryId: '' }));
+    }
+  }, [formData.categoryId]);
 
   const handleSave = async () => {
     setError(null);
@@ -105,7 +156,9 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           currentPrice: Number(formData.currentPrice),
           maxPrice: Number(formData.maxPrice),
           baseMinStock: Number(formData.baseMinStock),
-          targetStock: formData.targetStock ? Number(formData.targetStock) : undefined,
+          targetStock: formData.replenishmentStrategy === 'top_up' ? Number(formData.targetStock) : undefined,
+          replenishmentStrategy: formData.replenishmentStrategy,
+          reorderQuantity: formData.replenishmentStrategy === 'fixed' ? Number(formData.reorderQuantity) : undefined,
           purchaseUnit: formData.purchaseUnit || undefined,
           purchaseUnitConversion: formData.purchaseUnitConversion ? Number(formData.purchaseUnitConversion) : undefined,
           orderFrequency: {
@@ -114,6 +167,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           },
           fridaySurge: Number(formData.fridaySurge),
           saturdaySurge: Number(formData.saturdaySurge),
+          categoryId: formData.categoryId || undefined,
+          subcategoryId: formData.subcategoryId || undefined,
           vendorIds: formData.linkedVendors.length > 0 ? formData.linkedVendors : ['00000000-0000-0000-0000-000000000000'],
         })
       });
@@ -176,13 +231,27 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', paddingBottom: '6rem' }}>
         <KalkiSection title="1. ITEM DETAILS & TRANSLATION" icon="📌">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <KalkiInput 
-              label="Item Name (English)" 
-              required
-              value={formData.nameEn} 
-              onChange={e => setFormData(p => ({ ...p, nameEn: e.target.value }))}
-              placeholder="Enter item name..."
-            />
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '0.5rem' }}>
+              <div style={{ flex: 1 }}>
+                <KalkiInput 
+                  label="Item Name (English)" 
+                  required
+                  value={formData.nameEn} 
+                  onChange={e => setFormData(p => ({ ...p, nameEn: e.target.value }))}
+                  placeholder="Enter item name..."
+                />
+              </div>
+              <button 
+                type="button" 
+                className="secondary-button"
+                style={{ padding: '0 1rem', height: '42px', display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: translating ? 'wait' : 'pointer' }}
+                onClick={handleAutoTranslate}
+                disabled={translating || !formData.nameEn}
+                title="Auto-Translate to Tamil & Hindi"
+              >
+                {translating ? '⏳...' : '🌐 Translate'}
+              </button>
+            </div>
             <KalkiInput 
               label="Item Name (Tamil)" 
               required
@@ -195,6 +264,30 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
               value={formData.nameHi} 
               onChange={e => setFormData(p => ({ ...p, nameHi: e.target.value }))}
             />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+            <KalkiSelect
+              label="Category"
+              value={formData.categoryId}
+              onChange={e => setFormData(p => ({ ...p, categoryId: e.target.value }))}
+            >
+              <option value="">-- No Category --</option>
+              {categories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </KalkiSelect>
+            
+            <KalkiSelect
+              label="Subcategory"
+              value={formData.subcategoryId}
+              onChange={e => setFormData(p => ({ ...p, subcategoryId: e.target.value }))}
+              disabled={!formData.categoryId}
+            >
+              <option value="">-- No Subcategory --</option>
+              {subcategories.map(sub => (
+                <option key={sub.id} value={sub.id}>{sub.name}</option>
+              ))}
+            </KalkiSelect>
           </div>
           <div className="kalki-field" style={{ marginTop: '1rem' }}>
             <label className="row" style={{ cursor: 'pointer', gap: '0.5rem', fontWeight: 600 }}>
@@ -240,6 +333,7 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
               <option value="Liter">Liter</option>
               <option value="Gram">Gram</option>
               <option value="Piece">Piece</option>
+              <option value="Bottle">Bottle</option>
               <option value="Box">Box</option>
               <option value="Packet">Packet</option>
             </KalkiSelect>
@@ -278,6 +372,39 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         </KalkiSection>
 
         <KalkiSection title="4. INVENTORY RULES & RECURRENCE" icon="📅">
+          
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 600, color: 'var(--kalki-foreground)', marginBottom: '0.5rem' }}>
+              Replenishment Strategy
+            </label>
+            <div style={{ display: 'flex', gap: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="replenishmentStrategy"
+                  checked={formData.replenishmentStrategy === 'top_up'}
+                  onChange={() => setFormData(p => ({ ...p, replenishmentStrategy: 'top_up', reorderQuantity: '' }))}
+                />
+                <div>
+                  <div style={{ fontWeight: 500 }}>Maintainable Value (Top-Up)</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--kalki-foreground-muted)' }}>Dynamically orders exact amount needed to reach target stock.</div>
+                </div>
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="radio" 
+                  name="replenishmentStrategy"
+                  checked={formData.replenishmentStrategy === 'fixed'}
+                  onChange={() => setFormData(p => ({ ...p, replenishmentStrategy: 'fixed', targetStock: '' }))}
+                />
+                <div>
+                  <div style={{ fontWeight: 500 }}>Fixed Bulk (Standardized)</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--kalki-foreground-muted)' }}>Orders a strict fixed amount (e.g. 1 Bag) when stock is low.</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
             <KalkiInput 
               label={`Base Minimum Stock (${formData.unit})`}
@@ -286,12 +413,25 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
               value={formData.baseMinStock} 
               onChange={e => setFormData(p => ({ ...p, baseMinStock: e.target.value }))} 
             />
-            <KalkiInput 
-              label={`Reorder Quantity in ${formData.unit}`}
-              type="number" 
-              value={formData.targetStock} 
-              onChange={e => setFormData(p => ({ ...p, targetStock: e.target.value }))} 
-            />
+            
+            {formData.replenishmentStrategy === 'top_up' ? (
+              <KalkiInput 
+                label={`Maintainable Target (${formData.unit})`}
+                type="number" 
+                value={formData.targetStock} 
+                required
+                onChange={e => setFormData(p => ({ ...p, targetStock: e.target.value }))} 
+              />
+            ) : (
+              <KalkiInput 
+                label={`Fixed Reorder Qty (in ${formData.purchaseUnit || formData.unit})`}
+                type="number" 
+                value={formData.reorderQuantity} 
+                required
+                onChange={e => setFormData(p => ({ ...p, reorderQuantity: e.target.value }))} 
+              />
+            )}
+
             <KalkiSelect
               label="Purchase Unit (Optional)"
               value={formData.purchaseUnit}

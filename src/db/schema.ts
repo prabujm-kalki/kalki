@@ -676,6 +676,7 @@ export const businessRoles = pgTable(
       .notNull()
       .references(() => organizations.id),
     departmentId: uuid("department_id").references(() => departments.id),
+    locationId: uuid("location_id").references(() => locations.id),
     // Self-referential reporting line
     // Use string type in drizzle if self-reference causes typescript issues, but any type works here for now.
     reportsToRoleId: uuid("reports_to_role_id"),
@@ -698,8 +699,12 @@ export const businessRoles = pgTable(
       table.organizationId,
       table.identifier,
     ),
-    unique("business_roles_organization_name_unique").on(
+    // Instead of unique across the whole org, we might want unique across org+location
+    // But since locationId is nullable (global), we'll keep the index unique for name within a specific location. 
+    // Drizzle currently has issues with conditional unique constraints, so let's just use an index for now, or include locationId in the constraint.
+    unique("business_roles_org_loc_name_unique").on(
       table.organizationId,
+      table.locationId,
       table.name,
     ),
     unique("business_roles_organization_id_unique").on(
@@ -1253,6 +1258,26 @@ export const auditEvents = pgTable(
   ],
 );
 
+export const itemCategories = pgTable("item_categories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  name: text("name").notNull(),
+  code: text("code"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const itemSubcategories = pgTable("item_subcategories", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  categoryId: uuid("category_id")
+    .notNull()
+    .references(() => itemCategories.id),
+  name: text("name").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+});
+
 export const items = pgTable(
   "items",
   {
@@ -1271,6 +1296,8 @@ export const items = pgTable(
     purchaseUnitConversion: numeric("purchase_unit_conversion"),
     baseMinStock: numeric("base_min_stock").notNull(),
     targetStock: numeric("target_stock"),
+    replenishmentStrategy: text("replenishment_strategy").notNull().default("top_up"),
+    reorderQuantity: numeric("reorder_quantity"),
     orderFrequency: jsonb("order_frequency").notNull().default({}),
     fridaySurge: numeric("friday_surge").default("0"),
     saturdaySurge: numeric("saturday_surge").default("0"),
@@ -1278,6 +1305,8 @@ export const items = pgTable(
     imageUrl: text("image_url"),
     isTrackable: boolean("is_trackable").notNull().default(true),
     isActive: boolean("is_active").notNull().default(true),
+    categoryId: uuid("category_id").references(() => itemCategories.id),
+    subcategoryId: uuid("subcategory_id").references(() => itemSubcategories.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1307,6 +1336,7 @@ export const vendors = pgTable(
       .references(() => organizations.id),
     locationId: uuid("location_id").notNull(),
     name: text("name").notNull(),
+    shortCode: text("short_code"),
     contactDetails: jsonb("contact_details").notNull().default({}),
     paymentTerms: text("payment_terms"),
     creditDays: integer("credit_days"),
@@ -1388,6 +1418,7 @@ export const purchaseOrders = pgTable(
     vendorId: uuid("vendor_id")
       .notNull()
       .references(() => vendors.id),
+    poNumber: text("po_number"),
     status: text("status").notNull().default("draft"),
     paymentMethod: text("payment_method").notNull().default("credit"),
     totalAmount: numeric("total_amount").notNull(),
@@ -1395,6 +1426,7 @@ export const purchaseOrders = pgTable(
     cashierBillAmount: numeric("cashier_bill_amount"),
     cashierPaymentMethod: text("cashier_payment_method"),
     cashierAttachments: jsonb("cashier_attachments"),
+    processOwnerAttachments: jsonb("process_owner_attachments"),
     calculatedTotal: numeric("calculated_total"),
     routingConfigurationId: uuid("routing_configuration_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -1451,6 +1483,8 @@ export const purchaseSchedules = pgTable(
       .references(() => businessRoles.id),
     frequencyRule: text("frequency_rule").notNull(),
     reminderTime: text("reminder_time").notNull(),
+    priority: text("priority").notNull().default("medium"),
+    taskDefinitionId: uuid("task_definition_id").references(() => taskDefinitions.id),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -1834,6 +1868,11 @@ export const taskDefinitions = pgTable(
       () => businessRoles.id,
     ),
     escalationPolicyId: uuid("escalation_policy_id"), // Added for compatibility
+    completionTimeMins: integer("completion_time_mins"),
+    escalationDelayMins: integer("escalation_delay_mins"),
+    warningThresholdMins: integer("warning_threshold_mins"),
+    allowTimeExtension: boolean("allow_time_extension").notNull().default(false),
+    maxExtensionMins: integer("max_extension_mins"),
     actionType: text("action_type", { enum: taskActionTypes })
       .notNull()
       .default("task"),
@@ -1864,6 +1903,9 @@ export const taskEscalationMatrices = pgTable(
     level: integer("level").notNull(), // 1, 2, 3
     roleId: uuid("role_id").references(() => businessRoles.id),
     userId: text("user_id").references(() => authUsers.id),
+    escalateToReportingManager: boolean("escalate_to_reporting_manager")
+      .notNull()
+      .default(false),
     timeoutMinutes: integer("timeout_minutes").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -1890,6 +1932,7 @@ export const taskInstances = pgTable(
     assignedUserId: text("assigned_user_id").references(() => authUsers.id),
     dueAt: timestamp("due_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
+    extensionRequestedMins: integer("extension_requested_mins").notNull().default(0),
     completionProofUrl: text("completion_proof_url"),
     completionData: jsonb("completion_data"),
     skippedReason: text("skipped_reason"),

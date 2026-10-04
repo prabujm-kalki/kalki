@@ -31,8 +31,10 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   
   // Purchasing
   { module: "purchasing", submodule: "dashboard", actions: ["read"] },
+  { module: "purchasing", submodule: "create_po", actions: ["read", "create", "update", "delete", "approve"] },
   { module: "purchasing", submodule: "items", actions: ["read", "create", "update", "delete"] },
   { module: "purchasing", submodule: "vendors", actions: ["read", "create", "update", "delete"] },
+  { module: "purchasing", submodule: "reports", actions: ["read"] },
   { module: "purchasing", submodule: "configuration", actions: ["read", "create", "update"] },
   { module: "purchasing", submodule: "manual", actions: ["read"] },
   
@@ -47,6 +49,9 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   
   // Finance
   { module: "finance", submodule: "transactions", actions: ["read", "create", "update", "approve"] },
+  
+  // Task Engine
+  { module: "tasks", submodule: "tasks", actions: ["read", "create", "update", "delete"] },
   
   // Settings
   { module: "settings", submodule: "organization_chart", actions: ["read", "update"] },

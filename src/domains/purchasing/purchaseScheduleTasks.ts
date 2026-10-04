@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { purchaseSchedules, taskDefinitions, taskInstances, locations, vendors } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { purchaseSchedules, taskDefinitions, taskInstances, locations, vendors, businessRoles } from "@/db/schema";
+import { eq, and, gte, sql, inArray } from "drizzle-orm";
 import crypto from "crypto";
 
 export async function generateRoutinePurchaseTasks() {
@@ -13,12 +13,16 @@ export async function generateRoutinePurchaseTasks() {
       responsibleRoleId: purchaseSchedules.responsibleRoleId,
       frequencyRule: purchaseSchedules.frequencyRule,
       reminderTime: purchaseSchedules.reminderTime,
+      priority: purchaseSchedules.priority,
+      taskDefinitionId: purchaseSchedules.taskDefinitionId,
+      completionTimeMins: taskDefinitions.completionTimeMins,
       vendorName: vendors.name,
       locationName: locations.name,
     })
     .from(purchaseSchedules)
     .leftJoin(vendors, eq(purchaseSchedules.vendorId, vendors.id))
     .leftJoin(locations, eq(purchaseSchedules.locationId, locations.id))
+    .leftJoin(taskDefinitions, eq(purchaseSchedules.taskDefinitionId, taskDefinitions.id))
     .where(eq(purchaseSchedules.isActive, true));
 
   const now = new Date();
@@ -34,14 +38,16 @@ export async function generateRoutinePurchaseTasks() {
   let tasksCreated = 0;
 
   for (const schedule of allSchedules) {
-    // 1. Check if the time matches
-    if (schedule.reminderTime !== currentTimeStr) {
+    let effectiveReminderTime = schedule.reminderTime;
+
+    // 1. Check if the scheduled time has been reached or passed
+    if (currentTimeStr < effectiveReminderTime) {
       continue;
     }
 
     // 2. Check if the frequency matches today
     let isDayMatch = false;
-    const rule = schedule.frequencyRule;
+    const rule = schedule.frequencyRule.toUpperCase();
 
     if (rule === "DAILY") {
       isDayMatch = true;
@@ -68,54 +74,80 @@ export async function generateRoutinePurchaseTasks() {
       continue;
     }
 
-    // 3. Ensure a Task Definition exists for "Routine Purchase Order" for this org
-    let defs = await db.select().from(taskDefinitions)
-      .where(and(
-        eq(taskDefinitions.organizationId, schedule.organizationId),
-        eq(taskDefinitions.module, "purchasing"),
-        eq(taskDefinitions.title, "Routine Purchase Order")
-      ));
+    await db.transaction(async (tx) => {
+      // 3. Prevent duplicate instances from concurrent cron workers
+      // Use row-level lock on the schedule instead of advisory lock for better connection pooler compatibility
+      await tx.execute(sql`SELECT id FROM purchase_schedules WHERE id = ${schedule.id} FOR NO KEY UPDATE`);
 
-    let defId: string;
-    if (defs.length === 0) {
-      const [def] = await db.insert(taskDefinitions).values({
-        organizationId: schedule.organizationId,
-        module: "purchasing",
-        title: "Routine Purchase Order",
-        description: "Automatically scheduled purchase order for routine vendors.",
-        triggerType: "time",
-        priority: "medium",
-        triggerConfig: {}
-      }).returning();
-      defId = def.id;
-    } else {
-      defId = defs[0].id;
-    }
-
-    // 4. Generate the Task Instance
-    const taskId = crypto.randomUUID();
-    const dueAt = new Date(now.getTime() + 4 * 60 * 60 * 1000); // Due in 4 hours
-
-    await db.insert(taskInstances).values({
-      id: taskId,
-      organizationId: schedule.organizationId,
-      definitionId: defId,
-      status: "pending",
-      priority: "medium",
-      assignedRoleId: schedule.responsibleRoleId,
-      dueAt: dueAt,
-      contextData: {
-        scheduleId: schedule.id,
-        vendorId: schedule.vendorId,
-        vendorName: schedule.vendorName,
-        locationId: schedule.locationId,
-        locationName: schedule.locationName,
-        title: `${schedule.vendorName}_${schedule.frequencyRule.charAt(0) + schedule.frequencyRule.slice(1).toLowerCase()}_${schedule.reminderTime}`,
-        actionUrl: `/purchasing/purchase-orders/create?vendorId=${schedule.vendorId}&scheduleId=${schedule.id}`
+      // 4. Ensure a Task Definition exists or use the selected one
+      if (!schedule.taskDefinitionId) {
+        console.warn(`Schedule ${schedule.id} has no task execution policy linked. Skipping execution.`);
+        return;
       }
-    });
+      const defId = schedule.taskDefinitionId;
 
-    tasksCreated++;
+      // 5. Generate the Task Instance
+      const taskId = crypto.randomUUID();
+      
+      const [def] = await tx.select().from(taskDefinitions).where(eq(taskDefinitions.id, defId));
+      if (!def) {
+        console.warn(`Definition ${defId} not found.`);
+        return;
+      }
+      
+      // Calculate due date based on definition or default to 4 hours
+      const completionMins = def.completionTimeMins || 240; 
+      const dueAt = new Date(now.getTime() + completionMins * 60 * 1000);
+
+      // Check if we already processed this schedule today
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tasksToday = await tx.select().from(taskInstances)
+        .where(and(
+          eq(taskInstances.definitionId, defId),
+          gte(taskInstances.createdAt, startOfToday)
+        ));
+      if (tasksToday.some(t => (t.contextData as any)?.scheduleId === schedule.id)) {
+        return; // Already generated or escalated today (prevents ghost tasks if time is edited)
+      }
+
+      // Check if there is an existing pending task for this definition and vendor schedule
+      // Because this definition is shared, we must check contextData for scheduleId to avoid cross-blocking
+      const pendingTasks = await tx.select().from(taskInstances)
+        .where(and(
+          eq(taskInstances.definitionId, defId),
+          inArray(taskInstances.status, ["pending", "in_progress"])
+        ));
+        
+      // Filter by scheduleId since it's stored in contextData JSON
+      const matchedPending = pendingTasks.find(t => (t.contextData as any)?.scheduleId === schedule.id);
+
+      if (matchedPending) {
+        // Do not generate a new task for this cycle because the previous is still pending.
+        // We let the central Task Engine (sweeper) handle all escalations based on the configured policy.
+        console.warn(`Schedule ${schedule.id} cycle skipped. Task ${matchedPending.id} is still pending.`);
+        return;
+      }
+
+      await tx.insert(taskInstances).values({
+        id: taskId,
+        organizationId: schedule.organizationId,
+        definitionId: defId,
+        status: "pending",
+        priority: schedule.priority,
+        assignedRoleId: schedule.responsibleRoleId,
+        dueAt: dueAt,
+        contextData: {
+          scheduleId: schedule.id,
+          vendorId: schedule.vendorId,
+          vendorName: schedule.vendorName,
+          locationId: schedule.locationId,
+          locationName: schedule.locationName,
+          title: `${schedule.vendorName}_${schedule.frequencyRule.charAt(0) + schedule.frequencyRule.slice(1).toLowerCase()}_${schedule.reminderTime}`,
+          actionUrl: `/purchasing/stock-assessment?vendorId=${schedule.vendorId}&taskId=${taskId}`
+        }
+      });
+      tasksCreated++;
+    });
   }
 
   return { success: true, tasksCreated };

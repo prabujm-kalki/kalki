@@ -10,6 +10,7 @@ import { StatusMessage } from "@/components/StatusMessage";
 import type { SessionContext, SessionScope } from "@/components/work/types";
 import { ToastProvider } from "./ui/Toast";
 import { Menu, X } from "lucide-react";
+import { NotificationPoller } from "./NotificationPoller";
 
 function scopeKey(scope: Pick<SessionScope, "organizationId" | "locationId">) {
   return `${scope.organizationId}:${scope.locationId}`;
@@ -89,6 +90,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   return (
     <SessionViewContext.Provider value={{ session, selected }}>
       <ToastProvider>
+        {selected && <NotificationPoller organizationId={selected.organizationId} />}
         <div className="kalki-app-shell">
           
           {/* Mobile Overlay */}

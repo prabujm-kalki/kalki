@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
     const definitions = await db
       .select()
       .from(taskDefinitions)
-      .where(eq(taskDefinitions.organizationId, organizationId));
+      .where(and(
+        eq(taskDefinitions.organizationId, organizationId),
+        eq(taskDefinitions.isActive, true)
+      ));
 
     return NextResponse.json({ definitions });
   } catch (error: any) {

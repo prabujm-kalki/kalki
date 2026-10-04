@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, CheckCircle } from "lucide-react";
+import { X, CheckCircle, FileCheck } from "lucide-react";
 
 export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
   const [pos, setPos] = useState(initialPos);
@@ -15,39 +15,60 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
   const [cashierNotes, setCashierNotes] = useState<string>("");
   const [billFile, setBillFile] = useState<File | null>(null);
 
+  const [errorMsg, setErrorMsg] = useState<string>("");
+
   const formatCurrency = (val: any) => {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(val) || 0);
   };
 
   const handleAuditClick = async (po: any) => {
     setAuditingPo(po);
+    setErrorMsg("");
     setLoadingLines(true);
     setCashierBillAmount(po.cashierBillAmount || po.totalAmount || "");
     try {
       const res = await fetch(`/api/public/po?token=${po.publicToken}`);
       if (res.ok) {
         const data = await res.json();
-        setAuditLines(data.lines || []);
+        // Default unitRate to lastRate if it is 0 or missing
+        const mappedLines = (data.lines || []).map((l: any) => ({
+          ...l,
+          unitRate: l.unitRate ? l.unitRate : (l.lastRate || 0)
+        }));
+        setAuditLines(mappedLines);
       } else {
-        alert("Failed to load PO details");
+        setErrorMsg("Failed to load PO details");
       }
     } catch (e) {
       console.error(e);
-      alert("Error loading PO lines");
+      setErrorMsg("Error loading PO lines");
     } finally {
       setLoadingLines(false);
     }
   };
 
+  const calculatedTotal = auditLines.reduce((acc, line) => {
+    const qty = Number(line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity);
+    const price = Number(line.unitRate || 0);
+    return acc + (qty * price);
+  }, 0);
+
+  const difference = (cashierBillAmount === "" ? 0 : Number(cashierBillAmount) - calculatedTotal);
+
   const submitAudit = async () => {
+    setErrorMsg("");
     const finalAmount = cashierBillAmount || calculatedTotal.toString();
     
     if (!finalAmount) {
-      alert("Please enter the actual Cashier Bill Amount.");
+      setErrorMsg("Please enter the actual Cashier Bill Amount.");
       return;
     }
     if (!billFile) {
-      alert("It is mandatory to upload the physical bill image/PDF.");
+      setErrorMsg("It is mandatory to upload the physical bill image/PDF.");
+      return;
+    }
+    if (Math.abs(difference) > 0.01 && !cashierNotes.trim()) {
+      setErrorMsg(`Discrepancy of ${difference > 0 ? '+' : ''}${difference.toFixed(2)} exists. You must provide a reason in the Audit Notes to proceed.`);
       return;
     }
 
@@ -68,26 +89,17 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
       if (res.ok) {
         setPos(pos.filter(p => p.id !== auditingPo.id));
         setAuditingPo(null);
-        alert("Audit completed and sent for payment processing.");
       } else {
         const data = await res.json();
-        alert("Failed to process audit: " + (data.error || "Unknown error"));
+        setErrorMsg("Failed to process audit: " + (data.error || "Unknown error"));
       }
     } catch (e) {
       console.error(e);
-      alert("Error processing audit");
+      setErrorMsg("Error processing audit");
     } finally {
       setSubmitting(false);
     }
   };
-
-  const calculatedTotal = auditLines.reduce((acc, line) => {
-    const qty = Number(line.receivedQuantity !== undefined ? line.receivedQuantity : line.orderedQuantity);
-    const price = Number(line.unitRate || 0);
-    return acc + (qty * price);
-  }, 0);
-
-  const difference = (cashierBillAmount === "" ? 0 : Number(cashierBillAmount) - calculatedTotal);
 
   return (
     <div>
@@ -96,7 +108,7 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ backgroundColor: 'white', width: '90%', maxWidth: '800px', maxHeight: '90%', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
-              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold' }}>Cashier Audit - PO #{auditingPo.id}</h2>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold' }}>Cashier Audit - PO #{auditingPo.poNumber || auditingPo.id.split('-')[0].toUpperCase() + '-' + auditingPo.id.substring(1, 5)}</h2>
               <button onClick={() => setAuditingPo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
                 <X size={20} />
               </button>
@@ -136,9 +148,21 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
                         
                         return (
                           <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                            <td style={{ padding: '0.5rem' }}>{line.itemName}</td>
+                            <td style={{ padding: '0.5rem' }}>{line.itemName} - {line.unitOfMeasure}</td>
                             <td style={{ padding: '0.5rem', textAlign: 'right', color: 'var(--text-muted)' }}>{line.orderedQuantity}</td>
-                            <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: '#2563eb' }}>{recQty}</td>
+                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                              <input 
+                                type="number" 
+                                step="any"
+                                value={line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity}
+                                onChange={(e) => {
+                                  const newLines = [...auditLines];
+                                  newLines[idx].receivedQuantity = e.target.value;
+                                  setAuditLines(newLines);
+                                }}
+                                style={{ width: '80px', textAlign: 'right', padding: '0.2rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontWeight: 'bold', color: '#2563eb' }}
+                              />
+                            </td>
                             <td style={{ padding: '0.5rem', textAlign: 'right' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.2rem' }}>
                                 <span>₹</span>
@@ -168,7 +192,19 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
                   </table>
 
                   <div style={{ backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-                    <h3 style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem' }}>Cashier Verification</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0 }}>Cashier Verification</h3>
+                      {auditingPo.processOwnerAttachments && auditingPo.processOwnerAttachments.length > 0 && (
+                        <a 
+                          href={auditingPo.processOwnerAttachments[0]} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ padding: '0.25rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', borderRadius: '0.25rem', textDecoration: 'none', fontSize: '0.875rem', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <FileCheck size={14} /> View Delivery Proof
+                        </a>
+                      )}
+                    </div>
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
                       <div>
@@ -230,21 +266,24 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
               )}
             </div>
             
-            <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', backgroundColor: '#f8fafc' }}>
-              <button 
-                onClick={() => setAuditingPo(null)}
-                style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer', fontWeight: '500' }}
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={submitAudit}
-                disabled={submitting || loadingLines}
-                style={{ padding: '0.5rem 1.5rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#10b981', color: 'white', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-              >
-                <CheckCircle size={16} />
-                {submitting ? 'Processing...' : 'Verify & Send to Accounts'}
-              </button>
+            <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+              <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.875rem' }}>{errorMsg}</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  onClick={() => setAuditingPo(null)}
+                  style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer', fontWeight: '500' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={submitAudit}
+                  disabled={submitting || loadingLines}
+                  style={{ padding: '0.5rem 1.5rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#10b981', color: 'white', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <CheckCircle size={16} />
+                  {submitting ? 'Processing...' : 'Verify & Send to Accounts'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -266,7 +305,7 @@ export function CashierAuditQueue({ initialPos }: { initialPos: any[] }) {
             {pos.map(po => (
               <tr key={po.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                 <td style={{ padding: '0.75rem 1rem' }}>{new Date(po.createdAt).toLocaleDateString()}</td>
-                <td style={{ padding: '0.75rem 1rem', fontWeight: '500' }}>{po.id}</td>
+                <td style={{ padding: '0.75rem 1rem', fontWeight: '500' }}>{po.poNumber || po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5)}</td>
                 <td style={{ padding: '0.75rem 1rem' }}>{po.vendorName}</td>
                 <td style={{ padding: '0.75rem 1rem' }}>{formatCurrency(po.totalAmount)}</td>
                 <td style={{ padding: '0.75rem 1rem' }}>

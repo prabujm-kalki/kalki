@@ -19,18 +19,9 @@ export async function generateDailyStockTasks() {
         eq(taskDefinitions.triggerType, "time")
       ));
 
-    // If none exist, we will create the default one
+    // If none exist, simply skip. The user has either deleted the blueprint or hasn't created one.
     if (defs.length === 0) {
-      const [def] = await db.insert(taskDefinitions).values({
-        organizationId: loc.organizationId,
-        module: "inventory",
-        title: "Perform Daily Stock Assessment",
-        description: "Manually verify and enter the current physical stock for all items.",
-        triggerType: "time",
-        priority: "high",
-        triggerConfig: { timeOfDay: "08:00", deadlineHours: 4 }
-      }).returning();
-      defs = [def];
+      continue;
     }
 
     for (const def of defs) {
@@ -45,6 +36,21 @@ export async function generateDailyStockTasks() {
 
     const deadlineHours = config?.deadlineHours || 4;
     const dueAt = new Date(now.getTime() + deadlineHours * 60 * 60 * 1000);
+
+    // Check if there is an existing pending task for this definition and location
+    const existingTasks = await db.select().from(taskInstances)
+      .where(and(
+        eq(taskInstances.definitionId, def.id),
+        eq(taskInstances.status, "pending")
+      ));
+
+    if (existingTasks.length > 0) {
+      // Do not generate a new task if the previous one is still pending.
+      // We rely entirely on the Unified Escalation Sweeper (sweeper.ts) and the Blueprint's matrix
+      // to handle the overdue state of the existing task.
+      console.warn(`Stock Assessment cycle skipped for location ${loc.name}. A previous task is still pending.`);
+      continue;
+    }
 
     // Insert task instance
     const taskId = crypto.randomUUID();

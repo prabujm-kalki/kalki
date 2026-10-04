@@ -17,6 +17,8 @@ export async function PUT(
       responsibleRoleId,
       frequencyRule,
       reminderTime,
+      priority,
+      taskDefinitionId,
     } = body;
 
     const [updated] = await db
@@ -28,6 +30,8 @@ export async function PUT(
         responsibleRoleId,
         frequencyRule,
         reminderTime,
+        priority: priority || "medium",
+        taskDefinitionId: taskDefinitionId || null,
         updatedAt: new Date(),
       })
       .where(eq(purchaseSchedules.id, id))

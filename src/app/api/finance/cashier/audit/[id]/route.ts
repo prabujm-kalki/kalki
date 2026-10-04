@@ -56,24 +56,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const lines = JSON.parse(linesStr);
       let newTotal = 0;
       for (const line of lines) {
-        const p = Number(line.price || 0);
+        const p = Number(line.unitRate || line.price || 0);
         const q = Number(line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity);
         newTotal += (p * q);
         await db.update(purchaseOrderLines)
-          .set({ unitRate: String(p) })
+          .set({ 
+            unitRate: String(p),
+            receivedQuantity: String(q) 
+          })
           .where(eq(purchaseOrderLines.id, line.id));
       }
     }
 
-    // Update PO with cashier details and move to 'completed' status
+    // Update PO with cashier details and move to 'audited' status
     await db.update(purchaseOrders)
       .set({ 
         cashierBillAmount: String(cashierBillAmount),
-        status: 'completed',
-        // In reality you might want to save the billUrl to the PO table or an attachments table
-        // We'll append it to the internal notes or if there's a column, use it.
-        // Assuming no `billUrl` column right now, we can append to notes.
-        notes: (po.notes ? po.notes + "\n" : "") + `Audit Notes: ${notes || 'N/A'}\nBill: ${billUrl}`,
+        status: 'audited',
+        cashierAttachments: [billUrl],
+        notes: (po.notes ? po.notes + "\n" : "") + `Audit Notes: ${notes || 'N/A'}`,
         updatedAt: new Date()
       })
       .where(eq(purchaseOrders.id, id));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, Trash2, Pencil } from "lucide-react";
 
 // In a real app we'd get AppShell from the layout, but for standalone test we'll use a wrapper if it fails
 // Assuming AppShell is globally available or properly imported.
@@ -13,24 +13,36 @@ type TaskDefinition = {
   module: string;
   triggerType: string;
   actionType: string;
+  triggerConfig?: any;
+  targetRoleId?: string | null;
+  completionTimeMins?: number | null;
+  warningThresholdMins?: number | null;
+  allowTimeExtension?: boolean;
+  maxExtensionMins?: number | null;
+  escalationLevels?: any[];
 };
 
 export default function TaskConfigurationPage() {
   const [tasks, setTasks] = useState<TaskDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   // Form State
   const [title, setTitle] = useState("");
-  const [module, setModule] = useState("inventory");
-  const [triggerType, setTriggerType] = useState("event");
   const [actionType, setActionType] = useState("task");
 
   const [roles, setRoles] = useState<any[]>([]);
   const [targetRoleId, setTargetRoleId] = useState("");
-  const [escalationRoleId, setEscalationRoleId] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("08:00");
-  const [deadlineHours, setDeadlineHours] = useState("4");
+  const [escalationLevels, setEscalationLevels] = useState<Array<{ roleId: string, timeoutMinutes: string, notificationTone: string }>>([
+    { roleId: "", timeoutMinutes: "30", notificationTone: "default" }
+  ]);
+
+  const [reminderTone, setReminderTone] = useState("default");
+  const [completionTimeMins, setCompletionTimeMins] = useState("60");
+  const [warningThresholdMins, setWarningThresholdMins] = useState("10");
+  const [allowTimeExtension, setAllowTimeExtension] = useState(false);
+  const [maxExtensionMins, setMaxExtensionMins] = useState("15");
 
   const loadTasks = () => {
     setLoading(true);
@@ -59,225 +71,383 @@ export default function TaskConfigurationPage() {
     loadRoles();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this task rule?")) return;
     try {
-      const triggerConfig: any = {};
-      if (triggerType === "time") {
-        triggerConfig.timeOfDay = scheduleTime;
-      }
-      triggerConfig.deadlineHours = Number(deadlineHours);
-
-      const res = await fetch("/api/settings/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          module,
-          triggerType,
-          actionType,
-          targetRoleId: targetRoleId || null,
-          escalationRoleId: escalationRoleId || null,
-          triggerConfig,
-        }),
-      });
+      const res = await fetch(`/api/settings/tasks/${id}`, { method: "DELETE" });
       if (res.ok) {
-        setIsModalOpen(false);
-        setTitle("");
-        setTargetRoleId("");
-        setEscalationRoleId("");
         loadTasks();
       } else {
-        alert("Failed to create task");
+        alert("Failed to delete task");
       }
     } catch (err) {
       console.error(err);
-      alert("Error creating task");
+      alert("Error deleting task");
     }
   };
 
-  return (
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const triggerConfig: any = {
+        reminderTone,
+        escalationTones: escalationLevels.map(l => l.notificationTone)
+      };
+
+      const res = await fetch(editingTaskId ? `/api/settings/tasks/${editingTaskId}` : "/api/settings/tasks", {
+        method: editingTaskId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          triggerType: "event", // Defaulting to event as a pure policy
+          actionType,
+          targetRoleId: targetRoleId || null,
+          triggerConfig,
+          completionTimeMins: Number(completionTimeMins),
+          warningThresholdMins: Number(warningThresholdMins),
+          allowTimeExtension,
+          maxExtensionMins: Number(maxExtensionMins),
+          escalationLevels: escalationLevels.map(level => ({
+            roleId: level.roleId === "REPORTING_MANAGER" ? null : (level.roleId || null),
+            escalateToReportingManager: level.roleId === "REPORTING_MANAGER",
+            timeoutMinutes: Number(level.timeoutMinutes)
+          }))
+        }),
+      });
+      if (res.ok) {
+        setEditingTaskId(null);
+        setIsModalOpen(false);
+        setTitle("");
+        setTargetRoleId("");
+        setReminderTone("default");
+        setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "default" }]);
+        loadTasks();
+      } else {
+        alert(editingTaskId ? "Failed to update task" : "Failed to create task");
+      }
+    } catch (err) {
+      console.error(err);
+      alert(editingTaskId ? "Error updating task" : "Error creating task");
+    }
+  };
+
+  const handleEdit = (task: TaskDefinition) => {
+    setEditingTaskId(task.id);
+    setTitle(task.title);
+    setActionType(task.actionType);
+    setTargetRoleId(task.targetRoleId || "");
+    setReminderTone(task.triggerConfig?.reminderTone || "default");
+    setCompletionTimeMins((task.completionTimeMins || 60).toString());
+    setWarningThresholdMins((task.warningThresholdMins || 10).toString());
+    setAllowTimeExtension(task.allowTimeExtension || false);
+    setMaxExtensionMins((task.maxExtensionMins || 15).toString());
     
-      <div className="flex h-full flex-col">
-        <header className="flex items-center justify-between border-b px-6 py-4">
-          <div>
-            <h1 className="text-lg font-medium">Task & Reminder Engine</h1>
-            <p className="text-sm text-gray-500">Configure event-driven tasks and time-based reminders.</p>
-          </div>
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+    if (task.escalationLevels && task.escalationLevels.length > 0) {
+      setEscalationLevels(task.escalationLevels.map((lvl: any, index: number) => ({
+        roleId: lvl.escalateToReportingManager ? "REPORTING_MANAGER" : (lvl.roleId || ""),
+        timeoutMinutes: (lvl.timeoutMinutes || 0).toString(),
+        notificationTone: task.triggerConfig?.escalationTones?.[index] || "default"
+      })));
+    } else {
+      setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "default" }]);
+    }
+    
+    setIsModalOpen(true);
+  };
+
+  const handleOpenNew = () => {
+    setEditingTaskId(null);
+    setTitle("");
+    setTargetRoleId("");
+    setReminderTone("default");
+    setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "default" }]);
+    setIsModalOpen(true);
+  };
+
+  return (
+
+    <div className="kalki-table-container" style={{ padding: '24px' }}>
+      <div className="kalki-page-header" style={{ margin: '-24px -24px 24px -24px' }}>
+        <div>
+          <h1 className="kalki-page-title">Task &amp; Reminder Engine</h1>
+          <p className="kalki-page-description">Configure event-driven tasks and time-based reminders.</p>
+        </div>
+        <div style={{ marginTop: '12px' }}>
+          <button
+            onClick={handleOpenNew}
+            className="kalki-button kalki-button--primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
           >
             <Plus className="h-4 w-4" />
             New Task Rule
           </button>
-        </header>
+        </div>
+      </div>
 
-        <main className="flex-1 overflow-auto p-6 relative">
-          <div className="rounded-lg border bg-white shadow-sm">
-            <table className="w-full text-left text-sm">
-              <thead className="border-b bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 font-medium text-gray-900">Title</th>
-                  <th className="px-6 py-3 font-medium text-gray-900">Module</th>
-                  <th className="px-6 py-3 font-medium text-gray-900">Trigger</th>
-                  <th className="px-6 py-3 font-medium text-gray-900">Action</th>
-                  <th className="px-6 py-3 font-medium text-gray-900">Status</th>
+      <div className="kalki-table-container">
+        <table className="kalki-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Module</th>
+              <th>Action</th>
+              <th>Status</th>
+              <th style={{ textAlign: 'right' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--kalki-text-secondary)', padding: '32px' }}>
+                  Loading configurations...
+                </td>
+              </tr>
+            ) : tasks.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', color: 'var(--kalki-text-secondary)', padding: '32px' }}>
+                  No task rules configured. Create one to automate operations.
+                </td>
+              </tr>
+            ) : (
+              tasks.map((task) => (
+                <tr key={task.id}>
+                  <td style={{ fontWeight: 500 }}>{task.title}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{task.module}</td>
+                  <td style={{ textTransform: 'capitalize' }}>{task.actionType}</td>
+                  <td>
+                    <span className="pill" data-state="VERIFIED">
+                      Active
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'right', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={() => handleEdit(task)}
+                      className="kalki-button kalki-button--ghost"
+                      title="Edit Task"
+                    >
+                      <Pencil className="h-4 w-4 text-blue-600" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(task.id)}
+                      className="kalki-button kalki-button--ghost kalki-button--danger"
+                      title="Delete Task"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y">
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      Loading configurations...
-                    </td>
-                  </tr>
-                ) : tasks.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No task rules configured. Create one to automate operations.
-                    </td>
-                  </tr>
-                ) : (
-                  tasks.map((task) => (
-                    <tr key={task.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-medium">{task.title}</td>
-                      <td className="px-6 py-4 capitalize">{task.module}</td>
-                      <td className="px-6 py-4 capitalize">{task.triggerType}</td>
-                      <td className="px-6 py-4 capitalize">{task.actionType}</td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                          Active
-                        </span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
 
-          {/* Modal overlay */}
-          {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-medium text-gray-900">Create Task Rule</h2>
-                  <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Title</label>
-                    <input 
-                      type="text" 
+        {/* Modal overlay */}
+        {isModalOpen && (
+          <div className="kalki-modal-overlay">
+            <div className="kalki-modal" style={{ maxHeight: '90vh', overflowY: 'auto', backgroundColor: '#ffffff' }}>
+              <div className="kalki-modal-header">
+                <h2>{editingTaskId ? "Edit Task Rule" : "Create Task Rule"}</h2>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="kalki-modal-close">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit}>
+                <div className="kalki-modal-content">
+                  <div className="kalki-field">
+                    <label className="kalki-label">Title <span className="kalki-required">*</span></label>
+                    <input
+                      type="text"
                       required
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                      className="kalki-input"
                       placeholder="e.g. Low Stock Alert"
                     />
                   </div>
-                  
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Target Module</label>
-                    <select 
-                      value={module}
-                      onChange={(e) => setModule(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="inventory">Inventory</option>
-                      <option value="purchase">Purchase</option>
-                      <option value="sales">Sales</option>
-                      <option value="finance">Finance</option>
-                      <option value="hr">HR</option>
-                    </select>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">Trigger Type</label>
+
+                  <div className="kalki-grid-2-col">
+                    <div className="kalki-field">
+                      <label className="kalki-label">Reminder Tone</label>
                       <select 
-                        value={triggerType}
-                        onChange={(e) => setTriggerType(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={reminderTone}
+                        onChange={(e) => setReminderTone(e.target.value)}
+                        className="kalki-select"
                       >
-                        <option value="event">Event-Based</option>
-                        <option value="time">Time-Based</option>
+                        <option value="default">Default Ping</option>
+                        <option value="chime">Friendly Chime</option>
+                        <option value="alert">Alert Tone</option>
+                        <option value="urgent">Urgent Siren</option>
                       </select>
                     </div>
-                    {triggerType === "time" && (
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-gray-700">Time of Day</label>
-                        <input 
-                          type="time" 
-                          value={scheduleTime}
-                          onChange={(e) => setScheduleTime(e.target.value)}
-                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        />
-                      </div>
-                    )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">Assigned Role</label>
-                      <select 
+                  <div className="kalki-grid-2-col">
+                    <div className="kalki-field">
+                      <label className="kalki-label">Assigned Role</label>
+                      <select
                         value={targetRoleId}
                         onChange={(e) => setTargetRoleId(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="kalki-select"
                       >
                         <option value="">Any / Location Level</option>
                         {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                       </select>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-gray-700">Deadline (Hours)</label>
-                      <input 
-                        type="number" 
+                    <div className="kalki-field">
+                      <label className="kalki-label">Completion Time (Mins)</label>
+                      <input
+                        type="number"
                         min="1"
-                        value={deadlineHours}
-                        onChange={(e) => setDeadlineHours(e.target.value)}
-                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        value={completionTimeMins}
+                        onChange={(e) => setCompletionTimeMins(e.target.value)}
+                        className="kalki-input"
+                        placeholder="e.g. 60"
                       />
                     </div>
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-gray-700">Escalation Role (Optional)</label>
-                    <select 
-                      value={escalationRoleId}
-                      onChange={(e) => setEscalationRoleId(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      <option value="">Default Management</option>
-                      {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
+                  <div className="kalki-section">
+                    <div className="kalki-section-header">
+                      <div className="kalki-section-title">Escalation Matrix (Role, Tone, & Delay)</div>
+                      <button
+                        type="button"
+                        onClick={() => setEscalationLevels([...escalationLevels, { roleId: "", timeoutMinutes: "30", notificationTone: "default" }])}
+                        className="kalki-button kalki-button--ghost"
+                        style={{ color: 'var(--kalki-primary)' }}
+                      >
+                        <Plus className="h-4 w-4" style={{ marginRight: '4px' }} /> Add Level
+                      </button>
+                    </div>
+                    <div className="kalki-section-content" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {escalationLevels.map((level, index) => (
+                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px', border: '1px solid var(--kalki-border)', borderRadius: 'var(--radius-sm)', background: 'white' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 500, width: '60px', color: 'var(--kalki-text-secondary)' }}>Level {index + 1}</span>
+                          <div style={{ flex: 1 }}>
+                            <select
+                              value={level.roleId}
+                              onChange={(e) => {
+                                const newLevels = [...escalationLevels];
+                                newLevels[index].roleId = e.target.value;
+                                setEscalationLevels(newLevels);
+                              }}
+                              className="kalki-select"
+                            >
+                              <option value="">Default Management</option>
+                              <option value="REPORTING_MANAGER">Reporting Person (Manager)</option>
+                              {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ flex: 1, minWidth: '150px' }}>
+                            <select
+                              value={level.notificationTone}
+                              onChange={(e) => {
+                                const newLevels = [...escalationLevels];
+                                newLevels[index].notificationTone = e.target.value;
+                                setEscalationLevels(newLevels);
+                              }}
+                              className="kalki-select"
+                            >
+                              <option value="default">Default Ping</option>
+                              <option value="chime">Friendly Chime</option>
+                              <option value="alert">Alert Tone</option>
+                              <option value="urgent">Urgent Siren</option>
+                            </select>
+                          </div>
+                          <div style={{ width: '100px' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              placeholder="Delay (Mins)"
+                              value={level.timeoutMinutes}
+                              onChange={(e) => {
+                                const newLevels = [...escalationLevels];
+                                newLevels[index].timeoutMinutes = e.target.value;
+                                setEscalationLevels(newLevels);
+                              }}
+                              className="kalki-input"
+                            />
+                          </div>
+                          <div style={{ width: '32px', display: 'flex', justifyContent: 'center' }}>
+                            {escalationLevels.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newLevels = escalationLevels.filter((_, i) => i !== index);
+                                  setEscalationLevels(newLevels);
+                                }}
+                                className="kalki-button kalki-button--ghost kalki-button--danger"
+                                style={{ padding: '4px' }}
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="mt-6 flex justify-end gap-3">
-                    <button 
-                      type="button" 
-                      onClick={() => setIsModalOpen(false)}
-                      className="rounded-md border px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit" 
-                      className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                    >
-                      Save Rule
-                    </button>
+                  <div className="kalki-grid-2-col">
+                    <div className="kalki-field">
+                      <label className="kalki-label">Warning Threshold (Mins)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={warningThresholdMins}
+                        onChange={(e) => setWarningThresholdMins(e.target.value)}
+                        className="kalki-input"
+                      />
+                    </div>
+                    <div className="kalki-field">
+                      <label className="kalki-label">Allow Extension?</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: '1px solid var(--kalki-border)', borderRadius: 'var(--radius-sm)', background: '#fff', cursor: 'pointer', height: '100%', boxSizing: 'border-box' }}>
+                        <input
+                          type="checkbox"
+                          checked={allowTimeExtension}
+                          onChange={(e) => setAllowTimeExtension(e.target.checked)}
+                        />
+                        <span style={{ fontSize: '14px', color: 'var(--kalki-text-primary)' }}>Yes, allow user to extend</span>
+                      </label>
+                    </div>
                   </div>
-                </form>
-              </div>
+
+                  {allowTimeExtension && (
+                    <div className="kalki-field" style={{ padding: '12px', background: '#eff6ff', borderRadius: 'var(--radius-sm)', border: '1px solid #bfdbfe' }}>
+                      <label className="kalki-label" style={{ color: '#1e3a8a' }}>Max Extension Allowed (Mins)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={maxExtensionMins}
+                        onChange={(e) => setMaxExtensionMins(e.target.value)}
+                        className="kalki-input"
+                        style={{ borderColor: '#bfdbfe' }}
+                      />
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#3b82f6' }}>This limits how much extra time a user can request.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="kalki-modal-footer">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="kalki-button kalki-button--secondary"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="kalki-button kalki-button--primary"
+                  >
+                    Save Rule
+                  </button>
+                </div>
+              </form>
             </div>
-          )}
-        </main>
-      </div>
-    
+          </div>
+        )}
+    </div>
   );
 }

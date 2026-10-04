@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
+import Link from "next/link";
 
 export function TasksDashboard() {
   const { selected } = useSessionView();
@@ -25,33 +26,41 @@ export function TasksDashboard() {
       locationId: selected.locationId,
     });
 
-    // Fetch Tasks
-    fetch(`/api/tasks?${searchParams.toString()}`)
-      .then(res => res.json())
-      .then(data => {
-        if (cancelled) return;
-        if (data.tasks) setTasks(data.tasks);
-        setIsLoading(false);
-      })
-      .catch(() => { if (!cancelled) setIsLoading(false); });
+    const fetchTasks = () => {
+      // Fetch Tasks
+      fetch(`/api/tasks?${searchParams.toString()}`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.tasks) setTasks(data.tasks);
+          setIsLoading(false);
+        })
+        .catch(() => { if (!cancelled) setIsLoading(false); });
 
-    // Fetch Audit Tasks
-    fetch(`/api/tasks/audit?${searchParams.toString()}`)
-      .then(res => res.json())
-      .then(data => {
-        if (cancelled) return;
-        if (data.tasks) setAuditTasks(data.tasks);
-      });
+      // Fetch Audit Tasks
+      fetch(`/api/tasks/audit?${searchParams.toString()}`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.tasks) setAuditTasks(data.tasks);
+        });
 
-    // Fetch Definitions
-    fetch(`/api/task-definitions?${searchParams.toString()}`)
-      .then(res => res.json())
-      .then(data => {
-        if (cancelled) return;
-        if (data.definitions) setDefinitions(data.definitions);
-      });
+      // Fetch Definitions
+      fetch(`/api/task-definitions?${searchParams.toString()}`)
+        .then(res => res.json())
+        .then(data => {
+          if (cancelled) return;
+          if (data.definitions) setDefinitions(data.definitions);
+        });
+    };
 
-    return () => { cancelled = true; };
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 15000); // Poll every 15 seconds
+
+    return () => { 
+      cancelled = true; 
+      clearInterval(interval);
+    };
   }, [selected]);
 
   const handleNewTask = async () => {
@@ -130,6 +139,34 @@ export function TasksDashboard() {
       alert("Error uploading file");
     }
     setUploadingTask(null);
+    setUploadingTask(null);
+  };
+
+  const handleRequestExtension = async (taskId: string, maxMins: number) => {
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/extend`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extensionMins: maxMins }),
+      });
+      if (res.ok) {
+        alert(`Time successfully extended by ${maxMins} minutes.`);
+        if (selected) {
+          const searchParams = new URLSearchParams({
+            organizationId: selected.organizationId,
+            locationId: selected.locationId,
+          });
+          const data = await fetch(`/api/tasks?${searchParams.toString()}`).then(r => r.json());
+          if (data.tasks) setTasks(data.tasks);
+        }
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to extend time");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error extending time");
+    }
   };
 
   const handleCompleteTask = async (taskId: string, proofUrl: string) => {
@@ -158,13 +195,103 @@ export function TasksDashboard() {
     } catch (err) { console.error(err); }
   };
 
+  const handleReturnTask = async (taskId: string) => {
+    if (!selected) return;
+    
+    const input = window.prompt(
+      "Task will be returned to the original Process Owner.\nHow much additional time should they get?\nOptions: 25, 50, 75, 100 (percentage of original time)",
+      "100"
+    );
+    if (input === null) return; // Cancelled
+    
+    const parsed = parseInt(input);
+    let extensionPercentage = 100;
+    if ([25, 50, 75, 100].includes(parsed)) {
+      extensionPercentage = parsed;
+    } else {
+      alert("Invalid option. Defaulting to 100%.");
+    }
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}/return`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ extensionPercentage }),
+      });
+      if (res.ok) {
+        const searchParams = new URLSearchParams({
+          organizationId: selected.organizationId,
+          locationId: selected.locationId,
+        });
+        const data = await fetch(`/api/tasks?${searchParams.toString()}`).then(r => r.json());
+        if (data.tasks) setTasks(data.tasks);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to return task");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditDefinition = async (id: string, currentTitle: string) => {
+    const newTitle = window.prompt("Enter new title for this blueprint:", currentTitle);
+    if (!newTitle || newTitle === currentTitle) return;
+    
+    try {
+      const res = await fetch(`/api/task-definitions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTitle }),
+      });
+      if (res.ok) {
+        setDefinitions(defs => defs.map(d => d.id === id ? { ...d, title: newTitle } : d));
+      } else {
+        alert("Failed to update blueprint");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteDefinition = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this blueprint?")) return;
+    
+    try {
+      const res = await fetch(`/api/task-definitions/${id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setDefinitions(defs => defs.filter(d => d.id !== id));
+      } else {
+        alert("Failed to delete blueprint");
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleAuditTask = async (taskId: string, action: "approve" | "reject") => {
     if (!selected) return;
+    
+    let extensionPercentage = 100;
+    if (action === "reject") {
+      const input = window.prompt(
+        "Task will be returned to Process Owner.\nHow much additional time should they get?\nOptions: 20, 50, 70, 100 (percentage of original time)",
+        "100"
+      );
+      if (input === null) return; // Cancelled
+      const parsed = parseInt(input);
+      if ([20, 50, 70, 100].includes(parsed)) {
+        extensionPercentage = parsed;
+      } else {
+        alert("Invalid option. Defaulting to 100%.");
+      }
+    }
+
     try {
       const res = await fetch(`/api/tasks/${taskId}/audit`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, comments: action === "reject" ? "Rejected by auditor" : "Looks good" }),
+        body: JSON.stringify({ 
+          action, 
+          comments: action === "reject" ? "Rejected by auditor" : "Looks good",
+          extensionPercentage
+        }),
       });
       if (res.ok) {
         const searchParams = new URLSearchParams({
@@ -246,6 +373,7 @@ export function TasksDashboard() {
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
                       <th style={{ padding: "0.4rem 0.5rem" }}>Title</th>
+                      <th style={{ padding: "0.4rem 0.5rem" }}>Process Owner</th>
                       <th style={{ padding: "0.4rem 0.5rem" }}>Priority</th>
                       <th style={{ padding: "0.4rem 0.5rem" }}>Status</th>
                       <th style={{ padding: "0.4rem 0.5rem" }}>Due Date</th>
@@ -260,8 +388,13 @@ export function TasksDashboard() {
                         </td>
                       </tr>
                     ) : tasks.filter(t => t.status === "pending" || t.status === "in_progress").map(t => (
-                      <tr key={t.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                        <td style={{ padding: "0.4rem 0.5rem", fontWeight: "500" }}>{t.title}</td>
+                      <React.Fragment key={t.id}>
+                      <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td style={{ padding: "0.4rem 0.5rem", fontWeight: "500" }}>
+                          {t.title}
+                          {t.escalationLevel > 0 && <span style={{ marginLeft: "0.5rem", fontSize: "0.75em", color: "var(--color-error)", background: "rgba(220,38,38,0.1)", padding: "0.15rem 0.4rem", borderRadius: "999px" }}>Escalated</span>}
+                        </td>
+                        <td style={{ padding: "0.4rem 0.5rem" }}>{t.processOwnerName}</td>
                         <td style={{ padding: "0.4rem 0.5rem", textTransform: "capitalize" }}>{t.priority}</td>
                         <td style={{ padding: "0.4rem 0.5rem" }}>
                           <span style={{ 
@@ -278,38 +411,66 @@ export function TasksDashboard() {
                         <td style={{ padding: "0.4rem 0.5rem" }}>{new Date(t.dueAt).toLocaleDateString()}</td>
                         <td style={{ padding: "0.4rem 0.5rem", textAlign: "right" }}>
                           {(t.status === "pending" || t.status === "in_progress") && (
-                            t.actionUrl ? (
-                              <a href={t.actionUrl} className="kalki-button kalki-button--sm primary" style={{ textDecoration: "none" }}>
-                                {t.actionLabel || "Proceed"}
-                              </a>
-                            ) : t.evidenceRequirementType === "image" || t.evidenceRequirementType === "document" ? (
-                              <div style={{ position: "relative", display: "inline-block" }}>
-                                <button className="kalki-button kalki-button--sm" disabled={uploadingTask === t.id}>
-                                  {uploadingTask === t.id ? "Uploading..." : "Upload Evidence & Complete"}
+                            <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end", alignItems: "center" }}>
+                              {t.escalationLevel > 0 && (
+                                <button 
+                                  className="kalki-button kalki-button--sm"
+                                  style={{ borderColor: "var(--color-error)", color: "var(--color-error)" }}
+                                  onClick={() => handleReturnTask(t.id)}
+                                >
+                                  Return
                                 </button>
-                                <input 
-                                  type="file" 
-                                  accept={t.evidenceRequirementType === "image" ? "image/*" : undefined}
-                                  title="Upload evidence file"
-                                  onChange={(e) => {
-                                    if (e.target.files?.[0]) handleCompleteUpload(t.id, e.target.files[0]);
-                                  }}
-                                  style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
-                                  disabled={uploadingTask === t.id}
-                                />
-                              </div>
-                            ) : (
-                              <button 
-                                className="kalki-button kalki-button--sm"
-                                onClick={() => handleCompleteTask(t.id, "")}
-                              >
-                                Complete
-                              </button>
-                            )
+                              )}
+                              {t.actionUrl ? (
+                                <Link href={`${t.actionUrl}${t.actionUrl.includes('?') ? '&' : '?'}organizationId=${selected.organizationId}&locationId=${selected.locationId}`} className="kalki-button kalki-button--sm primary" style={{ textDecoration: "none" }}>
+                                  {t.actionLabel || "Proceed"}
+                                </Link>
+                              ) : t.evidenceRequirementType === "image" || t.evidenceRequirementType === "document" ? (
+                                <div style={{ position: "relative", display: "inline-block" }}>
+                                  <button className="kalki-button kalki-button--sm" disabled={uploadingTask === t.id}>
+                                    {uploadingTask === t.id ? "Uploading..." : "Upload Evidence & Complete"}
+                                  </button>
+                                  <input 
+                                    type="file" 
+                                    accept={t.evidenceRequirementType === "image" ? "image/*" : undefined}
+                                    title="Upload evidence file"
+                                    onChange={(e) => {
+                                      if (e.target.files?.[0]) handleCompleteUpload(t.id, e.target.files[0]);
+                                    }}
+                                    style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+                                    disabled={uploadingTask === t.id}
+                                  />
+                                </div>
+                              ) : (
+                                <button 
+                                  className="kalki-button kalki-button--sm"
+                                  onClick={() => handleCompleteTask(t.id, "")}
+                                >
+                                  Complete
+                                </button>
+                              )}
+                            </div>
                           )}
                         </td>
                       </tr>
-                    ))}
+                      {(t.status === "pending" || t.status === "in_progress") && t.contextData?.isWarning && (
+                        <tr key={`${t.id}-warning`} style={{ borderBottom: "1px solid var(--border)", backgroundColor: "#fffbeb" }}>
+                          <td colSpan={5} style={{ padding: "0.5rem", color: "#92400e", fontSize: "0.85rem", textAlign: "center" }}>
+                            <strong>Warning:</strong> {t.warningThresholdMins || 10} minutes remaining! Will you be able to complete your task within the remaining time, or do you want to extend the period?
+                            {t.allowTimeExtension && (
+                              <button 
+                                onClick={() => handleRequestExtension(t.id, t.maxExtensionMins || 15)} 
+                                className="kalki-button kalki-button--sm" 
+                                style={{ marginLeft: "1rem", backgroundColor: "#f59e0b", color: "white", borderColor: "#f59e0b" }}
+                              >
+                                Extend by {t.maxExtensionMins || 15} Mins
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
                   </tbody>
                 </table>
               </div>
@@ -343,7 +504,9 @@ export function TasksDashboard() {
                             <span className="muted">-</span>
                           )}
                         </td>
-                        <td style={{ padding: "0.4rem 0.5rem" }}>{new Date(t.completedAt).toLocaleString()}</td>
+                        <td style={{ padding: "0.4rem 0.5rem" }}>
+                          {t.completedAt ? new Date(t.completedAt).toLocaleString() : <span className="muted">Escalated (Not Completed)</span>}
+                        </td>
                         <td style={{ padding: "0.4rem 0.5rem", textAlign: "right", display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
                           <button 
                             className="kalki-button kalki-button--sm"
@@ -399,7 +562,19 @@ export function TasksDashboard() {
                         <td style={{ padding: "0.4rem 0.5rem", textTransform: "capitalize" }}>{d.priority}</td>
                         <td style={{ padding: "0.4rem 0.5rem", textTransform: "capitalize" }}>{d.evidenceRequirementType}</td>
                         <td style={{ padding: "0.4rem 0.5rem", textAlign: "right" }}>
-                          <button className="kalki-button kalki-button--sm">Edit</button>
+                          <button 
+                            className="kalki-button kalki-button--sm"
+                            onClick={() => handleEditDefinition(d.id, d.title)}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className="kalki-button kalki-button--sm"
+                            style={{ marginLeft: "0.5rem", borderColor: "var(--color-error)", color: "var(--color-error)" }}
+                            onClick={() => handleDeleteDefinition(d.id)}
+                          >
+                            Delete
+                          </button>
                         </td>
                       </tr>
                     ))}

@@ -1,9 +1,9 @@
 import { db } from "@/db";
-import { purchaseOrders, vendors, vendorItems, organizations } from "@/db/schema";
+import { purchaseOrders, vendors, vendorItems, organizations, taskInstances } from "@/db/schema";
 import { eq, sum, count, desc, and, gte, lt, sql } from "drizzle-orm";
 import { Activity } from "@/components/purchasing/RecentActivityFeed";
 
-export async function getDashboardData() {
+export async function getDashboardData(isOwner: boolean = false) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -78,6 +78,7 @@ export async function getDashboardData() {
   const recentPOsPromise = db
     .select({
       id: purchaseOrders.id,
+      poNumber: purchaseOrders.poNumber,
       status: purchaseOrders.status,
       totalAmount: purchaseOrders.totalAmount,
       createdAt: purchaseOrders.createdAt,
@@ -87,6 +88,9 @@ export async function getDashboardData() {
       poDeliveryMethod: vendors.poDeliveryMethod,
       poWhatsappPreference: vendors.poWhatsappPreference,
       whatsappPoTemplate: organizations.whatsappPoTemplate,
+      cashierBillAmount: purchaseOrders.cashierBillAmount,
+      cashierAttachments: purchaseOrders.cashierAttachments,
+      processOwnerAttachments: purchaseOrders.processOwnerAttachments,
     })
     .from(purchaseOrders)
     .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
@@ -103,9 +107,30 @@ export async function getDashboardData() {
   `);
 
   const categoryPromise = db.execute(sql`
-    SELECT 'General' as name, SUM(total_amount) as value
-    FROM purchase_orders
+    SELECT 
+      COALESCE(c.name, 'Uncategorized') as name, 
+      SUM(pol.ordered_quantity * pol.unit_rate) as value
+    FROM purchase_order_lines pol
+    JOIN purchase_orders po ON pol.po_id = po.id
+    JOIN items i ON pol.item_id = i.id
+    LEFT JOIN item_categories c ON i.category_id = c.id
+    WHERE po.status != 'draft'
+      AND po.created_at >= date_trunc('month', CURRENT_DATE)
+    GROUP BY c.id, c.name
   `);
+
+  const recentTasksPromise = db
+    .select({
+      id: taskInstances.id,
+      createdAt: taskInstances.createdAt,
+      completedAt: taskInstances.completedAt,
+      updatedAt: taskInstances.updatedAt,
+      contextData: taskInstances.contextData,
+      status: taskInstances.status,
+    })
+    .from(taskInstances)
+    .orderBy(desc(taskInstances.updatedAt))
+    .limit(5);
 
   const [
     totalSpendResult,
@@ -118,7 +143,8 @@ export async function getDashboardData() {
     lowStockResult,
     recentPOs,
     monthlySpendResult,
-    categoryResult
+    categoryResult,
+    recentTasks
   ] = await Promise.all([
     totalSpendPromise,
     pastSpendPromise,
@@ -130,7 +156,8 @@ export async function getDashboardData() {
     lowStockPromise,
     recentPOsPromise,
     monthlySpendPromise,
-    categoryPromise
+    categoryPromise,
+    recentTasksPromise
   ]);
 
   const totalSpend = Number(totalSpendResult[0]?.total || 0);
@@ -156,34 +183,65 @@ export async function getDashboardData() {
   const rows = (lowStockResult as any).rows || lowStockResult;
   const lowStockItemsCount = Number(rows[0]?.low_stock_count || 0);
 
-  const activities: any[] = recentPOs.map(po => ({
-    id: po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
+  const poActivities: Activity[] = recentPOs.map(po => ({
+    id: po.poNumber || po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
     realId: po.id,
     type: "Purchase Order",
     entity: po.vendorName || 'Unknown Vendor',
     date: po.createdAt.toLocaleDateString(),
-    status: po.status === 'draft' ? 'Pending Approval' : po.status.charAt(0).toUpperCase() + po.status.slice(1),
-    value: Number(po.totalAmount),
+    status: po.status === 'draft' || po.status === 'pending_approval' ? 'Pending Approval' : 
+            po.status === 'received' ? 'Awaiting Audit' : 
+            po.status === 'audited' ? 'Final Review' :
+            po.status.charAt(0).toUpperCase() + po.status.slice(1),
+    value: Number(po.cashierBillAmount || po.totalAmount || 0),
     publicToken: po.publicToken,
     vendorPhone: po.vendorPhone,
     poDeliveryMethod: po.poDeliveryMethod,
     poWhatsappPreference: po.poWhatsappPreference,
     whatsappPoTemplate: po.whatsappPoTemplate,
+    timestamp: po.createdAt.getTime()
   }));
 
-  const pendingApprovals = recentPOs
-    .filter(po => po.status === 'draft')
+  const taskActivities: Activity[] = recentTasks
+    .map(t => {
+      const ctx = t.contextData as any;
+      let displayStatus = t.status.charAt(0).toUpperCase() + t.status.slice(1);
+      if (t.status === 'audit_pending') displayStatus = 'Awaiting Audit';
+      if (t.status === 'in_progress') displayStatus = 'In Progress';
+      
+      return {
+        id: `TASK-${t.id.substring(0, 5).toUpperCase()}`,
+        realId: t.id,
+        type: "Task",
+        entity: ctx.title || ctx.vendorName || 'Task Engine',
+        date: (t.updatedAt || t.createdAt).toLocaleDateString(),
+        status: displayStatus,
+        value: 0,
+        timestamp: (t.updatedAt || t.createdAt).getTime()
+      };
+    });
+
+  const activities = [...poActivities, ...taskActivities]
+    .sort((a: any, b: any) => b.timestamp - a.timestamp)
+    .slice(0, 8);
+
+  const pendingApprovals = isOwner ? recentPOs
+    .filter(po => po.status === 'draft' || po.status === 'pending_approval' || po.status === 'audited')
     .map(po => ({
-      id: po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
+      id: po.poNumber || po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
       realId: po.id,
-      amount: Number(po.totalAmount),
+      amount: Number(po.cashierBillAmount || po.totalAmount || 0),
       vendorName: po.vendorName || 'Unknown Vendor',
       publicToken: po.publicToken,
       vendorPhone: po.vendorPhone,
       poDeliveryMethod: po.poDeliveryMethod,
       poWhatsappPreference: po.poWhatsappPreference,
-    whatsappPoTemplate: po.whatsappPoTemplate,
-    }));
+      whatsappPoTemplate: po.whatsappPoTemplate,
+      cashierBillAmount: po.cashierBillAmount,
+      cashierAttachments: po.cashierAttachments,
+      processOwnerAttachments: po.processOwnerAttachments,
+      status: po.status,
+    })) : [];
 
   const msRows = (monthlySpendResult as any).rows || monthlySpendResult;
   const spendTrendData = msRows.map((r: any) => ({ name: r.name as string, spend: Number(r.total) }));

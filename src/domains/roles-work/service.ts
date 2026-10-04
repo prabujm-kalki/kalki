@@ -424,7 +424,15 @@ export async function listRoleDefinitions(actor: Actor, scope: z.infer<typeof sc
   if (!scopeSchema.safeParse(scope).success) throw new RolesWorkServiceError("Invalid role definition scope", "INVALID_INPUT");
   await requireScopeAccess(actor, scope, employeePermissions.read);
   
-  return db.select().from(businessRoles).where(eq(businessRoles.organizationId, scope.organizationId)).orderBy(asc(businessRoles.name));
+  return db.select().from(businessRoles).where(
+    and(
+      eq(businessRoles.organizationId, scope.organizationId),
+      or(
+        isNull(businessRoles.locationId),
+        eq(businessRoles.locationId, scope.locationId)
+      )
+    )
+  ).orderBy(asc(businessRoles.name));
 }
 
 export async function createWorkSituationDefinition(actor: Actor, input: CreateWorkSituationDefinitionInput) {

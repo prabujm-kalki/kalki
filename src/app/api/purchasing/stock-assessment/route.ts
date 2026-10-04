@@ -54,7 +54,15 @@ export async function POST(req: NextRequest) {
       const lastRate = Number(config.lastRate || masterItem.currentPrice || 0);
 
       if (currentStock <= minStock) {
-        const orderQuantity = Math.max(0, normalStock - currentStock);
+        let orderQuantity = 0;
+        if (masterItem.replenishmentStrategy === 'fixed') {
+          // Fixed Bulk: just order the strict fixed amount
+          orderQuantity = Number(masterItem.reorderQuantity || 1);
+        } else {
+          // Top-Up: order exact amount needed to reach target stock
+          orderQuantity = Math.max(0, normalStock - currentStock);
+        }
+
         if (orderQuantity > 0) {
           itemsToOrder.push({
             itemId: input.itemId,

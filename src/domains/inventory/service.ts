@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { vendors, vendorItems, purchaseOrders, purchaseOrderLines, inventoryLedger, inventoryEventTypes, purchaseSchedules, taskDefinitions, items, taskInstances } from "@/db/schema";
@@ -55,6 +55,7 @@ export const PaymentTermsMap: Record<string, number> = {
 
 const createVendorSchema = scopeSchema.extend({
   name: z.string().trim().min(1).max(200),
+  shortCode: z.string().trim().optional(),
   contactDetails: z.object({
     name: z.string().optional(),
     phone: z.string().optional(),
@@ -88,6 +89,7 @@ export async function createVendor(actor: Actor, input: CreateVendorInput) {
     organizationId: parsed.data.organizationId,
     locationId: parsed.data.locationId,
     name: parsed.data.name,
+    shortCode: parsed.data.shortCode ?? null,
     contactDetails: parsed.data.contactDetails,
     paymentTerms: parsed.data.paymentTerms ?? null,
     creditDays: parsed.data.creditDays ?? null,
@@ -102,6 +104,7 @@ export async function createVendor(actor: Actor, input: CreateVendorInput) {
 const updateVendorSchema = scopeSchema.extend({
   vendorId: z.string().uuid(),
   name: z.string().trim().min(1).max(200).optional(),
+  shortCode: z.string().trim().optional(),
   contactDetails: z.object({
     name: z.string().optional(),
     phone: z.string().optional(),
@@ -126,6 +129,7 @@ export async function updateVendor(actor: Actor, input: UpdateVendorInput) {
 
   const [vendor] = await db.update(vendors).set({
     ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+    ...(parsed.data.shortCode !== undefined ? { shortCode: parsed.data.shortCode } : {}),
     ...(parsed.data.contactDetails !== undefined ? { contactDetails: parsed.data.contactDetails } : {}),
     ...(parsed.data.paymentTerms !== undefined ? { paymentTerms: parsed.data.paymentTerms } : {}),
     ...(parsed.data.creditDays !== undefined ? { creditDays: parsed.data.creditDays } : {}),
@@ -218,6 +222,8 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     unitOfMeasure: items.unit,
     baseMinStock: items.baseMinStock,
     targetStock: items.targetStock,
+    replenishmentStrategy: items.replenishmentStrategy,
+    reorderQuantity: items.reorderQuantity,
     purchaseUnit: items.purchaseUnit,
     purchaseUnitConversion: items.purchaseUnitConversion,
   })
@@ -236,6 +242,8 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     unitOfMeasure: r.unitOfMeasure,
     baseMinStock: r.baseMinStock,
     targetStock: r.targetStock,
+    replenishmentStrategy: r.replenishmentStrategy,
+    reorderQuantity: r.reorderQuantity,
     purchaseUnit: r.purchaseUnit,
     purchaseUnitConversion: r.purchaseUnitConversion,
   }));
@@ -490,13 +498,37 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
     let po = null;
     
     if (lines.length > 0) {
+      // 1. Get vendor details for the PO number
+      const [vendorRec] = await tx.select().from(vendors).where(eq(vendors.id, vendorId));
+      const shortCode = vendorRec?.shortCode || "PO";
+
+      // 2. Format date
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, '0');
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const yyyy = now.getFullYear();
+      const dateString = `${dd}_${mm}_${yyyy}`;
+
+      // 3. Get sequence number
+      const likePattern = `${shortCode}-${dateString}-%`;
+      const countRes = await tx.execute<{count: number}>(sql`
+        SELECT COUNT(*)::int as count 
+        FROM purchase_orders 
+        WHERE vendor_id = ${vendorId} AND po_number LIKE ${likePattern}
+      `);
+      // handle execute return structure safely
+      const countVal = countRes.rows ? (countRes.rows[0] as any).count : (countRes[0] as any).count;
+      const seq = String((countVal || 0) + 1).padStart(2, '0');
+      const poNumber = `${shortCode}-${dateString}-${seq}`;
+
       [po] = await tx.insert(purchaseOrders).values({
         organizationId,
         locationId,
         vendorId,
+        poNumber,
         totalAmount: totalAmount.toString(),
         paymentMethod,
-        status: scheduleId ? 'pending_audit' : 'draft',
+        status: scheduleId ? 'pending_approval' : 'draft',
         publicToken: crypto.randomUUID(),
       }).returning();
 
@@ -511,17 +543,31 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
     }
     
     if (scheduleId) {
-      // Mark ALL task instances associated with this schedule as completed
-      const activeInstances = await tx.select().from(taskInstances).where(eq(taskInstances.status, 'pending'));
-      const targetInstanceIds = activeInstances
-        .filter(i => (i.contextData as any)?.scheduleId === scheduleId)
-        .map(i => i.id);
+      // Find active tasks associated with this schedule directly in the database
+      const activeInstances = await tx.select({
+        id: taskInstances.id,
+        priority: taskInstances.priority,
+      })
+      .from(taskInstances)
+      .where(
+        and(
+          inArray(taskInstances.status, ['pending', 'in_progress']),
+          sql`${taskInstances.contextData}->>'scheduleId' = ${scheduleId}`
+        )
+      );
 
-      for (const id of targetInstanceIds) {
+      // Complete or route to audit depending on priority (Task Engine Standard)
+      for (const t of activeInstances) {
+        let nextStatus: "completed" | "audit_pending" = "completed";
+        if (t.priority === "medium" || t.priority === "high" || t.priority === "very_high") {
+          nextStatus = "audit_pending";
+        }
+        
         await tx.update(taskInstances).set({
-          status: 'completed',
-          completedAt: new Date()
-        }).where(eq(taskInstances.id, id));
+          status: nextStatus,
+          completedAt: new Date(),
+          updatedAt: new Date()
+        }).where(eq(taskInstances.id, t.id));
       }
     }
 

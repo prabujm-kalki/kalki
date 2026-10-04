@@ -15,6 +15,7 @@ export default async function SchedulesListPage({ searchParams }: { searchParams
       frequencyRule: purchaseSchedules.frequencyRule,
       reminderTime: purchaseSchedules.reminderTime,
       isActive: purchaseSchedules.isActive,
+      priority: purchaseSchedules.priority,
       vendorName: vendors.name,
       locationName: locations.name,
       roleName: businessRoles.name,
@@ -110,7 +111,20 @@ export default async function SchedulesListPage({ searchParams }: { searchParams
                       <Clock size={12} />
                       {formatFrequency(schedule.frequencyRule)} at {schedule.reminderTime}
                     </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
+                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                      {schedule.priority && (
+                        <span style={{ 
+                          fontSize: '10px', 
+                          fontWeight: 'bold', 
+                          textTransform: 'uppercase',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: schedule.priority === 'high' || schedule.priority === 'critical' ? '#fee2e2' : schedule.priority === 'medium' ? '#fef3c7' : '#f1f5f9',
+                          color: schedule.priority === 'high' || schedule.priority === 'critical' ? '#dc2626' : schedule.priority === 'medium' ? '#d97706' : '#64748b',
+                        }}>
+                          {schedule.priority}
+                        </span>
+                      )}
                       <Link href={`/purchasing/schedules/${schedule.id}${querySuffix}`} style={{ padding: '4px', color: 'var(--kalki-text-secondary)', background: '#f8fafc', borderRadius: '4px', display: 'flex' }} title="Edit">
                         <Edit2 size={14} />
                       </Link>

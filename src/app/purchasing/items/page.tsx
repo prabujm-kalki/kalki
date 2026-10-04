@@ -66,29 +66,29 @@ export default function ItemsPage() {
           </div>
         ) : (
           <div className="table-responsive">
-            <table className="data-table">
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
               <thead>
-                <tr>
-                  <th style={{ textAlign: 'left' }}>Item Name</th>
-                  <th style={{ textAlign: 'left' }}>Unit</th>
-                  <th style={{ textAlign: 'left' }}>Current Price</th>
-                  <th style={{ textAlign: 'left' }}>Status</th>
-                  <th style={{ textAlign: 'center' }}>Actions</th>
+                <tr style={{ borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--kalki-primary-light)', color: 'var(--kalki-primary)' }}>
+                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Item Name</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Unit</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Current Price</th>
+                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Status</th>
+                  <th style={{ textAlign: 'center', padding: '0.75rem 1rem', fontWeight: 600 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {itemsList.map(item => (
-                  <tr key={item.id}>
-                    <td><strong>{item.nameEn}</strong></td>
-                    <td>{item.unit}</td>
-                    <td>₹{item.currentPrice}</td>
-                    <td>
-                      <span className="pill" style={{ background: item.isActive ? 'var(--success-light)' : 'var(--border-color)', color: item.isActive ? 'var(--success)' : 'var(--text-muted)' }}>
+                  <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                    <td style={{ padding: '0.75rem 1rem' }}><strong>{item.nameEn}</strong></td>
+                    <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{item.unit}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>₹{item.currentPrice}</td>
+                    <td style={{ padding: '0.75rem 1rem' }}>
+                      <span className="pill" style={{ background: item.isActive ? 'var(--success-light)' : 'var(--border-color)', color: item.isActive ? 'var(--success)' : 'var(--text-muted)', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600 }}>
                         {item.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center' }}>
-                      <Link href={`/purchasing/items/${item.id}${query}`} className="secondary-button" title="Edit Item" style={{ padding: '0.25rem 0.5rem', display: 'inline-flex' }}>
+                    <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
+                      <Link href={`/purchasing/items/${item.id}${query}`} className="secondary-button" title="Edit Item" style={{ padding: '0.4rem 0.6rem', display: 'inline-flex', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'white', color: 'var(--kalki-primary)' }}>
                         <Edit size={16} />
                       </Link>
                     </td>
