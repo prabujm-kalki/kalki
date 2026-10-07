@@ -27,8 +27,14 @@ export async function PUT(req: Request, context: any) {
   
   try {
     const body = await req.json();
+    const updateData: any = {};
+    if (body.whatsappPoTemplate !== undefined) updateData.whatsappPoTemplate = body.whatsappPoTemplate;
+    if (body.enableMobilePushNotifications !== undefined) updateData.enableMobilePushNotifications = body.enableMobilePushNotifications;
+    if (body.notificationTone !== undefined) updateData.notificationTone = body.notificationTone;
+    if (body.customTones !== undefined) updateData.customTones = body.customTones;
+    
     await db.update(organizations)
-      .set({ whatsappPoTemplate: body.whatsappPoTemplate })
+      .set(updateData)
       .where(eq(organizations.id, id));
       
     return NextResponse.json({ success: true });

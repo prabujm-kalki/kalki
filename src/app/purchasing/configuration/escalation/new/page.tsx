@@ -20,7 +20,7 @@ export default function NewEscalationPolicyPage() {
           </div>
           <h3 style={{ fontSize: '1.25rem', margin: '0 0 0.5rem 0' }}>Escalation Rule Engine</h3>
           <p className="muted" style={{ maxWidth: '400px', margin: '0 auto 2rem auto', lineHeight: '1.6' }}>
-            The escalation rule engine is being integrated with the core Task Engine. This will allow highly flexible timeout rules (e.g. "Notify Executive Director if Audit is delayed by > 2 hours").
+            The escalation rule engine is being integrated with the core Task Engine. This will allow highly flexible timeout rules (e.g. "Notify Executive Director if Audit is delayed by &gt; 2 hours").
           </p>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#e2e8f0', color: 'var(--text-secondary)', padding: '0.5rem 1rem', borderRadius: '4px', fontSize: '0.85rem', fontWeight: '500' }}>
             <Settings2 size={16} /> Configuration Module - Work in Progress

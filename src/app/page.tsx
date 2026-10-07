@@ -97,6 +97,10 @@ export default async function DashboardPage({
                 <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>CRM</h2>
                 <span style={{ color: "var(--color-text-muted)" }}>→</span>
               </Link>
+              <Link href={`/accounts${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
+                <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Accounts</h2>
+                <span style={{ color: "var(--color-text-muted)" }}>→</span>
+              </Link>
               <Link href={`/tasks${queryString}`} className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", textDecoration: "none", color: "inherit", padding: "1rem" }}>
                 <h2 style={{ fontSize: "1.125rem", fontWeight: "600", margin: 0 }}>Task Engine</h2>
                 <span style={{ color: "var(--color-text-muted)" }}>→</span>

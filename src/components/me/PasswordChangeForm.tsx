@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { KalkiInput } from "@/components/ui/KalkiInput";
 import { KalkiButton } from "@/components/ui/KalkiButton";
 import { useToast } from "@/components/ui/Toast";
 
 export function PasswordChangeForm() {
+  const router = useRouter();
   const { addToast } = useToast();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -79,10 +81,14 @@ export function PasswordChangeForm() {
         onChange={e => setConfirmPassword(e.target.value)} 
         disabled={pending} 
       />
-      
-      <KalkiButton type="submit" variant="primary" disabled={pending}>
-        {pending ? "Changing..." : "Change Password"}
-      </KalkiButton>
+      <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+        <KalkiButton type="submit" variant="primary" disabled={pending} style={{ flex: 1 }}>
+          {pending ? "Changing..." : "Change Password"}
+        </KalkiButton>
+        <KalkiButton type="button" variant="outline" disabled={pending} onClick={() => router.back()} style={{ flex: 1 }}>
+          Cancel
+        </KalkiButton>
+      </div>
     </form>
   );
 }

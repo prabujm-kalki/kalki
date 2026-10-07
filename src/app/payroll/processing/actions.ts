@@ -7,6 +7,7 @@ import { calculateEmployeePayroll, DraftPayslip } from "@/domains/payroll/calcul
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getSessionContext } from "@/domains/session/service";
+import { processAccountingEvent } from "@/domains/finance/event-engine";
 
 export async function generateDraftPayroll(frequency: string, startDate: string, endDate: string) {
   try {
@@ -125,6 +126,40 @@ export async function savePayrollRun(organizationId: string, locationId: string,
 
       await tx.update(payrollRuns).set({ status: "PENDING_DISBURSEMENT" }).where(eq(payrollRuns.id, runId));
       
+      // Fire Accounting Event (Double Entry Engine)
+      await processAccountingEvent({
+        organizationId,
+        locationId,
+        triggeredByUserId: session.user.id,
+        sourceModule: "PAYROLL",
+        sourceReferenceId: runId,
+        entryDate: new Date(endDate),
+        narration: `Payroll Run for ${startDate} to ${endDate}`,
+        lines: [
+          {
+            mappingType: "SYSTEM_DEFAULT",
+            sourceReferenceId: "SALARY_EXPENSE",
+            amount: totalGrossAmount,
+            isDebit: true,
+            narration: "Gross Salary Expense"
+          },
+          {
+            mappingType: "SYSTEM_DEFAULT",
+            sourceReferenceId: "SALARY_PAYABLE",
+            amount: totalNetAmount,
+            isDebit: false,
+            narration: "Net Salary Payable"
+          },
+          ...(totalDeductions > 0 ? [{
+            mappingType: "SYSTEM_DEFAULT",
+            sourceReferenceId: "STATUTORY_PAYABLE",
+            amount: totalDeductions,
+            isDebit: false,
+            narration: "Statutory & Other Deductions Payable"
+          } as any] : [])
+        ]
+      });
+      
       return { success: true, runId };
     });
   } catch (e: any) {
@@ -155,6 +190,9 @@ export async function disbursePayrollRun(runId: string, paymentRows: any[]) {
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user?.id) throw new Error("Unauthorized");
 
+    const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId));
+    if (!run) throw new Error("Payroll run not found");
+
     await db.update(payrollRuns)
       .set({
         status: "DISBURSED",
@@ -163,6 +201,32 @@ export async function disbursePayrollRun(runId: string, paymentRows: any[]) {
         paymentAttachments: paymentRows
       })
       .where(eq(payrollRuns.id, runId));
+
+    await processAccountingEvent({
+      organizationId: run.organizationId,
+      locationId: run.locationId,
+      triggeredByUserId: session.user.id,
+      sourceModule: "PAYROLL",
+      sourceReferenceId: runId,
+      entryDate: new Date(),
+      narration: `Payroll Disbursement for ${run.periodStart} to ${run.periodEnd}`,
+      lines: [
+        {
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: "SALARY_PAYABLE",
+          amount: Number(run.totalNetAmount),
+          isDebit: true,
+          narration: "Salary payout clearance"
+        },
+        {
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: "BANK_CASH",
+          amount: Number(run.totalNetAmount),
+          isDebit: false,
+          narration: "Bank payout"
+        }
+      ]
+    });
 
     return { success: true };
   } catch (e: any) {

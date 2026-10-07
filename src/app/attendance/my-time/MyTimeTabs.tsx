@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { LeaveApplicationForm } from "./LeaveApplicationForm";
@@ -16,8 +16,8 @@ export function MyTimeTabs(props: MyTimeTabsProps) {
   const [activeTab, setActiveTab] = useState<"leave" | "encashment">("leave");
 
   return (
-    <div className="att-card" style={{ marginBottom: "2rem" }}>
-      <div className="att-tabs-container">
+    <div className="att-card" style={{ marginBottom: "1rem", padding: "1rem" }}>
+      <div className="att-tabs-container" style={{ marginBottom: "1rem", borderBottom: "1px solid var(--att-border)", paddingBottom: "0.25rem" }}>
         <button 
           className={`att-tab-btn ${activeTab === "leave" ? "active" : ""}`}
           onClick={() => setActiveTab("leave")}

@@ -1,0 +1,78 @@
+export async function createSalesInvoice(input: {
+  organizationId: string;
+  locationId: string;
+  customerId: string;
+  invoiceNumber: string;
+  totalAmount: number;
+  taxAmount: number;
+  subtotal: number;
+  dueDate: Date;
+  createdById: string;
+}) {
+  return await db.transaction(async (tx) => {
+    // 1. Create Invoice Record
+    const [invoice] = await tx.insert(salesInvoices).values({
+      organizationId: input.organizationId,
+      locationId: input.locationId,
+      customerId: input.customerId,
+      invoiceNumber: input.invoiceNumber,
+      invoiceDate: new Date(),
+      dueDate: input.dueDate,
+      subtotal: input.subtotal.toString(),
+      taxAmount: input.taxAmount.toString(),
+      totalAmount: input.totalAmount.toString(),
+      status: 'open'
+    }).returning();
+
+    // 2. Find System Accounts
+    const systemAccounts = await tx.select().from(accounts).where(and(
+      eq(accounts.organizationId, input.organizationId),
+      eq(accounts.isSystemAccount, true)
+    ));
+
+    const arAccount = systemAccounts.find(a => a.controlAccountType === 'ACCOUNTS_RECEIVABLE');
+    const revenueAccount = systemAccounts.find(a => a.controlAccountType === 'REVENUE_SALES');
+
+    if (!arAccount || !revenueAccount) {
+      throw new Error("Critical system accounts (AR or REVENUE) are not configured.");
+    }
+
+    // 3. Create Double-Entry Journal
+    const entryNumber = "JE-INV-" + Date.now().toString().slice(-6);
+    
+    const [journalEntry] = await tx.insert(journalEntries).values({
+      organizationId: input.organizationId,
+      entryNumber,
+      entryDate: new Date().toISOString().split('T')[0],
+      narration: \Sales Invoice \\,
+      sourceModule: "RECEIVABLES",
+      sourceReferenceId: invoice.id,
+      totalAmount: input.totalAmount.toString(),
+      status: "POSTED",
+      createdById: input.createdById
+    }).returning();
+
+    await tx.insert(journalLineItems).values([
+      { // DEBIT AR
+        journalEntryId: journalEntry.id,
+        accountId: arAccount.id,
+        locationId: input.locationId,
+        partyId: input.customerId,
+        partyType: "CUSTOMER",
+        debit: input.totalAmount.toString(),
+        credit: "0",
+        narration: "Invoice Generated"
+      },
+      { // CREDIT REVENUE
+        journalEntryId: journalEntry.id,
+        accountId: revenueAccount.id,
+        locationId: input.locationId,
+        debit: "0",
+        credit: input.totalAmount.toString(),
+        narration: "Sales Revenue"
+      }
+    ]);
+
+    return invoice;
+  });
+}

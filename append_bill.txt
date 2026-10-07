@@ -1,0 +1,80 @@
+export async function createPurchaseBill(input: {
+  organizationId: string;
+  locationId: string;
+  vendorId: string;
+  billNumber: string;
+  vendorInvoiceNumber?: string;
+  totalAmount: number;
+  taxAmount: number;
+  subtotal: number;
+  dueDate: Date;
+  createdById: string;
+}) {
+  return await db.transaction(async (tx) => {
+    // 1. Create Bill Record
+    const [bill] = await tx.insert(purchaseBills).values({
+      organizationId: input.organizationId,
+      locationId: input.locationId,
+      vendorId: input.vendorId,
+      billNumber: input.billNumber,
+      vendorInvoiceNumber: input.vendorInvoiceNumber,
+      billDate: new Date(),
+      dueDate: input.dueDate,
+      subtotal: input.subtotal.toString(),
+      taxAmount: input.taxAmount.toString(),
+      totalAmount: input.totalAmount.toString(),
+      status: 'open'
+    }).returning();
+
+    // 2. Find System Accounts
+    const systemAccounts = await tx.select().from(accounts).where(and(
+      eq(accounts.organizationId, input.organizationId),
+      eq(accounts.isSystemAccount, true)
+    ));
+
+    const apAccount = systemAccounts.find(a => a.controlAccountType === 'ACCOUNTS_PAYABLE');
+    const expenseAccount = systemAccounts.find(a => a.controlAccountType === 'COGS' || a.controlAccountType === 'EXPENSE');
+
+    if (!apAccount || !expenseAccount) {
+      throw new Error("Critical system accounts (AP or COGS/EXPENSE) are not configured.");
+    }
+
+    // 3. Create Double-Entry Journal
+    const entryNumber = "JE-BILL-" + Date.now().toString().slice(-6);
+    
+    const [journalEntry] = await tx.insert(journalEntries).values({
+      organizationId: input.organizationId,
+      entryNumber,
+      entryDate: new Date().toISOString().split('T')[0],
+      narration: \Purchase Bill \\,
+      sourceModule: "PAYABLES",
+      sourceReferenceId: bill.id,
+      totalAmount: input.totalAmount.toString(),
+      status: "POSTED",
+      createdById: input.createdById
+    }).returning();
+
+    await tx.insert(journalLineItems).values([
+      { // DEBIT EXPENSE/COGS
+        journalEntryId: journalEntry.id,
+        accountId: expenseAccount.id,
+        locationId: input.locationId,
+        debit: input.totalAmount.toString(),
+        credit: "0",
+        narration: "Purchase Expense"
+      },
+      { // CREDIT AP
+        journalEntryId: journalEntry.id,
+        accountId: apAccount.id,
+        locationId: input.locationId,
+        partyId: input.vendorId,
+        partyType: "VENDOR",
+        debit: "0",
+        credit: input.totalAmount.toString(),
+        narration: "Bill Generated"
+      }
+    ]);
+
+    return bill;
+  });
+}

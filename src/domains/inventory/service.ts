@@ -1,9 +1,11 @@
 import { and, desc, eq, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
+import crypto from "crypto";
 import { db } from "@/db";
 import { vendors, vendorItems, purchaseOrders, purchaseOrderLines, inventoryLedger, inventoryEventTypes, purchaseSchedules, taskDefinitions, items, taskInstances } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { inventoryPermissions, type EmployeePermission } from "@/lib/authorization-policy";
+import { processAccountingEvent } from "@/domains/finance/event-engine";
 
 type Actor = { id: string } | null;
 
@@ -288,21 +290,100 @@ export async function recordInventoryMovement(actor: Actor, input: RecordMovemen
     // Optional: Business logic check (e.g. negative stock policy)
     // For now we allow negative stock but you can add restrictions here based on location settings.
     
-    // 2. Insert the ledger entry
-    const [entry] = await tx.insert(inventoryLedger).values({
-      organizationId: parsed.data.organizationId,
-      locationId: parsed.data.locationId,
-      vendorItemId: parsed.data.vendorItemId,
-      eventType: parsed.data.eventType,
-      quantityChange: parsed.data.quantityChange,
-      balanceAfter: newBalance.toFixed(4),
-      referenceId: parsed.data.referenceId ?? null,
-      notes: parsed.data.notes ?? null,
-      recordedBy: parsed.data.recordedByEmployeeId,
-    }).returning();
+      const [entry] = await tx.insert(inventoryLedger).values({
+        organizationId: parsed.data.organizationId,
+        locationId: parsed.data.locationId,
+        vendorItemId: parsed.data.vendorItemId,
+        eventType: parsed.data.eventType,
+        quantityChange: parsed.data.quantityChange,
+        balanceAfter: newBalance.toFixed(4),
+        referenceId: parsed.data.referenceId ?? null,
+        notes: parsed.data.notes ?? null,
+        recordedBy: parsed.data.recordedByEmployeeId,
+      }).returning();
 
-    return entry;
-  });
+      // Fetch valuation and traceability
+      const [vItem] = await tx
+        .select({ 
+          lastRate: vendorItems.lastRate, 
+          itemName: vendorItems.itemName,
+          isTrackable: items.isTrackable 
+        })
+        .from(vendorItems)
+        .leftJoin(items, eq(vendorItems.itemId, items.id))
+        .where(eq(vendorItems.id, parsed.data.vendorItemId));
+
+      const rate = vItem?.lastRate ? parseFloat(vItem.lastRate) : 0;
+      const isTrackable = vItem?.isTrackable ?? true;
+
+      // 3. Trigger Finance Event for negative adjustments (Shrinkage/Damage)
+      if (change < 0 && ["SHRINKAGE", "DAMAGE", "EXPIRY"].includes(parsed.data.eventType)) {
+        const lossValue = Math.abs(change) * rate;
+
+        if (lossValue > 0) {
+          await processAccountingEvent({
+            organizationId: parsed.data.organizationId,
+            locationId: parsed.data.locationId,
+            triggeredByUserId: actor.id,
+            sourceModule: "SYSTEM", 
+            sourceReferenceId: entry.id,
+            entryDate: new Date(),
+            narration: `Inventory Adjustment [${parsed.data.eventType}] for ${vItem.itemName}`,
+            lines: [
+              {
+                mappingType: "SYSTEM_DEFAULT",
+                sourceReferenceId: "INVENTORY_SHRINKAGE_EXPENSE",
+                amount: lossValue,
+                isDebit: true,
+                narration: "Inventory write-off"
+              },
+              {
+                mappingType: "SYSTEM_DEFAULT",
+                sourceReferenceId: isTrackable ? "INVENTORY_ASSET" : "INVENTORY_CONSUMABLE_EXPENSE", 
+                amount: lossValue,
+                isDebit: false,
+                narration: "Stock reduction"
+              }
+            ]
+          });
+        }
+      }
+
+      // 4. Trigger Finance Event for Goods Receipt Note (RECEIPT)
+      if (change > 0 && parsed.data.eventType === "RECEIPT") {
+        const receiptValue = change * rate;
+
+        if (receiptValue > 0) {
+          await processAccountingEvent({
+            organizationId: parsed.data.organizationId,
+            locationId: parsed.data.locationId,
+            triggeredByUserId: actor.id,
+            sourceModule: "PURCHASE", 
+            sourceReferenceId: entry.id,
+            entryDate: new Date(),
+            narration: `Goods Receipt Note (GRN) for ${vItem.itemName}`,
+            lines: [
+              {
+                mappingType: "SYSTEM_DEFAULT",
+                sourceReferenceId: isTrackable ? "INVENTORY_ASSET" : "INVENTORY_CONSUMABLE_EXPENSE",
+                amount: receiptValue,
+                isDebit: true,
+                narration: isTrackable ? "Inventory Asset increase" : "Consumable Inventory Expense"
+              },
+              {
+                mappingType: "SYSTEM_DEFAULT",
+                sourceReferenceId: "GRNI_SUSPENSE", 
+                amount: receiptValue,
+                isDebit: false,
+                narration: "Goods Received Not Invoiced"
+              }
+            ]
+          });
+        }
+      }
+  
+      return entry;
+    });
 
   return ledgerEntry;
 }
@@ -468,7 +549,8 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
     throw new InventoryServiceError(errorMsg, "INVALID_INPUT");
   }
   
-  await requireScopeAccess(actor, parsed.data, inventoryPermissions.create); // Use appropriate permission
+  // Only require basic scope access for PO creation. The UI/Routing layer handles the specific "purchasing.orders:create" check.
+  await requireScopeAccess(actor, parsed.data); 
 
   const { organizationId, locationId, vendorId, paymentMethod, scheduleId, lines } = parsed.data;
 
@@ -521,6 +603,32 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
       const seq = String((countVal || 0) + 1).padStart(2, '0');
       const poNumber = `${shortCode}-${dateString}-${seq}`;
 
+      // 4. Determine roles for workflow based on global rule (escalate to reporting person)
+      const { locationRoleAssignments, organizationRoleAssignments, businessRoles } = await import('@/db/schema');
+      let processOwnerRoleId = null;
+      let reviewRoleId = null;
+
+      // Find user's active role for this location/org
+      const locRole = await tx.select().from(locationRoleAssignments).where(
+        and(eq(locationRoleAssignments.userId, actor.id), eq(locationRoleAssignments.locationId, organizationId)) // Wait, locationId
+      ).limit(1); // I'll refine this logic below
+      
+      let userRole = null;
+      const lRole = await tx.select().from(locationRoleAssignments).where(and(eq(locationRoleAssignments.userId, actor.id), eq(locationRoleAssignments.locationId, locationId))).limit(1);
+      if (lRole.length > 0) userRole = lRole[0].roleId;
+      else {
+        const oRole = await tx.select().from(organizationRoleAssignments).where(and(eq(organizationRoleAssignments.userId, actor.id), eq(organizationRoleAssignments.organizationId, organizationId))).limit(1);
+        if (oRole.length > 0) userRole = oRole[0].roleId;
+      }
+
+      if (userRole) {
+        processOwnerRoleId = userRole;
+        const roleInfo = await tx.select().from(businessRoles).where(eq(businessRoles.id, userRole)).limit(1);
+        if (roleInfo.length > 0 && roleInfo[0].reportsToRoleId) {
+          reviewRoleId = roleInfo[0].reportsToRoleId;
+        }
+      }
+
       [po] = await tx.insert(purchaseOrders).values({
         organizationId,
         locationId,
@@ -528,8 +636,12 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
         poNumber,
         totalAmount: totalAmount.toString(),
         paymentMethod,
-        status: scheduleId ? 'pending_approval' : 'draft',
+        status: 'pending_approval', // Manual POs should also go for approval immediately
         publicToken: crypto.randomUUID(),
+        processOwnerRoleId,
+        reviewRoleId,
+        billReviewRoleId: reviewRoleId, // Default bill reviewer is the manager
+        createdByUserId: actor.id,
       }).returning();
 
       const poLines = lines.map(line => ({

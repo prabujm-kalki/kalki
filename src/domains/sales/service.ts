@@ -3,11 +3,14 @@ import {
   salesImportBatches,
   salesTransactions,
   salesTransactionLines,
+  tmbillConfigs,
+  locations,
 } from "@/db/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray, gte, lte } from "drizzle-orm";
 import * as xlsx from "xlsx";
 import crypto from "crypto";
 import { getActiveImportFields } from "@/domains/settings/import-fields.service";
+import { processAccountingEvent } from "@/domains/finance/event-engine";
 
 /**
  * Normalizes TMBill Excel data into our schema
@@ -198,11 +201,75 @@ export async function processTMBillExcelUpload(
 /**
  * Reconciles the batch (can be extended with complex logic later)
  */
-export async function reconcileSalesBatch(batchId: string) {
-  await db
-    .update(salesImportBatches)
-    .set({ status: "RECONCILED" })
-    .where(eq(salesImportBatches.id, batchId));
+export async function reconcileSalesBatch(batchId: string, actorId: string) {
+  return await db.transaction(async (tx) => {
+    const [batch] = await tx.select().from(salesImportBatches).where(eq(salesImportBatches.id, batchId));
+    if (!batch) throw new Error("Batch not found");
+    if (batch.status === "RECONCILED") throw new Error("Batch is already reconciled");
+
+    // Fetch all transactions for this batch
+    const transactions = await tx.select().from(salesTransactions).where(eq(salesTransactions.batchId, batchId));
+    
+    let totalSalesAmount = 0;
+    const paymentMethods: Record<string, number> = {};
+
+    for (const txn of transactions) {
+      const net = parseFloat(txn.netAmount);
+      totalSalesAmount += net;
+      
+      const method = txn.paymentMethod || "CASH";
+      if (!paymentMethods[method]) paymentMethods[method] = 0;
+      paymentMethods[method] += net;
+    }
+
+    if (totalSalesAmount > 0) {
+      const accountingLines = [];
+
+      // Credit Sales Revenue
+      accountingLines.push({
+        mappingType: "SYSTEM_DEFAULT",
+        sourceReferenceId: "SALES_REVENUE",
+        amount: totalSalesAmount,
+        isDebit: false,
+        narration: `Sales from batch ${batchId}`
+      });
+
+      // Debit Cash/Bank or Accounts Receivable per payment method
+      for (const [method, amount] of Object.entries(paymentMethods)) {
+        const methodUpper = method.toUpperCase();
+        let sourceReferenceId = "BANK_CASH";
+        
+        // Map aggregators and credit sales to Debtors instead of immediate cash
+        if (["SWIGGY", "ZOMATO", "UBEREATS", "CREDIT", "DEBTOR"].some(agg => methodUpper.includes(agg))) {
+          sourceReferenceId = "ACCOUNTS_RECEIVABLE";
+        }
+
+        accountingLines.push({
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: sourceReferenceId, 
+          amount: amount,
+          isDebit: true,
+          narration: `Collections via ${method}`
+        });
+      }
+
+      await processAccountingEvent({
+        organizationId: batch.organizationId,
+        locationId: batch.locationId,
+        triggeredByUserId: actorId,
+        sourceModule: "POS",
+        sourceReferenceId: batchId,
+        entryDate: batch.operatingDate,
+        narration: `Daily Sales Import Batch ${batchId}`,
+        lines: accountingLines
+      });
+    }
+
+    await tx
+      .update(salesImportBatches)
+      .set({ status: "RECONCILED" })
+      .where(eq(salesImportBatches.id, batchId));
+  });
 }
 
 export async function getRecentSalesBatches(locationId: string) {
@@ -215,10 +282,39 @@ export async function getRecentSalesBatches(locationId: string) {
 }
 
 export async function getSalesStats(locationId: string) {
+  // Fetch dynamic business day start time
+  const [loc] = await db.select({ orgId: locations.organizationId }).from(locations).where(eq(locations.id, locationId)).limit(1);
+  let startHour = 6;
+  let startMinute = 0;
+  if (loc?.orgId) {
+    const [config] = await db.select({ time: tmbillConfigs.businessDayStartTime }).from(tmbillConfigs).where(eq(tmbillConfigs.organizationId, loc.orgId)).limit(1);
+    if (config?.time) {
+      const [h, m] = config.time.split(':');
+      if (h && m) {
+        startHour = parseInt(h, 10);
+        startMinute = parseInt(m, 10);
+      }
+    }
+  }
+
+  const now = new Date();
+  
+  let startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), startHour, startMinute, 0, 0);
+  if (now.getHours() < startHour || (now.getHours() === startHour && now.getMinutes() < startMinute)) {
+    startOfToday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+  }
+  const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000 - 1);
+
   const txs = await db
     .select({ netAmount: salesTransactions.netAmount })
     .from(salesTransactions)
-    .where(eq(salesTransactions.locationId, locationId));
+    .where(
+      and(
+        eq(salesTransactions.locationId, locationId),
+        gte(salesTransactions.billTimestamp, startOfToday),
+        lte(salesTransactions.billTimestamp, endOfToday)
+      )
+    );
 
   const totalAmount = txs.reduce((sum, tx) => sum + Number(tx.netAmount), 0);
   const totalBills = txs.length;

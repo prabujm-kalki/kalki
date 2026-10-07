@@ -9,7 +9,11 @@ export async function POST(request: Request) {
     // Default organization for now, replace with actual user's org if needed
     // Assuming the frontend sends it or we get it from session.
     const body = await request.json();
-    const { organizationId, locationId, vendorId, responsibleRoleId, frequencyRule, reminderTime, priority, taskDefinitionId } = body;
+    const { organizationId, locationId, vendorId, responsibleRoleId, reviewRoleId, billReviewRoleId, frequencyRule, reminderTime, priority, taskDefinitionId } = body;
+
+    if (!responsibleRoleId) {
+      return NextResponse.json({ error: "Responsible Role is strictly required to prevent orphaned tasks." }, { status: 400 });
+    }
 
     const [newSchedule] = await db.insert(purchaseSchedules).values({
       id: crypto.randomUUID(),
@@ -17,6 +21,8 @@ export async function POST(request: Request) {
       locationId,
       vendorId,
       responsibleRoleId,
+      reviewRoleId: reviewRoleId || null,
+      billReviewRoleId: billReviewRoleId || null,
       frequencyRule,
       reminderTime,
       priority: priority || "medium",

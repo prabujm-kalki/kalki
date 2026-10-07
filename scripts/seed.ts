@@ -12,7 +12,8 @@ import {
   people,
   employees,
   employeeRoleAssignments,
-  businessRoles
+  businessRoles,
+  salaryComponents
 } from "../src/db/schema";
 import { auth } from "../src/lib/auth";
 
@@ -261,6 +262,52 @@ async function seed() {
         roleId: ownerRole.id,
         organizationId: org.id,
         locationId: locationRecords[0].id,
+        isActive: true,
+      });
+    }
+  // --- SEED PAYROLL COMPONENTS ---
+  console.log("Seeding Salary Components...");
+  const standardComponents = [
+    {
+      name: "Basic Pay",
+      type: "EARNING" as const,
+      isTaxable: true,
+      ledgerAccountMapping: "SALARY_EXPENSE"
+    },
+    {
+      name: "House Rent Allowance (HRA)",
+      type: "EARNING" as const,
+      isTaxable: true,
+      ledgerAccountMapping: "SALARY_EXPENSE"
+    },
+    {
+      name: "Provident Fund (Employee)",
+      type: "DEDUCTION" as const,
+      isTaxable: false,
+      ledgerAccountMapping: "PF_PAYABLE"
+    },
+    {
+      name: "Professional Tax",
+      type: "DEDUCTION" as const,
+      isTaxable: false,
+      ledgerAccountMapping: "PT_PAYABLE"
+    }
+  ];
+
+  for (const comp of standardComponents) {
+    const [existing] = await db
+      .select()
+      .from(salaryComponents)
+      .where(and(eq(salaryComponents.organizationId, org.id), eq(salaryComponents.name, comp.name)))
+      .limit(1);
+    
+    if (!existing) {
+      await db.insert(salaryComponents).values({
+        organizationId: org.id,
+        name: comp.name,
+        type: comp.type,
+        isTaxable: comp.isTaxable,
+        ledgerAccountMapping: comp.ledgerAccountMapping,
         isActive: true,
       });
     }

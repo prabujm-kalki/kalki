@@ -34,6 +34,9 @@ export const organizations = pgTable(
       .notNull()
       .defaultNow(),
     whatsappPoTemplate: text("whatsapp_po_template"),
+    enableMobilePushNotifications: boolean("enable_mobile_push_notifications").notNull().default(false),
+    notificationTone: text("notification_tone").notNull().default("level-1"),
+    customTones: jsonb("custom_tones").default({}),
   },
   (table) => [
     unique("organizations_code_unique").on(table.code),
@@ -174,6 +177,9 @@ export const employees = pgTable(
     otherDocument3Url: text("other_document_3_url"),
     biometricId: text("biometric_id"),
     posId: text("pos_id"),
+    uanNumber: varchar("uan_number", { length: 20 }),
+    esiNumber: varchar("esi_number", { length: 20 }),
+    panNumber: varchar("pan_number", { length: 20 }),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -707,13 +713,43 @@ export const businessRoles = pgTable(
       table.locationId,
       table.name,
     ),
-    unique("business_roles_organization_id_unique").on(
-      table.organizationId,
-      table.id,
-    ),
     index("business_roles_organization_active_idx").on(
       table.organizationId,
       table.isActive,
+    ),
+  ],
+);
+
+
+export const approvalLimits = pgTable(
+  "approval_limits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => businessRoles.id),
+    module: text("module").notNull(),
+    maxLimit: numeric("max_limit").notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("approval_limits_org_role_module_unique").on(
+      table.organizationId,
+      table.roleId,
+      table.module,
+    ),
+    index("approval_limits_org_module_idx").on(
+      table.organizationId,
+      table.module,
     ),
   ],
 );
@@ -1407,6 +1443,24 @@ export const vendorItems = pgTable(
   ],
 );
 
+export const purchaseRoutingConfigs = pgTable(
+  "purchase_routing_configs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    locationId: uuid("location_id").notNull(),
+    targetRoleId: uuid("target_role_id").notNull().references(() => businessRoles.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  }
+);
+
 export const purchaseOrders = pgTable(
   "purchase_orders",
   {
@@ -1429,6 +1483,12 @@ export const purchaseOrders = pgTable(
     processOwnerAttachments: jsonb("process_owner_attachments"),
     calculatedTotal: numeric("calculated_total"),
     routingConfigurationId: uuid("routing_configuration_id"),
+    processOwnerRoleId: uuid("process_owner_role_id").references(() => businessRoles.id),
+    reviewRoleId: uuid("review_role_id").references(() => businessRoles.id),
+    billReviewRoleId: uuid("bill_review_role_id").references(() => businessRoles.id),
+    createdByUserId: text("created_by_user_id").references(() => authUsers.id),
+    approvedByUserId: text("approved_by_user_id").references(() => authUsers.id),
+    receivedByUserId: text("received_by_user_id").references(() => authUsers.id),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1481,6 +1541,8 @@ export const purchaseSchedules = pgTable(
     responsibleRoleId: uuid("responsible_role_id")
       .notNull()
       .references(() => businessRoles.id),
+    reviewRoleId: uuid("review_role_id").references(() => businessRoles.id),
+    billReviewRoleId: uuid("bill_review_role_id").references(() => businessRoles.id),
     frequencyRule: text("frequency_rule").notNull(),
     reminderTime: text("reminder_time").notNull(),
     priority: text("priority").notNull().default("medium"),
@@ -1612,6 +1674,7 @@ export const payments = pgTable(
       enum: ["CASH", "BANK_TRANSFER", "CHEQUE", "UPI"],
     }).notNull(),
     referenceDetails: text("reference_details"),
+    attachmentUrl: text("attachment_url"),
     recordedBy: uuid("recorded_by")
       .notNull()
       .references(() => employees.id),
@@ -2159,6 +2222,29 @@ export const notificationPreferences = pgTable(
   ],
 );
 
+export const userDeviceTokens = pgTable(
+  "user_device_tokens",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => authUsers.id, { onDelete: "cascade" }),
+    deviceToken: text("device_token").notNull().unique(),
+    deviceType: text("device_type").notNull(), // e.g. 'android', 'ios', 'web'
+    deviceName: text("device_name"),
+    isActive: boolean("is_active").notNull().default(true),
+    lastActiveAt: timestamp("last_active_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index("user_device_tokens_user_id_idx").on(table.userId),
+  ]
+);
+
 export const biometricImportBatches = pgTable("biometric_import_batches", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id")
@@ -2544,6 +2630,7 @@ export const salaryComponents = pgTable("salary_components", {
   name: text("name").notNull(),
   type: text("type", { enum: ["EARNING", "DEDUCTION"] }).notNull(),
   isTaxable: boolean("is_taxable").notNull().default(true),
+  ledgerAccountMapping: varchar("ledger_account_mapping", { length: 255 }), // Bridge to Finance Ledger
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -2990,3 +3077,471 @@ export const kuabEscalationRules = pgTable(
     ),
   ]
 );
+
+// ==========================================
+// FINANCE & ACCOUNTS MODULE (KALKI-SPEC-ACCOUNTS-001)
+// ==========================================
+
+export const accountTypes = pgTable("account_types", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // ASSET, LIABILITY, EQUITY, INCOME, EXPENSE
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("account_types_org_idx").on(table.organizationId),
+]);
+
+export const accountGroups = pgTable("account_groups", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  accountTypeId: uuid("account_type_id").notNull().references(() => accountTypes.id),
+  parentGroupId: uuid("parent_group_id"),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 50 }).notNull(),
+  systemCategory: varchar("system_category", { length: 50 }),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("account_groups_org_idx").on(table.organizationId),
+]);
+
+export const accounts = pgTable("accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  accountGroupId: uuid("account_group_id").notNull().references(() => accountGroups.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  code: varchar("code", { length: 50 }).notNull(),
+  description: text("description"),
+  controlAccountType: varchar("control_account_type", { length: 50 }),
+  isSystemAccount: boolean("is_system_account").notNull().default(false),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("accounts_org_idx").on(table.organizationId),
+  unique("accounts_org_code_unique").on(table.organizationId, table.code),
+]);
+
+export const accountingMappings = pgTable("accounting_mappings", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  sourceModule: varchar("source_module", { length: 100 }).notNull(), // PURCHASE, PAYROLL, UTILITIES
+  mappingType: varchar("mapping_type", { length: 100 }).notNull(), // ITEM_CATEGORY, PAYROLL_COMPONENT
+  sourceReferenceId: text("source_reference_id").notNull(),
+  accountId: uuid("account_id").notNull().references(() => accounts.id),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("accounting_mappings_org_idx").on(table.organizationId),
+  unique("accounting_mappings_unique").on(table.organizationId, table.sourceModule, table.mappingType, table.sourceReferenceId),
+]);
+
+export const journalEntries = pgTable("journal_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  entryNumber: varchar("entry_number", { length: 50 }).notNull(),
+  entryDate: date("entry_date").notNull(),
+  narration: text("narration").notNull(),
+  sourceModule: varchar("source_module", { length: 100 }).notNull(), // PURCHASE, PAYROLL, MANUAL
+  sourceReferenceId: text("source_reference_id"),
+  totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("DRAFT"), // DRAFT, PENDING_APPROVAL, POSTED, CANCELLED
+  createdById: text("created_by_id").notNull().references(() => authUsers.id),
+  approvedById: text("approved_by_id").references(() => authUsers.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("journal_entries_org_idx").on(table.organizationId),
+  index("journal_entries_date_idx").on(table.entryDate),
+  unique("journal_entries_org_number_unique").on(table.organizationId, table.entryNumber),
+]);
+
+export const journalLineItems = pgTable("journal_line_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  journalEntryId: uuid("journal_entry_id").notNull().references(() => journalEntries.id, { onDelete: "cascade" }),
+  accountId: uuid("account_id").notNull().references(() => accounts.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  partyId: uuid("party_id"), // Connects the line to a specific Customer, Vendor, or Employee
+  partyType: varchar("party_type", { length: 50 }), // 'CUSTOMER', 'VENDOR', 'EMPLOYEE'
+  debit: decimal("debit", { precision: 15, scale: 2 }).notNull().default("0"),
+  credit: decimal("credit", { precision: 15, scale: 2 }).notNull().default("0"),
+  narration: text("narration"),
+}, (table) => [
+  index("journal_line_items_journal_idx").on(table.journalEntryId),
+  index("journal_line_items_account_idx").on(table.accountId),
+  index("journal_line_items_location_idx").on(table.locationId),
+  index("journal_line_items_party_idx").on(table.partyId),
+]);
+
+// -----------------------------------------------------------------------------
+// END-OF-DAY (EOD) RECONCILIATION ENGINE
+// -----------------------------------------------------------------------------
+
+export const dayCloseRecords = pgTable("day_close_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  date: date("date").notNull(),
+  status: text("status", { enum: ["CLOSED"] }).notNull().default("CLOSED"),
+  closedByUserId: text("closed_by_user_id").notNull().references(() => authUsers.id),
+  closedAt: timestamp("closed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  unique("day_close_org_loc_date_unique").on(table.organizationId, table.locationId, table.date)
+]);
+
+export const dayCloseCashDenominations = pgTable("day_close_cash_denominations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dayCloseId: uuid("day_close_id").notNull().references(() => dayCloseRecords.id, { onDelete: "cascade" }),
+  denomination: integer("denomination").notNull(), // e.g. 500, 200, 100
+  count: integer("count").notNull(),
+  totalAmount: numeric("total_amount").notNull(),
+});
+
+export const dayCloseFinancialSummaries = pgTable("day_close_financial_summaries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  dayCloseId: uuid("day_close_id").notNull().references(() => dayCloseRecords.id, { onDelete: "cascade" }),
+  paymentMethod: text("payment_method").notNull(), // CASH, SWIGGY, ZOMATO, CARD
+  systemExpectedAmount: numeric("system_expected_amount").notNull().default("0"),
+  actualDeclaredAmount: numeric("actual_declared_amount").notNull().default("0"),
+  varianceAmount: numeric("variance_amount").notNull().default("0"),
+});
+
+// -----------------------------------------------------------------------------
+// FIXED ASSETS MODULE
+// -----------------------------------------------------------------------------
+export const fixedAssets = pgTable("fixed_assets", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  assetCode: varchar("asset_code", { length: 100 }).notNull(),
+  purchaseDate: date("purchase_date").notNull(),
+  purchasePrice: numeric("purchase_price").notNull(),
+  currentValue: numeric("current_value").notNull(),
+  depreciationRate: numeric("depreciation_rate").notNull(), // Annual percentage
+  depreciationMethod: varchar("depreciation_method", { length: 50 }).notNull().default("STRAIGHT_LINE"),
+  assetAccountId: uuid("asset_account_id").notNull().references(() => accounts.id),
+  depreciationAccountId: uuid("depreciation_account_id").notNull().references(() => accounts.id),
+  depreciationExpenseAccountId: uuid("depreciation_expense_account_id").notNull().references(() => accounts.id),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// --- SALES & RECEIVABLES (FINANCE) ---
+
+export const customers = pgTable("customers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  address: text("address"),
+  taxId: text("tax_id"),
+  creditLimit: numeric("credit_limit"),
+  creditTermsDays: integer("credit_terms_days"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const salesInvoices = pgTable("sales_invoices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  customerId: uuid("customer_id").notNull().references(() => customers.id),
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  issueDate: timestamp("issue_date").notNull(),
+  dueDate: timestamp("due_date").notNull(),
+  totalAmount: numeric("total_amount").notNull(),
+  taxAmount: numeric("tax_amount").notNull().default("0"),
+  status: text("status").notNull().default("draft"), // draft, issued, partially_paid, paid, void
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const salesInvoiceLines = pgTable("sales_invoice_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id").notNull().references(() => salesInvoices.id),
+  description: text("description").notNull(),
+  quantity: numeric("quantity").notNull(),
+  unitPrice: numeric("unit_price").notNull(),
+  totalAmount: numeric("total_amount").notNull(),
+});
+
+export const salesReceipts = pgTable("sales_receipts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  customerId: uuid("customer_id").notNull().references(() => customers.id),
+  receiptNumber: text("receipt_number").notNull().unique(),
+  receiptDate: timestamp("receipt_date").notNull(),
+  amount: numeric("amount").notNull(),
+  paymentMethod: text("payment_method").notNull(), // cash, bank_transfer, card, etc.
+  referenceNumber: text("reference_number"), // bank tx id etc.
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const salesReceiptAllocations = pgTable("sales_receipt_allocations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  receiptId: uuid("receipt_id").notNull().references(() => salesReceipts.id),
+  invoiceId: uuid("invoice_id").notNull().references(() => salesInvoices.id),
+  amountApplied: numeric("amount_applied").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const salesCreditNotes = pgTable("sales_credit_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  customerId: uuid("customer_id").notNull().references(() => customers.id),
+  invoiceId: uuid("invoice_id").references(() => salesInvoices.id),
+  creditNoteNumber: text("credit_note_number").notNull().unique(),
+  issueDate: timestamp("issue_date").notNull(),
+  amount: numeric("amount").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("issued"), // issued, applied, void
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ==========================================
+// FINANCE: PURCHASES & PAYABLES (Phase 5)
+// ==========================================
+
+
+
+export const purchaseBills = pgTable('purchase_bills', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  locationId: uuid('location_id').notNull().references(() => locations.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  billNumber: varchar('bill_number', { length: 100 }).notNull(),
+  vendorInvoiceNumber: varchar('vendor_invoice_number', { length: 100 }),
+  billDate: timestamp('bill_date').notNull(),
+  dueDate: timestamp('due_date').notNull(),
+  subtotal: numeric('subtotal', { precision: 12, scale: 2 }).notNull().default('0'),
+  taxAmount: numeric('tax_amount', { precision: 12, scale: 2 }).notNull().default('0'),
+  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('draft'), // draft, open, partially_paid, paid, void
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const purchasePayments = pgTable('purchase_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  locationId: uuid('location_id').notNull().references(() => locations.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  paymentNumber: varchar('payment_number', { length: 100 }).notNull(),
+  paymentDate: timestamp('payment_date').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: varchar('payment_method', { length: 50 }).notNull(), // BANK, CASH
+  referenceNumber: varchar('reference_number', { length: 100 }), // Cheque #, UTR
+  notes: text('notes'),
+  attachmentUrl: text('attachment_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const purchasePaymentAllocations = pgTable('purchase_payment_allocations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  paymentId: uuid('payment_id').notNull().references(() => purchasePayments.id),
+  billId: uuid('bill_id').notNull().references(() => purchaseBills.id),
+  amountApplied: numeric('amount_applied', { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const purchaseDebitNotes = pgTable('purchase_debit_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  locationId: uuid('location_id').notNull().references(() => locations.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  noteNumber: varchar('note_number', { length: 100 }).notNull(),
+  noteDate: timestamp('note_date').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  reason: text('reason'),
+  status: varchar('status', { length: 50 }).notNull().default('draft'), // draft, pending_approval, approved, rejected, applied
+  createdByUserId: text('created_by_user_id').references(() => authUsers.id),
+  approvedByUserId: text('approved_by_user_id').references(() => authUsers.id),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+
+
+export const tmbillSyncLogs = pgTable("tmbill_sync_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  locationId: uuid("location_id"),
+  syncType: text("sync_type").notNull(), 
+  status: text("status").notNull(),
+  recordsProcessed: integer("records_processed").notNull().default(0),
+  recordsFailed: integer("records_failed").notNull().default(0),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  errorDetails: text("error_details"),
+  metadata: jsonb("metadata").default({}),
+});
+
+export const tmbillOrders = pgTable("tmbill_orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  locationId: uuid("location_id"),
+  tmbillOrderId: text("tmbill_order_id").notNull(),
+  tmbillOrderDisplayId: text("tmbill_order_display_id"),
+  tableName: text("table_name"),
+  customerName: text("customer_name"),
+  customerPhone: text("customer_phone"),
+  orderState: text("order_state"),
+  orderSubtotal: numeric("order_subtotal", { precision: 12, scale: 2 }),
+  orderTotal: numeric("order_total", { precision: 12, scale: 2 }),
+  orderDateTime: timestamp("order_date_time", { withTimezone: true }),
+  paymentMode: text("payment_mode"),
+  isSyncedToFinance: boolean("is_synced_to_finance").notNull().default(false),
+  financeJournalEntryId: uuid("finance_journal_entry_id"), 
+  financeSalesInvoiceId: uuid("finance_sales_invoice_id"),
+  rawData: jsonb("raw_data").notNull(), 
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tmbillOrderItems = pgTable("tmbill_order_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  orderId: uuid("order_id").notNull().references(() => tmbillOrders.id, { onDelete: "cascade" }),
+  tmbillItemId: text("tmbill_item_id").notNull(),
+  title: text("title").notNull(),
+  quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull(),
+  price: numeric("price", { precision: 12, scale: 2 }).notNull(),
+  totalWithTax: numeric("total_with_tax", { precision: 12, scale: 2 }).notNull(),
+  totalTax: numeric("total_tax", { precision: 12, scale: 2 }).notNull(),
+  productGroupName: text("product_group_name"),
+  rawData: jsonb("raw_data").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tmbillConfigs = pgTable("tmbill_configs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull(),
+  locationId: uuid("location_id"), // Optional if they want to sync per-location
+  apiUrl: text("api_url").notNull().default("https://api.tmbill.com/tp/v1"),
+  username: text("username"),
+  password: text("password"),
+  storeId: text("store_id"),
+  tmposId: text("tmpos_id"),
+  businessDayStartTime: text("business_day_start_time").notNull().default("06:00"),
+  autoSyncEnabled: boolean("auto_sync_enabled").notNull().default(false),
+  autoSyncIntervalMinutes: integer("auto_sync_interval_minutes").notNull().default(60),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ==========================================
+// 1. SALES CHANNELS
+// ==========================================
+export const salesChannels = pgTable("sales_channels", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").references(() => locations.id),
+  
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  
+  fulfillmentType: text("fulfillment_type").notNull().default("IMMEDIATE"),
+  requiresDispatch: boolean("requires_dispatch").default(false),
+  
+  defaultTaxSlabId: uuid("default_tax_slab_id"), 
+  platformFeePercentage: decimal("platform_fee_percentage", { precision: 5, scale: 2 }),
+  
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ==========================================
+// 2. PRICING & DISCOUNT ENGINE RULES
+// ==========================================
+export const pricingRules = pgTable("pricing_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").references(() => locations.id),
+  
+  name: text("name").notNull(),
+  description: text("description"),
+  
+  ruleType: text("rule_type").notNull(),
+  priority: integer("priority").notNull().default(0),
+  
+  conditions: jsonb("conditions").notNull(), 
+  actions: jsonb("actions").notNull(),
+
+  requiresApproval: boolean("requires_approval").default(false),
+  approvalRoleLevel: text("approval_role_level"),
+
+  isActive: boolean("is_active").default(true).notNull(),
+  validFrom: timestamp("valid_from", { withTimezone: true }),
+  validUntil: timestamp("valid_until", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ==========================================
+// 3. SALES ORDERS (The Active Transaction)
+// ==========================================
+export const salesOrders = pgTable("sales_orders", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  
+  channelId: uuid("channel_id").notNull().references(() => salesChannels.id),
+  
+  orderNumber: text("order_number").notNull(),
+  status: text("status").notNull().default("DRAFT"),
+  
+  customerId: uuid("customer_id"),
+  customerName: text("customer_name"),
+  customerContact: text("customer_contact"),
+  
+  grossAmount: decimal("gross_amount", { precision: 12, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  netAmount: decimal("net_amount", { precision: 12, scale: 2 }).notNull(),
+  
+  appliedPricingRules: jsonb("applied_pricing_rules").default([]), 
+  taxBreakdown: jsonb("tax_breakdown").default({}),
+  
+  orderTimestamp: timestamp("order_timestamp", { withTimezone: true }).notNull().defaultNow(),
+  fulfillmentTimestamp: timestamp("fulfillment_timestamp", { withTimezone: true }),
+  
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ==========================================
+// 4. SALES ORDER LINES (The Items)
+// ==========================================
+export const salesOrderLines = pgTable("sales_order_lines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  orderId: uuid("order_id").notNull().references(() => salesOrders.id, { onDelete: "cascade" }),
+  
+  itemId: text("item_id").notNull(),
+  itemName: text("item_name").notNull(),
+  
+  quantity: decimal("quantity", { precision: 10, scale: 3 }).notNull(),
+  unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+  
+  grossAmount: decimal("gross_amount", { precision: 12, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+  netAmount: decimal("net_amount", { precision: 12, scale: 2 }).notNull(),
+  
+  notes: text("notes"),
+});
+
+

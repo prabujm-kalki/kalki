@@ -15,8 +15,8 @@ type Balance = {
 export function LeaveBalances({ balances }: { balances: Balance[] }) {
   if (balances.length === 0) {
     return (
-      <div className="att-card" style={{ textAlign: "center", padding: "2rem" }}>
-        <p className="muted">No leave balances found.</p>
+      <div className="att-card" style={{ textAlign: "center", padding: "1rem" }}>
+        <p className="muted" style={{ fontSize: "0.85rem", margin: 0 }}>No leave balances found.</p>
       </div>
     );
   }

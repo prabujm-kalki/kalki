@@ -4,6 +4,7 @@ import { eq, desc, isNotNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { Plus, Clock, MapPin, Users, CheckCircle2, AlertCircle, ArrowRight, PlayCircle, Edit2, Shield, GitMerge } from "lucide-react";
 import { ItemClassificationManager } from "@/components/purchasing/ItemClassificationManager";
+import { PurchaseRoutingConfigPanel } from "@/components/purchasing/PurchaseRoutingConfigPanel";
 
 export default async function ConfigurationPage({ searchParams }: { searchParams: Promise<{ organizationId?: string; locationId?: string }> }) {
   const resolvedParams = await searchParams;
@@ -230,6 +231,14 @@ export default async function ConfigurationPage({ searchParams }: { searchParams
               Missed tasks will not trigger automated escalations. Configure policies to notify managers of delays.
             </p>
           </div>
+        </div>
+
+        {/* Post-Receiving Workflow Configuration */}
+        <div style={{ padding: "1.5rem", borderTop: "1px solid var(--border-color)" }}>
+          <PurchaseRoutingConfigPanel 
+            organizationId={resolvedParams.organizationId || ""} 
+            locationId={resolvedParams.locationId || ""} 
+          />
         </div>
 
         {/* Item Classification Manager */}

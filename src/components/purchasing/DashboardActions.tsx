@@ -173,7 +173,7 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
   };
 
   return (
-    <div className="card" style={{ padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white', height: '100%' }}>
+    <div className="card" style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white', height: '100%' }}>
       
       {/* Review Modal */}
       {reviewingApproval && (
@@ -230,10 +230,10 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
                 </table>
               )}
               
-              {reviewingApproval.status === 'audited' && reviewingApproval.cashierBillAmount && (
+              {reviewingApproval.status === 'audited' && (
                 <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <strong>Cashier Bill Amount: </strong> ₹{reviewingApproval.cashierBillAmount}
+                    <strong>Cashier Bill Amount: </strong> ₹{reviewLines.reduce((acc, line) => acc + ((Number(line.editQuantity) || 0) * (Number(line.unitRate) || 0)), 0)}
                   </div>
                   {reviewingApproval.cashierAttachments && reviewingApproval.cashierAttachments.length > 0 && (
                     <a 
@@ -285,47 +285,47 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
         </div>
       )}
 
-      <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '1rem' }}>Quick Actions</h3>
+      <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>Quick Actions</h3>
       
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        <Link href={`/purchasing/stock-assessment${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
-          <div style={{ padding: '0.25rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '0.25rem' }}>
-            <FileCheck size={14} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        <Link href={`/purchasing/stock-assessment${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+          <div style={{ padding: '0.2rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '0.25rem' }}>
+            <FileCheck size={12} />
           </div>
-          <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Daily Stock Assessment</span>
+          <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Daily Stock Assessment</span>
         </Link>
 
-        <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
-          <div style={{ padding: '0.25rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '0.25rem' }}>
-            <Plus size={14} />
+        <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+          <div style={{ padding: '0.2rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '0.25rem' }}>
+            <Plus size={12} />
           </div>
-          <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Create New PO</span>
+          <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Create New PO</span>
         </Link>
 
-        <Link href={`/inventory${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
-          <div style={{ padding: '0.25rem', backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: '0.25rem' }}>
-            <PackagePlus size={14} />
+        <Link href={`/inventory${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+          <div style={{ padding: '0.2rem', backgroundColor: '#dcfce7', color: '#16a34a', borderRadius: '0.25rem' }}>
+            <PackagePlus size={12} />
           </div>
-          <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Record Goods Receipt</span>
+          <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Record Goods Receipt</span>
         </Link>
 
-        <Link href={`/purchasing/vendors${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
-          <div style={{ padding: '0.25rem', backgroundColor: '#fef3c7', color: '#d97706', borderRadius: '0.25rem' }}>
-            <Users size={14} />
+        <Link href={`/purchasing/vendors${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+          <div style={{ padding: '0.2rem', backgroundColor: '#fef3c7', color: '#d97706', borderRadius: '0.25rem' }}>
+            <Users size={12} />
           </div>
-          <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Add New Vendor</span>
+          <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Add New Vendor</span>
         </Link>
 
-        <Link href={`/purchasing/schedules${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.5rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
-          <div style={{ padding: '0.25rem', backgroundColor: '#f3e8ff', color: '#9333ea', borderRadius: '0.25rem' }}>
-            <FileCheck size={14} />
+        <Link href={`/purchasing/schedules${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+          <div style={{ padding: '0.2rem', backgroundColor: '#f3e8ff', color: '#9333ea', borderRadius: '0.25rem' }}>
+            <FileCheck size={12} />
           </div>
-          <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Routine Tasks</span>
+          <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Routine Tasks</span>
         </Link>
       </div>
 
-      <div style={{ marginTop: '1.5rem' }}>
-        <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div style={{ marginTop: '0.75rem' }}>
+        <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <FileCheck size={14} /> Requires My Approval
         </h3>
         

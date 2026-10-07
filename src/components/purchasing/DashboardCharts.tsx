@@ -23,10 +23,10 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 export function DashboardCharts({ spendTrendData, categoryData }: DashboardChartsProps) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
-      <div className="card" style={{ padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '0.75rem' }}>
+      <div className="card" style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
         <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.75rem' }}>Spend Trend</h3>
-        <div style={{ width: '100%', height: 180 }}>
+        <div style={{ width: '100%', height: 140 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={spendTrendData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -39,9 +39,9 @@ export function DashboardCharts({ spendTrendData, categoryData }: DashboardChart
         </div>
       </div>
 
-      <div className="card" style={{ padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+      <div className="card" style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
         <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.75rem' }}>Spend by Category</h3>
-        <div style={{ width: '100%', height: 180 }}>
+        <div style={{ width: '100%', height: 140 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <Pie

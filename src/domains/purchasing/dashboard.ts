@@ -1,9 +1,9 @@
 import { db } from "@/db";
 import { purchaseOrders, vendors, vendorItems, organizations, taskInstances } from "@/db/schema";
-import { eq, sum, count, desc, and, gte, lt, sql } from "drizzle-orm";
+import { eq, sum, count, desc, and, gte, lt, sql, inArray } from "drizzle-orm";
 import { Activity } from "@/components/purchasing/RecentActivityFeed";
 
-export async function getDashboardData(isOwner: boolean = false) {
+export async function getDashboardData(isOwner: boolean = false, userId?: string, userRoleIds: string[] = []) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -27,13 +27,13 @@ export async function getDashboardData(isOwner: boolean = false) {
   const pendingOrdersPromise = db
     .select({ count: count() })
     .from(purchaseOrders)
-    .where(eq(purchaseOrders.status, 'draft'));
+    .where(inArray(purchaseOrders.status, ['draft', 'pending_review']));
 
   const urgentOrdersPromise = db
     .select({ count: count() })
     .from(purchaseOrders)
     .where(and(
-      eq(purchaseOrders.status, 'draft'),
+      inArray(purchaseOrders.status, ['draft', 'pending_review']),
       lt(purchaseOrders.createdAt, twoDaysAgo)
     ));
 
@@ -91,6 +91,9 @@ export async function getDashboardData(isOwner: boolean = false) {
       cashierBillAmount: purchaseOrders.cashierBillAmount,
       cashierAttachments: purchaseOrders.cashierAttachments,
       processOwnerAttachments: purchaseOrders.processOwnerAttachments,
+      processOwnerRoleId: purchaseOrders.processOwnerRoleId,
+      reviewRoleId: purchaseOrders.reviewRoleId,
+      billReviewRoleId: purchaseOrders.billReviewRoleId,
     })
     .from(purchaseOrders)
     .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
@@ -190,6 +193,7 @@ export async function getDashboardData(isOwner: boolean = false) {
     entity: po.vendorName || 'Unknown Vendor',
     date: po.createdAt.toLocaleDateString(),
     status: po.status === 'draft' || po.status === 'pending_approval' ? 'Pending Approval' : 
+            po.status === 'pending_review' ? 'Pending Review' :
             po.status === 'received' ? 'Awaiting Audit' : 
             po.status === 'audited' ? 'Final Review' :
             po.status.charAt(0).toUpperCase() + po.status.slice(1),
@@ -225,8 +229,12 @@ export async function getDashboardData(isOwner: boolean = false) {
     .sort((a: any, b: any) => b.timestamp - a.timestamp)
     .slice(0, 8);
 
-  const pendingApprovals = isOwner ? recentPOs
-    .filter(po => po.status === 'draft' || po.status === 'pending_approval' || po.status === 'audited')
+  const pendingApprovals = recentPOs
+    .filter(po => {
+      if (po.status === 'draft') return (isOwner && po.processOwnerRoleId === null) || userRoleIds.includes(po.processOwnerRoleId as string);
+      if (po.status === 'pending_approval' || po.status === 'pending_review') return (isOwner && po.reviewRoleId === null) || userRoleIds.includes(po.reviewRoleId as string);
+      return false;
+    })
     .map(po => ({
       id: po.poNumber || po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5),
       realId: po.id,
@@ -241,7 +249,7 @@ export async function getDashboardData(isOwner: boolean = false) {
       cashierAttachments: po.cashierAttachments,
       processOwnerAttachments: po.processOwnerAttachments,
       status: po.status,
-    })) : [];
+    }));
 
   const msRows = (monthlySpendResult as any).rows || monthlySpendResult;
   const spendTrendData = msRows.map((r: any) => ({ name: r.name as string, spend: Number(r.total) }));

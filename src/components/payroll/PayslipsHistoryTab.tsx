@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { getPayrollHistory, disbursePayrollRun, getPayrollRunDetails, deletePayrollRun } from "@/app/payroll/processing/actions";
-import { Calendar, ReceiptText, CheckCircle2, Clock, Upload, X, Eye, Download, Trash2 } from "lucide-react";
+import { approvePayrollRun } from "@/domains/payroll/actions";
+import { Calendar, ReceiptText, CheckCircle2, Clock, Upload, X, Eye, Download, Trash2, CheckCircle } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
 
 export function PayslipsHistoryTab() {
@@ -44,6 +45,20 @@ export function PayslipsHistoryTab() {
           }
         })
         .finally(() => setLoading(false));
+    }
+  };
+
+  const handleApprove = async (runId: string) => {
+    if (confirm("Are you sure you want to approve this run? This will lock the payroll and post a Journal Entry to the Finance Ledger.")) {
+      setSubmitting(true);
+      const res = await approvePayrollRun(runId);
+      if (res.success) {
+        alert("Payroll Run Approved and Double-Entry Posted!");
+        fetchHistory();
+      } else {
+        alert("Failed to approve: " + res.error);
+      }
+      setSubmitting(false);
     }
   };
 
@@ -107,7 +122,15 @@ export function PayslipsHistoryTab() {
                     <td style={{ padding: "1rem" }}>₹{Number(run.totalGrossAmount).toFixed(2)}</td>
                     <td style={{ padding: "1rem", fontWeight: 600 }}>₹{Number(run.totalNetAmount).toFixed(2)}</td>
                     <td style={{ padding: "1rem" }}>
-                      {run.status === "PENDING_DISBURSEMENT" ? (
+                      {run.status === "DRAFT" ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "4px 8px", background: "rgba(100, 116, 139, 0.1)", color: "#475569", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 600 }}>
+                          <Clock size={14} /> Draft
+                        </span>
+                      ) : run.status === "APPROVED" ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "4px 8px", background: "rgba(59, 130, 246, 0.1)", color: "#2563eb", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 600 }}>
+                          <CheckCircle size={14} /> Approved
+                        </span>
+                      ) : run.status === "PENDING_DISBURSEMENT" ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: "0.25rem", padding: "4px 8px", background: "rgba(245, 158, 11, 0.1)", color: "#d97706", borderRadius: "999px", fontSize: "0.75rem", fontWeight: 600 }}>
                           <Clock size={14} /> Pending Payment
                         </span>
@@ -118,14 +141,15 @@ export function PayslipsHistoryTab() {
                       )}
                     </td>
                     <td style={{ padding: "1rem" }}>
-                      {run.status === "PENDING_DISBURSEMENT" && (
+                      {run.status === "DRAFT" && (
                         <>
                           <button 
                             className="kalki-button kalki-button--primary"
-                            onClick={(e) => { e.stopPropagation(); setDisburseRunId(run.id); }}
+                            onClick={(e) => { e.stopPropagation(); handleApprove(run.id); }}
+                            disabled={submitting}
                             style={{ padding: "4px 12px", fontSize: "0.8rem", marginRight: "0.5rem" }}
                           >
-                            Settle Payment
+                            Approve & Journal
                           </button>
                           <button 
                             className="kalki-button kalki-button--secondary"
@@ -144,6 +168,17 @@ export function PayslipsHistoryTab() {
                             style={{ padding: "4px 12px", fontSize: "0.8rem", marginRight: "0.5rem", color: "var(--kalki-danger)", borderColor: "var(--kalki-danger)" }}
                           >
                             <Trash2 size={14} style={{ marginRight: '4px' }} /> Delete
+                          </button>
+                        </>
+                      )}
+                      {(run.status === "APPROVED" || run.status === "PENDING_DISBURSEMENT") && (
+                        <>
+                          <button 
+                            className="kalki-button kalki-button--primary"
+                            onClick={(e) => { e.stopPropagation(); setDisburseRunId(run.id); }}
+                            style={{ padding: "4px 12px", fontSize: "0.8rem", marginRight: "0.5rem" }}
+                          >
+                            Settle Payment
                           </button>
                         </>
                       )}

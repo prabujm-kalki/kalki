@@ -1,19 +1,20 @@
-import { ReactNode } from "react";
-import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
+import { AccountsNav } from "./AccountsNav";
+import type { ReactNode } from "react";
 
-export default function FinanceLayout({ children }: { children: ReactNode }) {
+export default function AccountsLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return (
     <AppShell>
-      <div className="panel" style={{ marginBottom: "1.5rem" }}>
-        <div className="row" style={{ padding: "0.5rem" }}>
-          <Link href="/finance" className="nav-link">Dashboard</Link>
-          <Link href="/finance/cashier" className="nav-link">Cashier Audit Queue</Link>
-          <Link href="/finance/invoices" className="nav-link">Supplier Invoices</Link>
-          <Link href="/finance/payments" className="nav-link">Payments</Link>
-        </div>
+      <div className="kalki-module-layout">
+        <AccountsNav />
+        <main className="kalki-module-content flex-1 flex flex-col min-h-screen bg-gray-50">
+          {children}
+        </main>
       </div>
-      {children}
     </AppShell>
   );
 }

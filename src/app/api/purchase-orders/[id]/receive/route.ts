@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { purchaseOrders, purchaseOrderLines } from "@/db/schema";
+import { purchaseOrders, purchaseOrderLines, purchaseRoutingConfigs } from "@/db/schema";
 import { requireAuthenticatedUser } from "@/lib/authorization";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { promises as fs } from "fs";
 import path from "path";
 
@@ -72,8 +72,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .where(eq(purchaseOrderLines.id, line.id));
     }
 
-    // Update PO status and attachments
-    const updateData: any = { status: 'received' };
+    // Check for custom routing config
+    const [config] = await db.select().from(purchaseRoutingConfigs)
+      .where(and(eq(purchaseRoutingConfigs.organizationId, po.organizationId), eq(purchaseRoutingConfigs.locationId, po.locationId)))
+      .limit(1);
+
+    const updateData: any = { 
+      status: 'received',
+      receivedByUserId: user.id 
+    };
+
+    if (config && config.targetRoleId) {
+      updateData.billReviewRoleId = config.targetRoleId;
+    }
+
     if (processOwnerAttachments) {
       updateData.processOwnerAttachments = processOwnerAttachments;
     }

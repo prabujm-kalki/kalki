@@ -1,30 +1,18 @@
-import { db } from "./src/db";
-import { payslips, payrollRuns, employees, people } from "./src/db/schema";
-import { eq } from "drizzle-orm";
-
+import 'dotenv/config';
+import { db } from './src/db';
+import { vendors, supplierInvoices } from './src/db/schema';
+import { eq, sql } from 'drizzle-orm';
 async function test() {
-  const [run] = await db.select().from(payrollRuns).limit(1);
-  if (!run) {
-    console.log("No run found");
-    return;
-  }
-  
-  console.log("Testing with runId:", run.id);
-  
-  const slipRows = await db.select({
-    payslip: payslips,
-    employee: {
-      employeeCode: employees.employeeCode,
-      name: people.firstName
-    }
-  })
-  .from(payslips)
-  .innerJoin(employees, eq(employees.id, payslips.employeeId))
-  .innerJoin(people, eq(people.id, employees.personId))
-  .where(eq(payslips.payrollRunId, run.id));
-  
-  console.log("Found payslips:", slipRows.length);
-  console.log(JSON.stringify(slipRows[0], null, 2));
+  const q = await db
+    .select({
+      vendorId: vendors.id,
+      vendorName: vendors.name,
+      orgId: vendors.organizationId,
+      totalBilled: sql<number>`COALESCE(SUM(${supplierInvoices.totalAmount}), 0)`.as('totalBilled')
+    })
+    .from(vendors)
+    .leftJoin(supplierInvoices, eq(vendors.id, supplierInvoices.vendorId))
+    .groupBy(vendors.id);
+  console.log('Results:', q);
 }
-
-test().catch(console.error).finally(() => process.exit(0));
+test();

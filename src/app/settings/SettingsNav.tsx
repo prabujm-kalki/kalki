@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
-import { Network, BookOpen, Shield, Users, Database } from "lucide-react";
+import { Network, BookOpen, Shield, Users, Database, CheckSquare } from "lucide-react";
 
 export function SettingsNav() {
   const pathname = usePathname();
@@ -18,6 +18,7 @@ export function SettingsNav() {
     { name: "Tasks Engine", href: `/settings/tasks`, icon: <Network size={16} /> },
     { name: "Access & Roles", href: `/settings/roles`, icon: <Shield size={16} /> },
     { name: "Users", href: `/settings/users`, icon: <Users size={16} /> },
+    { name: "Approval Limits", href: `/settings/approval-limits`, icon: <CheckSquare size={16} /> },
     { name: "Statutory Settings", href: `/settings/statutory`, icon: <Database size={16} /> },
   ];
 

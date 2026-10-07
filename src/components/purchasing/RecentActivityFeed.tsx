@@ -4,6 +4,8 @@ import { Edit, Package, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { TaskTimelineModal } from "./TaskTimelineModal";
+import { POTimelineModal } from "./POTimelineModal";
 
 export interface Activity {
   id: string;
@@ -53,8 +55,19 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
   const [submittingReceive, setSubmittingReceive] = useState(false);
   const [processOwnerProof, setProcessOwnerProof] = useState<File | null>(null);
 
+  // States for Task Timeline
+  const [timelineTaskId, setTimelineTaskId] = useState<string | null>(null);
+  const [timelinePoId, setTimelinePoId] = useState<string | null>(null);
+
   return (
     <div className="card" style={{ padding: '1rem', borderRadius: '0.5rem', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+      {timelineTaskId && (
+        <TaskTimelineModal taskId={timelineTaskId} onClose={() => setTimelineTaskId(null)} />
+      )}
+      {timelinePoId && (
+        <POTimelineModal poId={timelinePoId} onClose={() => setTimelinePoId(null)} />
+      )}
+
       {previewToken && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ backgroundColor: 'white', width: '90%', maxWidth: '900px', height: '90%', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -290,9 +303,28 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                           Receive
                         </button>
                       )}
+                      {activity.publicToken && (
+                        <button 
+                          onClick={() => setTimelinePoId(activity.realId!)} 
+                          style={{ padding: '0.2rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: '#f8fafc', color: '#2563eb', fontWeight: '600', fontSize: '0.65rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#eff6ff')}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                        >
+                          View
+                        </button>
+                      )}
                     </>
                   ) : activity.type === 'Routine Assessment' ? (
                     <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'not-allowed' }} disabled>N/A</button>
+                  ) : activity.type === 'Task' && activity.realId ? (
+                    <button 
+                      onClick={() => setTimelineTaskId(activity.realId!)} 
+                      style={{ padding: '0.2rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: '#f8fafc', color: '#2563eb', fontWeight: '600', fontSize: '0.65rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#eff6ff')}
+                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                    >
+                      View
+                    </button>
                   ) : (
                     <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'white', fontSize: '0.65rem', cursor: 'pointer' }}>View</button>
                   )}

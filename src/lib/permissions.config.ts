@@ -48,7 +48,13 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "crm", submodule: "customers", actions: ["read", "create", "update", "delete"] },
   
   // Finance
-  { module: "finance", submodule: "transactions", actions: ["read", "create", "update", "approve"] },
+  { module: "finance", submodule: "dashboard", actions: ["read"] },
+  { module: "finance", submodule: "sales_&_receivables", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "finance", submodule: "purchases_&_payables", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "finance", submodule: "banking_&_cash", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "finance", submodule: "accounting", actions: ["read", "create", "update", "delete"] },
+  { module: "finance", submodule: "reports", actions: ["read"] },
+  { module: "finance", submodule: "settings", actions: ["read", "create", "update"] },
   
   // Task Engine
   { module: "tasks", submodule: "tasks", actions: ["read", "create", "update", "delete"] },

@@ -1,0 +1,14 @@
+
+export async function submitPurchaseBill(input: any) {
+  const reqHeaders = await headers();
+  const session = await auth.api.getSession({ headers: reqHeaders });
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  try {
+    const { createPurchaseBill } = await import("@/domains/finance/payables-service");
+    const bill = await createPurchaseBill({ ...input, createdById: session.user.id });
+    return { success: true, data: bill };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

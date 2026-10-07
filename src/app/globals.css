@@ -31,7 +31,7 @@
 }
 
 .kalki-sidebar { 
-  width: 260px; 
+  width: 200px; 
   background-color: #ffffff; 
   border-right: 1px solid var(--kalki-border); 
   display: flex; 
@@ -40,13 +40,14 @@
 }
 
 .kalki-topbar { 
-  height: 60px; 
-  background-color: #1e293b; 
-  color: white; 
+  height: 40px; 
+  background: linear-gradient(135deg, #2a1f1a, #1f1411);
+  border-bottom: 1px solid #d4af37;
+  color: #f3ede2; 
   display: flex; 
   align-items: center; 
   justify-content: space-between; 
-  padding: 0 var(--spacing-6); 
+  padding: 0 var(--spacing-4); 
   flex-shrink: 0; 
 }
 
@@ -55,42 +56,50 @@
   display: flex; 
   flex-direction: column; 
   overflow: hidden; 
+  min-width: 0;
 }
 
 .kalki-main-content { 
   flex: 1; 
+  display: flex;
+  flex-direction: column;
   overflow-y: auto; 
-  padding: var(--spacing-6); 
+  overflow-x: hidden;
+  padding: 12px; 
+  min-width: 0;
 }
 
 /* Sidebar Navigation */
 .kalki-sidebar-header {
-  height: 60px;
+  height: 40px;
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  font-weight: 600;
+  padding: 0 16px;
+  font-weight: 700;
   font-size: 16px;
-  color: var(--kalki-text-primary);
-  border-bottom: 1px solid var(--kalki-border);
+  background: linear-gradient(135deg, #2a1f1a, #1f1411);
+  color: #d4af37;
+  border-bottom: 1px solid #d4af37;
+  border-right: 1px solid #2a1f1a;
   flex-shrink: 0;
+  gap: 0.5rem;
 }
 
 .kalki-sidebar-nav {
   display: flex;
   flex-direction: column;
-  padding: 16px 8px;
-  gap: 4px;
+  padding: 12px 8px;
+  gap: 2px;
   overflow-y: auto;
 }
 
 .kalki-sidebar-link {
   display: block;
-  padding: 8px 12px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
   color: var(--kalki-text-secondary);
   text-decoration: none;
-  font-size: 14px;
+  font-size: 12.5px;
   font-weight: 500;
   transition: all 0.2s;
 }
@@ -101,9 +110,11 @@
 }
 
 .kalki-sidebar-link[data-active="true"] {
-  background-color: #eff6ff; /* blue-50 */
-  color: var(--kalki-primary);
+  background-color: #fdfbf7;
+  color: #2c241b;
   font-weight: 600;
+  border-left: 3px solid #d97706;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
 /* Buttons */
@@ -247,12 +258,12 @@
 /* Header */
 .kalki-page-header { 
   background: white; 
-  padding: 16px 24px; 
+  padding: 8px 12px; 
   border-bottom: 1px solid var(--kalki-border); 
-  margin: -24px -24px 24px -24px; 
+  margin: -12px -12px 12px -12px; 
   display: flex; 
   flex-direction: column; 
-  gap: 8px; 
+  gap: 2px; 
 }
 
 .kalki-breadcrumbs { 
@@ -263,7 +274,7 @@
 
 .kalki-page-title { 
   margin: 0; 
-  font-size: 24px; 
+  font-size: 20px; 
   font-weight: 600; 
 }
 
@@ -722,29 +733,35 @@ input {
 .kalki-module-layout {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 64px);
+  flex: 1;
   background-color: #f8fafc;
   color: #1e293b;
   font-family: inherit;
+  min-width: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .kalki-module-topbar {
   background-color: #ffffff;
   border-bottom: 1px solid #e2e8f0;
-  padding: 0 2rem;
+  padding: 0 1rem;
   display: flex;
-  gap: 1.5rem;
+  gap: 0.75rem;
   overflow-x: auto;
+  min-width: 0;
 }
 
 .kalki-module-link {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 1rem 0;
+  gap: 0.25rem;
+  padding: 0.5rem 0;
   color: #64748b;
   text-decoration: none;
   font-weight: 500;
+  font-size: 13px;
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -752,14 +769,17 @@ input {
 
 .kalki-module-link:hover,
 .kalki-module-link.active {
-  color: #3b82f6;
-  border-bottom-color: #3b82f6;
+  color: #d97706;
+  border-bottom-color: #d97706;
+  font-weight: 600;
 }
 
 .kalki-module-content {
   flex: 1;
-  padding: 2rem;
+  padding: 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 

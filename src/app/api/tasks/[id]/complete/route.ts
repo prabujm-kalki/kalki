@@ -54,12 +54,31 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     // Medium -> Level 1 audit
     // Low -> No audit needed
     let nextStatus: "completed" | "audit_pending" = "completed";
+    let nextAssignedRoleId = task.assignedRoleId;
+
     if (task.priority === "medium" || task.priority === "high" || task.priority === "very_high") {
       nextStatus = "audit_pending";
+      
+      if (task.assignedRoleId) {
+        const { businessRoles } = await import("@/db/schema");
+        const [roleInfo] = await db.select({ reportsToRoleId: businessRoles.reportsToRoleId })
+          .from(businessRoles)
+          .where(eq(businessRoles.id, task.assignedRoleId))
+          .limit(1);
+          
+        if (roleInfo?.reportsToRoleId) {
+          nextAssignedRoleId = roleInfo.reportsToRoleId;
+        } else {
+          // If no reporting manager, escalate to system owner (null)
+          nextAssignedRoleId = null;
+        }
+      }
     }
 
     const [updated] = await db.update(taskInstances).set({
       status: nextStatus,
+      assignedRoleId: nextAssignedRoleId,
+      assignedUserId: null, // Clear user assignment so it goes to the manager's role queue
       completionProofUrl,
       completionData,
       completedAt: new Date(),

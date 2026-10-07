@@ -1,0 +1,371 @@
+"use client";
+
+import { useState } from "react";
+import { X, CheckCircle, FileCheck } from "lucide-react";
+
+export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
+  const [pos, setPos] = useState(initialPos);
+  const [auditingPo, setAuditingPo] = useState<any | null>(null);
+  const [auditLines, setAuditLines] = useState<any[]>([]);
+  const [loadingLines, setLoadingLines] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  
+  // States for Auditor override
+  const [verifiedBillAmount, setverifiedBillAmount] = useState<string>("");
+  const [cashierPaymentMethod, setCashierPaymentMethod] = useState<string>("cash");
+  const [auditNotes, setauditNotes] = useState<string>("");
+  const [billFile, setBillFile] = useState<File | null>(null);
+
+  const [errorMsg, setErrorMsg] = useState<string>("");
+
+  const formatCurrency = (val: any) => {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(val) || 0);
+  };
+
+  const handleAuditClick = async (po: any) => {
+    setAuditingPo(po);
+    setErrorMsg("");
+    setLoadingLines(true);
+    setverifiedBillAmount(po.verifiedBillAmount || po.totalAmount || "");
+    try {
+      const res = await fetch(`/api/public/po?token=${po.publicToken}`);
+      if (res.ok) {
+        const data = await res.json();
+        // Default unitRate to lastRate if it is 0 or missing
+        const mappedLines = (data.lines || []).map((l: any) => ({
+          ...l,
+          unitRate: l.unitRate ? l.unitRate : (l.lastRate || 0)
+        }));
+        setAuditLines(mappedLines);
+      } else {
+        setErrorMsg("Failed to load PO details");
+      }
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("Error loading PO lines");
+    } finally {
+      setLoadingLines(false);
+    }
+  };
+
+  const calculatedTotal = auditLines.reduce((acc, line) => {
+    const qty = Number(line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity);
+    const price = Number(line.unitRate || 0);
+    return acc + (qty * price);
+  }, 0);
+
+  const difference = (verifiedBillAmount === "" ? 0 : Number(verifiedBillAmount) - calculatedTotal);
+
+  const submitAudit = async () => {
+    setErrorMsg("");
+    const finalAmount = verifiedBillAmount || calculatedTotal.toString();
+    
+    if (!finalAmount) {
+      setErrorMsg("Please enter the actual Auditor Bill Amount.");
+      return;
+    }
+    if (auditingPo.status !== 'audited' && !billFile) {
+      setErrorMsg("It is mandatory to upload the physical bill image/PDF.");
+      return;
+    }
+    if (Math.abs(difference) > 0.01 && !auditNotes.trim()) {
+      setErrorMsg(`Discrepancy of ${difference > 0 ? '+' : ''}${difference.toFixed(2)} exists. You must provide a reason in the Audit Notes to proceed.`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("verifiedBillAmount", finalAmount);
+      formData.append("paymentMethod", cashierPaymentMethod);
+      formData.append("notes", auditNotes);
+      formData.append("lines", JSON.stringify(auditLines));
+      if (billFile) {
+        formData.append("billFile", billFile);
+      }
+
+      // Create new API endpoint for Payment Audit processing
+      const res = await fetch(`/api/finance/purchases/audit/${auditingPo.id}`, {
+        method: "POST",
+        body: formData
+      });
+
+      if (res.ok) {
+        setPos(pos.filter(p => p.id !== auditingPo.id));
+        setAuditingPo(null);
+      } else {
+        const data = await res.json();
+        setErrorMsg("Failed to process audit: " + (data.error || "Unknown error"));
+      }
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("Error processing audit");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div>
+      {/* Audit Modal */}
+      {auditingPo && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ backgroundColor: 'white', width: '90%', maxWidth: '800px', maxHeight: '90%', borderRadius: '0.5rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '1rem', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+              <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 'bold' }}>Payment Audit - PO #{auditingPo.poNumber || auditingPo.id.split('-')[0].toUpperCase() + '-' + auditingPo.id.substring(1, 5)}</h2>
+              <button onClick={() => setAuditingPo(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem' }}>
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
+              {loadingLines ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>Loading lines...</div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '2rem' }}>
+                    <div>
+                      <p className="muted" style={{ margin: '0 0 0.25rem 0' }}>Vendor</p>
+                      <p style={{ margin: 0, fontWeight: 'bold' }}>{auditingPo.vendorName}</p>
+                    </div>
+                    <div>
+                      <p className="muted" style={{ margin: '0 0 0.25rem 0' }}>Status</p>
+                      <p style={{ margin: 0, fontWeight: 'bold', color: '#f59e0b' }}>Awaiting Audit</p>
+                    </div>
+                  </div>
+
+                  <h3 style={{ fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Manager's Received Quantities</h3>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left', backgroundColor: '#f8fafc' }}>
+                        <th style={{ padding: '0.5rem' }}>Item</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Ordered</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right', color: '#2563eb' }}>Received</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Price</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Line Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {auditLines.map((line, idx) => {
+                        const recQty = Number(line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity);
+                        const lineTotal = recQty * Number(line.unitRate || 0);
+                        
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '0.5rem' }}>{line.itemName} - {line.unitOfMeasure}</td>
+                            <td style={{ padding: '0.5rem', textAlign: 'right', color: 'var(--text-muted)' }}>{line.orderedQuantity}</td>
+                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                              <input 
+                                type="number" 
+                                step="any"
+                                value={line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity}
+                                onChange={(e) => {
+                                  const newLines = [...auditLines];
+                                  newLines[idx].receivedQuantity = e.target.value;
+                                  setAuditLines(newLines);
+                                }}
+                                style={{ width: '80px', textAlign: 'right', padding: '0.2rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontWeight: 'bold', color: '#2563eb' }}
+                              />
+                            </td>
+                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.2rem' }}>
+                                <span>₹</span>
+                                <input 
+                                  type="number" 
+                                  value={line.unitRate || 0}
+                                  onChange={(e) => {
+                                    const newLines = [...auditLines];
+                                    newLines[idx].unitRate = e.target.value;
+                                    setAuditLines(newLines);
+                                  }}
+                                  style={{ width: '80px', textAlign: 'right', padding: '0.2rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem' }}
+                                />
+                              </div>
+                            </td>
+                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatCurrency(lineTotal)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={4} style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold' }}>Calculated Total:</td>
+                        <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem' }}>{formatCurrency(calculatedTotal)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+
+                  <div style={{ backgroundColor: '#f8fafc', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: 0 }}>Payment Verification</h3>
+                      {auditingPo.processOwnerAttachments && auditingPo.processOwnerAttachments.length > 0 && (
+                        <a 
+                          href={auditingPo.processOwnerAttachments[0]} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ padding: '0.25rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', borderRadius: '0.25rem', textDecoration: 'none', fontSize: '0.875rem', fontWeight: '500', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <FileCheck size={14} /> View Delivery Proof
+                        </a>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.5rem' }}>
+                          <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600' }}>
+                            Physical Bill Amount (₹)
+                          </label>
+                          <button 
+                            onClick={() => setverifiedBillAmount(calculatedTotal.toString())}
+                            style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '0.75rem', cursor: 'pointer', padding: 0, fontWeight: '600', textDecoration: 'underline' }}
+                          >
+                            Use Calculated
+                          </button>
+                        </div>
+                        <input 
+                          type="number" 
+                          value={verifiedBillAmount || calculatedTotal || ""}
+                          onChange={(e) => setverifiedBillAmount(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontSize: '1rem', fontWeight: 'bold' }}
+                          placeholder="0.00"
+                        />
+                        {Math.abs(difference) > 0.01 && (
+                          <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.75rem', color: '#ef4444', fontWeight: '600' }}>
+                            Discrepancy: {difference > 0 ? '+' : ''}{formatCurrency(difference)}
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                          Payment Method (Cashier)
+                        </label>
+                        <select 
+                          value={cashierPaymentMethod}
+                          onChange={(e) => setCashierPaymentMethod(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontSize: '1rem', fontWeight: 'bold' }}
+                        >
+                          <option value="cash">Cash</option>
+                          <option value="upi">UPI</option>
+                          <option value="bank_transfer">Bank Transfer</option>
+                          <option value="cheque">Cheque</option>
+                          <option value="credit">Credit / To Be Paid Later</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                          Upload Bill {auditingPo.status === 'audited' ? '(Optional)' : '(Mandatory)'}
+                        </label>
+                        <input 
+                          type="file" 
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files.length > 0) {
+                              const file = e.target.files[0];
+                              const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf', 'image/webp'];
+                              if (!validTypes.includes(file.type)) {
+                                setErrorMsg("Invalid file type. Please upload a valid image (JPG, PNG) or PDF.");
+                                e.target.value = '';
+                                setBillFile(null);
+                                return;
+                              }
+                              if (file.size > 10 * 1024 * 1024) { // 10MB limit
+                                setErrorMsg("File size too large. Maximum allowed size is 10MB.");
+                                e.target.value = '';
+                                setBillFile(null);
+                                return;
+                              }
+                              setErrorMsg(""); // Clear errors
+                              setBillFile(file);
+                            } else {
+                              setBillFile(null);
+                            }
+                          }}
+                          accept="image/*,.pdf"
+                          style={{ width: '100%', padding: '0.4rem', border: '1px dashed #cbd5e1', borderRadius: '0.25rem', fontSize: '0.875rem', backgroundColor: 'white' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                          Audit Notes (Optional)
+                        </label>
+                        <textarea 
+                          value={auditNotes}
+                          onChange={(e) => setauditNotes(e.target.value)}
+                          style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontSize: '0.875rem', minHeight: '60px' }}
+                          placeholder={Math.abs(difference) > 0.01 ? "Please explain the discrepancy..." : "Any comments..."}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+            
+            <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+              <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.875rem' }}>{errorMsg}</div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button 
+                  onClick={() => setAuditingPo(null)}
+                  style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer', fontWeight: '500' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={submitAudit}
+                  disabled={submitting || loadingLines}
+                  style={{ padding: '0.5rem 1.5rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#10b981', color: 'white', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <CheckCircle size={16} />
+                  {submitting ? 'Processing...' : 'Verify & Send to Accounts'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Queue List */}
+      <div className="card" style={{ backgroundColor: 'white', borderRadius: '0.5rem', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+              <th style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-muted)' }}>Date</th>
+              <th style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-muted)' }}>PO Ref</th>
+              <th style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-muted)' }}>Vendor</th>
+              <th style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-muted)' }}>Amount</th>
+              <th style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-muted)' }}>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pos.map(po => (
+              <tr key={po.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <td style={{ padding: '0.75rem 1rem' }}>{new Date(po.createdAt).toLocaleDateString()}</td>
+                <td style={{ padding: '0.75rem 1rem', fontWeight: '500' }}>{po.poNumber || po.id.split('-')[0].toUpperCase() + '-' + po.id.substring(1, 5)}</td>
+                <td style={{ padding: '0.75rem 1rem' }}>{po.vendorName}</td>
+                <td style={{ padding: '0.75rem 1rem' }}>{formatCurrency(po.verifiedBillAmount || po.totalAmount)}</td>
+                <td style={{ padding: '0.75rem 1rem' }}>
+                  <button 
+                    onClick={() => handleAuditClick(po)}
+                    style={{ padding: '0.3rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.75rem' }}
+                  >
+                    Audit Bill
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {pos.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No pending Purchase Orders to audit.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

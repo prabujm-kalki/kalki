@@ -15,11 +15,17 @@ export async function PUT(
       locationId,
       vendorId,
       responsibleRoleId,
+      reviewRoleId,
+      billReviewRoleId,
       frequencyRule,
       reminderTime,
       priority,
       taskDefinitionId,
     } = body;
+
+    if (!responsibleRoleId) {
+      return NextResponse.json({ error: "Responsible Role is strictly required to prevent orphaned tasks." }, { status: 400 });
+    }
 
     const [updated] = await db
       .update(purchaseSchedules)
@@ -28,6 +34,8 @@ export async function PUT(
         locationId,
         vendorId,
         responsibleRoleId,
+        reviewRoleId: reviewRoleId || null,
+        billReviewRoleId: billReviewRoleId || null,
         frequencyRule,
         reminderTime,
         priority: priority || "medium",

@@ -1,0 +1,72 @@
+
+// ==========================================
+// FINANCE: PURCHASES & PAYABLES (Phase 5)
+// ==========================================
+
+export const vendors = pgTable('vendors', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  email: varchar('email', { length: 255 }),
+  phone: varchar('phone', { length: 50 }),
+  taxId: varchar('tax_id', { length: 100 }), // GSTIN / VAT etc
+  address: text('address'),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const purchaseBills = pgTable('purchase_bills', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  locationId: uuid('location_id').notNull().references(() => locations.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  billNumber: varchar('bill_number', { length: 100 }).notNull(),
+  vendorInvoiceNumber: varchar('vendor_invoice_number', { length: 100 }),
+  billDate: timestamp('bill_date').notNull(),
+  dueDate: timestamp('due_date').notNull(),
+  subtotal: numeric('subtotal', { precision: 12, scale: 2 }).notNull().default('0'),
+  taxAmount: numeric('tax_amount', { precision: 12, scale: 2 }).notNull().default('0'),
+  totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('draft'), // draft, open, partially_paid, paid, void
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const purchasePayments = pgTable('purchase_payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  locationId: uuid('location_id').notNull().references(() => locations.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  paymentNumber: varchar('payment_number', { length: 100 }).notNull(),
+  paymentDate: timestamp('payment_date').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  paymentMethod: varchar('payment_method', { length: 50 }).notNull(), // BANK, CASH
+  referenceNumber: varchar('reference_number', { length: 100 }), // Cheque #, UTR
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});
+
+export const purchasePaymentAllocations = pgTable('purchase_payment_allocations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  paymentId: uuid('payment_id').notNull().references(() => purchasePayments.id),
+  billId: uuid('bill_id').notNull().references(() => purchaseBills.id),
+  amountApplied: numeric('amount_applied', { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow()
+});
+
+export const purchaseDebitNotes = pgTable('purchase_debit_notes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id),
+  locationId: uuid('location_id').notNull().references(() => locations.id),
+  vendorId: uuid('vendor_id').notNull().references(() => vendors.id),
+  noteNumber: varchar('note_number', { length: 100 }).notNull(),
+  noteDate: timestamp('note_date').notNull(),
+  amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+  reason: text('reason'),
+  status: varchar('status', { length: 50 }).notNull().default('open'), // open, applied
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow()
+});

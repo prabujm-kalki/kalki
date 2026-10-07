@@ -105,10 +105,12 @@ export default async function MyTimePage() {
   const locationId = scope.locationId;
 
   return (
-    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
-      <header className="att-header" style={{ marginBottom: "2rem" }}>
-        <h1 className="att-title" style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>My Time & Attendance</h1>
-        <p className="att-subtitle" style={{ color: "var(--text-muted)" }}>View your leave balances and manage time-off requests.</p>
+    <div style={{ width: "100%", padding: "0" }}>
+      <header className="att-header" style={{ marginBottom: "1rem", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <h1 className="att-title" style={{ fontSize: "1.25rem", margin: "0 0 0.15rem 0", fontWeight: "600" }}>My Time & Attendance</h1>
+          <p className="att-subtitle" style={{ fontSize: "0.8rem", color: "var(--text-muted)", margin: 0 }}>View leave balances and manage time-off requests.</p>
+        </div>
       </header>
 
       <LeaveBalances balances={balancesData as any} />

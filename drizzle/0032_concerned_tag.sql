@@ -1,0 +1,2 @@
+ALTER TABLE "fixed_assets" ADD COLUMN "depreciation_expense_account_id" uuid NOT NULL;--> statement-breakpoint
+ALTER TABLE "fixed_assets" ADD CONSTRAINT "fixed_assets_depreciation_expense_account_id_accounts_id_fk" FOREIGN KEY ("depreciation_expense_account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;

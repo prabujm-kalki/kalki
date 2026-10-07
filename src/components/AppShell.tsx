@@ -104,11 +104,19 @@ function AppShellContent({ children }: { children: ReactNode }) {
           {/* LEFT: Persistent Sidebar */}
           <aside className={`kalki-sidebar ${isMobileMenuOpen ? 'kalki-sidebar--mobile-open' : ''}`}>
             <div className="kalki-sidebar-header" style={{ justifyContent: 'space-between' }}>
-              <span>Kalki BOS</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#d4af37" stroke="none">
+                  <path d="M12 2C12 2 15 7 15 11C15 13 14 15 12 16C10 15 9 13 9 11C9 7 12 2 12 2ZM22 13C22 13 18 10 15 11.5C14 12 13 13.5 13 15C13 18 16 22 16 22C16 22 20 18 22 13ZM2 13C2 13 6 10 9 11.5C10 12 11 13.5 11 15C11 18 8 22 8 22C8 22 4 18 2 13Z" />
+                </svg>
+                <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+                  <span style={{ fontSize: '1.25rem' }}>Kalki BOS</span>
+                  <span style={{ fontSize: '0.55rem', letterSpacing: '0.05em', color: '#b7ae9f', marginTop: '4px', textTransform: 'uppercase', fontWeight: 500 }}>Business Operating System</span>
+                </div>
+              </div>
               <button 
                 className="kalki-mobile-only" 
                 onClick={() => setIsMobileMenuOpen(false)}
-                style={{ background: 'none', border: 'none', color: 'var(--kalki-text-primary)' }}
+                style={{ background: 'none', border: 'none', color: '#d4af37' }}
               >
                 <X size={20} />
               </button>
@@ -155,7 +163,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 </button>
                 <select
                   className="kalki-select"
-                  style={{ width: 'auto', padding: '0.25rem 2rem 0.25rem 0.75rem', fontSize: '0.85rem' }}
+                  style={{ width: 'auto', maxWidth: '250px', textOverflow: 'ellipsis', padding: '0.25rem 2rem 0.25rem 0.75rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
                   value={selected ? scopeKey(selected) : ""}
                   onChange={(event) => changeScope(event.target.value)}
                 >
@@ -185,10 +193,10 @@ function AppShellContent({ children }: { children: ReactNode }) {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <span className="kalki-hide-on-mobile" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)' }}>
+                <span className="kalki-hide-on-mobile" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
                   {session.user.name || session.user.email}
                 </span>
-                <Link href="/me/settings" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}>
+                <Link href={selected ? `/me/settings?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/me/settings"} style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}>
                   Settings
                 </Link>
                 <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: 'rgba(255, 255, 255, 1)' }} onClick={() => void signOut()}>

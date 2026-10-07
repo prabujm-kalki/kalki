@@ -12,6 +12,8 @@ interface ConfigFormProps {
     id: string;
     vendorId: string;
     responsibleRoleId: string;
+    reviewRoleId: string | null;
+    billReviewRoleId: string | null;
     frequencyRule: string;
     reminderTime: string;
     taskDefinitionId: string | null;
@@ -35,6 +37,9 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
 
   const [vendorId, setVendorId] = useState(initialData?.vendorId || vendors[0]?.id || "");
   const [roleId, setRoleId] = useState(initialData?.responsibleRoleId || roles[0]?.id || "");
+  const [reviewRoleId, setReviewRoleId] = useState(initialData?.reviewRoleId || "");
+  const [billReviewRoleId, setBillReviewRoleId] = useState(initialData?.billReviewRoleId || "");
+  
   const [frequency, setFrequency] = useState(
     isWeekly ? "WEEKLY" : isBiweekly ? "BIWEEKLY" : isMonthly ? "MONTHLY" : "DAILY"
   );
@@ -78,6 +83,8 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
           locationId: selected.locationId,
           vendorId,
           responsibleRoleId: roleId,
+          reviewRoleId: reviewRoleId || null,
+          billReviewRoleId: billReviewRoleId || null,
           frequencyRule: finalRule,
           reminderTime,
           priority,
@@ -149,6 +156,7 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
                 className="kalki-select"
                 required
               >
+                <option value="">-- Select Vendor --</option>
                 {vendors.map(v => (
                   <option key={v.id} value={v.id}>{v.name}</option>
                 ))}
@@ -163,11 +171,41 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
                 className="kalki-select"
                 required
               >
+                <option value="">-- Select Responsible Role --</option>
                 {roles.map(r => (
                   <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
             </div>
+
+            <div className="kalki-field">
+              <label className="kalki-label">Review Person Role</label>
+              <select 
+                value={reviewRoleId} 
+                onChange={(e) => setReviewRoleId(e.target.value)}
+                className="kalki-select"
+              >
+                <option value="">-- Optional: Select Reviewer Role --</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="kalki-field">
+              <label className="kalki-label">Bill Reviewer Role</label>
+              <select 
+                value={billReviewRoleId} 
+                onChange={(e) => setBillReviewRoleId(e.target.value)}
+                className="kalki-select"
+              >
+                <option value="">-- Optional: Select Bill Reviewer Role --</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+            </div>
+
 
             <div className="kalki-field">
               <label className="kalki-label">Frequency <span className="kalki-required">*</span></label>

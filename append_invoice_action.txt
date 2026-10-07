@@ -1,0 +1,14 @@
+
+export async function submitSalesInvoice(input: any) {
+  const reqHeaders = await headers();
+  const session = await auth.api.getSession({ headers: reqHeaders });
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  try {
+    const { createSalesInvoice } = await import("@/domains/finance/receivables-service");
+    const invoice = await createSalesInvoice({ ...input, createdById: session.user.id });
+    return { success: true, data: invoice };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

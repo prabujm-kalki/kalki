@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { KalkiSection } from "@/components/ui/KalkiSection";
 import { PasswordChangeForm } from "@/components/me/PasswordChangeForm";
+import { ToastProvider } from "@/components/ui/Toast";
 
 export default async function SettingsPage() {
   const reqHeaders = await headers();
@@ -24,7 +25,9 @@ export default async function SettingsPage() {
         <div className="kalki-form-main">
           <KalkiSection title="Security" icon="🔒">
             <div style={{ maxWidth: '400px' }}>
-              <PasswordChangeForm />
+              <ToastProvider>
+                <PasswordChangeForm />
+              </ToastProvider>
             </div>
           </KalkiSection>
         </div>

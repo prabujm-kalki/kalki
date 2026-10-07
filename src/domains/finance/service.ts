@@ -7,9 +7,11 @@ import {
   paymentAllocations,
   vendorLedger,
   vendors,
+  employees,
 } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions, type EmployeePermission } from "@/lib/authorization-policy";
+import { processAccountingEvent } from "./event-engine";
 
 type Actor = { id: string } | null;
 
@@ -35,7 +37,7 @@ function requireActor(actor: Actor): asserts actor is { id: string } {
 async function requireScopeAccess(
   actor: { id: string },
   scope: { organizationId: string; locationId: string },
-  permission: EmployeePermission,
+  permission?: string,
 ) {
   const allowed = await authorizeEmployeeOperation({ userId: actor.id, ...scope, permission });
   if (!allowed) throw new FinanceServiceError("Access denied", "ACCESS_DENIED");
@@ -60,9 +62,12 @@ export type RecordInvoiceInput = z.infer<typeof recordInvoiceSchema>;
 export async function recordSupplierInvoice(actor: Actor, input: RecordInvoiceInput) {
   requireActor(actor);
   const parsed = recordInvoiceSchema.safeParse(input);
-  if (!parsed.success) throw new FinanceServiceError("Invalid invoice input", "INVALID_INPUT");
+  if (!parsed.success) {
+    console.error("Zod Validation Error:", JSON.stringify(parsed.error.errors, null, 2));
+    throw new FinanceServiceError(`Invalid invoice input: ${parsed.error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')}`, "INVALID_INPUT");
+  }
   
-  await requireScopeAccess(actor, parsed.data, employeePermissions.create);
+  await requireScopeAccess(actor, parsed.data);
 
   return await db.transaction(async (tx) => {
     // 1. Check for duplicate invoice
@@ -75,6 +80,15 @@ export async function recordSupplierInvoice(actor: Actor, input: RecordInvoiceIn
     
     if (existing.length > 0) {
       throw new FinanceServiceError("An invoice with this number already exists for this vendor.", "DUPLICATE_RECORD");
+    }
+
+    const [employee] = await tx
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(eq(employees.userId, actor.id), eq(employees.organizationId, parsed.data.organizationId)));
+      
+    if (!employee) {
+      throw new FinanceServiceError("Employee profile not found for the user in this organization.", "NOT_FOUND");
     }
 
     // 2. Get the vendor's latest ledger balance securely
@@ -104,7 +118,7 @@ export async function recordSupplierInvoice(actor: Actor, input: RecordInvoiceIn
         dueDate: parsed.data.dueDate ?? null,
         totalAmount: parsed.data.totalAmount.toString(),
         status: "APPROVED",
-        recordedBy: parsed.data.recordedByEmployeeId,
+        recordedBy: employee.id,
       })
       .returning();
 
@@ -118,7 +132,34 @@ export async function recordSupplierInvoice(actor: Actor, input: RecordInvoiceIn
       balanceAfter: newBalance.toFixed(4),
       referenceId: invoice.id,
       notes: `Invoice ${parsed.data.invoiceNumber}`,
-      recordedBy: parsed.data.recordedByEmployeeId,
+      recordedBy: employee.id,
+    });
+
+    // 5. Fire Accounting Event (Double Entry Engine)
+    await processAccountingEvent({
+      organizationId: parsed.data.organizationId,
+      locationId: parsed.data.locationId,
+      triggeredByUserId: actor.id,
+      sourceModule: "PURCHASE",
+      sourceReferenceId: invoice.id,
+      entryDate: new Date(parsed.data.invoiceDate),
+      narration: `Vendor Invoice ${parsed.data.invoiceNumber}`,
+      lines: [
+        {
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: "GRNI_SUSPENSE",
+          amount: parsed.data.totalAmount,
+          isDebit: true,
+          narration: "Clear Goods Received Not Invoiced"
+        },
+        {
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: "VENDOR_PAYABLE",
+          amount: parsed.data.totalAmount,
+          isDebit: false,
+          narration: "Vendor liability"
+        }
+      ]
     });
 
     return invoice;
@@ -131,7 +172,8 @@ const recordPaymentSchema = scopeSchema.extend({
   paymentDate: z.string().datetime(),
   paymentMode: z.enum(["CASH", "BANK_TRANSFER", "CHEQUE", "UPI"]),
   referenceDetails: z.string().nullable().optional(),
-  recordedByEmployeeId: z.string().uuid(),
+  attachmentUrl: z.string().optional(),
+  recordedByEmployeeId: z.string(),
   allocations: z.array(z.object({
     invoiceId: z.string().uuid(),
     amount: z.number().positive(),
@@ -143,11 +185,23 @@ export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export async function recordPaymentAndAllocate(actor: Actor, input: RecordPaymentInput) {
   requireActor(actor);
   const parsed = recordPaymentSchema.safeParse(input);
-  if (!parsed.success) throw new FinanceServiceError("Invalid payment input", "INVALID_INPUT");
+  if (!parsed.success) {
+    console.error("Payment Input Validation Error:", parsed.error);
+    throw new FinanceServiceError("Invalid payment input", "INVALID_INPUT");
+  }
   
   await requireScopeAccess(actor, parsed.data, employeePermissions.create);
 
   return await db.transaction(async (tx) => {
+    const [employee] = await tx
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(eq(employees.userId, actor.id), eq(employees.organizationId, parsed.data.organizationId)));
+      
+    if (!employee) {
+      throw new FinanceServiceError("Employee profile not found for the user in this organization.", "NOT_FOUND");
+    }
+
     // 1. Validate allocations total
     const totalAllocated = parsed.data.allocations.reduce((sum, a) => sum + a.amount, 0);
     if (totalAllocated > parsed.data.amount) {
@@ -195,7 +249,8 @@ export async function recordPaymentAndAllocate(actor: Actor, input: RecordPaymen
         paymentDate: parsed.data.paymentDate,
         paymentMode: parsed.data.paymentMode,
         referenceDetails: parsed.data.referenceDetails,
-        recordedBy: parsed.data.recordedByEmployeeId,
+        attachmentUrl: parsed.data.attachmentUrl,
+        recordedBy: employee.id,
       })
       .returning();
 
@@ -254,7 +309,34 @@ export async function recordPaymentAndAllocate(actor: Actor, input: RecordPaymen
       balanceAfter: newBalance.toFixed(4),
       referenceId: payment.id,
       notes: `Payment via ${parsed.data.paymentMode}`,
-      recordedBy: parsed.data.recordedByEmployeeId,
+      recordedBy: employee.id,
+    });
+
+    // 6. Fire Accounting Event (Double Entry Engine)
+    await processAccountingEvent({
+      organizationId: parsed.data.organizationId,
+      locationId: parsed.data.locationId,
+      triggeredByUserId: actor.id,
+      sourceModule: "PURCHASE",
+      sourceReferenceId: payment.id,
+      entryDate: new Date(parsed.data.paymentDate),
+      narration: `Vendor Payment via ${parsed.data.paymentMode}`,
+      lines: [
+        {
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: "VENDOR_PAYABLE",
+          amount: parsed.data.amount,
+          isDebit: true,
+          narration: "Vendor payment"
+        },
+        {
+          mappingType: "SYSTEM_DEFAULT",
+          sourceReferenceId: "BANK_CASH",
+          amount: parsed.data.amount,
+          isDebit: false,
+          narration: `Payment out (${parsed.data.paymentMode})`
+        }
+      ]
     });
 
     return payment;

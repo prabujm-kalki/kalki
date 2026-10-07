@@ -35,10 +35,10 @@ export default function TaskConfigurationPage() {
   const [roles, setRoles] = useState<any[]>([]);
   const [targetRoleId, setTargetRoleId] = useState("");
   const [escalationLevels, setEscalationLevels] = useState<Array<{ roleId: string, timeoutMinutes: string, notificationTone: string }>>([
-    { roleId: "", timeoutMinutes: "30", notificationTone: "default" }
+    { roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }
   ]);
 
-  const [reminderTone, setReminderTone] = useState("default");
+  const [reminderTone, setReminderTone] = useState("level-1");
   const [completionTimeMins, setCompletionTimeMins] = useState("60");
   const [warningThresholdMins, setWarningThresholdMins] = useState("10");
   const [allowTimeExtension, setAllowTimeExtension] = useState(false);
@@ -119,8 +119,8 @@ export default function TaskConfigurationPage() {
         setIsModalOpen(false);
         setTitle("");
         setTargetRoleId("");
-        setReminderTone("default");
-        setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "default" }]);
+        setReminderTone("level-1");
+        setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }]);
         loadTasks();
       } else {
         alert(editingTaskId ? "Failed to update task" : "Failed to create task");
@@ -136,7 +136,7 @@ export default function TaskConfigurationPage() {
     setTitle(task.title);
     setActionType(task.actionType);
     setTargetRoleId(task.targetRoleId || "");
-    setReminderTone(task.triggerConfig?.reminderTone || "default");
+    setReminderTone(task.triggerConfig?.reminderTone || "level-1");
     setCompletionTimeMins((task.completionTimeMins || 60).toString());
     setWarningThresholdMins((task.warningThresholdMins || 10).toString());
     setAllowTimeExtension(task.allowTimeExtension || false);
@@ -146,10 +146,10 @@ export default function TaskConfigurationPage() {
       setEscalationLevels(task.escalationLevels.map((lvl: any, index: number) => ({
         roleId: lvl.escalateToReportingManager ? "REPORTING_MANAGER" : (lvl.roleId || ""),
         timeoutMinutes: (lvl.timeoutMinutes || 0).toString(),
-        notificationTone: task.triggerConfig?.escalationTones?.[index] || "default"
+        notificationTone: task.triggerConfig?.escalationTones?.[index] || "level-1"
       })));
     } else {
-      setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "default" }]);
+      setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }]);
     }
     
     setIsModalOpen(true);
@@ -159,8 +159,8 @@ export default function TaskConfigurationPage() {
     setEditingTaskId(null);
     setTitle("");
     setTargetRoleId("");
-    setReminderTone("default");
-    setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "default" }]);
+    setReminderTone("level-1");
+    setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }]);
     setIsModalOpen(true);
   };
 
@@ -275,10 +275,11 @@ export default function TaskConfigurationPage() {
                         onChange={(e) => setReminderTone(e.target.value)}
                         className="kalki-select"
                       >
-                        <option value="default">Default Ping</option>
-                        <option value="chime">Friendly Chime</option>
-                        <option value="alert">Alert Tone</option>
-                        <option value="urgent">Urgent Siren</option>
+                        <option value="level-1">Level 1 - Default Bell</option>
+                        <option value="level-2">Level 2 - Sharp Beep</option>
+                        <option value="level-3">Level 3 - Soft Chime</option>
+                        <option value="level-4">Level 4 - Long Alert</option>
+                        <option value="level-5">Level 5 - Urgent Siren</option>
                       </select>
                     </div>
                   </div>
@@ -313,7 +314,7 @@ export default function TaskConfigurationPage() {
                       <div className="kalki-section-title">Escalation Matrix (Role, Tone, & Delay)</div>
                       <button
                         type="button"
-                        onClick={() => setEscalationLevels([...escalationLevels, { roleId: "", timeoutMinutes: "30", notificationTone: "default" }])}
+                        onClick={() => setEscalationLevels([...escalationLevels, { roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }])}
                         className="kalki-button kalki-button--ghost"
                         style={{ color: 'var(--kalki-primary)' }}
                       >
@@ -349,10 +350,11 @@ export default function TaskConfigurationPage() {
                               }}
                               className="kalki-select"
                             >
-                              <option value="default">Default Ping</option>
-                              <option value="chime">Friendly Chime</option>
-                              <option value="alert">Alert Tone</option>
-                              <option value="urgent">Urgent Siren</option>
+                              <option value="level-1">Level 1 - Default Bell</option>
+                              <option value="level-2">Level 2 - Sharp Beep</option>
+                              <option value="level-3">Level 3 - Soft Chime</option>
+                              <option value="level-4">Level 4 - Long Alert</option>
+                              <option value="level-5">Level 5 - Urgent Siren</option>
                             </select>
                           </div>
                           <div style={{ width: '100px' }}>
