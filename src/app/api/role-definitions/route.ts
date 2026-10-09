@@ -35,11 +35,16 @@ export async function POST(request: Request) {
     // Support for location-specific vs global roles
     const isGlobal = body.isGlobal === true;
     const locationId = isGlobal ? null : String(body.locationId ?? "");
+    
+    let finalIdentifier = identifier;
+    if (!isGlobal && locationId) {
+      finalIdentifier = `${identifier}_${locationId.substring(0, 8).toUpperCase()}`;
+    }
 
     const [role] = await db.insert(businessRoles).values({
       organizationId,
       locationId: locationId || null, // null if empty string
-      identifier,
+      identifier: finalIdentifier,
       name,
       purpose,
       departmentId,

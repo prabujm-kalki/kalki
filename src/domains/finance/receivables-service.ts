@@ -1,14 +1,26 @@
 import { db } from "@/db";
 import { customers, salesInvoices, salesReceipts, creditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations } from "@/db/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, gte, lte, ilike, or } from "drizzle-orm";
 import { v4 as uuidv4 } from 'uuid';
 
-export async function getCustomerBalances(organizationId: string) {
+export async function getCustomerBalances(organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10) {
+  const offset = (page - 1) * limit;
+
+  const baseWhere = [eq(customers.organizationId, organizationId)];
+  if (searchQuery) {
+    baseWhere.push(or(
+      ilike(customers.name, `%${searchQuery}%`),
+      ilike(customers.phone, `%${searchQuery}%`)
+    ));
+  }
+  const whereClause = and(...baseWhere);
+
   // We use Drizzle's sql template literal to calculate the balance dynamically
   const query = await db
     .select({
       customerId: customers.id,
       customerName: customers.name,
+      customerPhone: customers.phone,
       totalInvoiced: sql<number>`COALESCE(SUM(${salesInvoices.totalAmount}), 0)`.as('totalInvoiced'),
       totalReceipts: sql<number>`
         (SELECT COALESCE(SUM(amount), 0) FROM ${salesReceipts} WHERE customer_id = ${customers.id})
@@ -30,13 +42,32 @@ export async function getCustomerBalances(organizationId: string) {
     })
     .from(customers)
     .leftJoin(salesInvoices, eq(customers.id, salesInvoices.customerId))
-    .where(eq(customers.organizationId, organizationId))
-    .groupBy(customers.id);
+    .where(whereClause)
+    .groupBy(customers.id)
+    .limit(limit)
+    .offset(offset);
 
-  return query;
+  const countResult = await db.select({ count: sql<number>`count(distinct ${customers.id})` })
+    .from(customers)
+    .leftJoin(salesInvoices, eq(customers.id, salesInvoices.customerId))
+    .where(whereClause);
+  const total = Number(countResult[0]?.count || 0);
+
+  return { data: query, total };
 }
 
-export async function getAgeingReport(organizationId: string) {
+export async function getAgeingReport(organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10) {
+  const offset = (page - 1) * limit;
+
+  const baseWhere = [
+    eq(customers.organizationId, organizationId), 
+    eq(salesInvoices.status, 'open')
+  ];
+  if (searchQuery) {
+    baseWhere.push(ilike(customers.name, `%${searchQuery}%`));
+  }
+  const whereClause = and(...baseWhere);
+
   // Ageing buckets based on remaining amount (Total - Allocated Receipts)
   const query = await db
     .select({
@@ -49,10 +80,18 @@ export async function getAgeingReport(organizationId: string) {
     })
     .from(customers)
     .innerJoin(salesInvoices, eq(customers.id, salesInvoices.customerId))
-    .where(and(eq(customers.organizationId, organizationId), eq(salesInvoices.status, 'open')))
-    .groupBy(customers.id);
+    .where(whereClause)
+    .groupBy(customers.id)
+    .limit(limit)
+    .offset(offset);
 
-  return query;
+  const countResult = await db.select({ count: sql<number>`count(distinct ${customers.id})` })
+    .from(customers)
+    .innerJoin(salesInvoices, eq(customers.id, salesInvoices.customerId))
+    .where(whereClause);
+  const total = Number(countResult[0]?.count || 0);
+
+  return { data: query, total };
 }
 
 export async function createReceipt(input: {
@@ -162,7 +201,35 @@ export async function createReceipt(input: {
   });
 }
 
-export async function getReceipts(organizationId: string) {
+export async function getReceipts(organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: Date, endDate?: Date) {
+  const offset = (page - 1) * limit;
+
+  let startObj: Date | undefined = undefined;
+  if (startDate) {
+    startObj = new Date(startDate);
+    startObj.setUTCHours(0, 0, 0, 0);
+  }
+
+  let endObj: Date | undefined = undefined;
+  if (endDate) {
+    endObj = new Date(endDate);
+    endObj.setUTCHours(23, 59, 59, 999);
+  }
+
+  const whereClause = and(
+    eq(salesReceipts.organizationId, organizationId),
+    ...(startObj ? [gte(salesReceipts.receiptDate, startObj)] : []),
+    ...(endObj ? [lte(salesReceipts.receiptDate, endObj)] : []),
+    ...(searchQuery
+      ? [
+          or(
+            ilike(salesReceipts.receiptNumber, `%${searchQuery}%`),
+            ilike(customers.name, `%${searchQuery}%`)
+          ),
+        ]
+      : [])
+  );
+
   const query = await db
     .select({
       id: salesReceipts.id,
@@ -176,10 +243,15 @@ export async function getReceipts(organizationId: string) {
     })
     .from(salesReceipts)
     .leftJoin(customers, eq(salesReceipts.customerId, customers.id))
-    .where(eq(salesReceipts.organizationId, organizationId))
-    .orderBy(sql`${salesReceipts.receiptDate} DESC`);
+    .where(whereClause)
+    .orderBy(sql`${salesReceipts.receiptDate} DESC`)
+    .limit(limit)
+    .offset(offset);
     
-  return query;
+  const totalResult = await db.select({ count: sql<number>`count(*)` }).from(salesReceipts).leftJoin(customers, eq(salesReceipts.customerId, customers.id)).where(whereClause);
+  const total = Number(totalResult[0]?.count || 0);
+
+  return { data: query, total };
 }
 export async function createSalesInvoice(input: {
   organizationId: string;

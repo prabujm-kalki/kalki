@@ -1,189 +1,11 @@
-"use client";
+const fs = require('fs');
 
-import React, { useState, useEffect } from "react";
-import { Plus, Trash2, Save, Calculator, FileText, UserPlus, CheckCircle, Search, Hash } from "lucide-react";
-import { fetchItems, fetchCustomers, createB2BInvoice, addCustomer } from "@/app/sales/actions";
-import { useSessionView } from "@/components/AppShell";
+const path = 'src/components/sales/B2BBilling.tsx';
+let content = fs.readFileSync(path, 'utf8');
 
-export function B2BBilling() {
-  const { selected: scope } = useSessionView();
-  
-  const [itemsList, setItemsList] = useState([{ uid: 1, id: "", name: "", hsn: "", qty: 1, rate: 0, discountPercent: 0, taxRate: 18, amount: 0, unit: "PCS" }]);
-  const [customer, setCustomer] = useState({ id: "", name: "", gstin: "", address: "" });
-  
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
-  const [dueDate, setDueDate] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState("Cash");
-  const [overallDiscount, setOverallDiscount] = useState<number>(0);
-  
-  const [dbItems, setDbItems] = useState<any[]>([]);
-  const [dbCustomers, setDbCustomers] = useState<any[]>([]);
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [invoiceSuccess, setInvoiceSuccess] = useState("");
-    const [invoiceError, setInvoiceError] = useState("");
-    const [customerError, setCustomerError] = useState("");
-    const [customerSuccess, setCustomerSuccess] = useState("");
-  
-  // Add Customer State
-  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: "", gstin: "", address: "", email: "", phone: "" });
+const returnRegex = /return \([\s\S]*?\);\n}/;
 
-  const loadData = () => {
-    if (scope?.organizationId && scope?.locationId) {
-      fetchItems(scope.organizationId, scope.locationId).then(data => setDbItems(data || []));
-      fetchCustomers(scope.organizationId).then(data => setDbCustomers(data || []));
-    }
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [scope]);
-
-  const handleCreateCustomer = async () => {
-    setCustomerError("");
-    setCustomerSuccess("");
-    if (!scope?.organizationId) return;
-    
-    if (!newCustomer.name || !newCustomer.name.trim()) {
-      return setCustomerError("Customer Name is required");
-    }
-    const phoneDigits = newCustomer.phone?.replace(/\D/g, '') || '';
-    if (phoneDigits.length !== 10) {
-      return setCustomerError("Mobile number must be exactly 10 digits");
-    }
-
-    try {
-      const created = await addCustomer(scope.organizationId, newCustomer);
-      setDbCustomers([...dbCustomers, created]);
-      setCustomer({ id: created.id, name: created.name, gstin: created.taxId || "", address: created.address || "" });
-      
-      setCustomerSuccess("Customer saved successfully!");
-      setTimeout(() => {
-        setIsAddingCustomer(false);
-        setNewCustomer({ name: "", gstin: "", address: "", email: "", phone: "" });
-        setCustomerSuccess("");
-      }, 1500);
-    } catch (err) {
-      setCustomerError("Failed to add customer. Please try again.");
-      console.error(err);
-    }
-  };
-
-  const addItemLine = () => {
-    const newUid = Date.now();
-    setItemsList([...itemsList, { uid: newUid, id: "", name: "", hsn: "", qty: 1, rate: 0, discountPercent: 0, taxRate: 18, amount: 0, unit: "PCS" }]);
-    setTimeout(() => {
-      const el = document.getElementById("item-select-" + newUid);
-      if (el) el.focus();
-    }, 50);
-  };
-
-  const removeItemLine = (uid: number) => {
-    if (itemsList.length > 1) {
-      setItemsList(itemsList.filter(item => item.uid !== uid));
-    }
-  };
-
-  const updateItemLine = (uid: number, field: string, value: any) => {
-    setItemsList(itemsList.map(item => {
-      if (item.uid === uid) {
-        const updated = { ...item, [field]: value };
-        if (field === "id") {
-          const selectedDbItem = dbItems.find(dbI => dbI.id === value);
-          if (selectedDbItem) {
-            updated.name = selectedDbItem.nameEn;
-            updated.rate = parseFloat(selectedDbItem.currentPrice || "0");
-            updated.unit = selectedDbItem.unit;
-          }
-        }
-        if (field === "qty" || field === "rate" || field === "id" || field === "discountPercent") {
-          const gross = (updated.qty || 0) * (updated.rate || 0);
-          const discountAmt = gross * ((updated.discountPercent || 0) / 100);
-          updated.amount = gross - discountAmt;
-        }
-        return updated;
-      }
-      return item;
-    }));
-  };
-
-  const handleCustomerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const custId = e.target.value;
-    const selected = dbCustomers.find(c => c.id === custId);
-    if (selected) {
-      setCustomer({ id: selected.id, name: selected.name, gstin: selected.taxId || "", address: selected.address || "" });
-    } else {
-      setCustomer({ id: "", name: "", gstin: "", address: "" });
-    }
-  };
-
-  const subtotal = itemsList.reduce((sum, item) => sum + ((item.qty || 0) * (item.rate || 0)), 0);
-  const taxableAmount = itemsList.reduce((sum, item) => sum + item.amount, 0) - overallDiscount;
-  
-  const taxAmount = itemsList.reduce((sum, item) => {
-    const gross = (item.qty || 0) * (item.rate || 0);
-    const itemNet = gross - (gross * ((item.discountPercent || 0) / 100));
-    return sum + (itemNet * (item.taxRate / 100));
-  }, 0);
-  
-  const grandTotal = taxableAmount + taxAmount;
-  const roundedGrandTotal = Math.round(grandTotal);
-  const roundOffAmount = roundedGrandTotal - grandTotal;
-
-  const handleSave = async () => {
-    if (!scope?.organizationId || !scope?.locationId) return alert("Select Org & Location first!");
-    if (!customer.id) return alert("Please select a customer.");
-    if (!itemsList[0].id) return alert("Please select at least one item.");
-
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        organizationId: scope.organizationId,
-        locationId: scope.locationId,
-        customerId: customer.id,
-        customerName: customer.name,
-        items: itemsList.filter(i => i.id),
-        paymentTerms,
-        invoiceDate,
-        dueDate,
-        overallDiscount
-      };
-      const res = await createB2BInvoice(payload);
-      if (res.success) {
-        setInvoiceSuccess("Invoice generated successfully: " + res.invoice.invoiceNumber);
-        setItemsList([{ uid: Date.now(), id: "", name: "", hsn: "", qty: 1, rate: 0, discountPercent: 0, taxRate: 18, amount: 0, unit: "PCS" }]);
-        setCustomer({ id: "", name: "", gstin: "", address: "" });
-        setOverallDiscount(0);
-        setTimeout(() => setInvoiceSuccess(""), 5000);
-      }
-    } catch (err: any) {
-      setInvoiceError("Error generating invoice: " + err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Premium Custom Styles
-  const glassStyle = {
-    background: 'rgba(255, 255, 255, 0.75)',
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    boxShadow: '0 8px 32px rgba(31, 38, 135, 0.07)',
-    borderRadius: '16px'
-  };
-
-  const cardStyle = {
-    background: '#ffffff',
-    border: '1px solid #e2e8f0',
-    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)',
-    borderRadius: '12px',
-    padding: '24px',
-    marginBottom: '24px'
-  };
-
-  return (
+const newReturn = `return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc", padding: "1.5rem", fontFamily: "sans-serif", color: "#1e293b", boxSizing: "border-box" }}>
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
@@ -218,7 +40,7 @@ export function B2BBilling() {
                   </label>
                   <select 
                     value={customer.id} 
-                    onChange={e => handleCustomerChange(e)}
+                    onChange={e => handleCustomerSelect(e.target.value)}
                     style={{ width: "100%", backgroundColor: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "0.875rem", borderRadius: "0.5rem", padding: "0.625rem", outline: "none", boxSizing: "border-box" }}
                   >
                     <option value="">-- Search Customer --</option>
@@ -299,12 +121,12 @@ export function B2BBilling() {
                   <td style={{ padding: "0.75rem 1.5rem" }}>
                     <select 
                       value={item.id} 
-                      onChange={e => updateItemLine(item.uid, 'id', e.target.value)}
-                      style={{ width: "100%", backgroundColor: "transparent", border: "1px solid #e2e8f0", borderRadius: "0.25rem", color: "#0f172a", fontWeight: 500, padding: "0.375rem", outline: "none", boxSizing: "border-box" }}
+                      onChange={e => handleItemSelect(index, e.target.value)}
+                      style={{ width: "100%", backgroundColor: "transparent", border: "none", color: "#0f172a", fontWeight: 500, padding: "0.25rem", outline: "none" }}
                     >
                       <option value="">Select an Item</option>
                       {dbItems.map(dbItem => (
-                        <option key={dbItem.id} value={dbItem.id}>{dbItem.nameEn}</option>
+                        <option key={dbItem.id} value={dbItem.id}>{dbItem.title}</option>
                       ))}
                     </select>
                   </td>
@@ -312,7 +134,7 @@ export function B2BBilling() {
                     <input 
                       type="number" 
                       value={item.qty} 
-                      onChange={e => updateItemLine(item.uid, 'qty', e.target.value === "" ? "" : parseFloat(e.target.value))}
+                      onChange={e => updateItem(index, 'qty', e.target.value)}
                       style={{ width: "100%", backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.25rem", padding: "0.375rem", textAlign: "center", outline: "none", boxSizing: "border-box" }} 
                     />
                   </td>
@@ -320,7 +142,7 @@ export function B2BBilling() {
                     <input 
                       type="number" 
                       value={item.rate} 
-                      onChange={e => updateItemLine(item.uid, 'rate', e.target.value === "" ? "" : parseFloat(e.target.value))}
+                      onChange={e => updateItem(index, 'rate', e.target.value)}
                       style={{ width: "100%", backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.25rem", padding: "0.375rem", textAlign: "right", outline: "none", boxSizing: "border-box" }} 
                     />
                   </td>
@@ -328,14 +150,14 @@ export function B2BBilling() {
                     <input 
                       type="number" 
                       value={item.discountPercent} 
-                      onChange={e => updateItemLine(item.uid, 'discountPercent', e.target.value === "" ? "" : parseFloat(e.target.value))}
+                      onChange={e => updateItem(index, 'discountPercent', e.target.value)}
                       style={{ width: "100%", backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.25rem", padding: "0.375rem", textAlign: "center", outline: "none", boxSizing: "border-box" }} 
                     />
                   </td>
                   <td style={{ padding: "0.75rem 1rem" }}>
                     <select 
                       value={item.taxRate} 
-                      onChange={e => updateItemLine(item.uid, 'taxRate', parseFloat(e.target.value))}
+                      onChange={e => updateItem(index, 'taxRate', e.target.value)}
                       style={{ width: "100%", backgroundColor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "0.25rem", padding: "0.375rem", outline: "none", boxSizing: "border-box" }}
                     >
                       <option value="0">0%</option>
@@ -349,9 +171,11 @@ export function B2BBilling() {
                     {item.amount.toFixed(2)}
                   </td>
                   <td style={{ padding: "0.75rem 1rem", textAlign: "center" }}>
-                    <button onClick={() => removeItemLine(item.uid)} disabled={itemsList.length === 1} style={{ background: "none", border: "none", color: itemsList.length === 1 ? '#cbd5e1' : '#ef4444', cursor: itemsList.length === 1 ? 'not-allowed' : 'pointer' }}>
-                      <Trash2 size={16} />
-                    </button>
+                    {itemsList.length > 1 && (
+                      <button onClick={() => removeItem(index)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -383,21 +207,21 @@ export function B2BBilling() {
           {/* Right: Financial Math */}
           <div style={{ backgroundColor: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0", padding: "1.5rem", display: "flex", flexDirection: "column", justifyContent: "space-between", boxSizing: "border-box" }}>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", fontSize: "0.875rem", color: "#475569" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Subtotal</span><span style={{ fontWeight: 500 }}>₹ {subtotal.toFixed(2)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Subtotal</span><span style={{ fontWeight: 500 }}>₹ {subTotal.toFixed(2)}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#ef4444" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                   Overall Discount 
                   <input 
                     type="number" 
                     style={{ width: "60px", padding: "2px", border: "1px solid #cbd5e1", borderRadius: "4px" }} 
-                    placeholder="₹" 
+                    placeholder="%" 
                     value={overallDiscount || ""}
                     onChange={e => setOverallDiscount(parseFloat(e.target.value) || 0)}
-                  />
+                  />%
                 </span>
-                <span style={{ fontWeight: 500 }}>- ₹ {overallDiscount.toFixed(2)}</span>
+                <span style={{ fontWeight: 500 }}>- ₹ {discountAmount.toFixed(2)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Total Tax (GST)</span><span style={{ fontWeight: 500 }}>+ ₹ {taxAmount.toFixed(2)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Total Tax (GST)</span><span style={{ fontWeight: 500 }}>+ ₹ {totalTax.toFixed(2)}</span></div>
               <div style={{ display: "flex", justifyContent: "space-between" }}><span>Round Off</span><span style={{ fontWeight: 500 }}>₹ {roundOffAmount.toFixed(2)}</span></div>
             </div>
             
@@ -491,3 +315,8 @@ export function B2BBilling() {
     </div>
   );
 }
+`;
+
+content = content.replace(returnRegex, newReturn);
+fs.writeFileSync(path, content, 'utf8');
+console.log('Done replacement');

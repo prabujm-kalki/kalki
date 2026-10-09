@@ -44,7 +44,8 @@ const formSchema = z.object({
   phone: requiredMobileSchema,
   email: z.string().email("Invalid email address").or(z.literal('')).optional(),
   dateOfBirth: z.string().optional(),
-  biometricId: z.string().trim().min(1, "Biometric ID is required"),
+  aadhaarNumber: z.string().trim().min(1, "Aadhaar Number is required"),
+  biometricId: z.string().trim().optional(),
   posId: z.string().optional(),
   spouseName: z.string().optional(),
   spouseMobile: optionalMobileSchema,
@@ -84,6 +85,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
     email: initialData?.person?.email || "",
     dateOfBirth: initialData?.person?.dateOfBirth || "",
     status: initialData?.status || "DRAFT",
+    aadhaarNumber: initialData?.aadhaarNumber || "",
     aadhaarDocumentUrl: initialData?.aadhaarDocumentUrl || "",
     photoUrl: initialData?.photoUrl || "",
     otherDocument1Url: initialData?.otherDocument1Url || "",
@@ -387,7 +389,8 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         secondaryMobile: formData.secondaryMobile || undefined,
         departmentId: formData.departmentId || undefined,
         defaultShiftId: formData.defaultShiftId || undefined,
-        biometricId: formData.biometricId,
+        aadhaarNumber: formData.aadhaarNumber,
+        biometricId: formData.biometricId || undefined,
         posId: formData.posId || undefined,
         person: personPayload,
         ...documentPayload,
@@ -585,7 +588,10 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         <div className="kalki-form-secondary">
           <KalkiSection title="System Integration" icon="🔗">
             <div className="kalki-field">
-              <KalkiInput label="Biometric ID" required value={formData.biometricId} onChange={e => handleChange("biometricId", e.target.value)} error={fieldErrors.biometricId} disabled={pending} />
+              <KalkiInput label="Aadhaar Number" required value={formData.aadhaarNumber} onChange={e => handleChange("aadhaarNumber", e.target.value)} error={fieldErrors.aadhaarNumber} disabled={pending} />
+            </div>
+            <div className="kalki-field">
+              <KalkiInput label="Biometric ID" value={formData.biometricId} onChange={e => handleChange("biometricId", e.target.value)} error={fieldErrors.biometricId} disabled={pending} />
             </div>
             <div className="kalki-field">
               <KalkiInput label="POS ID" error={fieldErrors.posId} value={formData.posId} onChange={e => handleChange("posId", e.target.value)} disabled={pending} />

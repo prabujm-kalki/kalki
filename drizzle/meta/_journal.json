@@ -295,6 +295,20 @@
       "when": 1791519630605,
       "tag": "0041_futuristic_shriek",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1791555377436,
+      "tag": "0042_early_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791555617888,
+      "tag": "0043_cloudy_christian_walker",
+      "breakpoints": true
     }
   ]
 }

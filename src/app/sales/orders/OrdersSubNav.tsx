@@ -13,8 +13,7 @@ export function OrdersSubNav() {
     { href: "/sales/orders/billing", label: "Billing" },
     { href: "/sales/orders/status", label: "Order Status" },
     { href: "/sales/orders/pending", label: "Pending Orders" },
-    { href: "/sales/orders/completed", label: "Completed Orders" },
-    { href: "/sales/orders/cancelled", label: "Cancelled Orders" }
+    { href: "/sales/orders/completed", label: "Completed Orders" }
   ];
 
   return (

@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "aadhaar_number" varchar(20);

@@ -4,33 +4,42 @@ import React, { useState, useEffect } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { fetchAgeingReport } from "@/app/finance/receivables-actions";
 import { Search, CalendarClock } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import SearchFilterBar from "@/components/sales/SearchFilterBar";
+import Pagination from "@/components/sales/Pagination";
 
 export function AgeingClient() {
   const { selected } = useSessionView();
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<any[]>([]);
+  const searchParams = useSearchParams();
+  const [total, setTotal] = useState(0);
 
   const loadReport = async () => {
     if (!selected) return;
     setLoading(true);
-    const res = await fetchAgeingReport(selected.organizationId);
+    const q = searchParams.get('q') || undefined;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const res = await fetchAgeingReport(selected.organizationId, q, page);
     if (res.success) {
       setReport(res.data);
+      setTotal(res.total || 0);
     }
     setLoading(false);
   };
 
   useEffect(() => {
     loadReport();
-  }, [selected]);
+  }, [selected, searchParams]);
 
   return (
     <div className="kalki-main-content">
-      <div className="kalki-page-header">
+      <div className="kalki-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 className="kalki-page-title">Receivables Ageing</h1>
           <p className="kalki-page-description">Track outstanding invoices grouped by how far past due they are.</p>
         </div>
+        <SearchFilterBar showDateFilter={false} />
       </div>
 
       {loading ? (
@@ -67,6 +76,7 @@ export function AgeingClient() {
               ))}
             </tbody>
           </table>
+          <Pagination totalPages={Math.ceil(total / 10)} currentPage={parseInt(searchParams.get("page") || "1", 10)} />
         </div>
       )}
     </div>

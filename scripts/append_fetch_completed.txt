@@ -1,0 +1,23 @@
+
+export async function fetchCompletedOrders(organizationId: string, locationId: string) {
+  if (!organizationId || !locationId) return [];
+  
+  return await db.select({
+    id: salesInvoices.id,
+    invoiceNumber: salesInvoices.invoiceNumber,
+    customerName: salesInvoices.customerName,
+    invoiceDate: salesInvoices.invoiceDate,
+    dueDate: salesInvoices.dueDate,
+    paymentStatus: salesInvoices.paymentStatus,
+    paymentMode: salesInvoices.paymentMode,
+    grandTotal: salesInvoices.grandTotal,
+  }).from(salesInvoices)
+    .where(
+      and(
+        eq(salesInvoices.organizationId, organizationId),
+        eq(salesInvoices.locationId, locationId),
+        eq(salesInvoices.paymentStatus, 'PAID')
+      )
+    )
+    .orderBy(desc(salesInvoices.invoiceDate));
+}

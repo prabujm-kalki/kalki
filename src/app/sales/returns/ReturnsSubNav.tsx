@@ -12,8 +12,7 @@ export function ReturnsSubNav() {
   const links = [
     { href: "/sales/returns/sales-returns", label: "Sales Returns" },
     { href: "/sales/returns/credit-notes", label: "Credit Notes" },
-    { href: "/sales/returns/refunds", label: "Refunds" },
-    { href: "/sales/returns/cancelled", label: "Cancelled Invoices" }
+    { href: "/sales/returns/refunds", label: "Refunds" }
   ];
 
   return (

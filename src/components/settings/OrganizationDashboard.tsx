@@ -130,7 +130,16 @@ export function OrganizationDashboard() {
 
   return (
     <div className="flex h-full flex-col bg-gray-50 relative">
-      <main className="flex-1 overflow-auto p-8 pt-20 relative">
+      <main className="flex-1 overflow-auto p-8 pt-8 relative">
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem', width: '100%' }}>
+          <button 
+            onClick={() => setShowAddPos(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--kalki-primary, #1e3a8a)', color: 'white', padding: '8px 16px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+          >
+            <Plus size={16} />
+            Add Position
+          </button>
+        </div>
         {showAddDept && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-xl max-h-[90vh] overflow-y-auto">

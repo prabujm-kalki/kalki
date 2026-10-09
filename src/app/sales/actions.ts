@@ -1,6 +1,7 @@
 "use server";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { eq, and, ilike, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, or, ilike, sql, desc, inArray, gte, lte } from "drizzle-orm";
 import { items, customers, salesInvoices, salesInvoiceLines, salesReturns, salesReturnLines, organizations, creditNotes, creditNoteApplications, salesReceiptAllocations, refunds } from "@/db/schema";
 import crypto from "crypto";
 import { headers } from "next/headers";
@@ -609,18 +610,42 @@ export async function applyCreditNote(input: {
   }
 }
 
-export async function fetchCreditNotesByLocation(locationId: string, organizationId: string) {
+export async function fetchCreditNotesByLocation(locationId: string, organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
   try {
+    const offset = (page - 1) * limit;
+    
+    let startObj: Date | undefined = undefined;
+    if (startDate) {
+      startObj = new Date(startDate);
+      startObj.setUTCHours(0, 0, 0, 0);
+    }
+    
+    let endObj: Date | undefined = undefined;
+    if (endDate) {
+      endObj = new Date(endDate);
+      endObj.setUTCHours(23, 59, 59, 999);
+    }
+
+    const whereClause = and(
+      eq(creditNotes.organizationId, organizationId),
+      eq(creditNotes.locationId, locationId),
+      ...(startObj ? [gte(creditNotes.issueDate, startObj)] : []),
+      ...(endObj ? [lte(creditNotes.issueDate, endObj)] : []),
+      ...(searchQuery
+        ? [ilike(creditNotes.creditNoteNumber, `%${searchQuery}%`)]
+        : [])
+    );
+
     const notes = await db
       .select()
       .from(creditNotes)
-      .where(
-        and(
-          eq(creditNotes.organizationId, organizationId),
-          eq(creditNotes.locationId, locationId)
-        )
-      )
-      .orderBy(desc(creditNotes.issueDate));
+      .where(whereClause)
+      .orderBy(desc(creditNotes.issueDate))
+      .limit(limit)
+      .offset(offset);
+      
+    const totalResult = await db.select({ count: sql<number>`count(*)` }).from(creditNotes).where(whereClause);
+    const total = Number(totalResult[0]?.count || 0);
       
     const noteIds = notes.map(n => n.id);
     
@@ -637,7 +662,7 @@ export async function fetchCreditNotesByLocation(locationId: string, organizatio
       applications: applications.filter(app => app.creditNoteId === note.id)
     }));
 
-    return { success: true, data: formattedNotes };
+    return { success: true, data: formattedNotes, total };
   } catch (error: any) {
     console.error("Error fetching credit notes by location:", error);
     throw new Error(error.message || "Failed to fetch credit notes");
@@ -736,4 +761,226 @@ export async function fetchRefundsByLocation(organizationId: string, locationId:
     console.error("Error fetching refunds:", error);
     return { success: false, data: [] };
   }
+}
+
+export async function fetchPendingOrders(organizationId: string, locationId: string, searchQuery?: string) {
+  if (!organizationId || !locationId) return [];
+  
+  return await db.select({
+    id: salesInvoices.id,
+    invoiceNumber: salesInvoices.invoiceNumber,
+    customerId: salesInvoices.customerId,
+    customerName: salesInvoices.customerName,
+    invoiceDate: salesInvoices.invoiceDate,
+    dueDate: salesInvoices.dueDate,
+    paymentStatus: salesInvoices.paymentStatus,
+    paymentMode: salesInvoices.paymentMode,
+    grandTotal: salesInvoices.grandTotal,
+  }).from(salesInvoices)
+    .where(
+      and(
+        eq(salesInvoices.organizationId, organizationId),
+        eq(salesInvoices.locationId, locationId),
+        eq(salesInvoices.paymentStatus, 'PENDING'),
+        ...(searchQuery
+          ? [
+              or(
+                ilike(salesInvoices.invoiceNumber, `%${searchQuery}%`),
+                ilike(salesInvoices.customerName, `%${searchQuery}%`)
+              ),
+            ]
+          : [])
+      )
+    )
+    .orderBy(desc(salesInvoices.invoiceDate));
+}
+
+export async function markInvoiceAsPaid(invoiceId: string) {
+  if (!invoiceId) throw new Error("Invoice ID required");
+  
+  await db.update(salesInvoices)
+    .set({ paymentStatus: "PAID" })
+    .where(eq(salesInvoices.id, invoiceId));
+    
+  revalidatePath('/sales/orders/pending');
+  // Optional: revalidate completed route if it exists
+  // revalidatePath('/sales/orders/completed'); 
+  return { success: true };
+}
+
+export async function fetchCompletedOrders(organizationId: string, locationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: Date, endDate?: Date) {
+  if (!organizationId || !locationId) return { data: [], total: 0 };
+  
+  const offset = (page - 1) * limit;
+
+  let startObj: Date | undefined = undefined;
+  if (startDate) {
+    startObj = new Date(startDate);
+    startObj.setUTCHours(0, 0, 0, 0);
+  }
+
+  let endObj: Date | undefined = undefined;
+  if (endDate) {
+    endObj = new Date(endDate);
+    endObj.setUTCHours(23, 59, 59, 999);
+  }
+
+  const whereClause = and(
+    eq(salesInvoices.organizationId, organizationId),
+    eq(salesInvoices.locationId, locationId),
+    eq(salesInvoices.paymentStatus, 'PAID'),
+    ...(startObj ? [gte(salesInvoices.invoiceDate, startObj)] : []),
+    ...(endObj ? [lte(salesInvoices.invoiceDate, endObj)] : []),
+    ...(searchQuery
+      ? [
+          or(
+            ilike(salesInvoices.invoiceNumber, `%${searchQuery}%`),
+            ilike(salesInvoices.customerName, `%${searchQuery}%`)
+          ),
+        ]
+      : [])
+  );
+
+  const data = await db.select({
+    id: salesInvoices.id,
+    invoiceNumber: salesInvoices.invoiceNumber,
+    customerName: salesInvoices.customerName,
+    invoiceDate: salesInvoices.invoiceDate,
+    dueDate: salesInvoices.dueDate,
+    paymentStatus: salesInvoices.paymentStatus,
+    paymentMode: salesInvoices.paymentMode,
+    grandTotal: salesInvoices.grandTotal,
+  })
+    .from(salesInvoices)
+    .where(whereClause)
+    .orderBy(desc(salesInvoices.invoiceDate))
+    .limit(limit)
+    .offset(offset);
+
+  const totalResult = await db.select({ count: sql<number>`count(*)` }).from(salesInvoices).where(whereClause);
+  const total = Number(totalResult[0]?.count || 0);
+
+  return { data, total };
+}
+
+export async function fetchCancelledOrders(organizationId: string, locationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+  if (!organizationId || !locationId) return { data: [], total: 0 };
+  
+  const offset = (page - 1) * limit;
+
+  let startObj: Date | undefined = undefined;
+  if (startDate) {
+    startObj = new Date(startDate);
+    startObj.setUTCHours(0, 0, 0, 0);
+  }
+
+  let endObj: Date | undefined = undefined;
+  if (endDate) {
+    endObj = new Date(endDate);
+    endObj.setUTCHours(23, 59, 59, 999);
+  }
+
+  const whereClause = and(
+    eq(salesInvoices.organizationId, organizationId),
+    eq(salesInvoices.locationId, locationId),
+    or(
+      eq(salesInvoices.status, 'CANCELLED'),
+      eq(salesInvoices.paymentStatus, 'CANCELLED')
+    ),
+    ...(startObj ? [gte(salesInvoices.invoiceDate, startObj)] : []),
+    ...(endObj ? [lte(salesInvoices.invoiceDate, endObj)] : []),
+    ...(searchQuery
+      ? [
+          or(
+            ilike(salesInvoices.invoiceNumber, `%${searchQuery}%`),
+            ilike(salesInvoices.customerName, `%${searchQuery}%`)
+          ),
+        ]
+      : [])
+  );
+
+  const data = await db.select({
+    id: salesInvoices.id,
+    invoiceNumber: salesInvoices.invoiceNumber,
+    customerName: salesInvoices.customerName,
+    invoiceDate: salesInvoices.invoiceDate,
+    dueDate: salesInvoices.dueDate,
+    paymentStatus: salesInvoices.paymentStatus,
+    paymentMode: salesInvoices.paymentMode,
+    grandTotal: salesInvoices.grandTotal,
+    status: salesInvoices.status,
+  })
+    .from(salesInvoices)
+    .where(whereClause)
+    .orderBy(desc(salesInvoices.invoiceDate))
+    .limit(limit)
+    .offset(offset);
+
+  const totalResult = await db.select({ count: sql<number>`count(*)` }).from(salesInvoices).where(whereClause);
+  const total = Number(totalResult[0]?.count || 0);
+
+  return { data, total };
+}
+
+export async function fetchAllOrders(organizationId: string, locationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string, paymentMode?: string, status?: string) {
+  if (!organizationId || !locationId) return { data: [], total: 0 };
+  
+  const offset = (page - 1) * limit;
+
+  let startObj: Date | undefined = undefined;
+  if (startDate) {
+    startObj = new Date(startDate);
+    startObj.setUTCHours(0, 0, 0, 0);
+  }
+
+  let endObj: Date | undefined = undefined;
+  if (endDate) {
+    endObj = new Date(endDate);
+    endObj.setUTCHours(23, 59, 59, 999);
+  }
+
+  const whereClause = and(
+    eq(salesInvoices.organizationId, organizationId),
+    eq(salesInvoices.locationId, locationId),
+    ...(startObj ? [gte(salesInvoices.invoiceDate, startObj)] : []),
+    ...(endObj ? [lte(salesInvoices.invoiceDate, endObj)] : []),
+    ...(paymentMode ? [eq(salesInvoices.paymentMode, paymentMode)] : []),
+    ...(status ? [eq(salesInvoices.status, status)] : []),
+    ...(searchQuery
+      ? [
+          or(
+            ilike(salesInvoices.invoiceNumber, `%${searchQuery}%`),
+            ilike(salesInvoices.customerName, `%${searchQuery}%`),
+            ilike(customers.phone, `%${searchQuery}%`)
+          ),
+        ]
+      : [])
+  );
+
+  const data = await db.select({
+    id: salesInvoices.id,
+    invoiceNumber: salesInvoices.invoiceNumber,
+    customerName: salesInvoices.customerName,
+    customerPhone: customers.phone,
+    invoiceDate: salesInvoices.invoiceDate,
+    dueDate: salesInvoices.dueDate,
+    paymentStatus: salesInvoices.paymentStatus,
+    paymentMode: salesInvoices.paymentMode,
+    grandTotal: salesInvoices.grandTotal,
+    status: salesInvoices.status,
+  })
+    .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
+    .where(whereClause)
+    .orderBy(desc(salesInvoices.invoiceDate))
+    .limit(limit)
+    .offset(offset);
+
+  const totalResult = await db.select({ count: sql<number>`count(*)` })
+    .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
+    .where(whereClause);
+  const total = Number(totalResult[0]?.count || 0);
+
+  return { data, total };
 }

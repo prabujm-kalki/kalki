@@ -16,6 +16,7 @@ type EmployeeView = {
   employmentStartDate: string;
   employmentEndDate: string | null;
   status: string;
+  aadhaarNumber: string | null;
   aadhaarDocumentUrl: string | null;
   photoUrl: string | null;
 
@@ -561,6 +562,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                     </div>
                   ) : null} 
                 />
+                <InfoItem label="Aadhaar Number" value={emp.aadhaarNumber} />
                 <InfoItem label="Biometric ID" value={emp.biometricId} />
                 <InfoItem label="POYS ID" value={emp.posId} />
               </div>

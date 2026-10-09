@@ -177,6 +177,7 @@ export const employees = pgTable(
     maritalStatus: text("marital_status", {
       enum: ["Single", "Married", "Divorced", "Widowed"],
     }),
+    aadhaarNumber: varchar("aadhaar_number", { length: 20 }),
     aadhaarDocumentUrl: text("aadhaar_document_url"),
     photoUrl: text("photo_url"),
     otherDocument1Url: text("other_document_1_url"),

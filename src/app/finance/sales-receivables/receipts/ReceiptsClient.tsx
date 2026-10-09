@@ -4,9 +4,14 @@ import React, { useState, useEffect } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { processReceipt, fetchReceipts, fetchOpenInvoices } from "@/app/finance/receivables-actions";
 import { Plus, Search, FileText } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import SearchFilterBar from "@/components/sales/SearchFilterBar";
+import Pagination from "@/components/sales/Pagination";
 
 export function ReceiptsClient() {
   const { selected } = useSessionView();
+  const searchParams = useSearchParams();
+  const [total, setTotal] = useState(0);
   const [showModal, setShowModal] = useState(false);
   const [adding, setAdding] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,9 +35,26 @@ export function ReceiptsClient() {
   const loadReceipts = async () => {
     if (!selected) return;
     setLoading(true);
-    const res = await fetchReceipts(selected.organizationId);
+    
+    const q = searchParams.get('q') || undefined;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const startDate = searchParams.get('startDate') || undefined;
+    const endDate = searchParams.get('endDate') || undefined;
+
+    let finalStartDate = startDate;
+    let finalEndDate = endDate;
+    if (!finalStartDate || !finalEndDate) {
+      const dEnd = new Date();
+      const dStart = new Date();
+      dStart.setDate(dEnd.getDate() - 15);
+      finalStartDate = finalStartDate || dStart.toISOString().split('T')[0];
+      finalEndDate = finalEndDate || dEnd.toISOString().split('T')[0];
+    }
+
+    const res = await fetchReceipts(selected.organizationId, q, page, 10, finalStartDate, finalEndDate);
     if (res.success) {
       setReceipts(res.data);
+      setTotal(res.total || 0);
     }
     
     // Fetch customers for the dropdown
@@ -46,7 +68,7 @@ export function ReceiptsClient() {
 
   useEffect(() => {
     loadReceipts();
-  }, [selected]);
+  }, [selected, searchParams]);
 
   // When customer changes, fetch open invoices
   useEffect(() => {
@@ -125,9 +147,12 @@ export function ReceiptsClient() {
           <h1 className="kalki-page-title">Customer Receipts</h1>
           <p className="kalki-page-description">Log incoming customer payments and allocate them against open invoices.</p>
         </div>
-        <button className="kalki-button kalki-button--primary" onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Log Receipt
-        </button>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <SearchFilterBar showDateFilter={true} />
+          <button className="kalki-button kalki-button--primary" onClick={() => setShowModal(true)}>
+            <Plus size={16} /> Log Receipt
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -170,6 +195,7 @@ export function ReceiptsClient() {
               ))}
             </tbody>
           </table>
+          <Pagination totalPages={Math.ceil(total / 10)} currentPage={parseInt(searchParams.get("page") || "1", 10)} />
         </div>
       )}
 

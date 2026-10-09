@@ -4,28 +4,28 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getCustomerBalances, getAgeingReport } from "@/domains/finance/receivables-service";
 
-export async function fetchCustomerBalances(organizationId: string) {
+export async function fetchCustomerBalances(organizationId: string, searchQuery?: string, page: number = 1) {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
   try {
-    const data = await getCustomerBalances(organizationId);
-    return { success: true, data };
+    const result = await getCustomerBalances(organizationId, searchQuery, page, 10);
+    return { success: true, data: result.data, total: result.total };
   } catch (error: any) {
     console.error("fetchCustomerBalances ERROR:", error);
     return { success: false, error: error.message };
   }
 }
 
-export async function fetchAgeingReport(organizationId: string) {
+export async function fetchAgeingReport(organizationId: string, searchQuery?: string, page: number = 1) {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
   try {
-    const data = await getAgeingReport(organizationId);
-    return { success: true, data };
+    const result = await getAgeingReport(organizationId, searchQuery, page, 10);
+    return { success: true, data: result.data, total: result.total };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -54,15 +54,19 @@ export async function processReceipt(input: {
   }
 }
 
-export async function fetchReceipts(organizationId: string) {
+export async function fetchReceipts(organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });
   if (!session?.user) return { success: false, error: "Unauthorized" };
 
   try {
     const { getReceipts } = await import("@/domains/finance/receivables-service");
-    const data = await getReceipts(organizationId);
-    return { success: true, data };
+    // Convert strings to Dates if needed inside the service, but since service takes Date, we construct Date objects:
+    const startObj = startDate ? new Date(startDate) : undefined;
+    const endObj = endDate ? new Date(endDate) : undefined;
+    
+    const result = await getReceipts(organizationId, searchQuery, page, limit, startObj, endObj);
+    return { success: true, data: result.data, total: result.total };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
