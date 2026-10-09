@@ -105,9 +105,10 @@ export async function authorizeEmployeeOperation(input: AuthorizationInput) {
   return isEmployeeOperationAuthorized({ id: input.userId }, input, grants);
 }
 
-export async function requireAuthenticatedUser(request: Request) {
+export async function requireAuthenticatedUser(requestOrHeaders: Request | Headers | any) {
   const { auth } = await import("@/lib/auth");
-  const session = await auth.api.getSession({ headers: request.headers });
+  const headersObj = requestOrHeaders?.headers instanceof Headers ? requestOrHeaders.headers : (requestOrHeaders.headers || requestOrHeaders);
+  const session = await auth.api.getSession({ headers: headersObj });
   if (!session?.user) return null;
 
   const employeeRows = await db

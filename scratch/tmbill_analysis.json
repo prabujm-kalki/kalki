@@ -1,0 +1,319 @@
+{
+  "orderList": {
+    "success": true,
+    "recordCount": 15,
+    "sampleFields": [
+      "id",
+      "order_id",
+      "table_name",
+      "bill_number",
+      "cust_name",
+      "phone",
+      "line_1",
+      "line_2",
+      "order_level_discount",
+      "instructions",
+      "charges",
+      "quantity",
+      "order_level_total_charges",
+      "order_level_total_taxes",
+      "order_state",
+      "order_subtotal",
+      "order_total",
+      "created_date",
+      "created_time",
+      "orderDateTime",
+      "cover",
+      "delivery_boy_name",
+      "delivery_boy_phone",
+      "charges_level_total_tax",
+      "extra_details",
+      "order_items",
+      "order_payments",
+      "order_charges"
+    ],
+    "sampleRecord": {
+      "id": "239200190",
+      "order_id": "1g4amyssclHbEYuJpopv2766",
+      "table_name": "Parcel1",
+      "bill_number": 1,
+      "cust_name": "123",
+      "phone": "123",
+      "line_1": "",
+      "line_2": "",
+      "order_level_discount": "0.000",
+      "instructions": "",
+      "charges": "0.000",
+      "quantity": 1,
+      "order_level_total_charges": "0.000",
+      "order_level_total_taxes": "0.000",
+      "order_state": "fulfilled",
+      "order_subtotal": "600.000",
+      "order_total": "600.000",
+      "created_date": "2026-10-08",
+      "created_time": "13:30:35",
+      "orderDateTime": "2026-10-08T13:30:35.000Z",
+      "cover": 1,
+      "delivery_boy_name": null,
+      "delivery_boy_phone": null,
+      "charges_level_total_tax": "0.000",
+      "extra_details": {
+        "tax": [
+          {
+            "amount": 0,
+            "taxDivided": false,
+            "tax_percent": 0,
+            "tax_inclusive": false
+          }
+        ],
+        "total_tip": "",
+        "invoiceType": "B2C",
+        "kot_numbers": [
+          1
+        ],
+        "exlusive_tax": 0,
+        "kotcreatedAt": 1791446204670,
+        "order_number": 1,
+        "totalCharges": 0,
+        "roundedAmount": 0,
+        "tip_payment_mode": "",
+        "previous_order_id": "1g4amYTOuUOaHGUEFFOd5228"
+      },
+      "order_items": [
+        {
+          "item_id": "4800710",
+          "discount": 0,
+          "price": 200,
+          "quantity": 3,
+          "title": "Chicken Biryani",
+          "total": 600,
+          "total_with_tax": 600,
+          "tax_per": 0,
+          "tax_value": 0,
+          "tax_method": 0,
+          "is_devidable": 0,
+          "item_note": null,
+          "product_group_name": "Food",
+          "item_level_charges": [],
+          "item_options": [],
+          "price_without_tax": 200,
+          "total_tax": 0,
+          "total_without_tax": 600
+        }
+      ],
+      "order_payments": [
+        {
+          "payment_option": "Cash",
+          "amount": 600
+        }
+      ],
+      "order_charges": []
+    }
+  },
+  "adsr": {
+    "success": true,
+    "summaryFields": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14"
+    ],
+    "sampleData": [
+      {
+        "billno": 54,
+        "billDate": "2026-10-04",
+        "billTime": "21:56:59",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "1810.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 54,
+        "billDate": "2026-10-03",
+        "billTime": "22:33:46",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "200.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 54,
+        "billDate": "2026-09-27",
+        "billTime": "22:43:21",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "190.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 53,
+        "billDate": "2026-10-04",
+        "billTime": "21:56:41",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "1530.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 53,
+        "billDate": "2026-10-03",
+        "billTime": "22:21:04",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "4770.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 53,
+        "billDate": "2026-09-27",
+        "billTime": "22:39:55",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "3220.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 52,
+        "billDate": "2026-10-04",
+        "billTime": "21:47:20",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "865.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 52,
+        "billDate": "2026-10-03",
+        "billTime": "22:20:25",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "1905.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 52,
+        "billDate": "2026-09-27",
+        "billTime": "22:39:02",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "1160.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 51,
+        "billDate": "2026-10-04",
+        "billTime": "21:45:29",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "720.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 51,
+        "billDate": "2026-10-03",
+        "billTime": "22:15:34",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "995.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 51,
+        "billDate": "2026-09-27",
+        "billTime": "22:18:10",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "935.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 51,
+        "billDate": "2026-09-26",
+        "billTime": "23:29:41",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "50.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 50,
+        "billDate": "2026-10-04",
+        "billTime": "21:39:47",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "850.000",
+        "returnamt": "0"
+      },
+      {
+        "billno": 50,
+        "billDate": "2026-10-03",
+        "billTime": "22:13:46",
+        "discount": "0.000",
+        "tax": "0.000",
+        "status": "fulfilled",
+        "type": "Sale",
+        "amount": "2090.000",
+        "returnamt": "0"
+      }
+    ]
+  },
+  "orderTypeSales": {
+    "success": true,
+    "dataTypes": [
+      "statusCode",
+      "data"
+    ],
+    "sampleFields": [
+      "title",
+      "order_count",
+      "total"
+    ]
+  },
+  "getSales": {
+    "success": true,
+    "dataTypes": [
+      "salesData"
+    ],
+    "sampleData": null
+  }
+}

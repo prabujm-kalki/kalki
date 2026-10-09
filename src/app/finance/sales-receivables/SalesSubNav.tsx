@@ -10,7 +10,6 @@ export function SalesSubNav() {
   const query = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "";
 
   const links = [
-    { href: "/finance/sales-receivables/summary", label: "Sales Summary" },
     { href: "/finance/sales-receivables/invoices", label: "Invoices" },
     { href: "/finance/sales-receivables/receipts", label: "Receipts" },
     { href: "/finance/sales-receivables/credit-notes", label: "Credit Notes / Refunds" },

@@ -42,7 +42,12 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "inventory", submodule: "stock", actions: ["read", "create", "update", "delete"] },
   
   // Sales
+  { module: "sales", submodule: "overview", actions: ["read"] },
   { module: "sales", submodule: "orders", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "sales", submodule: "invoices", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "sales", submodule: "returns_&_credit_notes", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "sales", submodule: "reports", actions: ["read"] },
+  { module: "sales", submodule: "settings", actions: ["read", "update"] },
   
   // CRM
   { module: "crm", submodule: "customers", actions: ["read", "create", "update", "delete"] },

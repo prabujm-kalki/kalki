@@ -18,3 +18,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Save configurations**: Always persist user configurations (mappings, preferences) so they don't have to repeat manual work.
 - **Production-readiness**: Evaluate every feature against real-world scenarios (multiple locations, changing integrations, dirty data, etc). Do not just solve for the immediate test case.
 - **Customer Experience**: Optimize for the end-user. Minimize repetitive, confusing, or error-prone manual tasks.
+
+## 2. UI & Styling Rules
+- **No Tailwind**: NEVER use Tailwind CSS classes (e.g. `flex`, `p-4`, `text-center`). The project uses Vanilla CSS.
+- **Kalki Premium UI**: Look at existing modules (like `SalesOverview.tsx`) for reference. Use inline styles with clean, professional, premium UI layouts.
+- **Standard Classes**: Use the global CSS classes like `.card`, `.kalki-module-topbar`, `.kalki-login-wrapper` instead of Tailwind.

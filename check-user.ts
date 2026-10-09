@@ -5,8 +5,8 @@ import { eq, or, ilike } from "drizzle-orm";
 async function run() {
   const matchedUsers = await db.select().from(authUsers).where(
     or(
-      ilike(authUsers.email, "%6381575274%"),
-      ilike(authUsers.name, "%6381575274%")
+      ilike(authUsers.email, "%9790014356%"),
+      ilike(authUsers.name, "%9790014356%")
     )
   );
 

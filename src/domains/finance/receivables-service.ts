@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { customers, salesInvoices, salesReceipts, salesCreditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations } from "@/db/schema";
+import { customers, salesInvoices, salesReceipts, creditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations } from "@/db/schema";
 import { eq, sql, and } from "drizzle-orm";
 import { v4 as uuidv4 } from 'uuid';
 
@@ -14,12 +14,18 @@ export async function getCustomerBalances(organizationId: string) {
         (SELECT COALESCE(SUM(amount), 0) FROM ${salesReceipts} WHERE customer_id = ${customers.id})
       `.as('totalReceipts'),
       totalCreditNotes: sql<number>`
-        (SELECT COALESCE(SUM(amount), 0) FROM ${salesCreditNotes} WHERE customer_id = ${customers.id})
+        (SELECT COALESCE(SUM(CAST(applied_amount AS NUMERIC)), 0) 
+         FROM credit_note_applications 
+         JOIN credit_notes ON credit_note_applications.credit_note_id = credit_notes.id 
+         WHERE credit_notes.customer_id = ${customers.id})
       `.as('totalCreditNotes'),
       currentBalance: sql<number>`
         COALESCE(SUM(${salesInvoices.totalAmount}), 0) - 
         (SELECT COALESCE(SUM(amount), 0) FROM ${salesReceipts} WHERE customer_id = ${customers.id}) - 
-        (SELECT COALESCE(SUM(amount), 0) FROM ${salesCreditNotes} WHERE customer_id = ${customers.id})
+        (SELECT COALESCE(SUM(CAST(applied_amount AS NUMERIC)), 0) 
+         FROM credit_note_applications 
+         JOIN credit_notes ON credit_note_applications.credit_note_id = credit_notes.id 
+         WHERE credit_notes.customer_id = ${customers.id})
       `.as('currentBalance')
     })
     .from(customers)
@@ -338,7 +344,7 @@ export async function getOpenInvoicesForCustomer(customerId: string) {
       id: salesInvoices.id,
       invoiceNumber: salesInvoices.invoiceNumber,
       invoiceDate: salesInvoices.invoiceDate,
-      totalAmount: sql<number>`(${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0))`,
+      totalAmount: sql<number>`(${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0) - COALESCE((SELECT SUM(CAST(applied_amount AS NUMERIC)) FROM credit_note_applications WHERE applied_to_invoice_id = ${salesInvoices.id}), 0))`,
       status: salesInvoices.status
     })
     .from(salesInvoices)

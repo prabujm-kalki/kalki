@@ -13,6 +13,7 @@ export async function fetchCustomerBalances(organizationId: string) {
     const data = await getCustomerBalances(organizationId);
     return { success: true, data };
   } catch (error: any) {
+    console.error("fetchCustomerBalances ERROR:", error);
     return { success: false, error: error.message };
   }
 }

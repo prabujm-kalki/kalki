@@ -9,7 +9,11 @@ import {
   salesTransactionLines,
   salesChannels,
   salesOrders,
-  salesOrderLines
+  salesOrderLines,
+  salesInvoices,
+  salesInvoiceLines,
+  customers,
+  salesReceipts
 } from "@/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -217,8 +221,7 @@ export class TMBillService {
     }
   }
 
-  async pushToSalesTransactions(userId: string): Promise<number> {
-    // Find all unsynced TMBill orders for this organization (and location if set)
+  async pushToSalesInvoices(userId: string): Promise<number> {
     let query = db.select().from(tmbillOrders)
       .where(
         and(
@@ -228,124 +231,104 @@ export class TMBillService {
       );
 
     const unsyncedOrders = await query;
-
     if (unsyncedOrders.length === 0) return 0;
 
-    // Filter by location if specified
-    const ordersToProcess = this.locationId 
-      ? unsyncedOrders.filter(o => o.locationId === this.locationId)
-      : unsyncedOrders;
-
-    if (ordersToProcess.length === 0) return 0;
+    const ordersToProcess = unsyncedOrders;
 
     return await db.transaction(async (tx) => {
-      // 1. Create a Batch
-      const batchId = randomUUID();
-      const firstDate = ordersToProcess[0].orderDateTime || new Date();
-      const operatingDate = firstDate.toISOString().split('T')[0];
-      // Ensure locationId is available, fallback to first order's location if not provided to service
-      const batchLocationId = this.locationId || ordersToProcess[0].locationId || this.organizationId; 
-      
-      await tx.insert(salesImportBatches).values({
-        id: batchId,
-        organizationId: this.organizationId,
-        locationId: batchLocationId,
-        sourceSystem: "TMBILL_API",
-        operatingDate: operatingDate,
-        status: "VALIDATED",
-        recordedBy: userId,
-      });
-
-      let insertedCount = 0;
-
-      // Ensure a Sales Channel exists to attach the orders to
-      let defaultChannelId = "";
-      const channels = await tx.select().from(salesChannels).where(eq(salesChannels.organizationId, this.organizationId)).limit(1);
-      if (channels.length > 0) {
-        defaultChannelId = channels[0].id;
-      } else {
-        defaultChannelId = randomUUID();
-        await tx.insert(salesChannels).values({
-          id: defaultChannelId,
-          organizationId: this.organizationId,
-          locationId: batchLocationId,
-          name: "TMBill POS (Default)",
-          type: "IN_STORE",
-          fulfillmentType: "IMMEDIATE"
-        });
-      }
+      let insertedCount = 0; 
 
       for (const order of ordersToProcess) {
-        const transactionId = randomUUID();
+        // Step 1: Find or Create Customer
+        let customerId = "";
+        const customerName = order.customerName || "Walk-in Customer";
+        const customerPhone = order.customerPhone || "0000000000";
         
-        await tx.insert(salesTransactions).values({
-          id: transactionId,
+        const existingCustomers = await tx.select().from(customers).where(and(eq(customers.organizationId, this.organizationId), eq(customers.phone, customerPhone))).limit(1);
+        if (existingCustomers.length > 0) {
+          customerId = existingCustomers[0].id;
+        } else {
+          customerId = randomUUID();
+          await tx.insert(customers).values({
+            id: customerId,
+            organizationId: this.organizationId,
+            name: customerName,
+            phone: customerPhone
+          });
+        }
+
+        // Step 2: Insert into salesInvoices
+        const invoiceId = randomUUID();
+        const paymentStatus = (!order.paymentMode || order.paymentMode.toLowerCase() === "credit" || order.paymentMode.toLowerCase() === "unpaid") ? "PENDING" : "PAID";
+        
+        try {
+          await tx.insert(salesInvoices).values({
+          id: invoiceId,
           organizationId: this.organizationId,
-          locationId: order.locationId || batchLocationId,
-          batchId: batchId,
-          sourceSystem: "TMBILL_API",
-          sourceBillId: order.tmbillOrderId,
-          billTimestamp: order.orderDateTime || new Date(),
-          customerName: order.customerName,
-          customerContact: order.customerPhone,
-          captainName: null, 
-          orderType: order.tableName ? `Table: ${order.tableName}` : "POS",
-          grossAmount: String(order.orderSubtotal || 0),
-          discountAmount: "0", 
+          locationId: order.locationId || this.organizationId,
+          invoiceNumber: "TM-" + String(order.tmbillOrderId),
+          invoiceDate: order.orderDateTime || new Date(),
+          issueDate: order.orderDateTime || new Date(),
+          customerId: customerId,
+          customerName: customerName,
+          subtotalAmount: String(order.orderSubtotal || 0),
+          discountAmount: "0.00",
+          taxableAmount: String(order.orderSubtotal || 0),
+          cgstAmount: "0.00",
+          sgstAmount: "0.00",
+          igstAmount: "0.00",
           taxAmount: String((Number(order.orderTotal) - Number(order.orderSubtotal)) || 0),
-          otherCharges: "0",
-          netAmount: String(order.orderTotal || 0),
-          paymentMethod: order.paymentMode || "CASH",
+          roundOffAmount: "0.00",
+          grandTotal: String(order.orderTotal || 0),
+          totalAmount: String(order.orderTotal || 0),
+          paymentStatus: paymentStatus,
+          paymentMode: order.paymentMode || "CREDIT",
+          tmbillRawData: order.rawData,
+          createdUserId: userId
         });
 
-        // -- NEW ARCHITECTURE (Zero-Hardcode Sales Orders) --
-        const newOrderId = randomUUID();
-        await tx.insert(salesOrders).values({
-          id: newOrderId,
-          organizationId: this.organizationId,
-          locationId: order.locationId || batchLocationId,
-          channelId: defaultChannelId,
-          orderNumber: order.tmbillOrderDisplayId || order.tmbillOrderId,
-          status: "DELIVERED",
-          customerName: order.customerName,
-          customerContact: order.customerPhone,
-          grossAmount: String(order.orderSubtotal || 0),
-          discountAmount: "0",
-          taxAmount: String((Number(order.orderTotal) - Number(order.orderSubtotal)) || 0),
-          netAmount: String(order.orderTotal || 0),
-          orderTimestamp: order.orderDateTime || new Date(),
-        });
+        // Generate receipt if PAID
+        if (paymentStatus === "PAID") {
+          await tx.insert(salesReceipts).values({
+            organizationId: this.organizationId,
+            locationId: order.locationId || this.organizationId,
+            customerId: customerId,
+            receiptNumber: "REC-TM-" + String(order.tmbillOrderId),
+            receiptDate: order.orderDateTime || new Date(),
+            amount: String(order.orderTotal || 0),
+            paymentMethod: order.paymentMode || "SYSTEM_SYNC"
+          });
+        }
+        
+        } catch (e: any) {
+          console.error("POSTGRES INSERT ERROR DETAILS:", e, e.detail, e.code);
+          throw new Error("PG_ERROR: " + (e.detail || e.message));
+        }
 
-        // Get items for this order
+        // Step 3: Insert line items
         const items = await tx.select().from(tmbillOrderItems).where(eq(tmbillOrderItems.orderId, order.id));
-        
         if (items.length > 0) {
-          await tx.insert(salesTransactionLines).values(
-            items.map((i) => ({
-              id: randomUUID(),
-              organizationId: this.organizationId,
-              locationId: order.locationId || batchLocationId,
-              transactionId: transactionId,
-              itemName: i.title,
-              category: i.productGroupName,
-              quantity: String(i.quantity),
-              unitPrice: String(i.price),
-              lineTotal: String(i.totalWithTax),
-            }))
-          );
+          // Find a default item to satisfy FK
+          const firstItem = await tx.select({id: sql`id`}).from(sql`items`).limit(1);
+          let defaultItemId = firstItem.length > 0 ? String(firstItem[0].id) : "00000000-0000-0000-0000-000000000000";
 
-          await tx.insert(salesOrderLines).values(
+          await tx.insert(salesInvoiceLines).values(
             items.map((i) => ({
               id: randomUUID(),
-              orderId: newOrderId,
-              itemId: i.tmbillItemId || "UNKNOWN",
-              itemName: i.title,
-              quantity: String(i.quantity),
-              unitPrice: String(i.price),
-              grossAmount: String(Number(i.quantity) * Number(i.price)),
+              invoiceId: invoiceId,
+              itemId: defaultItemId,
+              description: i.title || "TMBill Item",
+              itemDescription: i.title || "TMBill Item",
+              uom: "NOS",
+              quantity: String(i.quantity || 1),
+              unitPrice: String(i.price || 0),
+              unitRate: String(i.price || 0),
+              discountPercent: "0",
               discountAmount: "0",
-              taxAmount: String(i.totalTax || 0),
-              netAmount: String(i.totalWithTax),
+              taxableAmount: String(Number(i.quantity || 1) * Number(i.price || 0)),
+              gstRate: "0",
+              totalAmount: String(i.totalWithTax || 0),
+              lineTotal: String(i.totalWithTax || 0)
             }))
           );
         }
@@ -362,4 +345,3 @@ export class TMBillService {
     });
   }
 }
-

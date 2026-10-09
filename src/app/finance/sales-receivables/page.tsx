@@ -4,5 +4,5 @@ export default async function SalesReceivablesPage({ searchParams }: { searchPar
   const params = await searchParams;
   const org = params.organizationId ? `?organizationId=${params.organizationId}` : "";
   const loc = params.locationId ? (org ? `&locationId=${params.locationId}` : `?locationId=${params.locationId}`) : "";
-  redirect(`/finance/sales-receivables/summary${org}${loc}`);
+  redirect(`/finance/sales-receivables/invoices${org}${loc}`);
 }

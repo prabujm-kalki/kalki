@@ -76,7 +76,7 @@
   align-items: center;
   padding: 0 16px;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 20px;
   background: linear-gradient(135deg, #2a1f1a, #1f1411);
   color: #d4af37;
   border-bottom: 1px solid #d4af37;
@@ -95,11 +95,11 @@
 
 .kalki-sidebar-link {
   display: block;
-  padding: 4px 8px;
+  padding: 12px 18px;
   border-radius: var(--radius-sm);
   color: var(--kalki-text-secondary);
   text-decoration: none;
-  font-size: 12.5px;
+  font-size: 14px;
   font-weight: 500;
   transition: all 0.2s;
 }
@@ -123,7 +123,7 @@
   align-items: center; 
   justify-content: center; 
   border-radius: var(--radius-sm); 
-  font-weight: 500; 
+  font-weight: 600; 
   cursor: pointer; 
   border: 1px solid transparent; 
   transition: all 0.2s; 
@@ -145,7 +145,7 @@
 .kalki-button--ghost { 
   background-color: transparent; 
   color: var(--kalki-text-secondary); 
-  padding: 4px 8px; 
+  padding: 12px 18px; 
 }
 
 .kalki-button--danger {
@@ -164,7 +164,7 @@
 
 .kalki-label { 
   font-size: 13px; 
-  font-weight: 500; 
+  font-weight: 600; 
   color: var(--kalki-text-primary); 
 }
 
@@ -173,7 +173,7 @@
 }
 
 .kalki-input, .kalki-select, .kalki-textarea { 
-  padding: 8px 12px; 
+  padding: 12px 18px; 
   border: 1px solid var(--kalki-border); 
   border-radius: var(--radius-sm); 
   font-size: 14px; 
@@ -258,7 +258,7 @@
 /* Header */
 .kalki-page-header { 
   background: white; 
-  padding: 8px 12px; 
+  padding: 12px 18px; 
   border-bottom: 1px solid var(--kalki-border); 
   margin: -12px -12px 12px -12px; 
   display: flex; 
@@ -304,7 +304,7 @@
   align-items: center;
   justify-content: space-between;
   border: 1px solid var(--kalki-border);
-  padding: 8px 12px;
+  padding: 12px 18px;
   border-radius: var(--radius-sm);
   margin-top: 8px;
 }
@@ -315,7 +315,7 @@
 }
 .kalki-upload-filename {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   display: block;
 }
 .kalki-upload-size {
@@ -336,7 +336,7 @@
   background: #f8fafc;
   padding: 12px 16px;
   text-align: left;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--kalki-text-secondary);
   border-bottom: 1px solid var(--kalki-border);
 }
@@ -760,7 +760,7 @@ input {
   padding: 0.5rem 0;
   color: #64748b;
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 13px;
   border-bottom: 2px solid transparent;
   transition: all 0.2s ease;
@@ -786,4 +786,152 @@ input {
 
 .kalki-modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); } .kalki-modal { background: var(--kalki-bg); border-radius: var(--kalki-radius-lg); width: 100%; max-width: 600px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); overflow: hidden; } .kalki-modal-header { padding: 1.5rem; border-bottom: 1px solid var(--kalki-border); display: flex; justify-content: space-between; align-items: center; } .kalki-modal-header h2 { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--kalki-text); } .kalki-modal-close { background: transparent; border: none; font-size: 1.5rem; color: var(--kalki-text-muted); cursor: pointer; } .kalki-modal-content { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; } .kalki-modal-footer { padding: 1.5rem; border-top: 1px solid var(--kalki-border); display: flex; justify-content: flex-end; gap: 1rem; background: var(--kalki-bg-secondary); }
 .kalki-module-nav { display: flex; gap: 1.5rem; overflow-x: auto; align-items: center; border-bottom: 1px solid var(--kalki-border); }
+
+
+/* Kalki Toast System */
+.kalki-toast-container {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kalki-toast {
+  padding: 16px 20px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-width: 300px;
+  max-width: 400px;
+  animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  background-color: white;
+  border-left: 4px solid #3b82f6;
+}
+
+.kalki-toast--success {
+  border-left-color: #10b981;
+  background-color: #ecfdf5;
+  color: #065f46;
+}
+
+.kalki-toast--error {
+  border-left-color: #ef4444;
+  background-color: #fef2f2;
+  color: #991b1b;
+}
+
+.kalki-toast-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kalki-toast-content strong {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.kalki-toast-content p {
+  font-size: 13px;
+  margin: 0;
+  opacity: 0.9;
+}
+
+.kalki-toast-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  padding: 0;
+  margin-left: 12px;
+}
+
+.kalki-toast-close:hover {
+  opacity: 1;
+}
+
+@keyframes toastSlideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+
+/* Kalki Card */
+.kalki-card {
+  background-color: white;
+  border-radius: 12px;
+  border: 1px solid var(--kalki-border, #e2e8f0);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.kalki-card--p-none { padding: 0; }
+.kalki-card--p-sm { padding: 12px; }
+.kalki-card--p-md { padding: 16px; }
+.kalki-card--p-lg { padding: 32px; }
+
+/* Input Styles */
+input.input, select.input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--kalki-border, #e2e8f0);
+  background-color: #f8fafc;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+input.input:focus, select.input:focus {
+  border-color: var(--kalki-primary, #1e3a8a);
+  background-color: white;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+.kalki-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+.kalki-card p {
+  margin-top: 0;
+}
 

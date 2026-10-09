@@ -4,9 +4,13 @@ import { useState, useEffect } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { KalkiCard } from "@/components/ui/KalkiCard";
 import { KalkiButton } from "@/components/ui/KalkiButton";
+import { updatePrimarySalesSource, testTMBillConnection } from "@/app/sales/config-actions";
+import { TMBillSyncPanel } from "@/components/integrations/TMBillSyncPanel";
+import { useToast } from "@/components/ui/Toast";
 
-export function TMBillConfig() {
+export function TMBillConfig({ primarySource, setPrimarySource }: { primarySource?: string, setPrimarySource?: any }) {
   const { selected: scope } = useSessionView();
+  const { addToast } = useToast();
   const [config, setConfig] = useState<any>({
     apiUrl: "https://api.tmbill.com/tp/v1",
     username: "",
@@ -18,7 +22,7 @@ export function TMBillConfig() {
     autoSyncIntervalMinutes: 60,
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [isTesting, setIsTesting] = useState(false);
 
   useEffect(() => {
     if (scope?.organizationId) {
@@ -35,7 +39,6 @@ export function TMBillConfig() {
   const handleSave = async () => {
     if (!scope?.organizationId) return;
     setIsLoading(true);
-    setMessage(null);
     try {
       const res = await fetch("/api/integrations/tmbill/config", {
         method: "POST",
@@ -47,11 +50,27 @@ export function TMBillConfig() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save");
-      setMessage("Configuration saved successfully.");
+      addToast({ type: 'success', message: 'Configuration saved successfully' });
     } catch (err: any) {
-      setMessage(`Error: ${err.message}`);
+      addToast({ type: 'error', message: err.message || 'Failed to save configuration' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleTest = async () => {
+    setIsTesting(true);
+    try {
+      const res = await testTMBillConnection(config);
+      if (res.success) {
+        addToast({ type: 'success', message: 'Connection successful', description: 'TMBill API is reachable and credentials are valid.' });
+      } else {
+        addToast({ type: 'error', message: 'Connection failed', description: res.message });
+      }
+    } catch (err: any) {
+      addToast({ type: 'error', message: 'Connection error', description: err.message });
+    } finally {
+      setIsTesting(false);
     }
   };
 
@@ -60,15 +79,36 @@ export function TMBillConfig() {
   }
 
   return (
-    <div className="stack" style={{ padding: "2rem", gap: "2rem", maxWidth: "800px" }}>
-      <header>
-        <h2>TMBill POS Configuration</h2>
-        <p className="muted">Configure API settings, credentials, and synchronization rules.</p>
-      </header>
-
+    <div className="stack" style={{ padding: "0", gap: "1.25rem", maxWidth: "800px" }}>
       <KalkiCard>
-        <div className="stack" style={{ gap: "1.5rem" }}>
-          <h3>API Connection</h3>
+        <div className="stack" style={{ gap: "0.75rem" }}>
+          <h3 style={{ margin: 0 }}>Primary Sales Source</h3>
+          <p className="text-sm muted" style={{ margin: 0 }}>
+            Select how you want to manage your sales. This alters the Sales Dashboard layout.
+          </p>
+          <div className="field" style={{ maxWidth: "300px" }}>
+            <select 
+              value={primarySource || 'Hybrid'} 
+              onChange={async (e) => {
+                const val = e.target.value;
+                if (setPrimarySource) setPrimarySource(val);
+                if (scope?.organizationId) await updatePrimarySalesSource(scope.organizationId, val);
+              }} 
+              className="input"
+            >
+              <option value="External POS">External POS</option>
+              <option value="Internal Billing">Internal Billing</option>
+              <option value="Hybrid">Hybrid</option>
+            </select>
+          </div>
+        </div>
+      </KalkiCard>
+
+      {primarySource !== 'Internal Billing' && (
+      <>
+      <KalkiCard>
+        <div className="stack" style={{ gap: "1rem" }}>
+          <h3 style={{ margin: 0 }}>API Connection</h3>
           <div className="grid-2">
             <div className="field">
               <label>API Base URL</label>
@@ -113,7 +153,7 @@ export function TMBillConfig() {
               />
             </div>
             <div className="field">
-              <label>TMPOS ID (Optional)</label>
+              <label>POS ID</label>
               <input 
                 type="text" 
                 value={config.tmposId || ""} 
@@ -122,12 +162,18 @@ export function TMBillConfig() {
               />
             </div>
           </div>
+          
+          <div className="row" style={{ marginTop: "0.5rem" }}>
+            <KalkiButton onClick={handleTest} isLoading={isTesting} variant="secondary">
+              Test Connection
+            </KalkiButton>
+          </div>
         </div>
       </KalkiCard>
 
       <KalkiCard>
-        <div className="stack" style={{ gap: "1.5rem" }}>
-          <h3>Synchronization Rules</h3>
+        <div className="stack" style={{ gap: "1rem" }}>
+          <h3 style={{ margin: 0 }}>Synchronization Rules</h3>
           
           <div className="field" style={{ maxWidth: "300px" }}>
             <label>Business Day Start Time</label>
@@ -168,18 +214,17 @@ export function TMBillConfig() {
           )}
         </div>
       </KalkiCard>
+      <div style={{ marginTop: "1rem" }}>
+        <TMBillSyncPanel organizationId={scope.organizationId} locationId={scope.locationId || undefined} />
+      </div>
+      </>
+      )}
 
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <KalkiButton onClick={handleSave} isLoading={isLoading} variant="primary">
           Save Configuration
         </KalkiButton>
       </div>
-
-      {message && (
-        <div style={{ padding: "1rem", borderRadius: "4px", backgroundColor: message.startsWith("Error") ? "#fee2e2" : "#dcfce7", color: message.startsWith("Error") ? "#991b1b" : "#166534" }}>
-          {message}
-        </div>
-      )}
     </div>
   );
 }

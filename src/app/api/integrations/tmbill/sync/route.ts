@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       systemUserId = "00000000-0000-0000-0000-000000000000"; 
     }
 
-    const pushedSalesCount = await tmbillService.pushToSalesTransactions(systemUserId);
+    const pushedSalesCount = await tmbillService.pushToSalesInvoices(systemUserId);
 
     return NextResponse.json({
       success: true,

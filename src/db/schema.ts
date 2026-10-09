@@ -34,9 +34,16 @@ export const organizations = pgTable(
       .notNull()
       .defaultNow(),
     whatsappPoTemplate: text("whatsapp_po_template"),
+    primarySalesSource: text("primary_sales_source").notNull().default("Hybrid"),
     enableMobilePushNotifications: boolean("enable_mobile_push_notifications").notNull().default(false),
     notificationTone: text("notification_tone").notNull().default("level-1"),
     customTones: jsonb("custom_tones").default({}),
+    returnPolicies: jsonb("return_policies").default({
+      maxReturnDays: 30,
+      allowMultipleReturns: true,
+      requireApproval: true,
+      applyRestockingFee: "None"
+    }),
   },
   (table) => [
     unique("organizations_code_unique").on(table.code),
@@ -3249,28 +3256,93 @@ export const customers = pgTable("customers", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-export const salesInvoices = pgTable("sales_invoices", {
+export const billingSessions = pgTable("billing_sessions", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull().references(() => organizations.id),
   locationId: uuid("location_id").notNull().references(() => locations.id),
-  customerId: uuid("customer_id").notNull().references(() => customers.id),
-  invoiceNumber: text("invoice_number").notNull().unique(),
-  issueDate: timestamp("issue_date").notNull(),
-  dueDate: timestamp("due_date").notNull(),
-  totalAmount: numeric("total_amount").notNull(),
-  taxAmount: numeric("tax_amount").notNull().default("0"),
-  status: text("status").notNull().default("draft"), // draft, issued, partially_paid, paid, void
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  sessionNumber: varchar("session_number", { length: 50 }).notNull().unique(), 
+  openedByUserId: text("opened_by_user_id").notNull(),
+  closedByUserId: text("closed_by_user_id"),
+  openedAt: timestamp("opened_at").defaultNow().notNull(),
+  closedAt: timestamp("closed_at"),
+  openingFloat: decimal("opening_float", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  closingExpectedCash: decimal("closing_expected_cash", { precision: 12, scale: 2 }),
+  closingActualCash: decimal("closing_actual_cash", { precision: 12, scale: 2 }),
+  cashVariance: decimal("cash_variance", { precision: 12, scale: 2 }),
+  status: varchar("status", { length: 20 }).default("OPEN").notNull(), 
+  notes: text("notes"),
 });
 
-export const salesInvoiceLines = pgTable("sales_invoice_lines", {
+export const salesInvoices = pgTable("b2b_sales_invoices", {
   id: uuid("id").primaryKey().defaultRandom(),
-  invoiceId: uuid("invoice_id").notNull().references(() => salesInvoices.id),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  sessionId: uuid("session_id").references(() => billingSessions.id),
+  
+  // Old columns to prevent rename prompt
+  issueDate: timestamp("issue_date").notNull(),
+  totalAmount: numeric("total_amount").notNull(),
+  taxAmount: numeric("tax_amount").notNull().default("0"),
+
+  invoiceNumber: text("invoice_number").notNull().unique(),
+  invoiceDate: timestamp("invoice_date").defaultNow().notNull(),
+  dueDate: timestamp("due_date"),
+  
+  customerId: uuid("customer_id").notNull().references(() => customers.id), 
+  customerName: text("customer_name").notNull(),
+  customerGstin: text("customer_gstin"),
+  billingAddress: text("billing_address"),
+  
+  subtotalAmount: decimal("subtotal_amount", { precision: 12, scale: 2 }).notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  taxableAmount: decimal("taxable_amount", { precision: 12, scale: 2 }).notNull(),
+  cgstAmount: decimal("cgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  sgstAmount: decimal("sgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  igstAmount: decimal("igst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  roundOffAmount: decimal("round_off_amount", { precision: 6, scale: 2 }).default("0.00").notNull(),
+  grandTotal: decimal("grand_total", { precision: 12, scale: 2 }).notNull(),
+  
+  paymentStatus: text("payment_status").notNull(), 
+  paymentMode: text("payment_mode").notNull(),
+  tmbillRawData: jsonb("tmbill_raw_data"),     
+  
+  status: text("status").default("ISSUED").notNull(), 
+  createdUserId: text("created_user_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const salesInvoiceLines = pgTable("b2b_sales_invoice_lines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id").references(() => salesInvoices.id).notNull(),
+  
+  // Old columns to prevent rename prompt
   description: text("description").notNull(),
-  quantity: numeric("quantity").notNull(),
   unitPrice: numeric("unit_price").notNull(),
   totalAmount: numeric("total_amount").notNull(),
+
+  itemId: uuid("item_id").notNull(),
+  itemDescription: text("item_description").notNull(),
+  hsnCode: text("hsn_code"),
+  uom: text("uom").notNull(), 
+  quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(),
+  unitRate: decimal("unit_rate", { precision: 12, scale: 2 }).notNull(),
+  discountPercent: decimal("discount_percent", { precision: 5, scale: 2 }).default("0.00").notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  taxableAmount: decimal("taxable_amount", { precision: 12, scale: 2 }).notNull(),
+  gstRate: decimal("gst_rate", { precision: 5, scale: 2 }).notNull(), 
+  cgstAmount: decimal("cgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  sgstAmount: decimal("sgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  igstAmount: decimal("igst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  lineTotal: decimal("line_total", { precision: 12, scale: 2 }).notNull(),
+});
+
+export const salesInvoicePayments = pgTable("sales_invoice_payments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  invoiceId: uuid("invoice_id").references(() => salesInvoices.id).notNull(),
+  paymentMode: varchar("payment_mode", { length: 30 }).notNull(), 
+  amount: decimal("amount", { precision: 12, scale: 2 }).notNull(),
+  referenceNumber: varchar("reference_number", { length: 100 }), 
+  processedAt: timestamp("processed_at").defaultNow().notNull(),
 });
 
 export const salesReceipts = pgTable("sales_receipts", {
@@ -3545,3 +3617,68 @@ export const salesOrderLines = pgTable("sales_order_lines", {
 });
 
 
+
+// --- BILLING MODULE SCHEMA ---
+
+export const salesReturns = pgTable("sales_returns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  returnNumber: varchar("return_number", { length: 50 }).notNull(),
+  invoiceId: uuid("invoice_id").references(() => salesInvoices.id),
+  returnDate: timestamp("return_date", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status", { enum: ["DRAFT", "APPROVED", "REJECTED"] }).notNull().default("DRAFT"),
+  totalAmount: numeric("total_amount").notNull(),
+  reason: text("reason"),
+  createdUserId: text("created_user_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const salesReturnLines = pgTable("sales_return_lines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  returnId: uuid("return_id").notNull().references(() => salesReturns.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").notNull().references(() => items.id),
+  description: text("description"),
+  returnQty: numeric("return_qty").notNull(),
+  unitPrice: numeric("unit_price").notNull(),
+  addToInventory: boolean("add_to_inventory").notNull().default(true),
+});
+
+export const creditNotes = pgTable("credit_notes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  creditNoteNumber: varchar("credit_note_number", { length: 255 }).notNull().unique(),
+  customerId: uuid("customer_id").notNull().references(() => customers.id),
+  sourceReturnId: uuid("source_return_id").references(() => salesReturns.id),
+  totalAmount: numeric("total_amount").notNull(),
+  remainingBalance: numeric("remaining_balance").notNull(),
+  status: text("status", { enum: ['OPEN', 'PARTIALLY_APPLIED', 'CLOSED', 'REFUNDED', 'VOID'] }).notNull().default('OPEN'),
+  issueDate: timestamp("issue_date", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const creditNoteApplications = pgTable("credit_note_applications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  creditNoteId: uuid("credit_note_id").notNull().references(() => creditNotes.id),
+  appliedToInvoiceId: uuid("applied_to_invoice_id").notNull().references(() => salesInvoices.id),
+  appliedAmount: numeric("applied_amount").notNull(),
+  appliedAt: timestamp("applied_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const refunds = pgTable("refunds", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+  locationId: uuid("location_id").notNull().references(() => locations.id),
+  creditNoteId: uuid("credit_note_id").notNull().references(() => creditNotes.id),
+  customerId: uuid("customer_id").notNull().references(() => customers.id),
+  amount: numeric("amount").notNull(),
+  paymentMethod: varchar("payment_method", { length: 50 }).notNull(),
+  referenceNumber: varchar("reference_number", { length: 255 }),
+  notes: text("notes"),
+  refundDate: timestamp("refund_date", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

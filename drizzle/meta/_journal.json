@@ -274,6 +274,27 @@
       "when": 1791366852155,
       "tag": "0038_tidy_spot",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791424104422,
+      "tag": "0039_typical_anthem",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791504562424,
+      "tag": "0040_lyrical_xavin",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791519630605,
+      "tag": "0041_futuristic_shriek",
+      "breakpoints": true
     }
   ]
 }

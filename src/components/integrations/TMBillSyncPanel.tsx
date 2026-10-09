@@ -37,7 +37,7 @@ export function TMBillSyncPanel({ organizationId, locationId, onSyncComplete }: 
         throw new Error(data.details || data.error || "Failed to sync");
       }
 
-      setMessage(`Success: Processed ${data.result?.totalProcessed || 0} orders.`);
+      setMessage(`Success: Processed ${data.result?.totalProcessed || 0} orders (Imported ${data.result?.pushedToSales || 0} new invoices).`);
       if (onSyncComplete) {
         onSyncComplete();
       }
