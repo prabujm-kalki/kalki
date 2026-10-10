@@ -63,8 +63,8 @@ export async function recordSupplierInvoice(actor: Actor, input: RecordInvoiceIn
   requireActor(actor);
   const parsed = recordInvoiceSchema.safeParse(input);
   if (!parsed.success) {
-    console.error("Zod Validation Error:", JSON.stringify(parsed.error.errors, null, 2));
-    throw new FinanceServiceError(`Invalid invoice input: ${parsed.error.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')}`, "INVALID_INPUT");
+    console.error("Zod Validation Error:", JSON.stringify(parsed.error.issues, null, 2));
+    throw new FinanceServiceError(`Invalid invoice input: ${parsed.error.issues.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')}`, "INVALID_INPUT");
   }
   
   await requireScopeAccess(actor, parsed.data);

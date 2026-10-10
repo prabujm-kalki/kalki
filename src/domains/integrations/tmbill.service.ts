@@ -13,9 +13,12 @@ import {
   salesInvoices,
   salesInvoiceLines,
   customers,
-  salesReceipts
+  salesReceipts,
+  items,
+  itemCategories
 } from "@/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
+import { posChannelMappings } from "@/db/schema";
 import { randomUUID } from "crypto";
 
 const TMBILL_BASE_URL = "https://api.tmbill.com/tp/v1";
@@ -261,8 +264,48 @@ export class TMBillService {
         const invoiceId = randomUUID();
         const paymentStatus = (!order.paymentMode || order.paymentMode.toLowerCase() === "credit" || order.paymentMode.toLowerCase() === "unpaid") ? "PENDING" : "PAID";
         
+        // Find channel mapping
+        
+        // Find or create 'Unassigned' channel
+        const unassignedChannels = await tx.select().from(salesChannels).where(
+          and(
+            eq(salesChannels.organizationId, this.organizationId),
+            eq(salesChannels.name, 'Unassigned')
+          )
+        ).limit(1);
+        
+        let unassignedChannelId;
+        if (unassignedChannels.length > 0) {
+          unassignedChannelId = unassignedChannels[0].id;
+        } else {
+          unassignedChannelId = randomUUID();
+          await tx.insert(salesChannels).values({
+            id: unassignedChannelId,
+            organizationId: this.organizationId,
+            name: 'Unassigned',
+            type: 'B2C',
+            isActive: true
+          });
+        }
+        
+        let channelId = unassignedChannelId;
+        if (order.rawData && typeof order.rawData === 'object' && (order.rawData as any).table_name) {
+           const extStr = (order.rawData as any).table_name;
+           const mappings = await tx.select().from(posChannelMappings).where(
+             and(
+               eq(posChannelMappings.organizationId, this.organizationId),
+               eq(posChannelMappings.providerName, 'TMBILL'),
+               eq(posChannelMappings.externalString, extStr)
+             )
+           ).limit(1);
+           if (mappings.length > 0) {
+             channelId = mappings[0].internalChannelId;
+           }
+        }
+
         try {
           await tx.insert(salesInvoices).values({
+          channelId,
           id: invoiceId,
           organizationId: this.organizationId,
           locationId: order.locationId || this.organizationId,
@@ -306,19 +349,66 @@ export class TMBillService {
         }
 
         // Step 3: Insert line items
-        const items = await tx.select().from(tmbillOrderItems).where(eq(tmbillOrderItems.orderId, order.id));
-        if (items.length > 0) {
-          // Find a default item to satisfy FK
-          const firstItem = await tx.select({id: sql`id`}).from(sql`items`).limit(1);
-          let defaultItemId = firstItem.length > 0 ? String(firstItem[0].id) : "00000000-0000-0000-0000-000000000000";
+        const tmbillItems = await tx.select().from(tmbillOrderItems).where(eq(tmbillOrderItems.orderId, order.id));
+        if (tmbillItems.length > 0) {
+          const invoiceLinesToInsert = [];
+          
+          for (const i of tmbillItems) {
+            // Find or Create Category
+            let catId = null;
+            const categoryName = i.productGroupName || "POS Menu";
+            const existingCat = await tx.select().from(itemCategories).where(and(
+              eq(itemCategories.organizationId, this.organizationId),
+              eq(itemCategories.name, categoryName)
+            )).limit(1);
 
-          await tx.insert(salesInvoiceLines).values(
-            items.map((i) => ({
+            if (existingCat.length > 0) {
+              catId = existingCat[0].id;
+            } else {
+              catId = randomUUID();
+              await tx.insert(itemCategories).values({
+                id: catId,
+                organizationId: this.organizationId,
+                name: categoryName,
+                code: categoryName.substring(0, 5).toUpperCase()
+              });
+            }
+
+            // Find or Create Item
+            let actualItemId = null;
+            const itemName = i.title || "TMBill Item";
+            const existingItem = await tx.select().from(items).where(and(
+              eq(items.organizationId, this.organizationId),
+              eq(items.nameEn, itemName)
+            )).limit(1);
+
+            if (existingItem.length > 0) {
+              actualItemId = existingItem[0].id;
+              // Optionally update category if it's currently unassigned? 
+              // We'll leave it as is to respect manual master updates.
+            } else {
+              actualItemId = randomUUID();
+              await tx.insert(items).values({
+                id: actualItemId,
+                organizationId: this.organizationId,
+                locationId: order.locationId || this.locationId || 'd7f7131b-58e4-4e28-b83f-95a9b2e111a3', // Fallback location
+                categoryId: catId,
+                nameEn: itemName,
+                nameTa: itemName,
+                nameHi: itemName,
+                currentPrice: String(i.price || 0),
+                maxPrice: String(i.price || 0),
+                unit: "NOS",
+                baseMinStock: "0"
+              } as any); // using any for missing strictly typed fields
+            }
+
+            invoiceLinesToInsert.push({
               id: randomUUID(),
               invoiceId: invoiceId,
-              itemId: defaultItemId,
-              description: i.title || "TMBill Item",
-              itemDescription: i.title || "TMBill Item",
+              itemId: actualItemId,
+              description: itemName,
+              itemDescription: itemName,
               uom: "NOS",
               quantity: String(i.quantity || 1),
               unitPrice: String(i.price || 0),
@@ -329,8 +419,12 @@ export class TMBillService {
               gstRate: "0",
               totalAmount: String(i.totalWithTax || 0),
               lineTotal: String(i.totalWithTax || 0)
-            }))
-          );
+            });
+          }
+
+          if (invoiceLinesToInsert.length > 0) {
+            await tx.insert(salesInvoiceLines).values(invoiceLinesToInsert);
+          }
         }
 
         // Mark as synced

@@ -37,7 +37,7 @@ export default function CreateCreditNoteModal({
       fetchCustomers(organizationId)
         .then((res) => {
           if (isMounted) {
-            setCustomers(res.customers || res.data || res); // Adapting to possible return types
+            setCustomers((res as any).customers || (res as any).data || res); // Adapting to possible return types
             setIsLoadingCustomers(false);
           }
         })

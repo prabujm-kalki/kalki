@@ -565,6 +565,8 @@ export const roles = pgTable("roles", {
   id: uuid("id").defaultRandom().primaryKey(),
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
+  organizationId: uuid("organization_id"),
+  locationId: uuid("location_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -889,9 +891,9 @@ export const employeeRoleAssignments = pgTable(
       name: "employee_role_assignments_organization_employee_fk",
     }),
     foreignKey({
-      columns: [table.organizationId, table.roleId],
-      foreignColumns: [businessRoles.organizationId, businessRoles.id],
-      name: "employee_role_assignments_organization_role_fk",
+      columns: [table.roleId],
+      foreignColumns: [roles.id],
+      name: "employee_role_assignments_role_fk",
     }),
     unique("employee_role_assignments_employee_role_unique").on(
       table.employeeId,
@@ -3305,6 +3307,8 @@ export const salesInvoices = pgTable("b2b_sales_invoices", {
   
   paymentStatus: text("payment_status").notNull(), 
   paymentMode: text("payment_mode").notNull(),
+  orderCategory: varchar("order_category", { length: 50 }),
+  channelId: uuid("channel_id").references(() => salesChannels.id),
   tmbillRawData: jsonb("tmbill_raw_data"),     
   
   status: text("status").default("ISSUED").notNull(), 
@@ -3682,4 +3686,16 @@ export const refunds = pgTable("refunds", {
   refundDate: timestamp("refund_date", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+
+export const posChannelMappings = pgTable('pos_channel_mappings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  providerName: varchar('provider_name', { length: 50 }).notNull(), // e.g., 'TMBILL', 'SWIGGY'
+  externalString: varchar('external_string', { length: 100 }).notNull(), // e.g., 'DineIn'
+  internalChannelId: uuid('internal_channel_id').references(() => salesChannels.id).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

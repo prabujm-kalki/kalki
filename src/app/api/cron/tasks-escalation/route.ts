@@ -9,7 +9,6 @@ export async function GET(req: Request) {
     const result = await runEscalationSweeper();
 
     return NextResponse.json({ 
-      success: true, 
       message: "Escalation Engine successfully processed tasks.",
       ...result
     });

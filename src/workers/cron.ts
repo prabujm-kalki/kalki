@@ -13,8 +13,9 @@ const logError = (taskName: string, error: unknown) => {
 cron.schedule("* * * * *", async () => {
   try {
     const result = await runEscalationSweeper();
-    if (result.success && result.escalatedCount > 0) {
-      console.log(`[CRON] Sweeper escalated ${result.escalatedCount} task(s).`);
+    const totalEscalated = result.escalatedMissedTasks + result.escalatedStagnantAudits;
+    if (result.success && totalEscalated > 0) {
+      console.log(`[CRON] Sweeper escalated ${totalEscalated} task(s).`);
     }
   } catch (error) {
     logError("Universal Escalation Sweeper", error);

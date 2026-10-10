@@ -1,7 +1,6 @@
 import { db } from "@/db";
-import { customers, salesInvoices, salesReceipts, creditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations } from "@/db/schema";
+import { customers, salesInvoices, salesReceipts, salesCreditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations } from "@/db/schema";
 import { eq, sql, and, gte, lte, ilike, or } from "drizzle-orm";
-import { v4 as uuidv4 } from 'uuid';
 
 export async function getCustomerBalances(organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10) {
   const offset = (page - 1) * limit;
@@ -11,7 +10,7 @@ export async function getCustomerBalances(organizationId: string, searchQuery?: 
     baseWhere.push(or(
       ilike(customers.name, `%${searchQuery}%`),
       ilike(customers.phone, `%${searchQuery}%`)
-    ));
+    )!);
   }
   const whereClause = and(...baseWhere);
 
@@ -273,10 +272,17 @@ export async function createSalesInvoice(input: {
       invoiceNumber: input.invoiceNumber,
       invoiceDate: new Date(),
       dueDate: input.dueDate,
-      subtotal: input.subtotal.toString(),
+      subtotalAmount: input.subtotal.toString(),
       taxAmount: input.taxAmount.toString(),
       totalAmount: input.totalAmount.toString(),
-      status: 'open'
+      status: 'open' as any,
+      issueDate: new Date(),
+      customerName: "Unknown",
+      taxableAmount: "0",
+      paymentMode: "None",
+      grandTotal: input.totalAmount.toString(),
+      paymentStatus: "UNPAID",
+      createdUserId: "00000000-0000-0000-0000-000000000000"
     }).returning();
 
     // 2. Find System Accounts

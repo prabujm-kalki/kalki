@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         or(
           eq(taskInstances.assignedUserId, session.user.id),
           inArray(taskInstances.assignedRoleId, userRoleIds)
-        )
+        )!
       );
     } else {
       conditions.push(eq(taskInstances.assignedUserId, session.user.id));

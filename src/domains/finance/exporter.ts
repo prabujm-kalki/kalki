@@ -71,7 +71,7 @@ export async function exportLedgerData(options: LedgerExportOptions) {
 
   for (const entry of entries) {
     // A single Journal Entry has multiple lines. Flatten them.
-    for (const line of entry.lines) {
+    for (const line of (entry as any).lines) {
       rows.push({
         Date: entry.entryDate,
         VoucherType: entry.sourceModule, // Maps perfectly to Tally Voucher Types (e.g., PURCHASE, PAYROLL, MANUAL)

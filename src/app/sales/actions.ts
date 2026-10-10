@@ -155,6 +155,11 @@ export async function fetchInvoices(organizationId: string, locationId: string, 
   if (customerId) {
     conditions.push(eq(salesInvoices.customerId, customerId));
     conditions.push(inArray(salesInvoices.paymentStatus, ['PENDING', 'PARTIAL']));
+  } else {
+    // Restrict to the last 15 days for performance when loading the general directory
+    const fifteenDaysAgo = new Date();
+    fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+    conditions.push(gte(salesInvoices.invoiceDate, fifteenDaysAgo));
   }
 
   const list = await db.select({
@@ -162,6 +167,7 @@ export async function fetchInvoices(organizationId: string, locationId: string, 
     invoiceNumber: salesInvoices.invoiceNumber,
     customerId: salesInvoices.customerId,
     customerName: salesInvoices.customerName,
+    customerPhone: customers.phone,
     invoiceDate: salesInvoices.invoiceDate,
     grandTotal: salesInvoices.grandTotal,
     status: salesInvoices.status,
@@ -170,26 +176,28 @@ export async function fetchInvoices(organizationId: string, locationId: string, 
     creditApplied: sql<number>`COALESCE((SELECT SUM(CAST(applied_amount AS NUMERIC)) FROM credit_note_applications WHERE applied_to_invoice_id = b2b_sales_invoices.id), 0)`
   })
     .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
     .where(and(...conditions))
     .orderBy(desc(salesInvoices.invoiceDate));
   
   return list.map(inv => {
     const totalAmount = parseFloat(inv.grandTotal as any) || 0;
     const balanceDue = customerId 
-      ? totalAmount - Number(inv.paidAmount) - Number(inv.creditApplied)
+      ? totalAmount - Number(inv.paidAmount || 0) - Number(inv.creditApplied || 0)
       : totalAmount;
 
     return {
-      id: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      customerId: inv.customerId,
-      customerName: inv.customerName,
-      date: inv.invoiceDate ? inv.invoiceDate.toISOString().split('T')[0] : '',
+      id: inv.id || '',
+      invoiceNumber: inv.invoiceNumber || '',
+      customerId: inv.customerId || '',
+      customerName: inv.customerName || '',
+      customerPhone: inv.customerPhone || '',
+      date: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : '',
       total: totalAmount,
       balanceDue: balanceDue,
-      grandTotal: inv.grandTotal,
-      status: inv.status,
-      paymentStatus: inv.paymentStatus
+      grandTotal: inv.grandTotal || '0',
+      status: inv.status || '',
+      paymentStatus: inv.paymentStatus || ''
     };
   });
 }
@@ -229,7 +237,7 @@ export async function fetchInvoiceDetails(invoiceId: string, enforcePolicy: bool
     .innerJoin(salesReturnLines, eq(salesReturns.id, salesReturnLines.returnId))
     .where(and(
       eq(salesReturns.invoiceId, invoiceId), 
-      inArray(salesReturns.status, ['APPROVED', 'DRAFT', 'PENDING_APPROVAL'])
+      inArray(salesReturns.status, ['APPROVED', 'DRAFT'])
     ))
     .groupBy(salesReturnLines.itemId, salesReturnLines.description);
 
@@ -382,7 +390,7 @@ export async function approveSalesReturn(returnId: string) {
 
     if (!freshReturn) throw new Error("Return not found during transaction.");
     
-    if (freshReturn.status !== "DRAFT" && freshReturn.status !== "PENDING_APPROVAL") {
+    if (freshReturn.status !== "DRAFT") {
       throw new Error(`Cannot approve a return that is currently ${freshReturn.status}.`);
     }
 
@@ -587,7 +595,7 @@ export async function applyCreditNote(input: {
 
       let newStatus = creditNote.status;
       if (newBalance <= 0) {
-        newStatus = "CLOSED";
+        newStatus = "CLOSED" as any;
       } else if (newBalance > 0) {
         newStatus = "PARTIALLY_APPLIED";
       }

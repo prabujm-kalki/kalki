@@ -1,0 +1,1 @@
+ALTER TABLE "b2b_sales_invoices" ADD COLUMN "order_category" varchar(50);

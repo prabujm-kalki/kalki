@@ -19,7 +19,7 @@ export default async function ApprovalLimitsPage() {
         </p>
       </div>
       <div className="kalki-section">
-        <ApprovalLimitsClient initialRoles={allRoles} initialLimits={limits} />
+        <ApprovalLimitsClient initialRoles={allRoles} />
       </div>
     </div>
   );

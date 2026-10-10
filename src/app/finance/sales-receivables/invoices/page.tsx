@@ -75,7 +75,7 @@ export default async function FinanceInvoicesPage({ searchParams }: { searchPara
             <tbody>
               {invoices.map(inv => {
                 const balanceDue = Number(inv.totalAmount) - Number(inv.paidAmount) - Number(inv.creditApplied);
-                const isOverdue = new Date(inv.dueDate) < new Date();
+                const isOverdue = new Date(inv.dueDate as any) < new Date();
                 
                 return (
                   <tr key={inv.id}>

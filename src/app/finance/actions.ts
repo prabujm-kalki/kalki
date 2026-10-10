@@ -48,7 +48,7 @@ export async function createNewAccount(input: {
   if (!session?.user) throw new Error("Unauthorized");
   
   try {
-    const account = await createAccount(input);
+    const account = await createAccount({ ...input, isSystemAccount: false });
     return { success: true, data: account };
   } catch (error: any) {
     return { success: false, error: error.message };

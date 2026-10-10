@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { AppShell, useSessionView } from "@/components/AppShell";
 import { Plus, X, Shield, Settings, Edit } from "lucide-react";
 import Link from "next/link";
+import './roles.css';
 
 type Role = {
   id: string;
   code: string;
   name: string;
+  locationId: string | null;
   createdAt: string;
 };
 
@@ -16,7 +18,8 @@ function RolesPageContent() {
   const { selected } = useSessionView();
   const locationParams = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : '';
   
-  const [roles, setRoles] = useState<Role[]>([]);
+  const [globalRoles, setGlobalRoles] = useState<Role[]>([]);
+  const [localRoles, setLocalRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -26,22 +29,30 @@ function RolesPageContent() {
 
   const loadRoles = () => {
     setLoading(true);
-    fetch("/api/settings/roles")
+    fetch(`/api/settings/roles${locationParams}`)
       .then((res) => res.json())
-      .then((data) => {
-        setRoles(Array.isArray(data) ? data : []);
+      .then((data: Role[]) => {
+        // Split dynamically based on locationId
+        const globals = data.filter(r => !r.locationId);
+        const locals = data.filter(r => !!r.locationId);
+        
+        setGlobalRoles(globals);
+        setLocalRoles(locals);
         setLoading(false);
       })
       .catch((err) => {
         console.error(err);
-        setRoles([]);
+        setGlobalRoles([]);
+        setLocalRoles([]);
         setLoading(false);
       });
   };
 
   useEffect(() => {
-    loadRoles();
-  }, []);
+    if (selected) {
+      loadRoles();
+    }
+  }, [locationParams, selected]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +60,12 @@ function RolesPageContent() {
       const res = await fetch("/api/settings/roles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, code }),
+        body: JSON.stringify({ 
+          name, 
+          code, 
+          organizationId: selected?.organizationId,
+          locationId: selected?.locationId 
+        }),
       });
       if (res.ok) {
         setIsModalOpen(false);
@@ -64,6 +80,60 @@ function RolesPageContent() {
       alert("Error creating role");
     }
   };
+
+  const renderTable = (rolesList: Role[], isGlobal: boolean) => (
+    <div className="kalki-roles-table-container">
+      <table className="kalki-roles-table">
+        <thead>
+          <tr>
+            <th style={{ width: '33%' }}>Role Name</th>
+            <th style={{ width: '33%' }}>Code</th>
+            <th style={{ width: '33%' }}>Permissions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading ? (
+            <tr>
+              <td colSpan={3} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
+                Loading roles...
+              </td>
+            </tr>
+          ) : rolesList.length === 0 ? (
+            <tr>
+              <td colSpan={3} style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
+                No roles configured in this scope.
+              </td>
+            </tr>
+          ) : (
+            rolesList.map((role) => (
+              <tr key={role.id}>
+                <td>
+                  <span className="kalki-role-name">{role.name}</span>
+                  {isGlobal && (
+                    <span className="kalki-role-badge-global">Global</span>
+                  )}
+                </td>
+                <td>
+                  <span className="kalki-role-code-pill">
+                    {role.code}
+                  </span>
+                </td>
+                <td>
+                  <Link 
+                    href={`/settings/roles/${role.id}${locationParams}`}
+                    className="kalki-btn-ghost"
+                  >
+                    <Settings size={16} />
+                    Configure Matrix
+                  </Link>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
 
   return (
     <div className="kalki-main-wrapper">
@@ -83,7 +153,7 @@ function RolesPageContent() {
               </div>
               <div>
                 <h1 className="kalki-page-title">Application Roles</h1>
-                <p className="kalki-page-description">Manage authorization roles and application permissions.</p>
+                <p className="kalki-page-description">Manage authorization matrices and access boundaries.</p>
               </div>
             </div>
 
@@ -97,53 +167,12 @@ function RolesPageContent() {
           </div>
         </div>
 
-        <div className="kalki-section" style={{ padding: '0', overflow: 'hidden' }}>
-          <div className="kalki-table-container">
-            <table className="kalki-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '33%' }}>Role Name</th>
-                  <th style={{ width: '33%' }}>Code</th>
-                  <th style={{ width: '33%' }}>Permissions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={3} style={{ padding: '48px', textAlign: 'center', color: 'var(--kalki-text-secondary)' }}>
-                      Loading roles...
-                    </td>
-                  </tr>
-                ) : roles.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} style={{ padding: '48px', textAlign: 'center', color: 'var(--kalki-text-secondary)' }}>
-                      No roles configured. Create one to get started.
-                    </td>
-                  </tr>
-                ) : (
-                  roles.map((role) => (
-                    <tr key={role.id}>
-                      <td style={{ fontWeight: 500, color: 'var(--kalki-text-primary)' }}>{role.name}</td>
-                      <td>
-                        <div style={{ display: 'inline-block', padding: '4px 8px', backgroundColor: '#f1f5f9', borderRadius: '4px', fontFamily: 'monospace', fontSize: '12px', color: 'var(--kalki-text-secondary)' }}>
-                          {role.code}
-                        </div>
-                      </td>
-                      <td>
-                        <Link 
-                          href={`/settings/roles/${role.id}${locationParams}`}
-                          className="kalki-button kalki-button--secondary"
-                        >
-                          <Settings size={14} style={{ marginRight: '8px' }} />
-                          Configure Matrix
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="kalki-roles-section">
+          <h2 className="kalki-roles-heading">Global Roles (Cross-Location)</h2>
+          {renderTable(globalRoles, true)}
+
+          <h2 className="kalki-roles-heading">Local Roles ({selected?.locationName || "Selected Branch"})</h2>
+          {renderTable(localRoles, false)}
         </div>
 
         {/* Modal overlay */}

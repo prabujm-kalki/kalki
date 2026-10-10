@@ -12,6 +12,7 @@ export function TMBillConfig({ primarySource, setPrimarySource }: { primarySourc
   const { selected: scope } = useSessionView();
   const { addToast } = useToast();
   const [config, setConfig] = useState<any>({
+    providerName: "TMBILL",
     apiUrl: "https://api.tmbill.com/tp/v1",
     username: "",
     password: "",
@@ -110,6 +111,16 @@ export function TMBillConfig({ primarySource, setPrimarySource }: { primarySourc
         <div className="stack" style={{ gap: "1rem" }}>
           <h3 style={{ margin: 0 }}>API Connection</h3>
           <div className="grid-2">
+            <div className="field">
+              <label>Provider Name</label>
+              <input 
+                type="text" 
+                value={config.providerName || ""} 
+                onChange={(e) => setConfig({ ...config, providerName: e.target.value })} 
+                className="input" 
+                placeholder="e.g. TMBILL"
+              />
+            </div>
             <div className="field">
               <label>API Base URL</label>
               <input 

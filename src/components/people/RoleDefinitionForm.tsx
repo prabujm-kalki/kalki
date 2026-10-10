@@ -9,7 +9,7 @@ type RoleFormProps = {
   locationId: string;
   initialData?: any;
   departments?: { id: string; name: string }[];
-  roles?: { id: string; name: string }[];
+  roles?: { id: string; name: string; locationId?: string | null }[];
   onSuccess: () => void;
   onCancel: () => void;
 };
@@ -89,20 +89,26 @@ export function RoleDefinitionForm({ organizationId, locationId, initialData, de
           <label>Reports To</label>
           <select value={formData.reportsToRoleId} onChange={(e) => handleChange("reportsToRoleId", e.target.value)} disabled={pending}>
             <option value="">None (Top Level)</option>
-            {roles.filter(r => r.id !== initialData?.id).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+            {roles.filter(r => r.id !== initialData?.id).map(r => (
+              <option key={r.id} value={r.id}>
+                {r.name}{r.locationId === null ? " (Global)" : ""}
+              </option>
+            ))}
           </select>
         </div>
-        <div className="field" style={{ gridColumn: "1 / -1", marginTop: "0.5rem" }}>
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "normal", cursor: "pointer" }}>
-            <input 
-              type="checkbox" 
-              checked={isGlobal} 
-              onChange={(e) => setIsGlobal(e.target.checked)} 
-              disabled={pending} 
-            />
-            Global Role (Organization-wide, same across all locations)
-          </label>
-        </div>
+        {(!locationId || locationId === organizationId || isGlobal) && (
+          <div className="field" style={{ gridColumn: "1 / -1", marginTop: "0.5rem" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: "normal", cursor: "pointer" }}>
+              <input 
+                type="checkbox" 
+                checked={isGlobal} 
+                onChange={(e) => setIsGlobal(e.target.checked)} 
+                disabled={pending} 
+              />
+              Global Role (Organization-wide, same across all locations)
+            </label>
+          </div>
+        )}
       </div>      <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
         <button type="button" className="secondary-button" onClick={onCancel} disabled={pending}>
           Cancel

@@ -245,7 +245,7 @@ export async function reconcileSalesBatch(batchId: string, actorId: string) {
         }
 
         accountingLines.push({
-          mappingType: "SYSTEM_DEFAULT",
+          mappingType: "SYSTEM_DEFAULT" as any,
           sourceReferenceId: sourceReferenceId, 
           amount: amount,
           isDebit: true,
@@ -257,9 +257,9 @@ export async function reconcileSalesBatch(batchId: string, actorId: string) {
         organizationId: batch.organizationId,
         locationId: batch.locationId,
         triggeredByUserId: actorId,
-        sourceModule: "POS",
+        sourceModule: "POS" as any,
         sourceReferenceId: batchId,
-        entryDate: batch.operatingDate,
+        entryDate: batch.operatingDate ? new Date(batch.operatingDate) : new Date(),
         narration: `Daily Sales Import Batch ${batchId}`,
         lines: accountingLines
       });

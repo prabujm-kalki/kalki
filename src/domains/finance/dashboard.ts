@@ -18,7 +18,7 @@ export async function getFinanceDashboardMetrics(
   const allowed = await authorizeEmployeeOperation({
     userId: actor.id,
     organizationId,
-    locationId: locationId === "ALL" ? undefined : locationId,
+    locationId: locationId === "ALL" ? "" : locationId, // Fix string | undefined
     permission: "finance.dashboard:read",
   });
   if (!allowed) throw new Error("Access denied");
@@ -92,9 +92,9 @@ export async function getFinanceDashboardMetrics(
     asOfDate: priorEnd.toISOString().split('T')[0]
   };
 
-  const pCash = await getAsOfBalances(ledgerCtx, priorPeriodCtx.asOfDate, cashAccountIds);
-  const pAr = await getAsOfBalances(ledgerCtx, priorPeriodCtx.asOfDate, arAccountIds);
-  const pAp = await getAsOfBalances(ledgerCtx, priorPeriodCtx.asOfDate, apAccountIds);
+  const pCash = await getAsOfBalances(ledgerCtx, priorPeriodCtx.asOfDate!, cashAccountIds);
+  const pAr = await getAsOfBalances(ledgerCtx, priorPeriodCtx.asOfDate!, arAccountIds);
+  const pAp = await getAsOfBalances(ledgerCtx, priorPeriodCtx.asOfDate!, apAccountIds);
   const pRevBal = await getPeriodBalances(ledgerCtx, priorPeriodCtx, revenueAccountIds);
   const pCogsBal = await getPeriodBalances(ledgerCtx, priorPeriodCtx, cogsAccountIds);
   const pOpexBal = await getPeriodBalances(ledgerCtx, priorPeriodCtx, opexAccountIds);
@@ -234,14 +234,14 @@ export async function getFinanceDashboardMetrics(
     inArray(purchaseOrders.status, ["received", "audited"])
   ];
   if (isSystemOwner) {
-    // System Owner sees all escalated (audited) tasks and unassigned tasks, ignoring Cashier-level (received) tasks assigned to others
-    auditConditions.push(or(
+    const ownerOrConds = [
       eq(purchaseOrders.status, 'audited'),
-      isNull(purchaseOrders.billReviewRoleId),
-      userRoleIds.length > 0 ? inArray(purchaseOrders.billReviewRoleId, userRoleIds) : undefined
-    ));
+      isNull(purchaseOrders.billReviewRoleId)
+    ];
+    if (userRoleIds.length > 0) ownerOrConds.push(inArray(purchaseOrders.billReviewRoleId, userRoleIds));
+    auditConditions.push(or(...ownerOrConds)!);
   } else if (userRoleIds.length > 0) {
-    auditConditions.push(or(isNull(purchaseOrders.billReviewRoleId), inArray(purchaseOrders.billReviewRoleId, userRoleIds)));
+    auditConditions.push(or(isNull(purchaseOrders.billReviewRoleId), inArray(purchaseOrders.billReviewRoleId, userRoleIds))!);
   } else if (actor) {
     auditConditions.push(isNull(purchaseOrders.billReviewRoleId));
   }
@@ -256,13 +256,14 @@ export async function getFinanceDashboardMetrics(
     eq(purchaseOrders.status, "accounts_pending")
   ];
   if (isSystemOwner) {
-    billsConditions.push(or(
+    const sysOwnerOrConds = [
       isNull(purchaseOrders.billReviewRoleId),
-      userRoleIds.length > 0 ? inArray(purchaseOrders.billReviewRoleId, userRoleIds) : undefined,
       eq(purchaseOrders.status, 'accounts_pending') // System owner sees all bills
-    ));
+    ];
+    if (userRoleIds.length > 0) sysOwnerOrConds.push(inArray(purchaseOrders.billReviewRoleId, userRoleIds));
+    billsConditions.push(or(...sysOwnerOrConds)!);
   } else if (userRoleIds.length > 0) {
-    billsConditions.push(or(isNull(purchaseOrders.billReviewRoleId), inArray(purchaseOrders.billReviewRoleId, userRoleIds)));
+    billsConditions.push(or(isNull(purchaseOrders.billReviewRoleId), inArray(purchaseOrders.billReviewRoleId, userRoleIds))!);
   } else if (actor) {
     billsConditions.push(isNull(purchaseOrders.billReviewRoleId));
   }

@@ -74,9 +74,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         cashierBillAmount: String(cashierBillAmount),
         status: 'audited',
         cashierAttachments: [billUrl],
-        notes: (po.notes ? po.notes + "\n" : "") + `Audit Notes: ${notes || 'N/A'}`,
+        notes: ((po as any).notes ? (po as any).notes + "\n" : "") + `Audit Notes: ${notes || 'N/A'}`,
         updatedAt: new Date()
-      })
+      } as any)
       .where(eq(purchaseOrders.id, id));
 
     return NextResponse.json({ message: "PO audited successfully", billUrl });

@@ -21,6 +21,7 @@ type Position = {
   name: string;
   departmentId: string | null;
   reportsToRoleId: string | null;
+  locationId: string | null;
 };
 
 type OrgNode = {
@@ -42,6 +43,12 @@ export function OrganizationDashboard() {
 
   useEffect(() => {
     if (!selected) return;
+    
+    // Clear any open modals when location/org changes
+    setShowAddDept(false);
+    setShowAddPos(false);
+    setEditingRole(null);
+    
     let cancelled = false;
     setLoading(true);
 
@@ -114,7 +121,12 @@ export function OrganizationDashboard() {
           style={{ cursor: "pointer" }}
           title="Click to edit position"
         >
-          <div className="org-card-title">{node.position.name}</div>
+          <div className="org-card-title">
+            {node.position.name}
+            {node.position.locationId === null && (
+              <span style={{ color: "#64748b", fontSize: "0.9em", marginLeft: "4px" }}>(Global)</span>
+            )}
+          </div>
           <div className="org-card-dept">{getAssignedNames(node.position.id)}</div>
         </div>
         {node.children.length > 0 && (

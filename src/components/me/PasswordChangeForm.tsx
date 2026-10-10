@@ -85,7 +85,7 @@ export function PasswordChangeForm() {
         <KalkiButton type="submit" variant="primary" disabled={pending} style={{ flex: 1 }}>
           {pending ? "Changing..." : "Change Password"}
         </KalkiButton>
-        <KalkiButton type="button" variant="outline" disabled={pending} onClick={() => router.back()} style={{ flex: 1 }}>
+        <KalkiButton type="button" variant="secondary" disabled={pending} onClick={() => router.back()} style={{ flex: 1 }}>
           Cancel
         </KalkiButton>
       </div>

@@ -1,0 +1,2 @@
+ALTER TABLE "b2b_sales_invoices" ADD COLUMN "channel_id" uuid;--> statement-breakpoint
+ALTER TABLE "b2b_sales_invoices" ADD CONSTRAINT "b2b_sales_invoices_channel_id_sales_channels_id_fk" FOREIGN KEY ("channel_id") REFERENCES "public"."sales_channels"("id") ON DELETE no action ON UPDATE no action;

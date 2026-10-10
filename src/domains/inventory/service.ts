@@ -550,7 +550,7 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
   }
   
   // Only require basic scope access for PO creation. The UI/Routing layer handles the specific "purchasing.orders:create" check.
-  await requireScopeAccess(actor, parsed.data); 
+  await requireScopeAccess(actor, parsed.data, "purchasing.items:create"); 
 
   const { organizationId, locationId, vendorId, paymentMethod, scheduleId, lines } = parsed.data;
 
@@ -577,7 +577,7 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
   }
 
   const result = await db.transaction(async (tx) => {
-    let po = null;
+    let po: any = null;
     
     if (lines.length > 0) {
       // 1. Get vendor details for the PO number
@@ -599,7 +599,7 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
         WHERE vendor_id = ${vendorId} AND po_number LIKE ${likePattern}
       `);
       // handle execute return structure safely
-      const countVal = countRes.rows ? (countRes.rows[0] as any).count : (countRes[0] as any).count;
+      const countVal = (countRes as any).rows ? (countRes as any).rows[0].count : (countRes as any)[0].count;
       const seq = String((countVal || 0) + 1).padStart(2, '0');
       const poNumber = `${shortCode}-${dateString}-${seq}`;
 

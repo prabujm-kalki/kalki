@@ -13,6 +13,7 @@ import {
   roleChecklists,
   roleKpiDefinitions,
   roleResponsibilities,
+  roles,
   workInstances,
   workInstanceEvidencePresences,
   workInstanceVerificationPresences,
@@ -695,26 +696,23 @@ export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRole
     throw new RolesWorkServiceError("Employee is not active", "PREREQUISITE_NOT_SATISFIED");
   }
   const [role] = await db.select({
-    id: businessRoles.id,
-    isActive: businessRoles.isActive,
-  }).from(businessRoles).where(and(
-    eq(businessRoles.id, parsed.data.roleId),
-    eq(businessRoles.organizationId, parsed.data.organizationId),
-  ));
+    id: roles.id,
+  }).from(roles).where(
+    eq(roles.id, parsed.data.roleId)
+  );
   if (!role) throw new RolesWorkServiceError("Role definition not found", "NOT_FOUND");
-  if (!role.isActive) {
-    throw new RolesWorkServiceError("Role definition is not active", "PREREQUISITE_NOT_SATISFIED");
-  }
+
   const existingAssignment = await db.select().from(employeeRoleAssignments).where(and(
     eq(employeeRoleAssignments.organizationId, parsed.data.organizationId),
     eq(employeeRoleAssignments.employeeId, parsed.data.employeeId),
     eq(employeeRoleAssignments.roleId, parsed.data.roleId)
   ));
   if (existingAssignment.length > 0) {
-    throw new RolesWorkServiceError("Employee already has this business role assignment", "DUPLICATE_RECORD");
+    throw new RolesWorkServiceError("Employee already has this role assignment", "DUPLICATE_RECORD");
   }
 
   try {
+    let assignmentId: string;
     const assignment = await db.transaction(async (tx) => {
       const [newAssignment] = await tx.insert(employeeRoleAssignments).values({
         organizationId: parsed.data.organizationId,
@@ -732,15 +730,15 @@ export async function assignEmployeeRole(actor: Actor, input: AssignEmployeeRole
       
       return newAssignment;
     });
-
+    
     return getEmployeeRoleAssignment(actor, {
       organizationId: parsed.data.organizationId,
       locationId: parsed.data.locationId,
       employeeId: parsed.data.employeeId,
     }, assignment.id);
-  } catch (error) {
-    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Employee already has this business role assignment", "DUPLICATE_RECORD");
-    throw error;
+  } catch (error: any) {
+    if (isUniqueViolation(error)) throw new RolesWorkServiceError("Employee already has this role assignment", "DUPLICATE_RECORD");
+    throw new RolesWorkServiceError(error.message || "Database constraint error", "INVALID_INPUT");
   }
 }
 

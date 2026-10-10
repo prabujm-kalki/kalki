@@ -39,6 +39,13 @@ export async function POST(request: Request) {
     let finalIdentifier = identifier;
     if (!isGlobal && locationId) {
       finalIdentifier = `${identifier}_${locationId.substring(0, 8).toUpperCase()}`;
+    } else if (isGlobal) {
+      const { loadAuthorizationGrants } = await import("@/lib/authorization");
+      const grants = await loadAuthorizationGrants(user.id);
+      const isOrgAdmin = grants.isOwner || grants.organizationPermissions.some(p => p.organizationId === organizationId);
+      if (!isOrgAdmin) {
+        return NextResponse.json({ error: "Only organization admins can create global roles" }, { status: 403 });
+      }
     }
 
     const [role] = await db.insert(businessRoles).values({
@@ -75,13 +82,28 @@ export async function PATCH(request: Request) {
       const isGlobal = body.isGlobal === true;
       const locationId = isGlobal ? null : String(body.locationId ?? "");
 
+      let finalIdentifier = String(body.identifier ?? "");
+      if (!isGlobal && locationId) {
+        const suffix = `_${locationId.substring(0, 8).toUpperCase()}`;
+        if (!finalIdentifier.endsWith(suffix)) {
+          finalIdentifier = `${finalIdentifier}${suffix}`;
+        }
+      } else if (isGlobal) {
+        const { loadAuthorizationGrants } = await import("@/lib/authorization");
+        const grants = await loadAuthorizationGrants(user.id);
+        const isOrgAdmin = grants.isOwner || grants.organizationPermissions.some(p => p.organizationId === scope.organizationId);
+        if (!isOrgAdmin) {
+          return NextResponse.json({ error: "Only organization admins can update global roles" }, { status: 403 });
+        }
+      }
+
       const [role] = await db.update(businessRoles)
         .set({
           name: body.name,
           purpose: String(body.purpose ?? ""),
           departmentId: body.departmentId ? String(body.departmentId) : null,
           reportsToRoleId: body.reportsToRoleId ? String(body.reportsToRoleId) : null,
-          identifier: String(body.identifier ?? ""),
+          identifier: finalIdentifier,
           locationId: locationId || null,
         })
         .where(eq(businessRoles.id, roleId))

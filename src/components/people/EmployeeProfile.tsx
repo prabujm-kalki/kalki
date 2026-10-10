@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
@@ -87,7 +88,8 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
 
-  const [isEditing, setIsEditing] = useState(false);
+  const searchParams = useSearchParams();
+  const [isEditing, setIsEditing] = useState(searchParams.get("edit") === "true");
   const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isActivating, setIsActivating] = useState(false);

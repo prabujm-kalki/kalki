@@ -11,7 +11,7 @@ export function ReportsSubNav() {
 
   const links = [
     { href: "/sales/reports/sales", label: "Sales Report" },
-    { href: "/sales/reports/product", label: "Product-wise Sales" },
+    { href: "/sales/reports/item-wise", label: "Item-wise Sales" },
     { href: "/sales/reports/customer", label: "Customer-wise Sales" },
     { href: "/sales/reports/branch", label: "Branch-wise Sales" },
     { href: "/sales/reports/tax", label: "Tax/GST Report" },

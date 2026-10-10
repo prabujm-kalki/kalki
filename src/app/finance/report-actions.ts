@@ -57,7 +57,8 @@ export async function fetchFinancialStatements(organizationId: string, locationI
       let isDebitBalance = true;
       
       // Asset and Expense have Debit normal balances
-      if (acc.accountType === "ASSET" || acc.accountType === "EXPENSE") {
+      const accountType = allGroups.find(g => g.id === acc.accountGroupId)?.systemCategory || "";
+      if (accountType === "ASSET" || accountType === "EXPENSE") {
         balance = debit - credit;
         isDebitBalance = true;
       } else {
@@ -68,6 +69,7 @@ export async function fetchFinancialStatements(organizationId: string, locationI
 
       return {
         ...acc,
+        accountType,
         debitAmount: debit,
         creditAmount: credit,
         balance,

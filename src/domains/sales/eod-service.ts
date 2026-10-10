@@ -42,14 +42,15 @@ export async function closeDay(
     const sales = await tx
       .select({
         paymentMethod: salesTransactions.paymentMethod,
-        netAmount: salesTransactions.netAmount
+        netAmount: salesTransactions.netAmount,
+        taxAmount: salesTransactions.taxAmount,
       })
       .from(salesTransactions)
       .where(
         and(
           eq(salesTransactions.organizationId, organizationId),
           eq(salesTransactions.locationId, locationId),
-          sql`DATE(${salesTransactions.transactionDate}) = DATE(${date})`
+          sql`DATE(${salesTransactions.billTimestamp}) = DATE(${date})`
         )
       );
 
@@ -172,7 +173,7 @@ export async function closeDay(
         organizationId,
         locationId,
         triggeredByUserId: userId,
-        sourceModule: "SALES",
+        sourceModule: "SALES" as any,
         sourceReferenceId: dayClose.id,
         entryDate: new Date(date),
         narration: `Daily Sales Sync for ${date}`,
@@ -189,7 +190,7 @@ export async function closeDay(
         organizationId,
         locationId,
         triggeredByUserId: userId,
-        sourceModule: "SALES",
+        sourceModule: "SALES" as any,
         sourceReferenceId: dayClose.id,
         entryDate: new Date(date),
         narration: `EOD Cash ${isShortage ? 'Shortage' : 'Overage'} for ${date}`,

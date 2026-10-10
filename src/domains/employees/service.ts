@@ -32,8 +32,9 @@ const employeeInputSchema = z.object({
   locationId: z.string().uuid(),
   jobTitle: z.string().trim().max(200).nullable().optional(),
   employmentStartDate: z.string().date(),
-  employmentEndDate: z.string().date().nullable().optional(),
-  aadhaarDocumentUrl: z.string().trim().nullable().optional(),
+  employmentEndDate: z.preprocess((val) => val === '' ? undefined : val, z.string().date().nullable().optional()),
+  aadhaarNumber: z.string().trim().max(20).nullable().optional(),
+    aadhaarDocumentUrl: z.string().trim().nullable().optional(),
   photoUrl: z.string().trim().nullable().optional(),
   otherDocument1Url: z.string().trim().nullable().optional(),
   otherDocument2Url: z.string().trim().nullable().optional(),
@@ -61,7 +62,7 @@ const employeeInputSchema = z.object({
     displayName: z.string().trim().min(1).max(200),
     phone: optionalMobileSchema,
     email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
-    dateOfBirth: z.string().date().nullable().optional(),
+    dateOfBirth: z.preprocess((val) => val === '' ? undefined : val, z.string().date().nullable().optional()),
   }),
   familyContacts: z.array(familyContactSchema).optional()
 });
@@ -69,8 +70,9 @@ const employeeInputSchema = z.object({
 const employeeUpdateSchema = z
   .object({
     jobTitle: z.string().trim().max(200).nullable().optional(),
-    employmentStartDate: z.string().date().optional(),
-    employmentEndDate: z.string().date().nullable().optional(),
+    employmentStartDate: z.preprocess((val) => val === '' ? undefined : val, z.string().date().optional()),
+    employmentEndDate: z.preprocess((val) => val === '' ? undefined : val, z.string().date().nullable().optional()),
+    aadhaarNumber: z.string().trim().max(20).nullable().optional(),
     aadhaarDocumentUrl: z.string().trim().nullable().optional(),
     photoUrl: z.string().trim().max(1024).nullable().optional(),
     otherDocument1Url: z.string().trim().max(1024).nullable().optional(),
@@ -94,7 +96,7 @@ const employeeUpdateSchema = z
         displayName: z.string().trim().min(1).max(200).optional(),
         phone: optionalMobileSchema,
         email: z.string().email().max(320).or(z.literal('')).nullable().optional(),
-        dateOfBirth: z.string().date().nullable().optional(),
+        dateOfBirth: z.preprocess((val) => val === '' ? undefined : val, z.string().date().nullable().optional()),
       })
       .optional(),
     familyContacts: z.array(familyContactSchema).optional(),
@@ -824,11 +826,11 @@ export async function updateEmployee(
       const q5 = sql`UPDATE employee_history_reporting SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_reporting WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
       const q6 = sql`UPDATE employee_history_role SET effective_from = ${dStr}::timestamp WHERE id = (SELECT id FROM employee_history_role WHERE employee_id = ${employeeId} ORDER BY effective_from ASC LIMIT 1)`;
       await tx.execute(q1);
-      await tx.execute(q2);
-      await tx.execute(q3);
-      await tx.execute(q4);
-      await tx.execute(q5);
-      await tx.execute(q6);
+      // await tx.execute(q2); // table does not exist
+      // await tx.execute(q3); // table does not exist
+      // await tx.execute(q4); // table does not exist
+      // await tx.execute(q5); // table does not exist
+      // await tx.execute(q6); // table does not exist
     }
 
     if (parsed.data.accessLocations !== undefined && current.userId) {
@@ -1081,6 +1083,7 @@ export async function listEmployees(
         displayName: people.displayName,
         dateOfBirth: people.dateOfBirth,
         phone: people.phone,
+        email: people.email,
       },
     })
     .from(employees)

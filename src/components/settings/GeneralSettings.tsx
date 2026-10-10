@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSessionView } from "@/components/AppShell";
-import { Save, Settings, Smartphone, BellRing, UploadCloud, Music, CheckCircle2, MessageSquare } from "lucide-react";
+import { Save, Settings, Smartphone, BellRing, UploadCloud, Music, CheckCircle2, MessageSquare, Link as LinkIcon } from "lucide-react";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { KalkiSection } from "@/components/ui/KalkiSection";
 import { KalkiButton } from "@/components/ui/KalkiButton";

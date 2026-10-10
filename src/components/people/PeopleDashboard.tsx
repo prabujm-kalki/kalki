@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
+import { Search, Filter, LayoutGrid, Plus, Eye, Edit } from "lucide-react";
+import "@/app/people/people.css";
 import { apiGet } from "@/lib/api";
 import { EmployeeForm } from "./EmployeeForm";
-import { RoleDefinitionForm } from "./RoleDefinitionForm";
 
 type EmployeeView = {
   id: string;
@@ -20,25 +21,18 @@ type EmployeeView = {
     firstName: string;
     lastName: string | null;
     displayName: string;
+    phone?: string | null;
+    email?: string | null;
   };
-};
-
-type RoleDefinitionView = {
-  id: string;
-  name: string;
-  identifier: string;
-  purpose: string;
-  isActive: boolean;
+  photoUrl?: string | null;
 };
 
 export function PeopleDashboard() {
   const { session, selected } = useSessionView();
   const [employees, setEmployees] = useState<{ requestKey: string; items: EmployeeView[] } | null>(null);
-  const [roles, setRoles] = useState<{ requestKey: string; items: RoleDefinitionView[] } | null>(null);
   const [proposals, setProposals] = useState<{ requestKey: string; items: any[] } | null>(null);
   const [error, setError] = useState<{ requestKey: string; message: string } | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [showRoleForm, setShowRoleForm] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -54,13 +48,11 @@ export function PeopleDashboard() {
     let cancelled = false;
     Promise.all([
       apiGet<{ employees: EmployeeView[] }>(`/api/employees?${query.toString()}`),
-      apiGet<{ roles: RoleDefinitionView[] }>(`/api/role-definitions?${query.toString()}`),
       session.isOwner ? apiGet<{ data: any[] }>(`/api/employees/proposals?${query.toString()}`) : Promise.resolve({ data: [] })
-    ]).then(([empPayload, rolePayload, proposalsPayload]) => {
+    ]).then(([empPayload, proposalsPayload]) => {
       if (cancelled) return;
       setError(null);
       setEmployees({ requestKey, items: empPayload.employees });
-      setRoles({ requestKey, items: rolePayload.roles });
       setProposals({ requestKey, items: proposalsPayload.data });
     }).catch((caught) => {
       if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load data" });
@@ -130,30 +122,32 @@ export function PeopleDashboard() {
         </section>
       )}
 
-      <div className="panel" style={{ padding: "1rem", marginBottom: "1rem" }}>
-        <div className="row" style={{ gap: "1rem", alignItems: "center" }}>
+      <div className="people-toolbar">
+        <div className="people-toolbar-left">
+          <Search size={18} className="people-search-icon" />
           <input 
             type="text" 
-            placeholder="Search by name or ID..." 
+            placeholder="Search employees..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ flex: 1, padding: "0.5rem", borderRadius: "0.25rem", border: "1px solid var(--border-color, #ccc)" }}
+            className="people-search-input"
           />
-          <select 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)}
-            style={{ padding: "0.5rem", borderRadius: "0.25rem", border: "1px solid var(--border-color, #ccc)" }}
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="ACTIVE">Active</option>
-            <option value="NOTICE_PERIOD">Notice Period</option>
-            <option value="INACTIVE">Inactive</option>
-            <option value="EXITED">Exited</option>
-          </select>
+        </div>
+        <div className="people-toolbar-right">
+          <button type="button" className="people-btn-outline">
+            <Filter size={16} /> Filter
+          </button>
+          <button type="button" className="people-btn-outline">
+            <LayoutGrid size={16} /> Group By
+          </button>
           {!showForm && (
-            <button type="button" className="kalki-button kalki-button--primary kalki-button--sm" onClick={() => setShowForm(true)}>
-              + Add Employee
+            <button 
+              type="button" 
+              className="kalki-button kalki-button--primary kalki-button--sm" 
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.5rem 1rem' }} 
+              onClick={() => setShowForm(true)}
+            >
+              <Plus size={16} /> Add Employee
             </button>
           )}
         </div>
@@ -164,113 +158,65 @@ export function PeopleDashboard() {
       ) : filteredEmployees.length === 0 ? (
         <StatusMessage tone="empty">No employees match your search criteria.</StatusMessage>
       ) : (
-        <div className="panel" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <div className="people-table-container">
+          <table className="people-table">
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Employee Code</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Name</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Job Title</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Category</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Status</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}></th>
+              <tr>
+                <th style={{ width: '40px', paddingLeft: '1.5rem' }}>
+                  <input type="checkbox" className="people-checkbox" />
+                </th>
+                <th>Employee</th>
+                <th>Contact</th>
+                <th>Job Position</th>
+                <th>Status</th>
+                <th style={{ textAlign: 'right', paddingRight: '1.5rem' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filteredEmployees.map((emp) => (
-                <tr key={emp.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ padding: "0.4rem 0.5rem", fontFamily: "monospace" }}>{emp.employeeCode}</td>
-                  <td style={{ padding: "0.4rem 0.5rem", fontWeight: "500" }}>{emp.person.displayName}</td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}>{emp.jobTitle ?? "-"}</td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}>{emp.category ?? "-"}</td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}>
-                    <span style={{ 
-                      fontSize: "0.75em", 
-                      fontWeight: "600", 
-                      padding: "0.15rem 0.5rem", 
-                      borderRadius: "999px", 
-                      background: emp.status === 'ACTIVE' ? '#dcfce7' : emp.status === 'DRAFT' ? '#fef9c3' : emp.status === 'NOTICE_PERIOD' ? '#ffedd5' : emp.status === 'EXITED' ? '#fee2e2' : '#f1f5f9', 
-                      color: emp.status === 'ACTIVE' ? '#166534' : emp.status === 'DRAFT' ? '#854d0e' : emp.status === 'NOTICE_PERIOD' ? '#c2410c' : emp.status === 'EXITED' ? '#991b1b' : '#475569' 
-                    }}>
-                      {emp.status === 'NOTICE_PERIOD' ? 'NOTICE PERIOD' : emp.status}
-                    </span>
+                <tr key={emp.id}>
+                  <td className="checkbox-col" style={{ paddingLeft: '1.5rem' }}>
+                    <input type="checkbox" className="people-checkbox" />
                   </td>
-                  <td style={{ padding: "0.4rem 0.5rem", textAlign: "right" }}>
-                    <Link 
-                      href={`/people/${emp.id}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
-                      style={{ color: "var(--primary)", textDecoration: "none" }}
-                    >
-                      View
-                    </Link>
+                  <td className="employee-col" data-label="Employee">
+                    <div className="employee-cell">
+                      <div className="employee-avatar">
+                        {emp.photoUrl ? <img src={emp.photoUrl} alt={emp.person.displayName} /> : emp.person.displayName.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div className="employee-details">
+                        <div className="employee-name">{emp.person.displayName}</div>
+                        <div className="employee-code">{emp.employeeCode}</div>
+                      </div>
+                    </div>
                   </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <section className="panel" style={{ marginTop: "2rem" }}>
-        <div className="panel-header">
-          <div>
-            <h2>Role Definitions</h2>
-          </div>
-          <div>
-            <span className="muted" style={{ marginRight: "1rem" }}>{roles?.items.length ?? 0} roles</span>
-          </div>
-        </div>
-      </section>
-
-      {showRoleForm && (
-        <RoleDefinitionForm
-          organizationId={selected.organizationId}
-          locationId={selected.locationId}
-          onCancel={() => setShowRoleForm(false)}
-          onSuccess={() => {
-            setShowRoleForm(false);
-            setRefreshKey((k) => k + 1);
-          }}
-        />
-      )}
-
-      {!roles || roles.items.length === 0 ? (
-        <StatusMessage tone="empty">No roles defined yet.</StatusMessage>
-      ) : (
-        <div className="panel" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Role Name</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Identifier</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Purpose</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}>Status</th>
-                <th style={{ padding: "0.4rem 0.5rem" }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {roles.items.map((role) => (
-                <tr key={role.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ padding: "0.4rem 0.5rem", fontWeight: "500" }}>{role.name}</td>
-                  <td style={{ padding: "0.4rem 0.5rem", fontFamily: "monospace", fontSize: "0.9em" }}>{role.identifier}</td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}>{role.purpose}</td>
-                  <td style={{ padding: "0.4rem 0.5rem" }}>
-                    <span style={{ 
-                      padding: "0.15rem 0.5rem", 
-                      borderRadius: "1rem", 
-                      fontSize: "0.75rem",
-                      background: role.isActive ? '#dcfce7' : '#f1f5f9', 
-                      color: role.isActive ? '#166534' : '#475569' 
-                    }}>
-                      {role.isActive ? "Active" : "Inactive"}
-                    </span>
+                  <td className="contact-col" data-label="Contact">
+                    <div className="contact-cell">
+                      <div className="contact-email">{emp.person.email || 'No email provided'}</div>
+                      <div className="contact-phone">{emp.person.phone || 'No phone provided'}</div>
+                    </div>
                   </td>
-                  <td style={{ padding: "0.4rem 0.5rem", textAlign: "right" }}>
-                    <Link 
-                      href={`/people/roles/${role.id}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}
-                      style={{ color: "var(--primary)", textDecoration: "none" }}
-                    >
-                      View
-                    </Link>
+                  <td data-label="Job Position">
+                    <div className="job-cell">
+                      <div className="job-title">{emp.jobTitle || 'None'}</div>
+                      <div className="job-department">{emp.category || 'N/A'}</div>
+                    </div>
+                  </td>
+                  <td data-label="Status">
+                    <div className={`status-indicator status-${emp.status.toLowerCase().replace('_', '-')}`}>
+                      <span className="status-dot"></span>
+                      {emp.status === 'NOTICE_PERIOD' ? 'Notice Period' : 
+                       emp.status.charAt(0).toUpperCase() + emp.status.slice(1).toLowerCase()}
+                    </div>
+                  </td>
+                  <td className="actions-col" data-label="Actions" style={{ paddingRight: '1.5rem' }}>
+                    <div className="actions-cell">
+                      <Link href={`/people/${emp.id}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`}>
+                        <button className="action-btn" title="View"><Eye size={16} /></button>
+                      </Link>
+                      <Link href={`/people/${emp.id}?edit=true&organizationId=${selected.organizationId}&locationId=${selected.locationId}`}>
+                        <button className="action-btn" title="Edit"><Edit size={16} /></button>
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -278,6 +224,7 @@ export function PeopleDashboard() {
           </table>
         </div>
       )}
+
     </div>
   );
 }

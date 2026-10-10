@@ -106,7 +106,7 @@ export async function createSalaryAdvance(input: z.infer<typeof createSalaryAdva
         triggeredByUserId: session.user.id,
         sourceModule: "PAYROLL",
         sourceReferenceId: advance.id,
-        entryDate: advance.dateGiven,
+        entryDate: advance.dateGiven || new Date(),
         narration: `Salary Advance for ${parsed.employeeId} - ${parsed.reason || 'No reason'}`,
         lines: [
           {
