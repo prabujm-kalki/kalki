@@ -3,20 +3,21 @@ import { TMBillConfig } from "@/components/integrations/TMBillConfig";
 import MappingClient from '@/components/integrations/MappingClient';
 import { getSalesChannels, getPosMappings } from './mapping-actions';
 
-export default async function Page(props: { searchParams: Promise<{ organizationId?: string }> }) { 
+export default async function Page(props: { searchParams: Promise<{ organizationId?: string; locationId?: string }> }) { 
   const searchParams = await props.searchParams;
   const organizationId = searchParams?.organizationId;
+  const locationId = searchParams?.locationId;
 
-  let channels = [];
-  let initialMappings = [];
+  let channels: any[] = [];
+  let initialMappings: any[] = [];
 
   if (organizationId) {
     const [channelsRes, mappingsRes] = await Promise.all([
       getSalesChannels(organizationId),
-      getPosMappings(organizationId)
+      getPosMappings(organizationId, locationId)
     ]);
-    channels = channelsRes.success ? channelsRes.channels : [];
-    initialMappings = mappingsRes.success ? mappingsRes.mappings : [];
+    channels = (channelsRes.success && channelsRes.channels) ? channelsRes.channels : [];
+    initialMappings = (mappingsRes.success && mappingsRes.mappings) ? mappingsRes.mappings : [];
   }
 
   return (
@@ -31,6 +32,7 @@ export default async function Page(props: { searchParams: Promise<{ organization
         <div className="mt-8">
           <MappingClient 
             organizationId={organizationId} 
+            locationId={locationId}
             initialMappings={initialMappings} 
             channels={channels} 
           />

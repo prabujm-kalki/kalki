@@ -1,0 +1,887 @@
+/* ==========================================================================
+   Kalki BOS - Marketing Module & Campaign Attribution Styles (Vanilla CSS)
+   Strict adherence to Kalki Design System: No Tailwind, fluid grids, premium cards
+   ========================================================================== */
+
+.marketing-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  font-family: inherit;
+  color: #0f172a;
+}
+
+/* --- Top Header & Action Row --- */
+.marketing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.75rem;
+  gap: 1rem;
+}
+
+.marketing-header-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.marketing-header-subtitle {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.marketing-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* --- Buttons --- */
+.kalki-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.95rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.kalki-btn-secondary:hover:not(:disabled) {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.kalki-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1.15rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.25);
+  transition: all 0.15s ease;
+}
+
+.kalki-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #15803d, #166534);
+  box-shadow: 0 4px 8px rgba(22, 163, 74, 0.35);
+  transform: translateY(-1px);
+}
+
+.kalki-btn-primary:disabled,
+.kalki-btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* --- 3-Column Executive ROI Header Grid --- */
+.marketing-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.marketing-kpi-card {
+  background-color: #ffffff;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.marketing-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.marketing-kpi-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.marketing-kpi-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin: 0;
+}
+
+.marketing-kpi-icon-wrap {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.marketing-kpi-icon-spend {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.marketing-kpi-icon-revenue {
+  background-color: #dcfce7;
+  color: #16a34a;
+}
+
+.marketing-kpi-icon-roi {
+  background-color: #ede9fe;
+  color: #7c3aed;
+}
+
+.marketing-kpi-value {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.marketing-kpi-meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* --- Ledger Card & Table --- */
+.marketing-ledger-card {
+  background-color: #ffffff;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.marketing-ledger-header {
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.marketing-ledger-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.marketing-table-container {
+  overflow-x: auto;
+}
+
+.marketing-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.marketing-table th {
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.85rem 1.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.marketing-table td {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.marketing-table tr:hover td {
+  background-color: #fafbfc;
+}
+
+/* --- Status Badges --- */
+.kalki-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.kalki-badge-running {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.kalki-badge-completed {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.kalki-badge-draft {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.kalki-badge-failed {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+/* --- Delivery & Conversion Funnel Chips --- */
+.funnel-chips {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.funnel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.35rem;
+  font-weight: 600;
+}
+
+.funnel-sent {
+  background-color: #f1f5f9;
+  color: #334155;
+}
+
+.funnel-delivered {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.funnel-read {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.funnel-divider {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+}
+
+.conversion-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.conversion-window-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.window-label {
+  color: #64748b;
+}
+
+.window-rev {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.window-72h {
+  color: #16a34a;
+}
+
+/* --- Empty State --- */
+.marketing-empty-state {
+  padding: 4rem 1.5rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.marketing-empty-icon {
+  margin: 0 auto 1rem auto;
+  color: #cbd5e1;
+}
+
+.marketing-empty-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 0.35rem;
+}
+
+.marketing-empty-desc {
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-bottom: 1.25rem;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* --- Mobile Card View (Hidden on Desktop) --- */
+.marketing-mobile-cards {
+  display: none;
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.marketing-card-item {
+  background-color: #ffffff;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.marketing-card-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+/* --- Modal Styles --- */
+.kalki-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+}
+
+.kalki-modal-content {
+  background-color: #ffffff;
+  border-radius: 1rem;
+  width: 100%;
+  max-width: 580px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.kalki-modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.kalki-modal-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+
+.kalki-modal-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kalki-modal-close-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: color 0.15s ease;
+}
+
+.kalki-modal-close-btn:hover {
+  color: #0f172a;
+}
+
+.kalki-modal-body {
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.kalki-modal-body::-webkit-scrollbar {
+  width: 7px;
+}
+
+.kalki-modal-body::-webkit-scrollbar-track {
+  background: #f8fafc;
+  border-radius: 4px;
+}
+
+.kalki-modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.kalki-modal-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.kalki-form-group {
+  margin-bottom: 1.15rem;
+}
+
+.kalki-form-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.4rem;
+}
+
+.kalki-form-input,
+.kalki-form-select,
+.kalki-form-textarea {
+  width: 100%;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid #cbd5e1;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+  outline: none;
+  background-color: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.kalki-form-input:focus,
+.kalki-form-select:focus,
+.kalki-form-textarea:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.kalki-form-hint {
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.3rem;
+  display: block;
+}
+
+.kalki-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background-color: #f8fafc;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+/* --- Alerts inside Modal --- */
+.kalki-alert-error {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background-color: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.825rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kalki-alert-success {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background-color: #dcfce7;
+  border: 1px solid #bbf7d0;
+  color: #15803d;
+  font-size: 0.825rem;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ==========================================================================
+   Responsive Architecture (@media max-width: 768px)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .marketing-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .marketing-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  /* Collapse 3-column KPI metrics into 1 single stack */
+  .marketing-kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  /* Hide raw wide table and display touch-friendly vertical cards */
+  .marketing-table-container {
+    display: none;
+  }
+
+  .marketing-mobile-cards {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ==========================================================================
+   Clickable Micro-Interactions & Hover Affordances
+   ========================================================================== */
+.clickable-kpi-card {
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.clickable-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+  border-color: #94a3b8 !important;
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.clickable-row:hover {
+  background-color: #f1f5f9 !important;
+}
+
+.clickable-recent-item {
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.clickable-recent-item:hover {
+  transform: translateX(4px);
+  background-color: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* ==========================================================================
+   Slide-Over Campaign Record Details Drawer
+   ========================================================================== */
+.kalki-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeInOverlay 0.2s ease-out;
+}
+
+.kalki-drawer-panel {
+  width: 720px;
+  max-width: 95vw;
+  height: 100%;
+  background-color: #ffffff;
+  box-shadow: -6px 0 28px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  animation: slideDrawerIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+@keyframes slideDrawerIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.kalki-drawer-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.kalki-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.kalki-drawer-tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 1.25rem;
+}
+
+.kalki-drawer-tab-btn {
+  padding: 0.6rem 1rem;
+  border: none;
+  background: none;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.kalki-drawer-tab-btn:hover {
+  color: #0f172a;
+}
+
+.kalki-drawer-tab-btn.active {
+  color: #16a34a;
+  border-bottom-color: #16a34a;
+}
+
+.kalki-drawer-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .kalki-drawer-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* --- Filter Bar & Search Controls --- */
+.marketing-filter-bar {
+  padding: 1rem 1.25rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.marketing-filter-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.marketing-search-input-wrap {
+  position: relative;
+  min-width: 240px;
+}
+
+.marketing-search-icon {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.marketing-search-input {
+  width: 100%;
+  padding: 0.5rem 0.85rem 0.5rem 2.2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-size: 0.825rem;
+  color: #0f172a;
+  background-color: #f8fafc;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.marketing-search-input:focus {
+  background-color: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
+.marketing-filter-select {
+  padding: 0.5rem 1.8rem 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  font-size: 0.825rem;
+  color: #334155;
+  background-color: #ffffff;
+  outline: none;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.marketing-filter-select:focus {
+  border-color: #16a34a;
+}
+
+/* --- Pagination Controls --- */
+.marketing-pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.25rem;
+  border-top: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.marketing-pagination-info {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.marketing-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.marketing-page-btn {
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+  color: #334155;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.marketing-page-btn:hover:not(:disabled) {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.marketing-page-btn.active {
+  background-color: #16a34a;
+  border-color: #16a34a;
+  color: #ffffff;
+}
+
+.marketing-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.marketing-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.marketing-btn-delete-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem;
+  border: 1px solid #fed7d7;
+  border-radius: 0.375rem;
+  background-color: #fff5f5;
+  color: #e53e3e;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.marketing-btn-delete-row:hover:not(:disabled) {
+  background-color: #fed7d7;
+  color: #9b2c2c;
+}
+

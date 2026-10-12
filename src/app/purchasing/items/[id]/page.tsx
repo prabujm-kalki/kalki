@@ -38,7 +38,7 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     customIntervalDays: '',
     fridaySurge: 25,
     saturdaySurge: 30,
-    linkedVendors: [],
+    linkedVendors: [] as string[],
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);

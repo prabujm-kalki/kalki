@@ -93,7 +93,10 @@ export function SalesChannelsDashboard() {
               <SalesChannelForm
                 key={channel.id}
                 organizationId={selected.organizationId}
-                initialData={channel}
+                initialData={{
+                  ...channel,
+                  platformFeePercentage: channel.platformFeePercentage ?? undefined,
+                }}
                 onCancel={() => setEditingId(null)}
                 onSuccess={() => { setEditingId(null); setRefreshKey(k => k + 1); }}
               />

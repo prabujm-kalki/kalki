@@ -12,15 +12,16 @@ export function useEscapeKey(onClose: () => void, isActive: boolean = true) {
     if (!isActive) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        event.preventDefault();
         onClose();
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown);
     
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, isActive]);
 }

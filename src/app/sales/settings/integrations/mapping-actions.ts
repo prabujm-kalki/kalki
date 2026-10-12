@@ -2,8 +2,7 @@
 
 import { db } from "@/db";
 import { posChannelMappings, salesChannels, tmbillConfigs, tmbillOrders } from "@/db/schema";
-import { sql } from "drizzle-orm";
-import { eq, and } from "drizzle-orm";
+import { sql, eq, and, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export async function getSalesChannels(organizationId: string) {
@@ -23,8 +22,13 @@ export async function getSalesChannels(organizationId: string) {
   }
 }
 
-export async function getPosMappings(organizationId: string) {
+export async function getPosMappings(organizationId: string, locationId?: string | null) {
   try {
+    const conditions = [eq(posChannelMappings.organizationId, organizationId)];
+    if (locationId && locationId !== "all" && locationId !== "null" && locationId !== "undefined") {
+      conditions.push(sql`(${posChannelMappings.locationId} IS NULL OR ${posChannelMappings.locationId} = ${locationId})`);
+    }
+
     const mappings = await db
       .select({
         id: posChannelMappings.id,
@@ -35,7 +39,7 @@ export async function getPosMappings(organizationId: string) {
       })
       .from(posChannelMappings)
       .leftJoin(salesChannels, eq(posChannelMappings.internalChannelId, salesChannels.id))
-      .where(eq(posChannelMappings.organizationId, organizationId));
+      .where(and(...conditions));
     
     return { success: true, mappings };
   } catch (error) {
@@ -44,17 +48,32 @@ export async function getPosMappings(organizationId: string) {
   }
 }
 
-export async function upsertPosMapping(organizationId: string, payload: { providerName: string, externalString: string, internalChannelId: string }) {
+export async function upsertPosMapping(
+  organizationId: string, 
+  payload: { providerName: string, externalString: string, internalChannelId: string, locationId?: string | null }
+) {
   try {
+    const locId = (payload.locationId && payload.locationId !== "all" && payload.locationId !== "null" && payload.locationId !== "undefined")
+      ? payload.locationId
+      : null;
+
     const strings = payload.externalString.split(',').map(s => s.trim()).filter(Boolean);
     for (const str of strings) {
-      const existing = await db.select().from(posChannelMappings).where(
-        and(
-          eq(posChannelMappings.organizationId, organizationId),
-          eq(posChannelMappings.providerName, payload.providerName),
-          eq(posChannelMappings.externalString, str)
-        )
-      );
+      const condition = locId
+        ? and(
+            eq(posChannelMappings.organizationId, organizationId),
+            eq(posChannelMappings.locationId, locId),
+            eq(posChannelMappings.providerName, payload.providerName),
+            eq(posChannelMappings.externalString, str)
+          )
+        : and(
+            eq(posChannelMappings.organizationId, organizationId),
+            isNull(posChannelMappings.locationId),
+            eq(posChannelMappings.providerName, payload.providerName),
+            eq(posChannelMappings.externalString, str)
+          );
+
+      const existing = await db.select().from(posChannelMappings).where(condition);
 
       if (existing.length > 0) {
         await db.update(posChannelMappings)
@@ -63,6 +82,7 @@ export async function upsertPosMapping(organizationId: string, payload: { provid
       } else {
         await db.insert(posChannelMappings).values({
           organizationId,
+          locationId: locId,
           providerName: payload.providerName,
           externalString: str,
           internalChannelId: payload.internalChannelId,
@@ -132,12 +152,26 @@ export async function deleteSalesChannel(organizationId: string, id: string) {
   }
 }
 
-
-
-export async function getConfiguredProviders(organizationId: string) {
+export async function getConfiguredProviders(organizationId: string, locationId?: string | null) {
   try {
-    const configs = await db.select({ providerName: tmbillConfigs.providerName }).from(tmbillConfigs).where(eq(tmbillConfigs.organizationId, organizationId));
-    const providers = configs.map(c => c.providerName).filter(Boolean);
+    if (locationId && locationId !== "all" && locationId !== "null" && locationId !== "undefined") {
+      const locConfigs = await db
+        .select({ providerName: tmbillConfigs.providerName })
+        .from(tmbillConfigs)
+        .where(and(eq(tmbillConfigs.organizationId, organizationId), eq(tmbillConfigs.locationId, locationId)));
+      
+      const locProviders = locConfigs.map(c => c.providerName).filter((p): p is string => Boolean(p));
+      if (locProviders.length > 0) {
+        return { success: true, providers: Array.from(new Set(locProviders)) };
+      }
+    }
+
+    const configs = await db
+      .select({ providerName: tmbillConfigs.providerName })
+      .from(tmbillConfigs)
+      .where(and(eq(tmbillConfigs.organizationId, organizationId), isNull(tmbillConfigs.locationId)));
+    
+    const providers = configs.map(c => c.providerName).filter((p): p is string => Boolean(p));
     return { success: true, providers: Array.from(new Set(providers)) };
   } catch (error) {
     console.error('Error fetching providers:', error);
@@ -145,24 +179,35 @@ export async function getConfiguredProviders(organizationId: string) {
   }
 }
 
-export async function fetchUnmappedStrings(organizationId: string, providerName: string) {
+export async function fetchUnmappedStrings(organizationId: string, providerName: string, locationId?: string | null) {
   try {
-    if ((providerName || '').toUpperCase() === 'TMBILL') {
+    const pUpper = (providerName || '').trim().toUpperCase();
+    const isTMBill = pUpper.includes('TMBILL');
+    
+    if (isTMBill) {
+      const locCondition = (locationId && locationId !== "all" && locationId !== "null" && locationId !== "undefined")
+        ? sql`AND location_id = ${locationId}`
+        : sql``;
+
       const result = await db.execute(sql`
         SELECT DISTINCT raw_data->>'table_name' as ext_string 
         FROM ${tmbillOrders} 
         WHERE organization_id = ${organizationId}
+          ${locCondition}
           AND raw_data->>'table_name' IS NOT NULL
       `);
       
+      const mappingConditions = [
+        eq(posChannelMappings.organizationId, organizationId),
+        eq(posChannelMappings.providerName, providerName)
+      ];
+      if (locationId && locationId !== "all" && locationId !== "null" && locationId !== "undefined") {
+        mappingConditions.push(sql`(${posChannelMappings.locationId} IS NULL OR ${posChannelMappings.locationId} = ${locationId})`);
+      }
+
       const existingMappings = await db.select({ externalString: posChannelMappings.externalString })
         .from(posChannelMappings)
-        .where(
-          and(
-            eq(posChannelMappings.organizationId, organizationId),
-            eq(posChannelMappings.providerName, providerName)
-          )
-        );
+        .where(and(...mappingConditions));
       
       const mappedSet = new Set(existingMappings.map(m => m.externalString));
       const unmapped = result.rows.map(r => r.ext_string as string).filter(s => !mappedSet.has(s));

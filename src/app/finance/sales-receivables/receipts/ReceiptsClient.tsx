@@ -53,7 +53,7 @@ export function ReceiptsClient() {
 
     const res = await fetchReceipts(selected.organizationId, q, page, 10, finalStartDate, finalEndDate);
     if (res.success) {
-      setReceipts(res.data);
+      setReceipts(res.data || []);
       setTotal(res.total || 0);
     }
     
@@ -75,7 +75,7 @@ export function ReceiptsClient() {
     if (selectedCustomerId) {
       fetchOpenInvoices(selectedCustomerId).then(res => {
         if (res.success) {
-          setOpenInvoices(res.data);
+          setOpenInvoices(res.data || []);
           setAllocations({});
         }
       });

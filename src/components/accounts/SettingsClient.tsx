@@ -114,7 +114,9 @@ export function AccountsSettingsClient() {
                   </div>
                   <div className="w-1/12 text-right">
                     {!currentMapping ? (
-                      <AlertCircle size={16} className="text-yellow-500 ml-auto" title="Unmapped" />
+                      <span title="Unmapped" className="ml-auto inline-block">
+                        <AlertCircle size={16} className="text-yellow-500" />
+                      </span>
                     ) : (
                       <span className="text-xs text-green-600 font-medium bg-green-50 px-2 py-1 rounded-full">Mapped</span>
                     )}

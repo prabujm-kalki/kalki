@@ -25,7 +25,7 @@ export function SubledgerReport({
     setLoading(true);
     fetchSubledgerReport(selected.organizationId, selected.locationId || "ALL", controlAccountType, periodFilter)
       .then(res => {
-        if (res.success) setEntries(res.data);
+        if (res.success) setEntries(res.data || []);
       })
       .finally(() => setLoading(false));
   }, [selected, controlAccountType, periodFilter]);

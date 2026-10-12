@@ -195,7 +195,7 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
         <div 
           className="card" 
           style={{ padding: "1rem", borderRadius: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", transition: "all 0.2s" }}
-          onClick={() => router.push(`/finance/sales-receivables/summary?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
+          onClick={() => selected && router.push(`/finance/sales-receivables/summary?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
           onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
         >
@@ -215,7 +215,7 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
         <div 
           className="card" 
           style={{ padding: "1rem", borderRadius: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", transition: "all 0.2s" }}
-          onClick={() => router.push(`/finance/sales-receivables/summary?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
+          onClick={() => selected && router.push(`/finance/sales-receivables/summary?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
           onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
         >
@@ -258,12 +258,12 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
                   key={type}
                   onClick={() => setGrouping(type)}
                   style={{ 
-                    backgroundColor: 'transparent', border: 'none',
+                    border: grouping === type ? "none" : "1px solid #e5e7eb",
                     fontSize: "0.75rem", padding: "0.2rem 0.5rem", 
                     borderRadius: "0.375rem", cursor: "pointer",
-                    ...(grouping === type 
-                      ? { backgroundColor: "#eff6ff", color: "#2563eb", fontWeight: "bold" }
-                      : { border: "1px solid #e5e7eb", color: "#6b7280" })
+                    backgroundColor: grouping === type ? "#eff6ff" : "transparent",
+                    color: grouping === type ? "#2563eb" : "#6b7280",
+                    fontWeight: grouping === type ? "bold" : "normal",
                   }}
                 >
                   {type}
@@ -279,7 +279,7 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#6b7280" }} dy={10} />
                   <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: "#6b7280" }} tickFormatter={(val) => val === 0 ? "0" : `${(val/1000).toFixed(0)}k`} />
                   <Tooltip 
-                    formatter={(value: number, name: string) => [name === "sales" ? formatCurrency(value) : value, name === "sales" ? "Sales" : "Orders"]}
+                    formatter={(value: any, name: any) => [name === "sales" ? formatCurrency(Number(value || 0)) : value, name === "sales" ? "Sales" : "Orders"]}
                     labelStyle={{ color: "#374151", fontWeight: "bold", marginBottom: "0.25rem", fontSize: "11px" }}
                     contentStyle={{ borderRadius: "0.5rem", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "11px" }}
                   />
@@ -317,7 +317,7 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
-                  {metrics.totalSales > 0 && <Tooltip formatter={(val: number) => formatCurrency(val)} contentStyle={{ borderRadius: "0.5rem", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "11px" }} />}
+                  {metrics.totalSales > 0 && <Tooltip formatter={(val: any) => formatCurrency(Number(val || 0))} contentStyle={{ borderRadius: "0.5rem", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", fontSize: "11px" }} />}
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" }}>

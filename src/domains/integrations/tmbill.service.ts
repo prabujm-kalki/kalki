@@ -20,6 +20,7 @@ import {
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { posChannelMappings } from "@/db/schema";
 import { randomUUID } from "crypto";
+import { evaluateSalesConversionForCustomer } from "@/domains/marketing/attributionService";
 
 const TMBILL_BASE_URL = "https://api.tmbill.com/tp/v1";
 
@@ -33,7 +34,39 @@ export class TMBillService {
   }
 
   private async getConfig() {
-    const [config] = await db.select().from(tmbillConfigs).where(eq(tmbillConfigs.organizationId, this.organizationId)).limit(1);
+    let config = null;
+
+    if (this.locationId && this.locationId !== "all") {
+      const [locConfig] = await db
+        .select()
+        .from(tmbillConfigs)
+        .where(
+          and(
+            eq(tmbillConfigs.organizationId, this.organizationId),
+            eq(tmbillConfigs.locationId, this.locationId)
+          )
+        )
+        .limit(1);
+
+      if (locConfig) {
+        config = locConfig;
+      }
+    }
+
+    if (!config) {
+      const [orgConfig] = await db
+        .select()
+        .from(tmbillConfigs)
+        .where(
+          and(
+            eq(tmbillConfigs.organizationId, this.organizationId),
+            sql`(${tmbillConfigs.locationId} IS NULL OR ${tmbillConfigs.locationId} = ${this.locationId || ''})`
+          )
+        )
+        .limit(1);
+
+      config = orgConfig;
+    }
     
     return {
       apiUrl: config?.apiUrl || TMBILL_BASE_URL,
@@ -294,7 +327,8 @@ export class TMBillService {
            const mappings = await tx.select().from(posChannelMappings).where(
              and(
                eq(posChannelMappings.organizationId, this.organizationId),
-               eq(posChannelMappings.providerName, 'TMBILL'),
+               sql`(${posChannelMappings.locationId} IS NULL OR ${posChannelMappings.locationId} = ${order.locationId || this.locationId || ''})`,
+               sql`(UPPER(${posChannelMappings.providerName}) = 'TMBILL' OR UPPER(${posChannelMappings.providerName}) LIKE 'TMBILL%')`,
                eq(posChannelMappings.externalString, extStr)
              )
            ).limit(1);
@@ -431,6 +465,19 @@ export class TMBillService {
         await tx.update(tmbillOrders)
           .set({ isSyncedToFinance: true })
           .where(eq(tmbillOrders.id, order.id));
+
+        // Closed-Loop Marketing Campaign Attribution Hook
+        try {
+          await evaluateSalesConversionForCustomer(
+            customerId,
+            invoiceId,
+            Number(order.orderTotal || 0),
+            order.orderDateTime || new Date(),
+            customerPhone
+          );
+        } catch (attrErr) {
+          console.error("[Marketing Attribution Hook Error]:", attrErr);
+        }
 
         insertedCount++;
       }

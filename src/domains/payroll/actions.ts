@@ -137,16 +137,16 @@ export async function createSalaryAdvance(input: z.infer<typeof createSalaryAdva
 /**
  * Approve a Payroll Run and post double-entry journals.
  */
-export async function approvePayrollRun(runId: string) {
+export async function approvePayrollRun(runId: string): Promise<{ success: boolean; error?: string }> {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });
-  if (!session || !session.user) return { error: "Unauthorized" };
+  if (!session || !session.user) return { success: false, error: "Unauthorized" };
 
   return await db.transaction(async (tx) => {
     // 1. Fetch the run
     const [run] = await tx.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
-    if (!run) return { error: "Run not found" };
-    if (run.status !== "DRAFT") return { error: "Run is not in DRAFT state" };
+    if (!run) return { success: false, error: "Run not found" };
+    if (run.status !== "DRAFT") return { success: false, error: "Run is not in DRAFT state" };
 
     // 2. Fetch all payslip components
     const components = await tx

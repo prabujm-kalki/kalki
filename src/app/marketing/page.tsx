@@ -16,11 +16,18 @@ import {
   RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
+import CampaignDetailDrawer from "@/components/marketing/CampaignDetailDrawer";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
+import "./marketing.css";
 
 export default function MarketingOverviewPage() {
   const { selected } = useSessionView();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+
+  // Close campaign drawer on Escape key press
+  useEscapeKey(() => setSelectedCampaignId(null), !!selectedCampaignId);
 
   const fetchStats = async () => {
     if (!selected?.organizationId) return;
@@ -107,8 +114,11 @@ export default function MarketingOverviewPage() {
           marginBottom: "1.5rem",
         }}
       >
-        {/* Card 1: Reachable Audience */}
-        <div
+        {/* Card 1: Reachable Audience (Links to Audiences filtered to WhatsApp verified) */}
+        <Link
+          href={`/marketing/audiences${query}&filter=REACHABLE`}
+          className="clickable-kpi-card"
+          title="Click to view WhatsApp verified customer audience list"
           style={{
             backgroundColor: "#ffffff",
             padding: "1.25rem",
@@ -128,13 +138,17 @@ export default function MarketingOverviewPage() {
           <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#0f172a" }}>
             {stats?.audience?.reachableOnWhatsApp || 0}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
-            out of {stats?.audience?.totalCustomers || 0} registered ERP customers
+          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>out of {stats?.audience?.totalCustomers || 0} registered ERP customers</span>
+            <span style={{ color: "#16a34a", fontWeight: 600 }}>View list →</span>
           </div>
-        </div>
+        </Link>
 
-        {/* Card 2: Total Broadcasts Sent */}
-        <div
+        {/* Card 2: Total Broadcasts Sent (Links to Campaigns Dashboard) */}
+        <Link
+          href={`/marketing/campaigns${query}`}
+          className="clickable-kpi-card"
+          title="Click to view campaign attribution ledger"
           style={{
             backgroundColor: "#ffffff",
             padding: "1.25rem",
@@ -154,13 +168,17 @@ export default function MarketingOverviewPage() {
           <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#0f172a" }}>
             {stats?.campaigns?.totalSent || 0}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "0.25rem" }}>
-            Across {stats?.campaigns?.totalCampaigns || 0} marketing campaigns
+          <div style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "0.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Across {stats?.campaigns?.totalCampaigns || 0} marketing campaigns</span>
+            <span style={{ color: "#2563eb", fontWeight: 600 }}>Ledger →</span>
           </div>
-        </div>
+        </Link>
 
-        {/* Card 3: Read Rate / Engagement */}
-        <div
+        {/* Card 3: Read Rate / Engagement (Links to Campaigns Dashboard) */}
+        <Link
+          href={`/marketing/campaigns${query}`}
+          className="clickable-kpi-card"
+          title="Click to analyze delivery & read conversion funnel"
           style={{
             backgroundColor: "#ffffff",
             padding: "1.25rem",
@@ -180,13 +198,17 @@ export default function MarketingOverviewPage() {
           <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#0f172a" }}>
             {stats?.campaigns?.totalDelivered || 0}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
-            Read: {stats?.campaigns?.totalRead || 0} • Failed: {stats?.campaigns?.totalFailed || 0}
+          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Read: {stats?.campaigns?.totalRead || 0} • Failed: {stats?.campaigns?.totalFailed || 0}</span>
+            <span style={{ color: "#9333ea", fontWeight: 600 }}>Funnel →</span>
           </div>
-        </div>
+        </Link>
 
-        {/* Card 4: Two-Way Inquiries */}
-        <div
+        {/* Card 4: Two-Way Inquiries (Links to Two-Way Inbox) */}
+        <Link
+          href={`/marketing/inbox${query}`}
+          className="clickable-kpi-card"
+          title="Click to open Two-Way WhatsApp Customer Inbox"
           style={{
             backgroundColor: "#ffffff",
             padding: "1.25rem",
@@ -206,10 +228,11 @@ export default function MarketingOverviewPage() {
           <div style={{ fontSize: "1.75rem", fontWeight: 700, color: "#0f172a" }}>
             {stats?.communications?.totalInbound || 0}
           </div>
-          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
-            Customer replies handled in Two-Way Inbox
+          <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span>Customer replies handled in Two-Way Inbox</span>
+            <span style={{ color: "#d97706", fontWeight: 600 }}>Open Chat →</span>
           </div>
-        </div>
+        </Link>
       </div>
 
       {/* Quick Launch & Campaign History Grid */}
@@ -245,6 +268,9 @@ export default function MarketingOverviewPage() {
               {stats?.recentCampaigns?.map((camp: any) => (
                 <div
                   key={camp.id}
+                  onClick={() => setSelectedCampaignId(camp.id)}
+                  className="clickable-recent-item"
+                  title="Click to view detailed campaign analytics & recipient ledger"
                   style={{
                     padding: "0.875rem 1rem",
                     borderRadius: "0.5rem",
@@ -253,12 +279,18 @@ export default function MarketingOverviewPage() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     backgroundColor: "#f8fafc",
+                    cursor: "pointer",
                   }}
                 >
                   <div>
-                    <strong style={{ fontSize: "0.9rem", color: "#1e293b", display: "block" }}>
-                      {camp.name}
-                    </strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                      <strong style={{ fontSize: "0.9rem", color: "#1e293b" }}>
+                        {camp.name}
+                      </strong>
+                      <span style={{ fontSize: "0.72rem", color: "#16a34a", fontWeight: 600 }}>
+                        (View details →)
+                      </span>
+                    </div>
                     <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
                       Template: {camp.templateName} • {new Date(camp.createdAt).toLocaleDateString()}
                     </span>
@@ -367,6 +399,14 @@ export default function MarketingOverviewPage() {
           </div>
         </div>
       </div>
+
+      {/* Slide-Over Campaign Record Details Drawer */}
+      <CampaignDetailDrawer
+        campaignId={selectedCampaignId}
+        onClose={() => setSelectedCampaignId(null)}
+        organizationId={selected?.organizationId}
+        locationId={selected?.locationId}
+      />
     </div>
   );
 }

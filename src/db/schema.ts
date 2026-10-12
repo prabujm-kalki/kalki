@@ -3037,7 +3037,6 @@ export const kuabTasks = pgTable(
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
     assignedToEmployeeId: uuid("assigned_to_employee_id")
-      .notNull()
       .references(() => employees.id),
     assignedToRoleId: uuid("assigned_to_role_id")
       .references(() => businessRoles.id),
@@ -3516,6 +3515,7 @@ export const tmbillConfigs = pgTable("tmbill_configs", {
   businessDayStartTime: text("business_day_start_time").notNull().default("06:00"),
   autoSyncEnabled: boolean("auto_sync_enabled").notNull().default(false),
   autoSyncIntervalMinutes: integer("auto_sync_interval_minutes").notNull().default(60),
+  providerName: text("provider_name").default("TMBILL"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -3723,41 +3723,73 @@ export const marketingTemplateAudiences = pgTable('marketing_template_audiences'
   polymorphicTargetIdx: index('idx_polymorphic_target').on(t.targetEntityType, t.targetEntityId)
 }));
 
-export const marketingCampaigns = pgTable('marketing_campaigns', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
-  locationId: uuid('location_id').references(() => locations.id),
-  name: varchar('name', { length: 255 }).notNull(),
-  description: text('description'),
-  templateName: varchar('template_name', { length: 100 }).notNull(),
-  templateLanguage: varchar('template_language', { length: 10 }).default('en'),
-  status: varchar('status', { length: 30 }).default('DRAFT').notNull(), // DRAFT, SCHEDULED, RUNNING, COMPLETED, CANCELLED
-  targetAudienceType: varchar('target_audience_type', { length: 50 }).default('ALL_CUSTOMERS').notNull(),
-  audienceFilter: jsonb('audience_filter').default({}),
-  totalRecipients: integer('total_recipients').default(0).notNull(),
-  sentCount: integer('sent_count').default(0).notNull(),
-  deliveredCount: integer('delivered_count').default(0).notNull(),
-  readCount: integer('read_count').default(0).notNull(),
-  failedCount: integer('failed_count').default(0).notNull(),
-  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
-  startedAt: timestamp('started_at', { withTimezone: true }),
-  completedAt: timestamp('completed_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+// 1. Marketing Campaigns Master Ledger
+export const marketingCampaigns = pgTable("marketing_campaigns", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id),
+  locationId: uuid("location_id").references(() => locations.id), // Nullable for org-wide blasts
+  name: varchar("name", { length: 255 }).notNull(), // e.g. "Diwali Mega Sale 2026"
+  channel: varchar("channel", { length: 50 }).default("WHATSAPP").notNull(), // WHATSAPP, SMS, EMAIL
+  templateName: varchar("template_name", { length: 150 }).notNull(), // Pre-approved Meta template name
+  templateLanguage: varchar("template_language", { length: 20 }).default("en_US").notNull(),
+  status: varchar("status", { length: 30 }).default("DRAFT").notNull(), // DRAFT, RUNNING, COMPLETED, PAUSED, CANCELLED
+  
+  // Funnel Pipeline Counts
+  totalRecipients: integer("total_recipients").default(0).notNull(),
+  sentCount: integer("sent_count").default(0).notNull(),
+  deliveredCount: integer("delivered_count").default(0).notNull(),
+  readCount: integer("read_count").default(0).notNull(),
+  failedCount: integer("failed_count").default(0).notNull(),
+  
+  // Closed-Loop POS Sales Attribution Counters
+  conversions72hCount: integer("conversions_72h_count").default(0).notNull(),
+  conversions72hRevenue: decimal("conversions_72h_revenue", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  
+  conversions7dCount: integer("conversions_7d_count").default(0).notNull(),
+  conversions7dRevenue: decimal("conversions_7d_revenue", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  
+  conversions30dCount: integer("conversions_30d_count").default(0).notNull(),
+  conversions30dRevenue: decimal("conversions_30d_revenue", { precision: 12, scale: 2 }).default("0.00").notNull(),
+
+  // Financial ROI Modeling
+  estimatedApiCost: decimal("estimated_api_cost", { precision: 10, scale: 2 }).default("0.00").notNull(), // Meta template fees
+  totalAttributedRevenue: decimal("total_attributed_revenue", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  roiPercentage: decimal("roi_percentage", { precision: 8, scale: 2 }).default("0.00").notNull(),
+
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
+  launchedAt: timestamp("launched_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
-export const marketingCampaignLogs = pgTable('marketing_campaign_logs', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  campaignId: uuid('campaign_id').references(() => marketingCampaigns.id, { onDelete: 'cascade' }).notNull(),
-  customerId: uuid('customer_id').references(() => customers.id),
-  recipientPhone: varchar('recipient_phone', { length: 50 }).notNull(),
-  metaMessageId: varchar('meta_message_id', { length: 255 }),
-  status: varchar('status', { length: 30 }).default('PENDING').notNull(), // PENDING, SENT, DELIVERED, READ, FAILED
-  errorMessage: text('error_message'),
-  sentAt: timestamp('sent_at', { withTimezone: true }),
-  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
-  readAt: timestamp('read_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+// 2. Granular Campaign Target & Conversion Attribution Ledger
+export const campaignAudiences = pgTable("campaign_audiences", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  campaignId: uuid("campaign_id")
+    .notNull()
+    .references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+  customerId: uuid("customer_id").references(() => customers.id),
+  recipientPhone: varchar("recipient_phone", { length: 50 }).notNull(),
+  metaMessageId: varchar("meta_message_id", { length: 255 }).unique(), // Maps to WhatsApp webhook
+  
+  // Message Funnel State
+  deliveryStatus: varchar("delivery_status", { length: 30 }).default("PENDING").notNull(), // PENDING, SENT, DELIVERED, READ, FAILED
+  errorMessage: text("error_message"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  readAt: timestamp("read_at", { withTimezone: true }),
+
+  // POS Sales Attribution Bridge
+  isConverted: boolean("is_converted").default(false).notNull(),
+  convertedInvoiceId: uuid("converted_invoice_id").references(() => salesInvoices.id),
+  conversionWindow: varchar("conversion_window", { length: 20 }), // '72_HOURS', '7_DAYS', '30_DAYS'
+  conversionAmount: decimal("conversion_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  convertedAt: timestamp("converted_at", { withTimezone: true }),
+  
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const salesAlertConfigurations = pgTable('sales_alert_configurations', {
@@ -3791,3 +3823,130 @@ export const whatsappCommunications = pgTable('whatsapp_communications', {
   recipientNumber: varchar('recipient_number', { length: 50 }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// 3. WhatsApp Cloud API Message Templates Master Ledger
+export const whatsappTemplates = pgTable('whatsapp_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id')
+    .notNull()
+    .references(() => organizations.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(), // Meta slug e.g. "deepavali_offer_2026"
+  displayName: varchar('display_name', { length: 255 }), // User friendly name e.g. "Diwali Grand Feast Offer"
+  category: varchar('category', { length: 50 }).default('MARKETING').notNull(), // MARKETING, UTILITY, AUTHENTICATION
+  language: varchar('language', { length: 20 }).default('en').notNull(), // en, en_US, ta, hi, etc.
+  status: varchar('status', { length: 50 }).default('APPROVED').notNull(), // APPROVED, PENDING, REJECTED, PAUSED
+  bodyText: text('body_text').notNull(), // Template text with {{1}}, {{2}} placeholders
+  headerType: varchar('header_type', { length: 20 }).default('NONE'), // NONE, TEXT, IMAGE, VIDEO, DOCUMENT
+  headerText: text('header_text'),
+  footerText: text('footer_text'),
+  variableCount: integer('variable_count').default(0).notNull(),
+  metaTemplateId: varchar('meta_template_id', { length: 255 }), // Meta assigned ID
+  rejectionReason: text('rejection_reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 4. CRM Customer Intelligence & Behavioral Profiles
+export const crmCustomerProfiles = pgTable('crm_customer_profiles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'cascade' }).notNull().unique(),
+  customerType: varchar('customer_type', { length: 50 }).default('RETAIL').notNull(), // RETAIL, B2B, VIP, CATERING
+  preferredLocationId: uuid('preferred_location_id').references(() => locations.id),
+  
+  // RFM Analysis
+  recencyDays: integer('recency_days').default(0).notNull(),
+  frequencyOrders: integer('frequency_orders').default(0).notNull(),
+  monetarySpend: decimal('monetary_spend', { precision: 12, scale: 2 }).default('0.00').notNull(),
+  rfmSegment: varchar('rfm_segment', { length: 50 }).default('NEW').notNull(), // CHAMPIONS, LOYAL, AT_RISK, DORMANT, LOST, NEW
+  
+  // Predictive Scoring & Lifecycle Stage
+  priorityScore: integer('priority_score').default(50).notNull(), // 0 - 100
+  lifecycleStage: varchar('lifecycle_stage', { length: 50 }).default('NEW').notNull(), // NEW, ACTIVE, AT_RISK, DORMANT, CHURNED
+  churnRiskPercentage: decimal('churn_risk_percentage', { precision: 5, scale: 2 }).default('10.00').notNull(),
+  predictedNextVisitDays: integer('predicted_next_visit_days'),
+  tags: jsonb('tags').default([]), // ['VIP', 'Diwali Shopper', 'Catering Enquiry']
+  
+  // Consent flags
+  whatsappConsent: boolean('whatsapp_consent').default(true).notNull(),
+  smsConsent: boolean('sms_consent').default(true).notNull(),
+  consentUpdatedAt: timestamp('consent_updated_at').defaultNow().notNull(),
+  
+  lastCalculatedAt: timestamp('last_calculated_at').defaultNow().notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// 5. CRM Leads & B2B / Catering Pipeline
+export const crmLeads = pgTable('crm_leads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  customerId: uuid('customer_id').references(() => customers.id),
+  title: varchar('title', { length: 255 }).notNull(), // e.g. "Kalyana Mandapam Catering 500 Pax"
+  leadType: varchar('lead_type', { length: 50 }).default('CATERING').notNull(), // CATERING, B2B_BULK, CORPORATE_EVENT, FRANCHISE
+  contactName: varchar('contact_name', { length: 255 }).notNull(),
+  contactPhone: varchar('contact_phone', { length: 50 }).notNull(),
+  contactEmail: varchar('contact_email', { length: 255 }),
+  stage: varchar('stage', { length: 50 }).default('NEW_ENQUIRY').notNull(), // NEW_ENQUIRY, CONTACTED, QUOTE_SENT, WON, LOST
+  estimatedValue: decimal('estimated_value', { precision: 12, scale: 2 }).default('0.00').notNull(),
+  eventDate: timestamp('event_date', { withTimezone: true }),
+  notes: text('notes'),
+  assignedUserId: text('assigned_user_id').references(() => authUsers.id),
+  kuabFollowUpTaskId: uuid('kuab_follow_up_task_id').references(() => kuabTasks.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 6. CRM Consent Audit Center
+export const crmConsentLogs = pgTable('crm_consent_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'cascade' }).notNull(),
+  channel: varchar('channel', { length: 30 }).notNull(), // WHATSAPP, SMS, EMAIL
+  consentGranted: boolean('consent_granted').notNull(),
+  source: varchar('source', { length: 100 }).notNull(), // POS_BILLING, OPT_IN_FORM, WHATSAPP_INBOUND, MANUAL_ADMIN, STOP_KEYWORD
+  ipAddress: varchar('ip_address', { length: 100 }),
+  notes: text('notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 7. CRM Customer Service & SLA Tickets
+export const crmTickets = pgTable('crm_tickets', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  customerId: uuid('customer_id').references(() => customers.id),
+  ticketNumber: varchar('ticket_number', { length: 50 }).notNull(), // e.g. "TCK-2026-1001"
+  subject: varchar('subject', { length: 255 }).notNull(),
+  description: text('description').notNull(),
+  status: varchar('status', { length: 30 }).default('OPEN').notNull(), // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  urgency: varchar('urgency', { length: 30 }).default('MEDIUM').notNull(), // LOW, MEDIUM, HIGH, URGENT
+  category: varchar('category', { length: 50 }).default('BILLING').notNull(), // FOOD_QUALITY, DELIVERY_DELAY, BILLING, FEEDBACK
+  assignedUserId: text('assigned_user_id').references(() => authUsers.id),
+  resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  resolutionNotes: text('resolution_notes'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// 8. Marketing Automated Journeys & Drip Configs (Synced to KUAB)
+export const marketingAutomations = pgTable('marketing_automations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  triggerType: varchar('trigger_type', { length: 100 }).notNull(), // POS_BILL_CREATED, INVOICE_OVERDUE, DORMANT_30_DAYS, BIRTHDAY, INBOUND_MESSAGE
+  channel: varchar('channel', { length: 50 }).default('WHATSAPP').notNull(),
+  templateName: varchar('template_name', { length: 255 }),
+  templateLanguage: varchar('template_language', { length: 20 }).default('en'),
+  dripDelayMinutes: integer('drip_delay_minutes').default(0).notNull(),
+  status: varchar('status', { length: 20 }).default('ACTIVE').notNull(), // ACTIVE, PAUSED, DRAFT
+  exclusionRules: jsonb('exclusion_rules').default({ excludeIfMessagedInDays: 7 }),
+  targetSegment: varchar('target_segment', { length: 50 }).default('ALL').notNull(),
+  executionCount: integer('execution_count').default(0).notNull(),
+  lastTriggeredAt: timestamp('last_triggered_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+

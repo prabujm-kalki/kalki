@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseDebitNotes, approvalLimits } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getServerSession } from "better-auth";
 import { auth } from "@/lib/auth";
 
 export async function POST(req: Request) {

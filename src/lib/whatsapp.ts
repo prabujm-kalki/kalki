@@ -21,6 +21,7 @@ interface SendWhatsAppTemplateResponse {
  */
 export async function getWhatsAppCredentials(organizationId?: string): Promise<{
   phoneNumberId?: string;
+  businessAccountId?: string;
   apiToken?: string;
 }> {
   if (organizationId) {
@@ -35,6 +36,7 @@ export async function getWhatsAppCredentials(organizationId?: string): Promise<{
       if (cfg?.phoneNumberId && cfg?.apiToken) {
         return {
           phoneNumberId: cfg.phoneNumberId.trim(),
+          businessAccountId: (cfg.businessAccountId || cfg.wabaId || "").trim() || undefined,
           apiToken: cfg.apiToken.trim(),
         };
       }
@@ -47,6 +49,7 @@ export async function getWhatsAppCredentials(organizationId?: string): Promise<{
   if (process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_API_TOKEN) {
     return {
       phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+      businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
       apiToken: process.env.WHATSAPP_API_TOKEN,
     };
   }
@@ -61,6 +64,7 @@ export async function getWhatsAppCredentials(organizationId?: string): Promise<{
       if (cfg?.phoneNumberId && cfg?.apiToken) {
         return {
           phoneNumberId: cfg.phoneNumberId.trim(),
+          businessAccountId: (cfg.businessAccountId || cfg.wabaId || "").trim() || undefined,
           apiToken: cfg.apiToken.trim(),
         };
       }

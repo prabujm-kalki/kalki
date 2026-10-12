@@ -159,3 +159,23 @@ export async function editAccountGroup(input: {
     return { success: false, error: error.message };
   }
 }
+
+export async function getDashboardData(organizationId: string, locationId?: string) {
+  const session = await getAuthSession();
+  if (!session?.user) throw new Error("Unauthorized");
+
+  try {
+    return {
+      success: true,
+      data: {
+        pendingApprovals: 0,
+        cashBalance: 0,
+        payableBalance: 0,
+        revenueBalance: 0,
+        recentEntries: [],
+      },
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}

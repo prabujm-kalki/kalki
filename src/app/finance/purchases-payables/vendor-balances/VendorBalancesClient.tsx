@@ -22,7 +22,7 @@ export function VendorBalancesClient() {
     setLoading(true);
     const res = await fetchVendorBalances(organizationId!);
     if (res.success) {
-      setData(res.data);
+      setData(res.data || []);
     }
     setLoading(false);
   }

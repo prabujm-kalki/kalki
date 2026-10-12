@@ -22,7 +22,7 @@ export function CustomerBalancesClient() {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const res = await fetchCustomerBalances(selected.organizationId, q, page);
     if (res.success) {
-      setBalances(res.data);
+      setBalances(res.data || []);
       setTotal(res.total || 0);
     }
     setLoading(false);

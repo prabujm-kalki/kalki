@@ -1,11 +1,24 @@
 "use client"
 
-import { useState } from 'react';
-import { upsertPosMapping, deletePosMapping, createSalesChannel, deleteSalesChannel, getConfiguredProviders, fetchUnmappedStrings } from '@/app/sales/settings/integrations/mapping-actions';
-import { useEffect } from "react";
+import { useState, useEffect } from 'react';
+import { upsertPosMapping, deletePosMapping, createSalesChannel, deleteSalesChannel, getConfiguredProviders, fetchUnmappedStrings, getPosMappings } from '@/app/sales/settings/integrations/mapping-actions';
+import { useSessionView } from '@/components/AppShell';
 import { Trash2, Link } from 'lucide-react';
 
-export default function MappingClient({ organizationId, initialMappings, channels }: { organizationId: string, initialMappings: any[], channels: any[] }) {
+export default function MappingClient({ 
+  organizationId, 
+  locationId,
+  initialMappings, 
+  channels 
+}: { 
+  organizationId: string, 
+  locationId?: string,
+  initialMappings: any[], 
+  channels: any[] 
+}) {
+  const { selected: scope } = useSessionView();
+  const activeLocationId = scope?.locationId || locationId;
+
   const [mappings, setMappings] = useState(initialMappings || []);
   const [providerName, setProviderName] = useState('');
   const [externalString, setExternalString] = useState('');
@@ -18,15 +31,23 @@ export default function MappingClient({ organizationId, initialMappings, channel
   const [isFetchingStrings, setIsFetchingStrings] = useState(false);
 
   useEffect(() => {
-    getConfiguredProviders(organizationId).then(res => {
+    getConfiguredProviders(organizationId, activeLocationId).then(res => {
       if (res.success && res.providers) {
         setConfiguredProviders(res.providers);
-        if (res.providers.length > 0 && !providerName) {
+        if (res.providers.length > 0) {
           setProviderName(res.providers[0]);
+        } else {
+          setProviderName('TMBILL');
         }
       }
     });
-  }, [organizationId]);
+
+    getPosMappings(organizationId, activeLocationId).then(res => {
+      if (res.success && res.mappings) {
+        setMappings(res.mappings);
+      }
+    });
+  }, [organizationId, activeLocationId]);
 
   const handleFetchStrings = async () => {
     if (!providerName) {
@@ -34,9 +55,14 @@ export default function MappingClient({ organizationId, initialMappings, channel
       return;
     }
     setIsFetchingStrings(true);
-    const res = await fetchUnmappedStrings(organizationId, providerName);
+    const res = await fetchUnmappedStrings(organizationId, providerName, activeLocationId);
     if (res.success && res.data) {
+      if (res.data.length === 0) {
+        alert(`No unmapped external strings found for provider "${providerName}" in this location.`);
+      }
       setUnmappedStrings(res.data);
+    } else {
+      alert(res.error || "Failed to fetch data");
     }
     setIsFetchingStrings(false);
   };
@@ -79,7 +105,8 @@ export default function MappingClient({ organizationId, initialMappings, channel
     const res = await upsertPosMapping(organizationId, {
       providerName,
       externalString,
-      internalChannelId
+      internalChannelId,
+      locationId: activeLocationId,
     });
 
     if (res.success) {
@@ -127,7 +154,7 @@ export default function MappingClient({ organizationId, initialMappings, channel
               {configuredProviders.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
-              {!configuredProviders.includes('TMBILL') && <option value="TMBILL">TMBILL</option>}
+              {configuredProviders.length === 0 && <option value="TMBILL">TMBILL</option>}
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

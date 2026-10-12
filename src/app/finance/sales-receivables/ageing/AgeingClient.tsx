@@ -22,7 +22,7 @@ export function AgeingClient() {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const res = await fetchAgeingReport(selected.organizationId, q, page);
     if (res.success) {
-      setReport(res.data);
+      setReport(res.data || []);
       setTotal(res.total || 0);
     }
     setLoading(false);

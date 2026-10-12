@@ -123,6 +123,7 @@ export function SalesReturns() {
 
   const handleSaveReturn = async (status: string) => {
     if (isSaving) return;
+    if (!selected) return alert("Please select a location from the top bar.");
     if (!selectedInvoiceId) return alert("Please select an invoice.");
     if (returnItems.filter(item => item.returnQty > 0).length === 0) return alert("Please select at least one item to return.");
     

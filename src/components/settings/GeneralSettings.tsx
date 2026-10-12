@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { Save, Settings, Smartphone, BellRing, UploadCloud, Music, CheckCircle2, MessageSquare, Link as LinkIcon, Key, Phone, ShieldCheck, Copy, Check, Eye, EyeOff, RefreshCw, Radio, X, Send, User, Building, Clock, ChevronRight } from "lucide-react";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { KalkiSection } from "@/components/ui/KalkiSection";
 import { KalkiButton } from "@/components/ui/KalkiButton";
@@ -16,6 +17,7 @@ export function GeneralSettings() {
   
   // WhatsApp Cloud API Configuration State
   const [waPhoneNumberId, setWaPhoneNumberId] = useState("");
+  const [waBusinessAccountId, setWaBusinessAccountId] = useState("");
   const [waApiToken, setWaApiToken] = useState("");
   const [waWebhookVerifyToken, setWaWebhookVerifyToken] = useState("kalki_wa_webhook_verify_token");
   const [waAppSecret, setWaAppSecret] = useState("");
@@ -43,6 +45,7 @@ export function GeneralSettings() {
           
           const waConfig = data.organization.whatsappConfig || {};
           setWaPhoneNumberId(waConfig.phoneNumberId || "");
+          setWaBusinessAccountId(waConfig.businessAccountId || waConfig.wabaId || "");
           setWaApiToken(waConfig.apiToken || "");
           setWaWebhookVerifyToken(waConfig.webhookVerifyToken || "kalki_wa_webhook_verify_token");
           setWaAppSecret(waConfig.appSecret || "");
@@ -70,6 +73,7 @@ export function GeneralSettings() {
           customTones: customTones,
           whatsappConfig: {
             phoneNumberId: waPhoneNumberId.trim(),
+            businessAccountId: waBusinessAccountId.trim(),
             apiToken: waApiToken.trim(),
             webhookVerifyToken: waWebhookVerifyToken.trim() || "kalki_wa_webhook_verify_token",
             appSecret: waAppSecret.trim(),
@@ -138,6 +142,24 @@ export function GeneralSettings() {
   const [testMobileNumber, setTestMobileNumber] = useState("");
   const [sendingTestMessage, setSendingTestMessage] = useState(false);
   const [testSendResult, setTestSendResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
+  const [selectedTestTemplate, setSelectedTestTemplate] = useState<string>("auto");
+
+  useEffect(() => {
+    if (!selected?.organizationId) return;
+    fetch(`/api/marketing/templates?organizationId=${selected.organizationId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.data)) {
+          const approved = data.data.filter((t: any) => t.status === "APPROVED");
+          setAvailableTemplates(approved);
+          if (approved.length > 0 && selectedTestTemplate === "auto") {
+            setSelectedTestTemplate(approved[0].name);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [selected?.organizationId]);
 
   const handleSendLiveTestMessage = async () => {
     if (!testMobileNumber) {
@@ -148,6 +170,8 @@ export function GeneralSettings() {
     setSendingTestMessage(true);
     setTestSendResult(null);
 
+    const chosenTemplate = availableTemplates.find((t) => t.name === selectedTestTemplate);
+
     try {
       const res = await fetch("/api/settings/whatsapp/send-test", {
         method: "POST",
@@ -155,7 +179,11 @@ export function GeneralSettings() {
         body: JSON.stringify({
           mobileNumber: testMobileNumber,
           organizationId: selected?.organizationId,
-          templateName: "hello_world", // Default pre-approved Meta Cloud API sandbox template
+          templateName:
+            selectedTestTemplate !== "text" && selectedTestTemplate !== "auto"
+              ? selectedTestTemplate
+              : undefined,
+          languageCode: chosenTemplate?.language || undefined,
         }),
       });
 
@@ -163,8 +191,9 @@ export function GeneralSettings() {
       if (json.success) {
         setTestSendResult({
           success: true,
-          message: `Message sent successfully! (Meta Message ID: ${json.messageId})`,
+          message: json.message || `Message sent successfully! (Meta Message ID: ${json.messageId})`,
         });
+        fetchWaLogs();
       } else {
         setTestSendResult({
           success: false,
@@ -239,15 +268,7 @@ export function GeneralSettings() {
   };
 
   // Close modal on Escape key press
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && selectedLog) {
-        setSelectedLog(null);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedLog]);
+  useEscapeKey(() => setSelectedLog(null), !!selectedLog);
 
   useEffect(() => {
     if (selected?.organizationId) {
@@ -622,6 +643,35 @@ export function GeneralSettings() {
                   </div>
                 </div>
 
+                {/* WhatsApp Business Account ID (WABA ID) */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    WhatsApp Business Account ID (WABA ID) <span style={{ color: "#16a34a", fontSize: "0.75rem" }}>(Required for Template Sync & Creation)</span>
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      value={waBusinessAccountId}
+                      onChange={(e) => setWaBusinessAccountId(e.target.value)}
+                      placeholder="e.g. 122104923849502267"
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem 0.75rem",
+                        background: "#f8fafc",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.5rem",
+                        fontSize: "0.875rem",
+                        color: "#1e293b",
+                        boxSizing: "border-box",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                    Found in Meta Business Manager &gt; WhatsApp Accounts &gt; Account ID
+                  </div>
+                </div>
+
                 {/* Permanent Access Token */}
                 <div>
                   <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
@@ -793,6 +843,33 @@ export function GeneralSettings() {
                 </p>
 
                 <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  {availableTemplates.length > 0 && (
+                    <select
+                      value={selectedTestTemplate}
+                      onChange={(e) => setSelectedTestTemplate(e.target.value)}
+                      title="Select WhatsApp Template"
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        background: "#ffffff",
+                        border: "1px solid #86efac",
+                        borderRadius: "0.5rem",
+                        fontSize: "0.85rem",
+                        color: "#1e293b",
+                        outline: "none",
+                        fontWeight: 600,
+                        maxWidth: "280px",
+                      }}
+                    >
+                      <option value="auto">
+                        Auto: {availableTemplates[0]?.name} ({availableTemplates[0]?.language})
+                      </option>
+                      {availableTemplates.map((t) => (
+                        <option key={t.id || t.name} value={t.name}>
+                          {t.displayName || t.name} ({t.language}) - APPROVED
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <input
                     type="text"
                     value={testMobileNumber}
@@ -800,7 +877,7 @@ export function GeneralSettings() {
                     placeholder="Enter phone number (e.g. 9842771993)"
                     style={{
                       flex: 1,
-                      minWidth: "220px",
+                      minWidth: "200px",
                       padding: "0.5rem 0.75rem",
                       background: "#ffffff",
                       border: "1px solid #86efac",

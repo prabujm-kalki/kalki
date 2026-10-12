@@ -11,7 +11,7 @@ import {
   organizations,
   locations,
   marketingCampaigns,
-  marketingCampaignLogs,
+  campaignAudiences,
 } from "@/db/schema";
 import { eq, or, ilike, sql } from "drizzle-orm";
 
@@ -119,38 +119,54 @@ export async function POST(request: NextRequest) {
                   })
                   .where(eq(whatsappCommunications.metaMessageId, metaMsgId));
 
-                // Also update marketing campaign log if this message was from a campaign broadcast
-                const matchedCampLogs = await db
-                  .select({ id: marketingCampaignLogs.id, campaignId: marketingCampaignLogs.campaignId })
-                  .from(marketingCampaignLogs)
-                  .where(eq(marketingCampaignLogs.metaMessageId, metaMsgId))
+                // Also update Closed-Loop Campaign Attribution Audiences & Campaign aggregates
+                const matchedAudiences = await db
+                  .select({
+                    id: campaignAudiences.id,
+                    campaignId: campaignAudiences.campaignId,
+                    deliveryStatus: campaignAudiences.deliveryStatus,
+                  })
+                  .from(campaignAudiences)
+                  .where(eq(campaignAudiences.metaMessageId, metaMsgId))
                   .limit(1);
 
-                if (matchedCampLogs.length > 0) {
-                  const campLog = matchedCampLogs[0];
+                if (matchedAudiences.length > 0) {
+                  const aud = matchedAudiences[0];
+                  const fullErrMsg =
+                    errorData?.error_data?.details ||
+                    errorData?.message ||
+                    errorData?.title ||
+                    "Delivery failed";
+
                   await db
-                    .update(marketingCampaignLogs)
+                    .update(campaignAudiences)
                     .set({
-                      status: statusVal,
+                      deliveryStatus: statusVal,
                       ...(statusVal === "DELIVERED" ? { deliveredAt: timestamp } : {}),
                       ...(statusVal === "READ" ? { readAt: timestamp } : {}),
-                      ...(statusVal === "FAILED" ? { errorMessage: errorData?.message || "Delivery failed" } : {}),
+                      ...(statusVal === "FAILED" ? { errorMessage: fullErrMsg } : {}),
                     })
-                    .where(eq(marketingCampaignLogs.id, campLog.id));
+                    .where(eq(campaignAudiences.id, aud.id));
 
-                  // Increment campaign aggregate counters
-                  if (statusVal === "DELIVERED") {
+                  // Atomically increment campaign aggregate counters only on state transition
+                  if (statusVal === "DELIVERED" && aud.deliveryStatus !== "DELIVERED" && aud.deliveryStatus !== "READ") {
                     await db.update(marketingCampaigns)
-                      .set({ deliveredCount: sql`delivered_count + 1` })
-                      .where(eq(marketingCampaigns.id, campLog.campaignId));
-                  } else if (statusVal === "READ") {
+                      .set({ deliveredCount: sql`delivered_count + 1`, updatedAt: new Date() })
+                      .where(eq(marketingCampaigns.id, aud.campaignId));
+                  } else if (statusVal === "READ" && aud.deliveryStatus !== "READ") {
+                    // If moving from SENT/PENDING straight to READ without DELIVERED receipt
+                    const incDelivered = (aud.deliveryStatus !== "DELIVERED");
                     await db.update(marketingCampaigns)
-                      .set({ readCount: sql`read_count + 1` })
-                      .where(eq(marketingCampaigns.id, campLog.campaignId));
-                  } else if (statusVal === "FAILED") {
+                      .set({ 
+                        readCount: sql`read_count + 1`,
+                        ...(incDelivered ? { deliveredCount: sql`delivered_count + 1` } : {}),
+                        updatedAt: new Date(),
+                      })
+                      .where(eq(marketingCampaigns.id, aud.campaignId));
+                  } else if (statusVal === "FAILED" && aud.deliveryStatus !== "FAILED") {
                     await db.update(marketingCampaigns)
-                      .set({ failedCount: sql`failed_count + 1` })
-                      .where(eq(marketingCampaigns.id, campLog.campaignId));
+                      .set({ failedCount: sql`failed_count + 1`, updatedAt: new Date() })
+                      .where(eq(marketingCampaigns.id, aud.campaignId));
                   }
                 }
               } catch (statusDbErr) {

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 export default function MarketingLayout({ children }: { children: ReactNode }) {
   return (
     <AppShell>
-      <div className="kalki-module-layout" style={{ minHeight: "100vh", backgroundColor: "#f8fafc" }}>
+      <div className="kalki-module-layout">
         <MarketingNav />
         <main className="kalki-module-content" style={{ padding: "1.5rem" }}>
           {children}

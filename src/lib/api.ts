@@ -37,3 +37,15 @@ export async function apiSend<T>(path: string, method: "POST" | "PATCH" | "PUT" 
   });
   return parseJson(response) as Promise<T>;
 }
+
+export async function apiPost<T>(path: string, body?: unknown) {
+  return apiSend<T>(path, "POST", body);
+}
+
+export async function apiPut<T>(path: string, body?: unknown) {
+  return apiSend<T>(path, "PUT", body);
+}
+
+export async function apiDelete<T>(path: string, body?: unknown) {
+  return apiSend<T>(path, "DELETE", body);
+}

@@ -27,15 +27,28 @@ export function TMBillConfig({ primarySource, setPrimarySource }: { primarySourc
 
   useEffect(() => {
     if (scope?.organizationId) {
-      fetch(`/api/integrations/tmbill/config?organizationId=${scope.organizationId}`)
+      const locParam = scope.locationId ? `&locationId=${scope.locationId}` : "";
+      fetch(`/api/integrations/tmbill/config?organizationId=${scope.organizationId}${locParam}`)
         .then((res) => res.json())
         .then((data) => {
           if (data && data.apiUrl) {
             setConfig(data);
+          } else {
+            setConfig({
+              providerName: "TMBILL",
+              apiUrl: "https://api.tmbill.com/tp/v1",
+              username: "",
+              password: "",
+              storeId: "",
+              tmposId: "",
+              businessDayStartTime: "06:00",
+              autoSyncEnabled: false,
+              autoSyncIntervalMinutes: 60,
+            });
           }
         });
     }
-  }, [scope]);
+  }, [scope?.organizationId, scope?.locationId]);
 
   const handleSave = async () => {
     if (!scope?.organizationId) return;
@@ -45,8 +58,9 @@ export function TMBillConfig({ primarySource, setPrimarySource }: { primarySourc
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          organizationId: scope.organizationId,
           ...config,
+          organizationId: scope.organizationId,
+          locationId: scope.locationId || undefined,
         }),
       });
       const data = await res.json();
@@ -109,7 +123,14 @@ export function TMBillConfig({ primarySource, setPrimarySource }: { primarySourc
       <>
       <KalkiCard>
         <div className="stack" style={{ gap: "1rem" }}>
-          <h3 style={{ margin: 0 }}>API Connection</h3>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h3 style={{ margin: 0 }}>API Connection</h3>
+            {scope?.locationName && (
+              <span style={{ fontSize: "0.75rem", fontWeight: 600, padding: "0.2rem 0.6rem", borderRadius: "1rem", backgroundColor: "#f0fdf4", color: "#16a34a", border: "1px solid #bbf7d0" }}>
+                Location: {scope.locationName}
+              </span>
+            )}
+          </div>
           <div className="grid-2">
             <div className="field">
               <label>Provider Name</label>
