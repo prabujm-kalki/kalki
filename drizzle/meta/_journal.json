@@ -337,6 +337,34 @@
       "when": 1791632978441,
       "tag": "0047_good_deadpool",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1791675175044,
+      "tag": "0048_round_the_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791685558829,
+      "tag": "0049_polymorphic_marketing_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791687887877,
+      "tag": "0050_sales_alert_configurations",
+      "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791700000000,
+      "tag": "0051_whatsapp_communications",
+      "breakpoints": true
     }
   ]
 }

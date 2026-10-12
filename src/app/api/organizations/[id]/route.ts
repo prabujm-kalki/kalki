@@ -32,6 +32,7 @@ export async function PUT(req: Request, context: any) {
     if (body.enableMobilePushNotifications !== undefined) updateData.enableMobilePushNotifications = body.enableMobilePushNotifications;
     if (body.notificationTone !== undefined) updateData.notificationTone = body.notificationTone;
     if (body.customTones !== undefined) updateData.customTones = body.customTones;
+    if (body.whatsappConfig !== undefined) updateData.whatsappConfig = body.whatsappConfig;
     
     await db.update(organizations)
       .set(updateData)

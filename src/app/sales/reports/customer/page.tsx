@@ -3,9 +3,10 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchCustomerWiseReportData, fetchOrgLocations, fetchCustomerInvoices , fetchOrgChannels } from "../actions";
 import { useSessionView } from "@/components/AppShell";
-import { Download, Users, Crown, Banknote, Repeat, ChevronLeft, ChevronRight, Eye, X, Receipt, AlertTriangle, TrendingDown } from "lucide-react";
+import { Download, Users, Crown, Banknote, Repeat, ChevronLeft, ChevronRight, Eye, X, Receipt, AlertTriangle, TrendingDown, Wallet, Star, Activity } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { GlobalTemplateModal } from "@/components/crm/GlobalTemplateModal";
 
 function CustomerWiseReportContent() {
   const router = useRouter();
@@ -13,11 +14,18 @@ function CustomerWiseReportContent() {
   const { selected: scope } = useSessionView();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
+  const [fullData, setFullData] = useState<any[]>([]);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [kpis, setKpis] = useState<any>({ totalCustomers: 0, topSpenderName: '-', topSpenderAmount: 0, avgSpend: 0, repeatRate: 0 });
   const [locations, setLocations] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
+
+  const [marketingModal, setMarketingModal] = useState<{
+    isOpen: boolean;
+    customerIds: string[];
+    contextPrefix?: string;
+  }>({ isOpen: false, customerIds: [] });
 
   // Ledger Slide-out State
   const [selectedCustomer, setSelectedCustomer] = useState<{name: string, phone: string} | null>(null);
@@ -30,11 +38,18 @@ function CustomerWiseReportContent() {
   const currentFrom = searchParams.get("from") || "";
   const currentTo = searchParams.get("to") || "";
   const currentSearch = searchParams.get("search") || "";
-  const alertFilter = searchParams.get("alertFilter") as 'dormant_vips' | 'low_aov' | 'top_spenders' | 'all' | null;
+  const alertFilter = searchParams.get("alertFilter") as 'dormant_vips' | 'low_aov' | 'top_spenders' | 'critical_debtors' | 'new_vips' | 'spend_anomalies' | 'all' | null;
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "15", 10);
 
   const [searchInput, setSearchInput] = useState(currentSearch);
+  const [customFromInput, setCustomFromInput] = useState(currentFrom);
+  const [customToInput, setCustomToInput] = useState(currentTo);
+
+  useEffect(() => {
+    setCustomFromInput(currentFrom);
+    setCustomToInput(currentTo);
+  }, [currentFrom, currentTo]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -121,11 +136,13 @@ function CustomerWiseReportContent() {
           page,
           limit,
           currentSearch,
-          alertFilter || 'all'
+          alertFilter || 'all',
+          currentChannel
         );
         
         if (active) {
           setData(res.data || []);
+          setFullData(res.fullData || []);
           setAlerts(res.alerts || []);
           setKpis(res.kpis || { totalCustomers: 0, topSpenderName: '-', topSpenderAmount: 0, avgSpend: 0, repeatRate: 0 });
           setTotalRecords(res.total || 0);
@@ -139,7 +156,7 @@ function CustomerWiseReportContent() {
     
     loadData();
     return () => { active = false; };
-  }, [scope?.organizationId, currentRange, currentLocation, currentFrom, currentTo, page, limit, currentSearch, alertFilter]);
+  }, [scope?.organizationId, currentRange, currentLocation, currentChannel, currentFrom, currentTo, page, limit, currentSearch, alertFilter]);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -150,6 +167,17 @@ function CustomerWiseReportContent() {
       params.delete("from");
       params.delete("to");
     }
+    router.push(`?${params.toString()}`);
+  };
+
+  const applyCustomDateRange = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("range", "custom");
+    if (customFromInput) params.set("from", customFromInput);
+    else params.delete("from");
+    if (customToInput) params.set("to", customToInput);
+    else params.delete("to");
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
 
@@ -229,51 +257,55 @@ function CustomerWiseReportContent() {
   const totalPages = Math.ceil(totalRecords / limit) || 1;
 
   return (
-    <div style={{ padding: "24px", maxWidth: "100%", margin: "0 auto", boxSizing: "border-box" }}>
+    <div style={{ padding: "16px 20px", maxWidth: "100%", margin: "0 auto", boxSizing: "border-box" }}>
       
       {/* KPI Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "24px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", marginBottom: "12px" }}>
         
-        <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#eff6ff", color: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Users size={24} />
+        <div style={{ backgroundColor: "white", padding: "12px 16px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#eff6ff", color: "#3b82f6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Users size={18} />
           </div>
-          <div>
-            <div style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Total Customers</div>
-            <div style={{ fontSize: "24px", fontWeight: "700", color: "#0f172a" }}>{kpis.totalCustomers.toLocaleString()}</div>
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Total Customers</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", lineHeight: 1.2 }}>{kpis.totalCustomers.toLocaleString()}</div>
           </div>
         </div>
 
-        <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#fef2f2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Crown size={24} />
+        <div style={{ backgroundColor: "white", padding: "12px 16px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#fef2f2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Crown size={18} />
           </div>
-          <div>
-            <div style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Top Spender</div>
-            <div style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "160px" }}>
-              {kpis.topSpenderName}
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Top Spender</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "6px" }}>
+              <span style={{ fontSize: "15px", fontWeight: "700", color: "#0f172a", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "120px", lineHeight: 1.2 }}>
+                {kpis.topSpenderName}
+              </span>
+              <span style={{ fontSize: "12px", color: "#10b981", fontWeight: "600", whiteSpace: "nowrap" }}>
+                ₹{Number(kpis.topSpenderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </span>
             </div>
-            <div style={{ fontSize: "13px", color: "#10b981", fontWeight: "600" }}>₹{Number(kpis.topSpenderAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
           </div>
         </div>
 
-        <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Banknote size={24} />
+        <div style={{ backgroundColor: "white", padding: "12px 16px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#ecfdf5", color: "#10b981", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Banknote size={18} />
           </div>
-          <div>
-            <div style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Avg Customer Spend</div>
-            <div style={{ fontSize: "24px", fontWeight: "700", color: "#0f172a" }}>₹{Number(kpis.avgSpend || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Avg Customer Spend</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", lineHeight: 1.2 }}>₹{Number(kpis.avgSpend || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
         </div>
 
-        <div style={{ backgroundColor: "white", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "16px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
-          <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: "#f5f3ff", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Repeat size={24} />
+        <div style={{ backgroundColor: "white", padding: "12px 16px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "12px", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#f5f3ff", color: "#8b5cf6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Repeat size={18} />
           </div>
-          <div>
-            <div style={{ fontSize: "13px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Repeat Customer Rate</div>
-            <div style={{ fontSize: "24px", fontWeight: "700", color: "#0f172a" }}>{Number(kpis.repeatRate || 0).toFixed(1)}%</div>
+          <div style={{ overflow: "hidden" }}>
+            <div style={{ fontSize: "11px", color: "#64748b", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "2px" }}>Repeat Customer Rate</div>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#0f172a", lineHeight: 1.2 }}>{Number(kpis.repeatRate || 0).toFixed(1)}%</div>
           </div>
         </div>
 
@@ -281,49 +313,108 @@ function CustomerWiseReportContent() {
 
       {/* Actionable Aggregated Alert Engine */}
       {alerts.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <div 
+          style={{ 
+            display: "flex", 
+            gap: "12px", 
+            marginBottom: "16px",
+            overflowX: "auto",
+            overflowY: "hidden",
+            paddingBottom: "6px",
+            scrollbarWidth: "thin",
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
           {alerts.map(alert => {
             const isCritical = alert.type === 'critical';
             const isWarning = alert.type === 'warning';
-            const borderColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : "#3b82f6";
-            const bgColor = isCritical ? "#fef2f2" : isWarning ? "#fffbeb" : "#eff6ff";
-            const Icon = isCritical ? AlertTriangle : isWarning ? TrendingDown : Users;
+            const isSuccess = alert.type === 'success';
+
+            // Styling tokens adhering to Kalki BOS Vanilla CSS Design System
+            const borderColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : isSuccess ? "#22c55e" : "#3b82f6";
+            const bgColor = isCritical ? "#fef2f2" : isWarning ? "#fffbeb" : isSuccess ? "#dcfce7" : "#eff6ff";
+            const badgeTextColor = isSuccess ? "#166534" : borderColor;
+
+            // Icon resolution based on alert configuration
+            let Icon = Users;
+            if (alert.icon === 'Wallet') Icon = Wallet;
+            else if (alert.icon === 'Star') Icon = Star;
+            else if (alert.icon === 'Activity') Icon = Activity;
+            else if (alert.icon === 'TrendingDown' || isWarning) Icon = TrendingDown;
+            else if (isCritical) Icon = AlertTriangle;
 
             return (
-              <div key={alert.id} style={{ 
-                backgroundColor: "white", 
-                border: "1px solid #e2e8f0", 
-                borderLeft: `4px solid ${borderColor}`,
-                borderRadius: "8px", 
-                padding: "16px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between"
-              }}>
+              <div 
+                key={alert.id} 
+                style={{ 
+                  flex: "0 0 calc(25% - 9px)",
+                  minWidth: "260px",
+                  boxSizing: "border-box",
+                  backgroundColor: "white", 
+                  border: "1px solid #e2e8f0", 
+                  borderLeft: `4px solid ${borderColor}`,
+                  borderRadius: "8px", 
+                  padding: "10px 14px",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
+                }}
+              >
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                    <div style={{ backgroundColor: bgColor, color: borderColor, padding: "6px", borderRadius: "6px", display: "flex" }}>
-                      <Icon size={16} />
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+                    <div style={{ backgroundColor: bgColor, color: badgeTextColor, padding: "4px", borderRadius: "4px", display: "flex" }}>
+                      <Icon size={13} />
                     </div>
-                    <span style={{ fontSize: "12px", fontWeight: "600", textTransform: "uppercase", letterSpacing: "0.5px", color: borderColor }}>
+                    <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: badgeTextColor }}>
                       {alert.badge}
                     </span>
                   </div>
-                  <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#0f172a", margin: "0 0 4px 0" }}>
+                  <h3 style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", margin: "0 0 2px 0", lineHeight: 1.25 }}>
                     {alert.title}
                   </h3>
-                  <p style={{ fontSize: "13px", color: "#64748b", margin: "0 0 16px 0" }}>
+                  <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 8px 0", lineHeight: 1.25 }}>
                     {alert.description}
                   </p>
                 </div>
-                <button 
-                  onClick={() => updateParam('alertFilter', alert.filterParam)}
-                  style={{ alignSelf: "flex-start", backgroundColor: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: "6px", padding: "6px 12px", fontSize: "13px", fontWeight: "500", cursor: "pointer", transition: "all 0.2s" }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f1f5f9"}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
-                >
-                  {alert.actionLabel}
-                </button>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                  <button 
+                    onClick={() => updateParam('alertFilter', alert.filterParam)}
+                    style={{ alignSelf: "flex-start", backgroundColor: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: "5px", padding: "4px 9px", fontSize: "12px", fontWeight: "500", cursor: "pointer", transition: "all 0.15s" }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f1f5f9"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
+                  >
+                    {alert.actionLabel}
+                  </button>
+                  <button
+                    onClick={() => {
+                      const prefix =
+                        alert.badge === "Retention Risk"
+                          ? "DORMANT_VIP"
+                          : alert.badge === "Credit Risk"
+                          ? "OVERDUE_DEBTOR"
+                          : alert.badge === "Growth"
+                          ? "NEW_VIP"
+                          : alert.badge === "Catering Target"
+                          ? "SPEND_ANOMALY"
+                          : alert.badge === "Upsell Deficit"
+                          ? "UPSELL_DEFICIT"
+                          : alert.badge === "Concentration"
+                          ? "TOP_SPENDER"
+                          : "CAMPAIGN";
+                      setMarketingModal({
+                        isOpen: true,
+                        customerIds: alert.matchedCustomerIds || [],
+                        contextPrefix: prefix,
+                      });
+                    }}
+                    style={{ alignSelf: "flex-start", backgroundColor: "#0f172a", border: "none", color: "#ffffff", borderRadius: "5px", padding: "4px 9px", fontSize: "12px", fontWeight: "500", cursor: "pointer", transition: "all 0.15s" }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1e293b"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#0f172a"}
+                  >
+                    Create Template
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -331,14 +422,25 @@ function CustomerWiseReportContent() {
       )}
 
       {/* Control Bar */}
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px", marginBottom: "24px", backgroundColor: "#f8fafc", padding: "16px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
-        
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center" }}>
-          
+      <div 
+        style={{ 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "space-between", 
+          gap: "8px", 
+          marginBottom: "14px", 
+          backgroundColor: "#f8fafc", 
+          padding: "8px 12px", 
+          borderRadius: "8px", 
+          border: "1px solid #e2e8f0",
+          overflowX: "auto"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, minWidth: 0, flexWrap: "nowrap" }}>
           <select 
             value={currentRange}
             onChange={(e) => updateParam("range", e.target.value)}
-            style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none", cursor: "pointer", minWidth: "160px" }}
+            style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "12px", outline: "none", cursor: "pointer", flexShrink: 0 }}
           >
             <option value="today">Today</option>
             <option value="yesterday">Yesterday</option>
@@ -349,37 +451,57 @@ function CustomerWiseReportContent() {
           </select>
 
           {currentRange === "custom" && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
               <input 
                 type="date" 
-                value={currentFrom}
-                onChange={(e) => updateParam("from", e.target.value)}
-                style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none" }}
+                value={customFromInput}
+                onChange={(e) => setCustomFromInput(e.target.value)}
+                style={{ padding: "5px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "12px", outline: "none", width: "125px" }}
               />
-              <span style={{ color: "#64748b" }}>to</span>
+              <span style={{ color: "#64748b", fontSize: "11px" }}>to</span>
               <input 
                 type="date" 
-                value={currentTo}
-                onChange={(e) => updateParam("to", e.target.value)}
-                style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none" }}
+                value={customToInput}
+                onChange={(e) => setCustomToInput(e.target.value)}
+                style={{ padding: "5px 8px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "12px", outline: "none", width: "125px" }}
               />
+              <button
+                type="button"
+                onClick={applyCustomDateRange}
+                style={{
+                  padding: "5px 12px",
+                  borderRadius: "6px",
+                  border: "none",
+                  backgroundColor: "#2563eb",
+                  color: "#ffffff",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
+              >
+                Apply
+              </button>
             </div>
           )}
 
           <select 
             value={currentChannel} 
             onChange={(e) => updateParam("channelId", e.target.value)}
-            style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none", cursor: "pointer", minWidth: "160px" }}
+            style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "12px", outline: "none", cursor: "pointer", maxWidth: "150px", flexShrink: 0 }}
           >
             <option value="all">All Categories</option>
             {channels.map(ch => (
               <option key={ch.id} value={ch.id}>{ch.name}</option>
             ))}
           </select>
+
           <select
             value={currentLocation}
             onChange={(e) => updateParam("locationId", e.target.value)}
-            style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none", cursor: "pointer", minWidth: "200px" }}
+            style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "12px", outline: "none", cursor: "pointer", maxWidth: "160px", flexShrink: 0 }}
           >
             <option value="all">All Locations</option>
             {locations.map(loc => (
@@ -389,19 +511,25 @@ function CustomerWiseReportContent() {
 
           <input 
             type="text" 
-            placeholder="Search customer name or phone..." 
+            placeholder="Search name or phone..." 
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none", minWidth: "260px" }}
+            style={{ padding: "6px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "12px", outline: "none", minWidth: "140px", flex: "1 1 140px" }}
           />
         </div>
         
-        <div style={{ display: "flex", gap: "12px" }}>
-          <button onClick={handleExportCSV} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", backgroundColor: "white", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: "pointer", transition: "all 0.2s" }}>
-            <Download size={16} /> Export CSV
+        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+          <button 
+            onClick={handleExportCSV} 
+            style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 10px", backgroundColor: "white", color: "#3b82f6", border: "1px solid #3b82f6", borderRadius: "6px", fontSize: "12px", fontWeight: "600", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            <Download size={13} /> CSV
           </button>
-          <button onClick={handleExportPDF} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "10px 16px", backgroundColor: "white", color: "#ef4444", border: "1px solid #ef4444", borderRadius: "8px", fontSize: "14px", fontWeight: "600", cursor: "pointer", transition: "all 0.2s" }}>
-            <Download size={16} /> Export PDF
+          <button 
+            onClick={handleExportPDF} 
+            style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 10px", backgroundColor: "white", color: "#ef4444", border: "1px solid #ef4444", borderRadius: "6px", fontSize: "12px", fontWeight: "600", cursor: "pointer", whiteSpace: "nowrap" }}
+          >
+            <Download size={13} /> PDF
           </button>
         </div>
       </div>
@@ -626,6 +754,36 @@ function CustomerWiseReportContent() {
 
           </div>
         </>
+      )}
+
+      {marketingModal.isOpen && scope?.organizationId && (
+        <GlobalTemplateModal
+          organizationId={scope.organizationId}
+          locationId={currentLocation !== "all" ? currentLocation : undefined}
+          targetEntityType="CUSTOMER"
+          entityIds={marketingModal.customerIds}
+          defaultTemplateName={
+            marketingModal.contextPrefix
+              ? `${marketingModal.contextPrefix}_${new Date().toISOString().split('T')[0].replace(/-/g, '')}_1`
+              : `CAMPAIGN_${new Date().toISOString().split('T')[0].replace(/-/g, '')}_1`
+          }
+          displayData={(() => {
+            const customerIdSet = new Set(marketingModal.customerIds);
+            const matchedRows = fullData.filter(d => d.customerId && customerIdSet.has(d.customerId));
+            // If matchedRows is non-empty, use them; otherwise, fall back to whatever is in fullData
+            const source = matchedRows.length > 0 ? matchedRows : fullData.filter(d => d.customerId);
+            return source.map(d => ({
+              id: d.customerId,
+              name: d.customerName || 'Walk-in Guest',
+              contact: d.customerPhone || '-',
+              totalOrders: Number(d.totalInvoices || 0),
+              avgBillValue: Number(d.avgBillValue || 0),
+              lastVisitDate: d.lastPurchaseDate ? new Date(d.lastPurchaseDate).toISOString().split('T')[0] : '-',
+              totalRevenue: Number(d.totalRevenue || 0)
+            }));
+          })()}
+          onClose={() => setMarketingModal({ isOpen: false, customerIds: [] })}
+        />
       )}
 
     </div>

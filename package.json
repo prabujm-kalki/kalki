@@ -22,7 +22,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:backup": "tsx --env-file=.env scripts/backup.ts",
     "db:restore": "tsx --env-file=.env scripts/restore.ts",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "jobs:marketing": "tsx --env-file=.env scripts/run-marketing-campaigns.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.7.2",

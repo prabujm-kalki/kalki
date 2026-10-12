@@ -44,6 +44,7 @@ export const organizations = pgTable(
       requireApproval: true,
       applyRestockingFee: "None"
     }),
+    whatsappConfig: jsonb("whatsapp_config").default({}),
   },
   (table) => [
     unique("organizations_code_unique").on(table.code),
@@ -3698,4 +3699,95 @@ export const posChannelMappings = pgTable('pos_channel_mappings', {
   internalChannelId: uuid('internal_channel_id').references(() => salesChannels.id).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const marketingTemplates = pgTable('marketing_templates', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  targetEntityType: varchar('target_entity_type', { length: 50 }).notNull(), // e.g., 'CUSTOMER', 'ITEM', 'VENDOR'
+  name: varchar('name', { length: 255 }).notNull(), // e.g., "D Mart VIP_Oct26"
+  cycleDurationWeeks: integer('cycle_duration_weeks').default(1).notNull(),
+  status: varchar('status', { length: 20 }).default('ACTIVE').notNull(), // ACTIVE, COMPLETED
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const marketingTemplateAudiences = pgTable('marketing_template_audiences', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  templateId: uuid('template_id').references(() => marketingTemplates.id).notNull(),
+  targetEntityType: varchar('target_entity_type', { length: 50 }).notNull(),
+  targetEntityId: uuid('target_entity_id').notNull(),
+  enrollmentStatus: varchar('enrollment_status', { length: 20 }).default('ACTIVE').notNull(),
+  enrolledAt: timestamp('enrolled_at').defaultNow().notNull(),
+}, (t) => ({
+  polymorphicTargetIdx: index('idx_polymorphic_target').on(t.targetEntityType, t.targetEntityId)
+}));
+
+export const marketingCampaigns = pgTable('marketing_campaigns', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  templateName: varchar('template_name', { length: 100 }).notNull(),
+  templateLanguage: varchar('template_language', { length: 10 }).default('en'),
+  status: varchar('status', { length: 30 }).default('DRAFT').notNull(), // DRAFT, SCHEDULED, RUNNING, COMPLETED, CANCELLED
+  targetAudienceType: varchar('target_audience_type', { length: 50 }).default('ALL_CUSTOMERS').notNull(),
+  audienceFilter: jsonb('audience_filter').default({}),
+  totalRecipients: integer('total_recipients').default(0).notNull(),
+  sentCount: integer('sent_count').default(0).notNull(),
+  deliveredCount: integer('delivered_count').default(0).notNull(),
+  readCount: integer('read_count').default(0).notNull(),
+  failedCount: integer('failed_count').default(0).notNull(),
+  scheduledAt: timestamp('scheduled_at', { withTimezone: true }),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const marketingCampaignLogs = pgTable('marketing_campaign_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  campaignId: uuid('campaign_id').references(() => marketingCampaigns.id, { onDelete: 'cascade' }).notNull(),
+  customerId: uuid('customer_id').references(() => customers.id),
+  recipientPhone: varchar('recipient_phone', { length: 50 }).notNull(),
+  metaMessageId: varchar('meta_message_id', { length: 255 }),
+  status: varchar('status', { length: 30 }).default('PENDING').notNull(), // PENDING, SENT, DELIVERED, READ, FAILED
+  errorMessage: text('error_message'),
+  sentAt: timestamp('sent_at', { withTimezone: true }),
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
+  readAt: timestamp('read_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const salesAlertConfigurations = pgTable('sales_alert_configurations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id), // Nullable for org-wide defaults
+  debtorDaysOverdue: integer('debtor_days_overdue').default(30).notNull(),
+  newVipMinSpend: integer('new_vip_min_spend').default(10000).notNull(),
+  anomalyAovMultiplier: decimal('anomaly_aov_multiplier', { precision: 4, scale: 2 }).default("3.00").notNull(),
+  dormantVipDays: integer('dormant_vip_days').default(90).notNull(),
+  upsellDeficitDropPercentage: decimal('upsell_deficit_drop_percentage', { precision: 4, scale: 2 }).default("5.00").notNull(),
+  concentrationTopCustomersCount: integer('concentration_top_customers_count').default(5).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const whatsappCommunications = pgTable('whatsapp_communications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  customerId: uuid('customer_id').references(() => customers.id),
+  vendorId: uuid('vendor_id').references(() => vendors.id),
+  metaMessageId: varchar('meta_message_id', { length: 255 }).notNull().unique(),
+  direction: varchar('direction', { length: 20 }).notNull(), // 'INBOUND' or 'OUTBOUND'
+  status: varchar('status', { length: 30 }).default('RECEIVED').notNull(), // SENT, DELIVERED, READ, RECEIVED, FAILED
+  messageType: varchar('message_type', { length: 50 }).notNull(), // text, template, image, document, location, audio, interactive
+  content: text('content'), // The actual message text or caption
+  mediaUrl: text('media_url'), // Media URL or download identifier
+  metadata: jsonb('metadata').default({}), // Rich metadata (e.g. interactive button IDs, quick reply, error codes)
+  senderNumber: varchar('sender_number', { length: 50 }).notNull(),
+  recipientNumber: varchar('recipient_number', { length: 50 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });

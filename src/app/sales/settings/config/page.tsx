@@ -1,1 +1,14 @@
-export default function Page() { return <div className="p-6 text-gray-500">Page under construction</div>; }
+import { redirect } from "next/navigation";
+
+export default async function Page({ searchParams }: { searchParams: Promise<any> }) {
+  const params = await searchParams;
+  const orgId = params?.organizationId;
+  const locId = params?.locationId;
+  let q = "";
+  if (orgId && locId) {
+    q = `?organizationId=${orgId}&locationId=${locId}`;
+  } else if (orgId) {
+    q = `?organizationId=${orgId}`;
+  }
+  redirect(`/sales/settings/alerts${q}`);
+}

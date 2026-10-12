@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useSessionView } from "@/components/AppShell";
-import { Save, Settings, Smartphone, BellRing, UploadCloud, Music, CheckCircle2, MessageSquare, Link as LinkIcon } from "lucide-react";
+import { Save, Settings, Smartphone, BellRing, UploadCloud, Music, CheckCircle2, MessageSquare, Link as LinkIcon, Key, Phone, ShieldCheck, Copy, Check, Eye, EyeOff, RefreshCw, Radio, X, Send, User, Building, Clock, ChevronRight } from "lucide-react";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { KalkiSection } from "@/components/ui/KalkiSection";
 import { KalkiButton } from "@/components/ui/KalkiButton";
@@ -14,6 +14,17 @@ export function GeneralSettings() {
   const [notificationTone, setNotificationTone] = useState("level-1");
   const [customTones, setCustomTones] = useState<Record<string, string>>({});
   
+  // WhatsApp Cloud API Configuration State
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState("");
+  const [waApiToken, setWaApiToken] = useState("");
+  const [waWebhookVerifyToken, setWaWebhookVerifyToken] = useState("kalki_wa_webhook_verify_token");
+  const [waAppSecret, setWaAppSecret] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedToken, setCopiedToken] = useState(false);
+  const [testingWa, setTestingWa] = useState(false);
+  const [waTestResult, setWaTestResult] = useState<{ success: boolean; message: string; details?: any } | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -29,6 +40,12 @@ export function GeneralSettings() {
           setEnableMobilePush(data.organization.enableMobilePushNotifications || false);
           setNotificationTone(data.organization.notificationTone || "level-1");
           setCustomTones(data.organization.customTones || {});
+          
+          const waConfig = data.organization.whatsappConfig || {};
+          setWaPhoneNumberId(waConfig.phoneNumberId || "");
+          setWaApiToken(waConfig.apiToken || "");
+          setWaWebhookVerifyToken(waConfig.webhookVerifyToken || "kalki_wa_webhook_verify_token");
+          setWaAppSecret(waConfig.appSecret || "");
         }
         setLoading(false);
       })
@@ -50,21 +67,203 @@ export function GeneralSettings() {
           whatsappPoTemplate: template,
           enableMobilePushNotifications: enableMobilePush,
           notificationTone: notificationTone,
-          customTones: customTones
+          customTones: customTones,
+          whatsappConfig: {
+            phoneNumberId: waPhoneNumberId.trim(),
+            apiToken: waApiToken.trim(),
+            webhookVerifyToken: waWebhookVerifyToken.trim() || "kalki_wa_webhook_verify_token",
+            appSecret: waAppSecret.trim(),
+          }
         })
       });
       if (res.ok) {
         setMessage({ type: 'success', text: "Settings saved successfully!" });
       } else {
-        setMessage({ type: 'error', text: "Failed to save settings." });
+        const errJson = await res.json().catch(() => ({}));
+        setMessage({ type: 'error', text: errJson?.error || `Failed to save settings (HTTP ${res.status}).` });
       }
-    } catch (e) {
-      setMessage({ type: 'error', text: "An error occurred." });
+    } catch (e: any) {
+      setMessage({ type: 'error', text: e?.message || "An unexpected network error occurred." });
     } finally {
       setSaving(false);
-      setTimeout(() => setMessage(null), 4000);
+      setTimeout(() => setMessage(null), 6000);
     }
   };
+
+  const handleTestWhatsAppConnection = async () => {
+    if (!waPhoneNumberId || !waApiToken) {
+      setWaTestResult({
+        success: false,
+        message: "Please enter both Phone Number ID and Access Token before testing.",
+      });
+      return;
+    }
+
+    setTestingWa(true);
+    setWaTestResult(null);
+
+    try {
+      const res = await fetch("/api/settings/whatsapp/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumberId: waPhoneNumberId,
+          apiToken: waApiToken,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setWaTestResult({
+          success: true,
+          message: `Connected successfully! Account: ${json.data.verifiedName} (${json.data.displayPhoneNumber})`,
+          details: json.data,
+        });
+      } else {
+        setWaTestResult({
+          success: false,
+          message: json.error || "Connection test failed. Check your credentials.",
+        });
+      }
+    } catch (err: any) {
+      setWaTestResult({
+        success: false,
+        message: err?.message || "Network error while connecting to Meta Graph API.",
+      });
+    } finally {
+      setTestingWa(false);
+    }
+  };
+
+  const [testMobileNumber, setTestMobileNumber] = useState("");
+  const [sendingTestMessage, setSendingTestMessage] = useState(false);
+  const [testSendResult, setTestSendResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleSendLiveTestMessage = async () => {
+    if (!testMobileNumber) {
+      setTestSendResult({ success: false, message: "Please enter a destination phone number (e.g. 9842771993)." });
+      return;
+    }
+
+    setSendingTestMessage(true);
+    setTestSendResult(null);
+
+    try {
+      const res = await fetch("/api/settings/whatsapp/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mobileNumber: testMobileNumber,
+          organizationId: selected?.organizationId,
+          templateName: "hello_world", // Default pre-approved Meta Cloud API sandbox template
+        }),
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        setTestSendResult({
+          success: true,
+          message: `Message sent successfully! (Meta Message ID: ${json.messageId})`,
+        });
+      } else {
+        setTestSendResult({
+          success: false,
+          message: json.error || "Failed to send test message.",
+        });
+      }
+    } catch (e: any) {
+      setTestSendResult({
+        success: false,
+        message: e?.message || "Network error while sending test message.",
+      });
+    } finally {
+      setSendingTestMessage(false);
+    }
+  };
+
+  // Real-time WhatsApp Communications Feed State
+  const [waCommunications, setWaCommunications] = useState<any[]>([]);
+  const [loadingWaLogs, setLoadingWaLogs] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<any | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [sendingReply, setSendingReply] = useState(false);
+  const [replyStatus, setReplyStatus] = useState<{ success: boolean; message: string } | null>(null);
+
+  const fetchWaLogs = async () => {
+    if (!selected?.organizationId) return;
+    setLoadingWaLogs(true);
+    try {
+      const res = await fetch(`/api/settings/whatsapp/communications?organizationId=${selected.organizationId}&limit=30`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.data)) {
+        setWaCommunications(data.data);
+      }
+    } catch (e) {
+      console.error("Failed to load WhatsApp communications", e);
+    } finally {
+      setLoadingWaLogs(false);
+    }
+  };
+
+  const handleSendDirectReply = async () => {
+    if (!selectedLog || !replyText.trim() || !selected?.organizationId) return;
+    const destinationNumber = selectedLog.direction === "INBOUND" ? selectedLog.senderNumber : selectedLog.recipientNumber;
+    
+    setSendingReply(true);
+    setReplyStatus(null);
+    try {
+      const res = await fetch("/api/settings/whatsapp/communications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organizationId: selected?.organizationId,
+          to: destinationNumber,
+          text: replyText.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setReplyStatus({ success: true, message: "Reply delivered to WhatsApp!" });
+        setReplyText("");
+        setTimeout(() => {
+          fetchWaLogs();
+        }, 800);
+      } else {
+        setReplyStatus({ success: false, message: data.error || "Failed to deliver message." });
+      }
+    } catch (err: any) {
+      setReplyStatus({ success: false, message: err?.message || "Network error" });
+    } finally {
+      setSendingReply(false);
+    }
+  };
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && selectedLog) {
+        setSelectedLog(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedLog]);
+
+  useEffect(() => {
+    if (selected?.organizationId) {
+      fetchWaLogs();
+      const interval = setInterval(fetchWaLogs, 15000); // 15-second real-time poll
+      return () => clearInterval(interval);
+    }
+  }, [selected?.organizationId]);
+
+  const [webhookCallbackUrl, setWebhookCallbackUrl] = useState("https://detached-manned-shining.ngrok-free.dev/api/webhooks/whatsapp");
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hostname.includes("ngrok")) {
+      setWebhookCallbackUrl(`${window.location.origin}/api/webhooks/whatsapp`);
+    }
+  }, []);
 
   const handleFileUpload = async (level: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -337,6 +536,484 @@ export function GeneralSettings() {
 
         <div className="gs-wrapper">
           
+          {/* Meta WhatsApp Cloud API Configuration */}
+          <div className="gs-card" style={{ borderLeft: "4px solid #16a34a" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
+              <div>
+                <h2 className="gs-card-header" style={{ marginBottom: "0.25rem" }}>
+                  <div className="gs-icon-wrapper gs-icon-green"><Phone size={18} /></div>
+                  Meta WhatsApp Cloud API Configuration
+                </h2>
+                <p className="gs-card-desc" style={{ marginBottom: "0.5rem" }}>
+                  Configure your organization's official Meta WhatsApp Business API credentials to automate messages across <strong>Purchasing</strong> (PO dispatch), <strong>Marketing & CRM</strong> (templates & campaigns), and <strong>Operations</strong>.
+                </p>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <button
+                  type="button"
+                  onClick={handleTestWhatsAppConnection}
+                  disabled={testingWa}
+                  className="gs-action-btn"
+                  style={{
+                    backgroundColor: "#f0fdf4",
+                    borderColor: "#bbf7d0",
+                    color: "#15803d",
+                    cursor: testingWa ? "not-allowed" : "pointer",
+                    padding: "0.5rem 0.85rem",
+                  }}
+                >
+                  <RefreshCw size={14} className={testingWa ? "animate-spin" : ""} />
+                  {testingWa ? "Testing API..." : "Test Connection"}
+                </button>
+              </div>
+            </div>
+
+            {waTestResult && (
+              <div
+                style={{
+                  margin: "0 0 1.25rem 2.75rem",
+                  padding: "0.75rem 1rem",
+                  borderRadius: "0.5rem",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  backgroundColor: waTestResult.success ? "#ecfdf5" : "#fef2f2",
+                  color: waTestResult.success ? "#065f46" : "#991b1b",
+                  border: `1px solid ${waTestResult.success ? "#a7f3d0" : "#fecaca"}`,
+                }}
+              >
+                {waTestResult.success ? <CheckCircle2 size={16} /> : <ShieldCheck size={16} />}
+                <span>{waTestResult.message}</span>
+              </div>
+            )}
+
+            <div className="gs-card-content">
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem", marginBottom: "1.25rem" }}>
+                
+                {/* Phone Number ID */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    WhatsApp Phone Number ID <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      value={waPhoneNumberId}
+                      onChange={(e) => setWaPhoneNumberId(e.target.value)}
+                      placeholder="e.g. 1021665484225497"
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem 0.75rem",
+                        background: "#f8fafc",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.5rem",
+                        fontSize: "0.875rem",
+                        color: "#1e293b",
+                        boxSizing: "border-box",
+                        outline: "none",
+                      }}
+                    />
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                    Found in Meta App Dashboard under WhatsApp &gt; API Setup
+                  </div>
+                </div>
+
+                {/* Permanent Access Token */}
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    Meta System User Access Token <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type={showToken ? "text" : "password"}
+                      value={waApiToken}
+                      onChange={(e) => setWaApiToken(e.target.value)}
+                      placeholder="EAAG..."
+                      style={{
+                        width: "100%",
+                        padding: "0.6rem 2.5rem 0.6rem 0.75rem",
+                        background: "#f8fafc",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "0.5rem",
+                        fontSize: "0.875rem",
+                        color: "#1e293b",
+                        boxSizing: "border-box",
+                        outline: "none",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      style={{
+                        position: "absolute",
+                        right: "8px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: "#64748b",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
+                      {showToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.25rem" }}>
+                    Meta Graph API Token with <code style={{ color: "#16a34a" }}>whatsapp_business_messaging</code> permission
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Webhook Configuration Section */}
+              <div
+                style={{
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.75rem",
+                  padding: "1rem",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                  <ShieldCheck size={16} color="#059669" />
+                  <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#0f172a" }}>
+                    Meta Webhook Credentials (Step 2. Production Setup)
+                  </span>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
+                  
+                  {/* Callback URL */}
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#475569", marginBottom: "0.3rem" }}>
+                      Callback URL (Paste into Meta Dashboard)
+                    </label>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        value={webhookCallbackUrl}
+                        onChange={(e) => setWebhookCallbackUrl(e.target.value)}
+                        placeholder="https://your-domain.com/api/webhooks/whatsapp"
+                        style={{
+                          flex: 1,
+                          padding: "0.5rem 0.75rem",
+                          background: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.5rem",
+                          fontSize: "0.8rem",
+                          color: "#334155",
+                          fontFamily: "monospace",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(webhookCallbackUrl);
+                            setCopiedUrl(true);
+                            setTimeout(() => setCopiedUrl(false), 2000);
+                          }
+                        }}
+                        className="gs-action-btn"
+                        style={{ padding: "0.5rem 0.75rem" }}
+                      >
+                        {copiedUrl ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
+                        {copiedUrl ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Verify Token */}
+                  <div>
+                    <label style={{ display: "block", fontSize: "0.8rem", fontWeight: 600, color: "#475569", marginBottom: "0.3rem" }}>
+                      Verify Token (Paste into Meta Dashboard)
+                    </label>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                      <input
+                        type="text"
+                        value={waWebhookVerifyToken}
+                        onChange={(e) => setWaWebhookVerifyToken(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: "0.5rem 0.75rem",
+                          background: "#ffffff",
+                          border: "1px solid #cbd5e1",
+                          borderRadius: "0.5rem",
+                          fontSize: "0.8rem",
+                          color: "#334155",
+                          fontFamily: "monospace",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (navigator.clipboard) {
+                            navigator.clipboard.writeText(waWebhookVerifyToken);
+                            setCopiedToken(true);
+                            setTimeout(() => setCopiedToken(false), 2000);
+                          }
+                        }}
+                        className="gs-action-btn"
+                        style={{ padding: "0.5rem 0.75rem" }}
+                      >
+                        {copiedToken ? <Check size={14} color="#16a34a" /> : <Copy size={14} />}
+                        {copiedToken ? "Copied" : "Copy"}
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* Live Test Message Dispatch Section */}
+              <div
+                style={{
+                  marginTop: "1rem",
+                  background: "#f0fdf4",
+                  border: "1px solid #bbf7d0",
+                  borderRadius: "0.75rem",
+                  padding: "1rem",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                  <MessageSquare size={16} color="#15803d" />
+                  <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#166534" }}>
+                    Send Live Test Message
+                  </span>
+                </div>
+                <p style={{ margin: "0 0 0.75rem 0", fontSize: "0.8rem", color: "#15803d" }}>
+                  Verify that your WhatsApp Cloud API can successfully deliver a live message to your mobile number.
+                </p>
+
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    type="text"
+                    value={testMobileNumber}
+                    onChange={(e) => setTestMobileNumber(e.target.value)}
+                    placeholder="Enter phone number (e.g. 9842771993)"
+                    style={{
+                      flex: 1,
+                      minWidth: "220px",
+                      padding: "0.5rem 0.75rem",
+                      background: "#ffffff",
+                      border: "1px solid #86efac",
+                      borderRadius: "0.5rem",
+                      fontSize: "0.85rem",
+                      color: "#1e293b",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendLiveTestMessage}
+                    disabled={sendingTestMessage}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      backgroundColor: "#16a34a",
+                      color: "#ffffff",
+                      border: "none",
+                      borderRadius: "0.5rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      cursor: sendingTestMessage ? "not-allowed" : "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                    }}
+                  >
+                    <RefreshCw size={14} className={sendingTestMessage ? "animate-spin" : ""} />
+                    {sendingTestMessage ? "Sending..." : "Send Test Message"}
+                  </button>
+                </div>
+
+                {testSendResult && (
+                  <div
+                    style={{
+                      marginTop: "0.75rem",
+                      padding: "0.5rem 0.75rem",
+                      borderRadius: "0.5rem",
+                      fontSize: "0.8rem",
+                      fontWeight: 500,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      backgroundColor: testSendResult.success ? "#dcfce7" : "#fee2e2",
+                      color: testSendResult.success ? "#15803d" : "#991b1b",
+                      border: `1px solid ${testSendResult.success ? "#86efac" : "#fca5a5"}`,
+                    }}
+                  >
+                    {testSendResult.success ? <CheckCircle2 size={14} /> : <ShieldCheck size={14} />}
+                    <span>{testSendResult.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Real-time WhatsApp Inbound & Outbound Communication Ledger */}
+              <div
+                style={{
+                  marginTop: "1.25rem",
+                  borderTop: "1px solid #e2e8f0",
+                  paddingTop: "1rem",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <Radio size={16} color="#0284c7" />
+                    <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#0f172a" }}>
+                      Live Communication Ledger ({waCommunications.length} recorded)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchWaLogs}
+                    disabled={loadingWaLogs}
+                    style={{
+                      background: "none",
+                      border: "1px solid #cbd5e1",
+                      borderRadius: "0.375rem",
+                      padding: "0.25rem 0.6rem",
+                      fontSize: "0.75rem",
+                      color: "#475569",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                    }}
+                  >
+                    <RefreshCw size={12} className={loadingWaLogs ? "animate-spin" : ""} />
+                    Refresh Feed
+                  </button>
+                </div>
+
+                {waCommunications.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "1rem",
+                      background: "#f8fafc",
+                      borderRadius: "0.5rem",
+                      textAlign: "center",
+                      fontSize: "0.8rem",
+                      color: "#64748b",
+                    }}
+                  >
+                    No WhatsApp interactions recorded yet. Messages sent or received will appear here in real-time.
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                      maxHeight: "280px",
+                      overflowY: "auto",
+                      paddingRight: "4px",
+                    }}
+                  >
+                    {waCommunications.map((log) => {
+                      const isInbound = log.direction === "INBOUND";
+                      const statusColor =
+                        log.status === "DELIVERED"
+                          ? "#0284c7"
+                          : log.status === "READ"
+                          ? "#16a34a"
+                          : log.status === "FAILED"
+                          ? "#ef4444"
+                          : "#64748b";
+
+                      return (
+                        <div
+                          key={log.id}
+                          onClick={() => {
+                            setSelectedLog(log);
+                            setReplyStatus(null);
+                            setReplyText("");
+                          }}
+                          style={{
+                            padding: "0.6rem 0.75rem",
+                            borderRadius: "0.5rem",
+                            backgroundColor: isInbound ? "#f0fdf4" : "#f8fafc",
+                            border: `1px solid ${isInbound ? "#bbf7d0" : "#e2e8f0"}`,
+                            fontSize: "0.8rem",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "flex-start",
+                            gap: "0.75rem",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = isInbound ? "#16a34a" : "#2563eb";
+                            e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.06)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = isInbound ? "#bbf7d0" : "#e2e8f0";
+                            e.currentTarget.style.boxShadow = "none";
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  fontSize: "0.725rem",
+                                  padding: "0.15rem 0.4rem",
+                                  borderRadius: "0.25rem",
+                                  backgroundColor: isInbound ? "#22c55e" : "#3b82f6",
+                                  color: "#ffffff",
+                                  letterSpacing: "0.5px",
+                                }}
+                              >
+                                {log.direction}
+                              </span>
+                              <span style={{ fontWeight: 600, color: "#1e293b" }}>
+                                {log.customerName
+                                  ? `Customer: ${log.customerName} (${log.customerPhone})`
+                                  : log.vendorName
+                                  ? `Vendor: ${log.vendorName}`
+                                  : isInbound
+                                  ? `From: ${log.senderNumber}`
+                                  : `To: ${log.recipientNumber}`}
+                              </span>
+                            </div>
+                            <div style={{ color: "#334155", marginTop: "0.2rem", wordBreak: "break-word" }}>
+                              {log.content || "<Empty / Media>"}
+                            </div>
+                          </div>
+
+                          <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                fontSize: "0.7rem",
+                                fontWeight: 600,
+                                color: statusColor,
+                                textTransform: "uppercase",
+                                marginBottom: "0.2rem",
+                              }}
+                            >
+                              {log.status}
+                            </span>
+                            <div style={{ fontSize: "0.7rem", color: "#94a3b8" }}>
+                              {new Date(log.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+
           <div className="gs-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 className="gs-card-header">
@@ -444,6 +1121,256 @@ export function GeneralSettings() {
 
         </div>
       </div>
+
+      {/* Interactive Two-Way WhatsApp Message Details & Reply Modal */}
+      {selectedLog && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+          onClick={() => setSelectedLog(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "1rem",
+              width: "100%",
+              maxWidth: "540px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              border: "1px solid #e2e8f0",
+              overflow: "hidden",
+              animation: "fadeIn 0.2s ease",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: "1.25rem 1.5rem",
+                borderBottom: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                background: selectedLog.direction === "INBOUND" ? "#f0fdf4" : "#f8fafc",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: selectedLog.direction === "INBOUND" ? "#22c55e" : "#3b82f6",
+                    color: "#ffffff",
+                  }}
+                >
+                  <MessageSquare size={18} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#0f172a" }}>
+                    WhatsApp Conversation
+                  </h3>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                    {selectedLog.direction} • {selectedLog.status}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedLog(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#64748b",
+                  padding: "4px",
+                  borderRadius: "0.375rem",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "1.25rem 1.5rem" }}>
+              {/* Contact Information Bar */}
+              <div
+                style={{
+                  backgroundColor: "#f8fafc",
+                  borderRadius: "0.625rem",
+                  padding: "0.75rem 1rem",
+                  border: "1px solid #e2e8f0",
+                  marginBottom: "1rem",
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "0.75rem",
+                  fontSize: "0.8rem",
+                }}
+              >
+                <div>
+                  <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem", fontWeight: 500 }}>
+                    SENDER NUMBER
+                  </span>
+                  <strong style={{ color: "#1e293b" }}>{selectedLog.senderNumber}</strong>
+                </div>
+                <div>
+                  <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem", fontWeight: 500 }}>
+                    RECIPIENT NUMBER
+                  </span>
+                  <strong style={{ color: "#1e293b" }}>{selectedLog.recipientNumber}</strong>
+                </div>
+                {selectedLog.customerName && (
+                  <div>
+                    <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem", fontWeight: 500 }}>
+                      LINKED CUSTOMER
+                    </span>
+                    <strong style={{ color: "#16a34a" }}>
+                      {selectedLog.customerName} ({selectedLog.customerPhone})
+                    </strong>
+                  </div>
+                )}
+                {selectedLog.vendorName && (
+                  <div>
+                    <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem", fontWeight: 500 }}>
+                      LINKED VENDOR
+                    </span>
+                    <strong style={{ color: "#0284c7" }}>{selectedLog.vendorName}</strong>
+                  </div>
+                )}
+                <div>
+                  <span style={{ color: "#64748b", display: "block", fontSize: "0.7rem", fontWeight: 500 }}>
+                    TIME RECORDED
+                  </span>
+                  <span style={{ color: "#475569" }}>
+                    {new Date(selectedLog.createdAt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Message Content Bubble */}
+              <div style={{ marginBottom: "1.25rem" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569", display: "block", marginBottom: "0.4rem" }}>
+                  Message Content ({selectedLog.messageType})
+                </span>
+                <div
+                  style={{
+                    backgroundColor: selectedLog.direction === "INBOUND" ? "#f0fdf4" : "#eff6ff",
+                    border: `1px solid ${selectedLog.direction === "INBOUND" ? "#bbf7d0" : "#bfdbfe"}`,
+                    padding: "0.875rem 1rem",
+                    borderRadius: "0.75rem",
+                    fontSize: "0.875rem",
+                    color: "#1e293b",
+                    lineHeight: "1.5",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {selectedLog.content || "<No text content>"}
+                </div>
+              </div>
+
+              {/* Direct Reply Section */}
+              <div style={{ borderTop: "1px solid #e2e8f0", paddingTop: "1rem" }}>
+                <label style={{ fontSize: "0.8rem", fontWeight: 600, color: "#334155", display: "block", marginBottom: "0.4rem" }}>
+                  Send WhatsApp Reply to{" "}
+                  <code style={{ color: "#16a34a" }}>
+                    {selectedLog.direction === "INBOUND" ? selectedLog.senderNumber : selectedLog.recipientNumber}
+                  </code>
+                </label>
+                <div style={{ position: "relative" }}>
+                  <textarea
+                    rows={3}
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Type your response here..."
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 0.75rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.85rem",
+                      color: "#1e293b",
+                      boxSizing: "border-box",
+                      outline: "none",
+                      resize: "none",
+                    }}
+                  />
+                </div>
+
+                {replyStatus && (
+                  <div
+                    style={{
+                      marginTop: "0.5rem",
+                      padding: "0.4rem 0.6rem",
+                      borderRadius: "0.375rem",
+                      fontSize: "0.75rem",
+                      backgroundColor: replyStatus.success ? "#dcfce7" : "#fee2e2",
+                      color: replyStatus.success ? "#15803d" : "#991b1b",
+                      border: `1px solid ${replyStatus.success ? "#86efac" : "#fca5a5"}`,
+                    }}
+                  >
+                    {replyStatus.message}
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginTop: "0.75rem" }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLog(null)}
+                    style={{
+                      padding: "0.5rem 0.875rem",
+                      borderRadius: "0.5rem",
+                      border: "1px solid #cbd5e1",
+                      background: "#ffffff",
+                      color: "#475569",
+                      fontSize: "0.8rem",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendDirectReply}
+                    disabled={sendingReply || !replyText.trim()}
+                    style={{
+                      padding: "0.5rem 1rem",
+                      borderRadius: "0.5rem",
+                      border: "none",
+                      backgroundColor: sendingReply || !replyText.trim() ? "#94a3b8" : "#16a34a",
+                      color: "#ffffff",
+                      fontSize: "0.8rem",
+                      cursor: sendingReply || !replyText.trim() ? "not-allowed" : "pointer",
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                    }}
+                  >
+                    <Send size={14} />
+                    {sendingReply ? "Sending..." : "Send Reply"}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

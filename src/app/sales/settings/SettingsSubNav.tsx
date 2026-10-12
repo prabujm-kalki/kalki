@@ -10,7 +10,7 @@ export function SettingsSubNav() {
   const query = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "";
 
   const links = [
-    { href: "/sales/settings/config", label: "Sales Configuration" },
+    { href: "/sales/settings/alerts", label: "Sales Alerts" },
     { href: "/sales/settings/tax", label: "Tax / GST" },
     { href: "/sales/settings/invoice", label: "Invoice Configuration" },
     { href: "/sales/settings/returns", label: "Return Policies" },

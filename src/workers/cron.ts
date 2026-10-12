@@ -79,4 +79,19 @@ cron.schedule("1 0 1 1 *", async () => {
   }
 });
 
+// 3. Weekly Marketing Campaigns Runner: Runs every Monday at 09:00 AM
+// Minute: 0, Hour: 9, Day of Month: *, Month: *, Day of Week: 1 (Monday)
+cron.schedule("0 9 * * 1", async () => {
+  console.log("[CRON] Executing Weekly Marketing Campaign Drips...");
+  try {
+    const { runMarketingCampaigns } = await import("../../scripts/run-marketing-campaigns");
+    const result = await runMarketingCampaigns();
+    if (result.success) {
+      console.log("[CRON] Weekly Marketing Campaigns runner finished successfully.");
+    }
+  } catch (error) {
+    logError("Marketing Campaigns Drips", error);
+  }
+});
+
 console.log("[CRON] Workers initialized. Listening for scheduled tasks...");

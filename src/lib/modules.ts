@@ -6,6 +6,7 @@ export const APP_MODULES = [
   { label: "Purchasing", path: "/purchasing", module: "purchasing" },
   { label: "Inventory", path: "/inventory", module: "inventory" },
   { label: "Sales", path: "/sales", module: "sales" },
+  { label: "Marketing", path: "/marketing", module: "marketing" },
   { label: "CRM", path: "/crm", module: "crm" },
   { label: "Finance", path: "/finance", module: "finance" },
   { label: "Task Engine", path: "/tasks", module: "tasks" },

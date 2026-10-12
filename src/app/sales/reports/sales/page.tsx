@@ -32,6 +32,13 @@ function SalesReportContent() {
   const limit = 15;
 
   const [searchInput, setSearchInput] = useState(currentSearch);
+  const [customFromInput, setCustomFromInput] = useState(currentFrom);
+  const [customToInput, setCustomToInput] = useState(currentTo);
+
+  useEffect(() => {
+    setCustomFromInput(currentFrom);
+    setCustomToInput(currentTo);
+  }, [currentFrom, currentTo]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -120,7 +127,8 @@ function SalesReportContent() {
           endDate,
           page,
           limit,
-          currentSearch
+          currentSearch,
+          currentChannel
         );
         
         if (active) {
@@ -137,12 +145,28 @@ function SalesReportContent() {
     
     loadData();
     return () => { active = false; };
-  }, [scope?.organizationId, currentRange, currentLocation, currentFrom, currentTo, page, currentSearch]);
+  }, [scope?.organizationId, currentRange, currentLocation, currentChannel, currentFrom, currentTo, page, currentSearch]);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     if (value) params.set(key, value);
     else params.delete(key);
+    if (key !== "page") params.set("page", "1");
+    if (key === "range" && value !== "custom") {
+      params.delete("from");
+      params.delete("to");
+    }
+    router.push(`?${params.toString()}`);
+  };
+
+  const applyCustomDateRange = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("range", "custom");
+    if (customFromInput) params.set("from", customFromInput);
+    else params.delete("from");
+    if (customToInput) params.set("to", customToInput);
+    else params.delete("to");
+    params.set("page", "1");
     router.push(`?${params.toString()}`);
   };
 
@@ -303,21 +327,40 @@ function SalesReportContent() {
           </select>
           
           {currentRange === "custom" && (
-            <>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <input 
                 type="date" 
-                value={currentFrom}
-                onChange={(e) => updateParam("from", e.target.value)}
-                style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none" }}
+                value={customFromInput}
+                onChange={(e) => setCustomFromInput(e.target.value)}
+                style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none" }}
               />
               <span style={{ color: "#64748b" }}>to</span>
               <input 
                 type="date" 
-                value={currentTo}
-                onChange={(e) => updateParam("to", e.target.value)}
-                style={{ padding: "9px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none" }}
+                value={customToInput}
+                onChange={(e) => setCustomToInput(e.target.value)}
+                style={{ padding: "9px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", backgroundColor: "white", color: "#334155", fontSize: "14px", outline: "none" }}
               />
-            </>
+              <button
+                type="button"
+                onClick={applyCustomDateRange}
+                style={{
+                  padding: "9px 16px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: "#2563eb",
+                  color: "#ffffff",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1d4ed8"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#2563eb"}
+              >
+                Apply
+              </button>
+            </div>
           )}
 
           <select 

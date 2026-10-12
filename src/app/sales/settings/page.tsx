@@ -10,5 +10,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<any
   } else if (orgId) {
     q = `?organizationId=${orgId}`;
   }
-  redirect(`/sales/settings/config${q}`);
+  redirect(`/sales/settings/alerts${q}`);
 }
