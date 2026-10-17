@@ -942,6 +942,11 @@ export async function fetchPurchaseDashboardData(params?: {
     }
 
     for (const rt of activeRoutineTasks) {
+      // Completed or cancelled routine tasks belong to the recent activity feed/history, not pending actions
+      if (rt.status === "completed" || rt.status === "cancelled") {
+        continue;
+      }
+
       const ctx = (rt.contextData as any) || {};
       const vendorName = ctx.vendorName || "Routine Vendor";
       const actionUrl = ctx.actionUrl || `/purchasing/stock-assessment?vendorId=${ctx.vendorId}&taskId=${rt.id}`;
