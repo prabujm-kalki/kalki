@@ -1,7 +1,7 @@
 // Core types for the Accounting Event Engine
 
 export type SourceModule = "PURCHASE" | "PAYROLL" | "UTILITIES" | "POS" | "MANUAL" | "SYSTEM";
-export type MappingType = "ITEM_CATEGORY" | "PAYROLL_COMPONENT" | "TAX_COMPONENT" | "SYSTEM_DEFAULT";
+export type MappingType = "ITEM_CATEGORY" | "PAYROLL_COMPONENT" | "TAX_COMPONENT" | "SYSTEM_DEFAULT" | "PAYMENT_METHOD";
 
 export interface AccountingEventPayload {
   organizationId: string;

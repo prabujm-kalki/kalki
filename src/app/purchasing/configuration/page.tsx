@@ -45,29 +45,56 @@ export default async function ConfigurationPage({ searchParams }: { searchParams
     return rule.charAt(0) + rule.slice(1).toLowerCase();
   };
 
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  // Fetch recent tasks linked to any schedule
   const recentTasks = await db
     .select({
+      id: taskInstances.id,
       scheduleId: sql<string>`${taskInstances.contextData}->>'scheduleId'`,
       status: taskInstances.status,
       dueAt: taskInstances.dueAt,
-      completedAt: taskInstances.completedAt
+      completedAt: taskInstances.completedAt,
+      createdAt: taskInstances.createdAt,
+      contextData: taskInstances.contextData,
+      roleName: businessRoles.name,
     })
     .from(taskInstances)
+    .leftJoin(businessRoles, eq(taskInstances.assignedRoleId, businessRoles.id))
     .where(isNotNull(sql`${taskInstances.contextData}->>'scheduleId'`))
-    .orderBy(desc(taskInstances.createdAt));
+    .orderBy(desc(taskInstances.createdAt))
+    .limit(20);
 
-  const statusMap = new Map<string, "pending" | "completed" | "missed" | "none">();
-  const now = new Date();
+  // Map today's execution status vs last recorded execution
+  const statusMap = new Map<string, {
+    status: "completed" | "audit_pending" | "in_progress" | "missed" | "pending" | "scheduled_today" | "none";
+    isToday: boolean;
+    lastRunDate?: Date | null;
+  }>();
   
-  for (const t of recentTasks) {
-    if (!t.scheduleId || statusMap.has(t.scheduleId)) continue;
-    
-    if (t.status === "completed") {
-      statusMap.set(t.scheduleId, "completed");
-    } else if (t.status === "pending" && t.dueAt && new Date(t.dueAt) < now) {
-      statusMap.set(t.scheduleId, "missed");
+  for (const s of schedules) {
+    const taskToday = recentTasks.find(t => t.scheduleId === s.id && new Date(t.createdAt) >= startOfToday && new Date(t.createdAt) <= endOfToday);
+    const latestTaskAny = recentTasks.find(t => t.scheduleId === s.id);
+
+    if (taskToday) {
+      if (taskToday.status === "completed") {
+        statusMap.set(s.id, { status: "completed", isToday: true, lastRunDate: taskToday.completedAt || taskToday.createdAt });
+      } else if (taskToday.status === "audit_pending") {
+        statusMap.set(s.id, { status: "audit_pending", isToday: true, lastRunDate: taskToday.createdAt });
+      } else if (taskToday.status === "in_progress") {
+        statusMap.set(s.id, { status: "in_progress", isToday: true, lastRunDate: taskToday.createdAt });
+      } else if (taskToday.status === "pending" && taskToday.dueAt && new Date(taskToday.dueAt) < now) {
+        statusMap.set(s.id, { status: "missed", isToday: true, lastRunDate: taskToday.createdAt });
+      } else {
+        statusMap.set(s.id, { status: "pending", isToday: true, lastRunDate: taskToday.createdAt });
+      }
+    } else if (latestTaskAny) {
+      // No run today, but has historical execution
+      statusMap.set(s.id, { status: "scheduled_today", isToday: false, lastRunDate: latestTaskAny.completedAt || latestTaskAny.createdAt });
     } else {
-      statusMap.set(t.scheduleId, "pending");
+      statusMap.set(s.id, { status: "none", isToday: false });
     }
   }
 
@@ -99,84 +126,357 @@ export default async function ConfigurationPage({ searchParams }: { searchParams
           </div>
 
           {schedules.length === 0 ? (
-            <div style={{ padding: '2rem', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: '8px' }}>
-              <Clock size={24} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-              <p className="muted" style={{ marginBottom: '1rem' }}>You haven't configured any routine purchasing tasks yet.</p>
-              <Link href={`/purchasing/schedules/new${querySuffix}`} style={{ fontSize: '0.9rem', color: 'var(--primary-color)', textDecoration: 'none', fontWeight: '500' }}>
+            <div style={{ padding: '2.5rem', textAlign: 'center', border: '1px dashed var(--border-color)', borderRadius: '8px', backgroundColor: '#f8fafc' }}>
+              <Clock size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
+              <h4 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>No Routine Automations Configured</h4>
+              <p className="muted" style={{ margin: '0 0 1rem 0', fontSize: '0.85rem' }}>You haven't configured any routine purchasing tasks yet. Automate daily orders to save time.</p>
+              <Link href={`/purchasing/schedules/new${querySuffix}`} style={{ fontSize: '0.85rem', color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>
                 Create your first routine task &rarr;
               </Link>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '1rem' }}>
               {schedules.map((schedule) => {
-                const statusType = statusMap.get(schedule.id) || "none";
+                const statusInfo = statusMap.get(schedule.id);
+                const isCritical = schedule.priority === 'critical' || schedule.priority === 'high';
+                const isMedium = schedule.priority === 'medium';
                 
                 return (
-                  <div key={schedule.id} style={{ display: 'flex', flexDirection: 'column', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'white', fontSize: '0.85rem', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                    <div style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--primary-color)', fontSize: '0.75rem', fontWeight: '600', backgroundColor: 'rgba(59, 130, 246, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>
-                          <Clock size={12} />
+                  <div 
+                    key={schedule.id} 
+                    style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      borderRadius: '10px', 
+                      border: '1px solid #e2e8f0', 
+                      backgroundColor: 'white', 
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                      overflow: 'hidden' 
+                    }}
+                  >
+                    <div style={{ padding: '1.25rem', flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                        <div style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '5px', 
+                          backgroundColor: '#f1f5f9', 
+                          color: '#334155', 
+                          padding: '3px 10px', 
+                          borderRadius: '999px', 
+                          fontSize: '0.75rem', 
+                          fontWeight: '600' 
+                        }}>
+                          <Clock size={12} style={{ color: '#2563eb' }} />
                           {formatFrequency(schedule.frequencyRule)} at {schedule.reminderTime}
                         </div>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                           {schedule.priority && (
                             <span style={{ 
-                              fontSize: '0.65rem', 
-                              fontWeight: 'bold', 
+                              fontSize: '0.6875rem', 
+                              fontWeight: '700', 
                               textTransform: 'uppercase',
-                              padding: '2px 6px',
+                              letterSpacing: '0.04em',
+                              padding: '2px 8px',
                               borderRadius: '4px',
-                              backgroundColor: schedule.priority === 'high' || schedule.priority === 'critical' ? '#fee2e2' : schedule.priority === 'medium' ? '#fef3c7' : '#f1f5f9',
-                              color: schedule.priority === 'high' || schedule.priority === 'critical' ? '#dc2626' : schedule.priority === 'medium' ? '#d97706' : '#64748b',
+                              backgroundColor: isCritical ? '#fee2e2' : isMedium ? '#fef3c7' : '#f1f5f9',
+                              color: isCritical ? '#dc2626' : isMedium ? '#d97706' : '#64748b',
                             }}>
                               {schedule.priority}
                             </span>
                           )}
-                          <Link href={`/purchasing/schedules/${schedule.id}${querySuffix}`} style={{ color: 'var(--text-muted)', padding: '4px', background: '#f8fafc', borderRadius: '4px' }} title="Edit">
-                            <Edit2 size={14} />
+                          <Link 
+                            href={`/purchasing/schedules/${schedule.id}${querySuffix}`} 
+                            style={{ 
+                              padding: '5px', 
+                              color: '#64748b', 
+                              backgroundColor: '#f8fafc', 
+                              border: '1px solid #e2e8f0', 
+                              borderRadius: '5px', 
+                              display: 'flex',
+                              alignItems: 'center',
+                              textDecoration: 'none'
+                            }} 
+                            title="Edit Configuration"
+                          >
+                            <Edit2 size={13} />
                           </Link>
                         </div>
                       </div>
                       
-                      <h4 style={{ fontSize: '1rem', fontWeight: '600', margin: '0 0 6px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{schedule.vendorName || "Unknown Vendor"}</h4>
+                      <h4 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {schedule.vendorName || "Unknown Vendor"}
+                      </h4>
                       
-                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '10px' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={12} /> {schedule.locationName}</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><Users size={12} /> {schedule.roleName}</span>
+                      <p style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.775rem', color: '#64748b', margin: '0 0 16px 0' }}>
+                        <MapPin size={13} style={{ color: '#94a3b8' }} /> {schedule.locationName || "All Locations"}
+                      </p>
+
+                      <div style={{ 
+                        backgroundColor: '#f8fafc', 
+                        borderRadius: '8px', 
+                        padding: '10px 12px', 
+                        border: '1px solid #e2e8f0' 
+                      }}>
+                        <p style={{ fontSize: '0.675rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>
+                          Responsible Team
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ 
+                            backgroundColor: '#ffffff', 
+                            padding: '5px', 
+                            borderRadius: '6px', 
+                            border: '1px solid #e2e8f0',
+                            color: '#2563eb',
+                            display: 'flex'
+                          }}>
+                            <Users size={13} />
+                          </div>
+                          <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: '#1e293b' }}>
+                            {schedule.roleName || "Unassigned"}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{ borderTop: '1px solid var(--border-color)', padding: '10px 16px', backgroundColor: '#f8fafc', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Last Run</span>
-                        {statusType === "completed" && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: '#16a34a' }}>
-                            <CheckCircle2 size={12} /> Completed
-                          </span>
-                        )}
-                        {statusType === "missed" && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: '#dc2626' }}>
-                            <AlertCircle size={12} /> Missed
-                          </span>
-                        )}
-                        {statusType === "pending" && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: '#d97706' }}>
-                            <PlayCircle size={12} /> Pending
-                          </span>
-                        )}
-                        {statusType === "none" && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>
-                            No Runs
-                          </span>
-                        )}
-                      </div>
+                    <div style={{ 
+                      borderTop: '1px solid #e2e8f0', 
+                      padding: '10px 16px', 
+                      backgroundColor: '#f8fafc',
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between' 
+                    }}>
+                      <span style={{ fontSize: '0.725rem', fontWeight: '600', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                        Today's Status
+                      </span>
+                      {statusInfo?.status === "completed" && statusInfo.isToday && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '700', 
+                          color: '#16a34a', 
+                          backgroundColor: '#dcfce7', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #bbf7d0' 
+                        }}>
+                          <CheckCircle2 size={12} /> Completed Today
+                        </span>
+                      )}
+                      {statusInfo?.status === "missed" && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '700', 
+                          color: '#dc2626', 
+                          backgroundColor: '#fee2e2', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #fecaca' 
+                        }}>
+                          <AlertCircle size={12} /> Missed Today
+                        </span>
+                      )}
+                      {statusInfo?.status === "audit_pending" && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '700', 
+                          color: '#c2410c', 
+                          backgroundColor: '#ffedd5', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #fed7aa' 
+                        }}>
+                          <AlertCircle size={12} /> Audit Pending
+                        </span>
+                      )}
+                      {statusInfo?.status === "in_progress" && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '700', 
+                          color: '#2563eb', 
+                          backgroundColor: '#eff6ff', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #bfdbfe' 
+                        }}>
+                          <PlayCircle size={12} /> In Progress
+                        </span>
+                      )}
+                      {statusInfo?.status === "pending" && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '700', 
+                          color: '#d97706', 
+                          backgroundColor: '#fef3c7', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #fde68a' 
+                        }}>
+                          <Clock size={12} /> Pending Run
+                        </span>
+                      )}
+                      {statusInfo?.status === "scheduled_today" && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '600', 
+                          color: '#475569', 
+                          backgroundColor: '#f1f5f9', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #e2e8f0' 
+                        }} title={statusInfo.lastRunDate ? `Last run: ${new Date(statusInfo.lastRunDate).toLocaleDateString()}` : undefined}>
+                          <Clock size={12} style={{ color: '#64748b' }} /> Scheduled at {schedule.reminderTime}
+                        </span>
+                      )}
+                      {(!statusInfo || statusInfo?.status === "none") && (
+                        <span style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '4px', 
+                          fontSize: '0.725rem', 
+                          fontWeight: '600', 
+                          color: '#64748b', 
+                          backgroundColor: '#f1f5f9', 
+                          padding: '3px 8px', 
+                          borderRadius: '5px', 
+                          border: '1px solid #e2e8f0' 
+                        }}>
+                          No Runs Yet
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
+
+          {/* Recent Automation Execution History */}
+          <div style={{ marginTop: '2rem', borderTop: '1px solid #edf2f7', paddingTop: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                <h4 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0' }}>
+                  Recent Execution Audit Log
+                </h4>
+                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+                  Real-time log of automated procurement assessments, task triggers, and manager audit escalations.
+                </p>
+              </div>
+              <Link 
+                href={`/purchasing/reports?type=routine_automations${querySuffix}`}
+                style={{ 
+                  fontSize: '0.8125rem', 
+                  fontWeight: '600', 
+                  color: '#2563eb', 
+                  textDecoration: 'none', 
+                  display: 'inline-flex', 
+                  alignItems: 'center', 
+                  gap: '4px' 
+                }}
+              >
+                <span>View Full History</span>
+                <ArrowRight size={13} />
+              </Link>
+            </div>
+
+            {recentTasks.length === 0 ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1', color: '#64748b', fontSize: '0.8125rem' }}>
+                No task executions recorded yet.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px', backgroundColor: '#ffffff' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px' }}>
+                  <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
+                    <tr>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', fontSize: '10px' }}>Task / Vendor</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', fontSize: '10px' }}>Triggered At</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', fontSize: '10px' }}>Assigned Role</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', fontSize: '10px' }}>Status</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', fontSize: '10px' }}>Completed At</th>
+                      <th style={{ padding: '8px 12px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase', fontSize: '10px', textAlign: 'center' }}>Details</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentTasks.slice(0, 5).map((t) => {
+                      const ctx = (t.contextData as any) || {};
+                      const vendorName = ctx.vendorName || "Routine Vendor";
+                      const isCompleted = t.status === "completed";
+                      const isAuditPending = t.status === "audit_pending";
+                      const isMissed = t.status === "pending" && t.dueAt && new Date(t.dueAt) < now;
+
+                      return (
+                        <tr key={t.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '10px 12px' }}>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{vendorName}</div>
+                            <div style={{ fontSize: '10px', color: '#64748b', fontFamily: 'monospace' }}>{ctx.title || t.id.slice(0, 8)}</div>
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#475569' }}>
+                            {new Date(t.createdAt).toLocaleString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: '#334155', fontWeight: 500 }}>
+                            {t.roleName || "Kitchen Staff"}
+                          </td>
+                          <td style={{ padding: '10px 12px' }}>
+                            {isCompleted ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#16a34a', fontWeight: 700, fontSize: '10px' }}>
+                                <CheckCircle2 size={10} /> {ctx.escalated ? "Audited & Cleared" : "Completed"}
+                              </span>
+                            ) : isAuditPending ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#ffedd5', color: '#c2410c', fontWeight: 700, fontSize: '10px' }}>
+                                <AlertCircle size={10} /> Audit Pending
+                              </span>
+                            ) : isMissed ? (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#fee2e2', color: '#dc2626', fontWeight: 700, fontSize: '10px' }}>
+                                <AlertCircle size={10} /> Missed
+                              </span>
+                            ) : (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '2px 6px', borderRadius: '4px', backgroundColor: '#eff6ff', color: '#2563eb', fontWeight: 700, fontSize: '10px' }}>
+                                <PlayCircle size={10} /> {t.status === "in_progress" ? "In Progress" : "Pending"}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: '10px 12px', color: t.completedAt ? '#16a34a' : '#94a3b8' }}>
+                            {t.completedAt ? new Date(t.completedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                          </td>
+                          <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                            <Link 
+                              href={`/purchasing/reports?type=routine_automations${querySuffix}`}
+                              style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none', fontSize: '11px' }}
+                            >
+                              Log &rarr;
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Approval Routing Rules Section */}

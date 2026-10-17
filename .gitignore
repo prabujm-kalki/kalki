@@ -13,3 +13,7 @@ test-results/
 .DS_Store
 
 certificates
+backups/
+*.apk
+android/
+public/uploads/

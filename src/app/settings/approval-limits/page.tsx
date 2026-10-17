@@ -11,7 +11,7 @@ export default async function ApprovalLimitsPage() {
   const limits = await db.select().from(approvalLimits);
 
   return (
-    <div className="kalki-main-content">
+    <>
       <div className="kalki-page-header">
         <h1 className="kalki-page-title">Approval Limits Configuration</h1>
         <p className="kalki-page-description">
@@ -21,6 +21,6 @@ export default async function ApprovalLimitsPage() {
       <div className="kalki-section">
         <ApprovalLimitsClient initialRoles={allRoles} />
       </div>
-    </div>
+    </>
   );
 }

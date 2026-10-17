@@ -3,10 +3,9 @@ import React, { useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchCustomerWiseReportData, fetchOrgLocations, fetchCustomerInvoices , fetchOrgChannels } from "../actions";
 import { useSessionView } from "@/components/AppShell";
-import { Download, Users, Crown, Banknote, Repeat, ChevronLeft, ChevronRight, Eye, X, Receipt, AlertTriangle, TrendingDown, Wallet, Star, Activity } from "lucide-react";
+import { Download, Users, Crown, Banknote, Repeat, ChevronLeft, ChevronRight, Eye, X, Receipt } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { GlobalTemplateModal } from "@/components/crm/GlobalTemplateModal";
 
 function CustomerWiseReportContent() {
   const router = useRouter();
@@ -14,18 +13,10 @@ function CustomerWiseReportContent() {
   const { selected: scope } = useSessionView();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
-  const [fullData, setFullData] = useState<any[]>([]);
-  const [alerts, setAlerts] = useState<any[]>([]);
   const [kpis, setKpis] = useState<any>({ totalCustomers: 0, topSpenderName: '-', topSpenderAmount: 0, avgSpend: 0, repeatRate: 0 });
   const [locations, setLocations] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [totalRecords, setTotalRecords] = useState(0);
-
-  const [marketingModal, setMarketingModal] = useState<{
-    isOpen: boolean;
-    customerIds: string[];
-    contextPrefix?: string;
-  }>({ isOpen: false, customerIds: [] });
 
   // Ledger Slide-out State
   const [selectedCustomer, setSelectedCustomer] = useState<{name: string, phone: string} | null>(null);
@@ -38,7 +29,6 @@ function CustomerWiseReportContent() {
   const currentFrom = searchParams.get("from") || "";
   const currentTo = searchParams.get("to") || "";
   const currentSearch = searchParams.get("search") || "";
-  const alertFilter = searchParams.get("alertFilter") as 'dormant_vips' | 'low_aov' | 'top_spenders' | 'critical_debtors' | 'new_vips' | 'spend_anomalies' | 'all' | null;
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = parseInt(searchParams.get("limit") || "15", 10);
 
@@ -136,14 +126,11 @@ function CustomerWiseReportContent() {
           page,
           limit,
           currentSearch,
-          alertFilter || 'all',
           currentChannel
         );
         
         if (active) {
           setData(res.data || []);
-          setFullData(res.fullData || []);
-          setAlerts(res.alerts || []);
           setKpis(res.kpis || { totalCustomers: 0, topSpenderName: '-', topSpenderAmount: 0, avgSpend: 0, repeatRate: 0 });
           setTotalRecords(res.total || 0);
         }
@@ -156,7 +143,7 @@ function CustomerWiseReportContent() {
     
     loadData();
     return () => { active = false; };
-  }, [scope?.organizationId, currentRange, currentLocation, currentChannel, currentFrom, currentTo, page, limit, currentSearch, alertFilter]);
+  }, [scope?.organizationId, currentRange, currentLocation, currentChannel, currentFrom, currentTo, page, limit, currentSearch]);
 
   const updateParam = (key: string, value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -311,116 +298,6 @@ function CustomerWiseReportContent() {
 
       </div>
 
-      {/* Actionable Aggregated Alert Engine */}
-      {alerts.length > 0 && (
-        <div 
-          style={{ 
-            display: "flex", 
-            gap: "12px", 
-            marginBottom: "16px",
-            overflowX: "auto",
-            overflowY: "hidden",
-            paddingBottom: "6px",
-            scrollbarWidth: "thin",
-            WebkitOverflowScrolling: "touch",
-          }}
-        >
-          {alerts.map(alert => {
-            const isCritical = alert.type === 'critical';
-            const isWarning = alert.type === 'warning';
-            const isSuccess = alert.type === 'success';
-
-            // Styling tokens adhering to Kalki BOS Vanilla CSS Design System
-            const borderColor = isCritical ? "#ef4444" : isWarning ? "#f59e0b" : isSuccess ? "#22c55e" : "#3b82f6";
-            const bgColor = isCritical ? "#fef2f2" : isWarning ? "#fffbeb" : isSuccess ? "#dcfce7" : "#eff6ff";
-            const badgeTextColor = isSuccess ? "#166534" : borderColor;
-
-            // Icon resolution based on alert configuration
-            let Icon = Users;
-            if (alert.icon === 'Wallet') Icon = Wallet;
-            else if (alert.icon === 'Star') Icon = Star;
-            else if (alert.icon === 'Activity') Icon = Activity;
-            else if (alert.icon === 'TrendingDown' || isWarning) Icon = TrendingDown;
-            else if (isCritical) Icon = AlertTriangle;
-
-            return (
-              <div 
-                key={alert.id} 
-                style={{ 
-                  flex: "0 0 calc(25% - 9px)",
-                  minWidth: "260px",
-                  boxSizing: "border-box",
-                  backgroundColor: "white", 
-                  border: "1px solid #e2e8f0", 
-                  borderLeft: `4px solid ${borderColor}`,
-                  borderRadius: "8px", 
-                  padding: "10px 14px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "space-between",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.03)"
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
-                    <div style={{ backgroundColor: bgColor, color: badgeTextColor, padding: "4px", borderRadius: "4px", display: "flex" }}>
-                      <Icon size={13} />
-                    </div>
-                    <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", color: badgeTextColor }}>
-                      {alert.badge}
-                    </span>
-                  </div>
-                  <h3 style={{ fontSize: "13px", fontWeight: "700", color: "#0f172a", margin: "0 0 2px 0", lineHeight: 1.25 }}>
-                    {alert.title}
-                  </h3>
-                  <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 8px 0", lineHeight: 1.25 }}>
-                    {alert.description}
-                  </p>
-                </div>
-                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
-                  <button 
-                    onClick={() => updateParam('alertFilter', alert.filterParam)}
-                    style={{ alignSelf: "flex-start", backgroundColor: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", borderRadius: "5px", padding: "4px 9px", fontSize: "12px", fontWeight: "500", cursor: "pointer", transition: "all 0.15s" }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f1f5f9"}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
-                  >
-                    {alert.actionLabel}
-                  </button>
-                  <button
-                    onClick={() => {
-                      const prefix =
-                        alert.badge === "Retention Risk"
-                          ? "DORMANT_VIP"
-                          : alert.badge === "Credit Risk"
-                          ? "OVERDUE_DEBTOR"
-                          : alert.badge === "Growth"
-                          ? "NEW_VIP"
-                          : alert.badge === "Catering Target"
-                          ? "SPEND_ANOMALY"
-                          : alert.badge === "Upsell Deficit"
-                          ? "UPSELL_DEFICIT"
-                          : alert.badge === "Concentration"
-                          ? "TOP_SPENDER"
-                          : "CAMPAIGN";
-                      setMarketingModal({
-                        isOpen: true,
-                        customerIds: alert.matchedCustomerIds || [],
-                        contextPrefix: prefix,
-                      });
-                    }}
-                    style={{ alignSelf: "flex-start", backgroundColor: "#0f172a", border: "none", color: "#ffffff", borderRadius: "5px", padding: "4px 9px", fontSize: "12px", fontWeight: "500", cursor: "pointer", transition: "all 0.15s" }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#1e293b"}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#0f172a"}
-                  >
-                    Create Template
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {/* Control Bar */}
       <div 
         style={{ 
@@ -533,23 +410,6 @@ function CustomerWiseReportContent() {
           </button>
         </div>
       </div>
-
-      {/* Active Filter Indicator */}
-      {alertFilter && alertFilter !== 'all' && (
-        <div style={{ backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", padding: "12px 16px", borderRadius: "8px", marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "14px", color: "#1e3a8a", fontWeight: "500" }}>
-              Filtered by: {alerts.find(a => a.filterParam === alertFilter)?.title || alertFilter.replace('_', ' ').toUpperCase()} ({totalRecords} customers)
-            </span>
-          </div>
-          <button 
-            onClick={() => updateParam("alertFilter", "")}
-            style={{ background: "transparent", border: "none", color: "#3b82f6", display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
-          >
-            <X size={14} /> Clear Filter
-          </button>
-        </div>
-      )}
 
       {/* Data Table */}
       <div style={{ backgroundColor: "white", borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflowX: "auto", marginBottom: "24px" }}>
@@ -754,36 +614,6 @@ function CustomerWiseReportContent() {
 
           </div>
         </>
-      )}
-
-      {marketingModal.isOpen && scope?.organizationId && (
-        <GlobalTemplateModal
-          organizationId={scope.organizationId}
-          locationId={currentLocation !== "all" ? currentLocation : undefined}
-          targetEntityType="CUSTOMER"
-          entityIds={marketingModal.customerIds}
-          defaultTemplateName={
-            marketingModal.contextPrefix
-              ? `${marketingModal.contextPrefix}_${new Date().toISOString().split('T')[0].replace(/-/g, '')}_1`
-              : `CAMPAIGN_${new Date().toISOString().split('T')[0].replace(/-/g, '')}_1`
-          }
-          displayData={(() => {
-            const customerIdSet = new Set(marketingModal.customerIds);
-            const matchedRows = fullData.filter(d => d.customerId && customerIdSet.has(d.customerId));
-            // If matchedRows is non-empty, use them; otherwise, fall back to whatever is in fullData
-            const source = matchedRows.length > 0 ? matchedRows : fullData.filter(d => d.customerId);
-            return source.map(d => ({
-              id: d.customerId,
-              name: d.customerName || 'Walk-in Guest',
-              contact: d.customerPhone || '-',
-              totalOrders: Number(d.totalInvoices || 0),
-              avgBillValue: Number(d.avgBillValue || 0),
-              lastVisitDate: d.lastPurchaseDate ? new Date(d.lastPurchaseDate).toISOString().split('T')[0] : '-',
-              totalRevenue: Number(d.totalRevenue || 0)
-            }));
-          })()}
-          onClose={() => setMarketingModal({ isOpen: false, customerIds: [] })}
-        />
       )}
 
     </div>

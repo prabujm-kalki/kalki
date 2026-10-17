@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseOrders, purchaseOrderLines, vendorItems } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { getSessionContext } from "@/domains/session/service";
 import { eq, and } from "drizzle-orm";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,19 +25,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
+    const context = await getSessionContext(session.user);
+    const userOrgIds = context.scopes.map((s) => s.organizationId);
+
     // Verify PO
     const [po] = await db
       .select()
       .from(purchaseOrders)
-      .where(
-        and(
-          eq(purchaseOrders.id, id),
-          eq(purchaseOrders.organizationId, (session.user as any).organizationId)
-        )
-      );
+      .where(eq(purchaseOrders.id, id));
 
     if (!po) {
       return NextResponse.json({ error: "PO not found" }, { status: 404 });
+    }
+
+    if (!context.isOwner && !userOrgIds.includes(po.organizationId)) {
+      return NextResponse.json({ error: "Unauthorized access to PO" }, { status: 403 });
     }
 
     // Update lines and update vendor lastRate
@@ -60,18 +63,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         );
     }
 
-    // Update PO status and cashier fields
+    // Update PO status to accounts_pending
     await db.update(purchaseOrders)
-      .set({ 
-        status: 'pending_audit',
-        cashierBillAmount: cashierBillAmount.toString(),
+      .set({
+        status: "accounts_pending",
+        cashierBillAmount: Number(cashierBillAmount).toString(),
         cashierPaymentMethod,
-        cashierAttachments,
-        calculatedTotal: calculatedTotal.toString(),
+        cashierAttachments: cashierAttachments || null,
       })
       .where(eq(purchaseOrders.id, id));
 
-    return NextResponse.json({ message: "Verification processed successfully" });
+    return NextResponse.json({ message: "Verification completed successfully" });
   } catch (error: any) {
     console.error("Error verifying PO:", error);
     return NextResponse.json(

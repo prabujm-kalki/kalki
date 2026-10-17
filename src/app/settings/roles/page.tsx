@@ -136,10 +136,8 @@ function RolesPageContent() {
   );
 
   return (
-    <div className="kalki-main-wrapper">
-      <div className="kalki-main-content">
-        
-        {/* Main Header Area */}
+    <>
+      {/* Main Header Area */}
         <div className="kalki-page-header">
           <Link href={`/settings${locationParams}`} className="kalki-breadcrumbs">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }}><path d="m15 18-6-6 6-6"/></svg>
@@ -239,8 +237,7 @@ function RolesPageContent() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+    </>
   );
 }
 

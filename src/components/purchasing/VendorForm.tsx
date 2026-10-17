@@ -4,6 +4,12 @@ import { useState, type FormEvent } from "react";
 import { apiSend } from "@/lib/api";
 import { StatusMessage } from "@/components/StatusMessage";
 
+import { Save, X, Building, User, Mail, Phone, CreditCard, Send, Clock } from "lucide-react";
+import { KalkiInput } from "@/components/ui/KalkiInput";
+import { KalkiSelect } from "@/components/ui/KalkiSelect";
+import { KalkiButton } from "@/components/ui/KalkiButton";
+import { KalkiSection } from "@/components/ui/KalkiSection";
+
 const PAYMENT_TERMS_MAP: Record<string, number> = {
   "DUE_ON_RECEIPT": 0,
   "CASH_IN_ADVANCE": 0,
@@ -53,6 +59,7 @@ export function VendorForm({
         creditLimitAmount: formData.get("creditLimitAmount") ? parseFloat(formData.get("creditLimitAmount") as string) : undefined,
         poDeliveryMethod: formData.get("poDeliveryMethod") as string || 'WHATSAPP',
         poWhatsappPreference: formData.get("poWhatsappPreference") as string || 'TEXT_AND_PDF_LINK',
+        expectedDeliveryDays: formData.get("expectedDeliveryDays") ? parseInt(formData.get("expectedDeliveryDays") as string, 10) : 2,
       };
 
       if (initialData?.id) {
@@ -71,33 +78,62 @@ export function VendorForm({
   const derivedCreditDays = selectedTerm ? PAYMENT_TERMS_MAP[selectedTerm] : "";
 
   return (
-    <form className="panel" onSubmit={(e) => void handleSubmit(e)}>
-      <h3>{initialData ? "Edit Vendor" : "Add New Vendor"}</h3>
+    <form onSubmit={(e) => void handleSubmit(e)} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
       {error && <StatusMessage tone="error">{error}</StatusMessage>}
-      <div className="grid-2" style={{ marginTop: "1rem" }}>
-        <div className="field">
-          <label>Vendor Name (Company) *</label>
-          <input name="name" required disabled={submitting} defaultValue={initialData?.name} />
+
+      {/* Vendor Profile & Identification */}
+      <KalkiSection title={initialData ? "Edit Vendor Identification" : "Vendor Identification & Contact"} icon={<Building size={16} />}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "16px" }}>
+          <KalkiInput 
+            label="Vendor Name (Company)" 
+            name="name" 
+            required 
+            disabled={submitting} 
+            defaultValue={initialData?.name} 
+            placeholder="e.g. Kalki Department Store"
+          />
+          <KalkiInput 
+            label="Short Code (For PO prefix)" 
+            name="shortCode" 
+            required 
+            disabled={submitting} 
+            defaultValue={initialData?.shortCode} 
+            placeholder="e.g. KALKI_DEP" 
+            style={{ textTransform: "uppercase" }} 
+          />
+          <KalkiInput 
+            label="Contact Person Name" 
+            name="contactName" 
+            disabled={submitting} 
+            defaultValue={initialData?.contactDetails?.name} 
+            placeholder="e.g. Suganya"
+          />
+          <KalkiInput 
+            label="Phone Number" 
+            name="contactPhone" 
+            type="tel" 
+            disabled={submitting} 
+            defaultValue={initialData?.contactDetails?.phone} 
+            placeholder="e.g. 9383591557"
+          />
+          <div style={{ gridColumn: "1 / -1" }}>
+            <KalkiInput 
+              label="Email Address" 
+              name="contactEmail" 
+              type="email" 
+              disabled={submitting} 
+              defaultValue={initialData?.contactDetails?.email} 
+              placeholder="e.g. supplier@example.com"
+            />
+          </div>
         </div>
-        <div className="field">
-          <label>Short Code (For PO numbers) *</label>
-          <input name="shortCode" required disabled={submitting} defaultValue={initialData?.shortCode} placeholder="e.g. SAKTHI" style={{ textTransform: 'uppercase' }} />
-        </div>
-        <div className="field">
-          <label>Contact Person Name</label>
-          <input name="contactName" disabled={submitting} defaultValue={initialData?.contactDetails?.name} />
-        </div>
-        <div className="field">
-          <label>Phone Number</label>
-          <input name="contactPhone" type="tel" disabled={submitting} defaultValue={initialData?.contactDetails?.phone} />
-        </div>
-        <div className="field">
-          <label>Email</label>
-          <input name="contactEmail" type="email" disabled={submitting} defaultValue={initialData?.contactDetails?.email} />
-        </div>
-        <div className="field">
-          <label>Payment Terms (Industry Standard) *</label>
-          <select 
+      </KalkiSection>
+
+      {/* Commercial Terms & Credit Limits */}
+      <KalkiSection title="Payment Terms & Credit Limits" icon={<CreditCard size={16} />}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
+          <KalkiSelect 
+            label="Payment Terms (Standard)" 
             name="paymentTerms" 
             required 
             disabled={submitting} 
@@ -110,59 +146,90 @@ export function VendorForm({
                 {term.replace(/_/g, " ")}
               </option>
             ))}
-          </select>
-        </div>
-        <div className="field">
-          <label>Credit Days (Auto-Calculated)</label>
-          <input 
+          </KalkiSelect>
+
+          <KalkiInput 
+            label="Credit Days (Calculated)" 
             name="creditDays" 
             type="number" 
             readOnly 
             disabled={submitting} 
             value={derivedCreditDays} 
-            style={{ backgroundColor: "var(--bg-surface-alt)", cursor: "not-allowed", color: "var(--color-text-muted)" }}
+            style={{ backgroundColor: "#f8fafc", cursor: "not-allowed", color: "var(--kalki-text-secondary)" }}
           />
-        </div>
-        <div className="field">
-          <label>Credit Limit Amount (₹) *</label>
-          <input 
+
+          <KalkiInput 
+            label="Credit Limit Amount (₹)" 
             name="creditLimitAmount" 
             type="number" 
             min="0"
             required
             disabled={submitting} 
             defaultValue={initialData?.creditLimitAmount} 
-            placeholder="e.g. 500000"
+            placeholder="e.g. 150000"
           />
         </div>
-      </div>
-      
-      <h4 style={{ marginTop: '1.5rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>Purchase Order Delivery Preferences</h4>
-      <div className="grid-2">
-        <div className="field">
-          <label>Delivery Method</label>
-          <select name="poDeliveryMethod" defaultValue={initialData?.poDeliveryMethod || 'WHATSAPP'} disabled={submitting}>
+      </KalkiSection>
+
+      {/* PO Delivery Preferences */}
+      <KalkiSection title="Purchase Order Delivery Preferences" icon={<Send size={16} />}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "16px" }}>
+          <KalkiSelect 
+            label="Delivery Method" 
+            name="poDeliveryMethod" 
+            defaultValue={initialData?.poDeliveryMethod || 'WHATSAPP'} 
+            disabled={submitting}
+          >
             <option value="WHATSAPP">WhatsApp</option>
             <option value="EMAIL">Email</option>
             <option value="MANUAL">Manual</option>
-          </select>
-        </div>
-        <div className="field">
-          <label>WhatsApp Preference</label>
-          <select name="poWhatsappPreference" defaultValue={initialData?.poWhatsappPreference || 'TEXT_AND_PDF_LINK'} disabled={submitting}>
+          </KalkiSelect>
+
+          <KalkiSelect 
+            label="WhatsApp Dispatch Preference" 
+            name="poWhatsappPreference" 
+            defaultValue={initialData?.poWhatsappPreference || 'TEXT_AND_PDF_LINK'} 
+            disabled={submitting}
+          >
             <option value="TEXT_AND_PDF_LINK">Text Details + PDF Link</option>
             <option value="TEXT_ONLY">Text Details Only</option>
             <option value="PDF_LINK_ONLY">PDF Link Only</option>
-          </select>
-        </div>
-      </div>
+          </KalkiSelect>
 
-      <div className="form-actions" style={{ marginTop: "1rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-        <button type="button" onClick={onCancel} disabled={submitting}>Cancel</button>
-        <button type="submit" className="action-button" disabled={submitting}>
-          {submitting ? "Saving…" : "Save Vendor"}
-        </button>
+          <KalkiInput
+            label="Expected Delivery Days (Lead Time)"
+            name="expectedDeliveryDays"
+            type="number"
+            min="0"
+            max="365"
+            defaultValue={initialData?.expectedDeliveryDays ?? 2}
+            disabled={submitting}
+            placeholder="e.g. 1, 2, 3"
+          />
+        </div>
+      </KalkiSection>
+
+      {/* Form Action Buttons */}
+      <div 
+        style={{ 
+          display: "flex", 
+          justifyContent: "flex-end", 
+          gap: "12px", 
+          padding: "16px 20px", 
+          backgroundColor: "#fff", 
+          border: "1px solid var(--kalki-border)", 
+          borderRadius: "8px" 
+        }}
+      >
+        <KalkiButton type="button" variant="secondary" onClick={onCancel} disabled={submitting}>
+          Cancel
+        </KalkiButton>
+        <KalkiButton type="submit" variant="primary" disabled={submitting} style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          <Save size={16} />
+          {submitting ? "Saving…" : initialData ? "Save Changes" : "Save Vendor"}
+        </KalkiButton>
       </div>
     </form>
   );
 }
+

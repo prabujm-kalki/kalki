@@ -30,6 +30,7 @@ export default function TaskConfigurationPage() {
 
   // Form State
   const [title, setTitle] = useState("");
+  const [module, setModule] = useState("system");
   const [actionType, setActionType] = useState("task");
 
   const [roles, setRoles] = useState<any[]>([]);
@@ -99,6 +100,7 @@ export default function TaskConfigurationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
+          module,
           triggerType: "event", // Defaulting to event as a pure policy
           actionType,
           targetRoleId: targetRoleId || null,
@@ -118,6 +120,7 @@ export default function TaskConfigurationPage() {
         setEditingTaskId(null);
         setIsModalOpen(false);
         setTitle("");
+        setModule("system");
         setTargetRoleId("");
         setReminderTone("level-1");
         setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }]);
@@ -134,6 +137,7 @@ export default function TaskConfigurationPage() {
   const handleEdit = (task: TaskDefinition) => {
     setEditingTaskId(task.id);
     setTitle(task.title);
+    setModule(task.module || "system");
     setActionType(task.actionType);
     setTargetRoleId(task.targetRoleId || "");
     setReminderTone(task.triggerConfig?.reminderTone || "level-1");
@@ -158,6 +162,7 @@ export default function TaskConfigurationPage() {
   const handleOpenNew = () => {
     setEditingTaskId(null);
     setTitle("");
+    setModule("system");
     setTargetRoleId("");
     setReminderTone("level-1");
     setEscalationLevels([{ roleId: "", timeoutMinutes: "30", notificationTone: "level-1" }]);
@@ -268,6 +273,21 @@ export default function TaskConfigurationPage() {
                   </div>
 
                   <div className="kalki-grid-2-col">
+                    <div className="kalki-field">
+                      <label className="kalki-label">Module <span className="kalki-required">*</span></label>
+                      <select
+                        value={module}
+                        onChange={(e) => setModule(e.target.value)}
+                        className="kalki-select"
+                      >
+                        <option value="system">System / Operations</option>
+                        <option value="purchase">Purchasing</option>
+                        <option value="finance">Finance / Cashier</option>
+                        <option value="inventory">Inventory</option>
+                        <option value="sales">Sales</option>
+                        <option value="hr">HR &amp; Attendance</option>
+                      </select>
+                    </div>
                     <div className="kalki-field">
                       <label className="kalki-label">Reminder Tone</label>
                       <select 

@@ -34,6 +34,7 @@ interface TicketItem {
 
 interface ServiceClientProps {
   organizationId: string;
+  locationId?: string;
   tickets: TicketItem[];
   locations: { id: string; name: string }[];
   currentPage: number;
@@ -48,6 +49,7 @@ interface ServiceClientProps {
 export default function ServiceClient(props: ServiceClientProps) {
   const {
     organizationId,
+    locationId,
     tickets,
     locations,
     currentPage,
@@ -73,6 +75,7 @@ export default function ServiceClient(props: ServiceClientProps) {
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState("MEDIUM");
   const [category, setCategory] = useState("BILLING");
+  const [ticketLocationId, setTicketLocationId] = useState(locationId || "");
   const [resolutionNotes, setResolutionNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -97,6 +100,7 @@ export default function ServiceClient(props: ServiceClientProps) {
     try {
       const res = await createTicket({
         organizationId,
+        locationId: ticketLocationId || locationId || undefined,
         subject,
         description,
         urgency,
@@ -429,6 +433,24 @@ export default function ServiceClient(props: ServiceClientProps) {
                     </select>
                   </div>
                 </div>
+
+                {locations.length > 0 && (
+                  <div className="crm-form-group">
+                    <label className="crm-form-label">Branch Location</label>
+                    <select
+                      value={ticketLocationId}
+                      onChange={(e) => setTicketLocationId(e.target.value)}
+                      className="crm-form-select"
+                    >
+                      <option value="">Organization-Wide (No specific branch)</option>
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div className="crm-form-group">
                   <label className="crm-form-label">Detailed Notes & Incident Description *</label>

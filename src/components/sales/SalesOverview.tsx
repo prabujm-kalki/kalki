@@ -10,6 +10,8 @@ import {
   Undo2,
   ChevronDown,
   RefreshCw,
+  CalendarCheck,
+  Lock,
 } from "lucide-react";
 import {
   ComposedChart,
@@ -348,16 +350,16 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
       {/* Quick Actions Row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1.5rem", width: "100%" }}>
         <Link 
-          href={`/sales/orders?organizationId=${selected?.organizationId}&locationId=${selected?.locationId}`}
+          href={`/sales/day-close?organizationId=${selected?.organizationId}&locationId=${selected?.locationId}`}
           className="card hover:shadow-md transition-shadow" 
           style={{ textDecoration: "none", padding: "0.75rem", borderRadius: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem", backgroundColor: "#f0fdf4", border: "none", cursor: "pointer", textAlign: "left" }}
         >
-          <div style={{ width: "32px", height: "32px", borderRadius: "8px", backgroundColor: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
-            <ShoppingCart size={16} />
+          <div style={{ width: "32px", height: "32px", borderRadius: "8px", backgroundColor: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
+            <CalendarCheck size={16} />
           </div>
           <div>
-            <div style={{ fontWeight: "600", color: "#166534", fontSize: "0.875rem" }}>New POS Sale</div>
-            <div style={{ fontSize: "0.65rem", color: "#166534", opacity: 0.8 }}>Open Cashier</div>
+            <div style={{ fontWeight: "600", color: "#166534", fontSize: "0.875rem" }}>End of Day Close</div>
+            <div style={{ fontSize: "0.65rem", color: "#166534", opacity: 0.8 }}>Blind Cash & Lock</div>
           </div>
         </Link>
 

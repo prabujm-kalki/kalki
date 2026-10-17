@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { kuabEvents, kuabTasks, kuabEscalationRules } from "@/db/schema";
 import { handlePurchaseStockEntered, PurchaseStockEnteredPayload } from "./handlers/purchasingHandler";
+import { handleEventConfirmed, EventConfirmedPayload } from "./handlers/eventsHandler";
 
 export const eventPayloadSchema = z.object({
   organizationId: z.string().uuid(),
@@ -37,7 +38,11 @@ export async function emitEvent(params: EmitEventParams) {
   if (event.eventType === 'PURCHASING_STOCK_ENTERED') {
     const payload = event.payload as PurchaseStockEnteredPayload;
     await handlePurchaseStockEntered(payload);
+  } else if (event.eventType === 'EVENT_CONFIRMED') {
+    const payload = event.payload as EventConfirmedPayload;
+    await handleEventConfirmed(payload);
   }
 
   return event;
 }
+

@@ -36,6 +36,7 @@ const itemSchema = z.object({
   vendorIds: z.array(z.string().uuid()).min(1, 'At least one vendor is required'),
   organizationId: z.string().uuid(),
   locationId: z.string().uuid(),
+  itemType: z.enum(['RAW_MATERIAL', 'EXPENSE', 'MENU_ITEM']).optional().default('RAW_MATERIAL'),
   categoryId: z.string().uuid().optional().nullable(),
   subcategoryId: z.string().uuid().optional().nullable(),
 });
@@ -48,17 +49,24 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get('organizationId');
     const locationId = searchParams.get('locationId');
+    const itemType = searchParams.get('itemType'); // 'RAW_MATERIAL', 'EXPENSE', 'MENU_ITEM', 'ALL'
     if (!organizationId || !locationId) {
       return NextResponse.json({ error: 'Missing organizationId or locationId' }, { status: 400 });
     }
 
+    const conditions = [
+      eq(items.organizationId, organizationId),
+      eq(items.locationId, locationId),
+      eq(items.isActive, true)
+    ];
+
+    if (itemType && itemType !== 'ALL') {
+      conditions.push(eq(items.itemType, itemType));
+    }
+
     const fetchedItems = await db.select()
       .from(items)
-      .where(and(
-        eq(items.organizationId, organizationId),
-        eq(items.locationId, locationId),
-        eq(items.isActive, true)
-      ))
+      .where(and(...conditions))
       .orderBy(desc(items.createdAt));
 
     return NextResponse.json({ items: fetchedItems });
@@ -102,6 +110,7 @@ export async function POST(req: NextRequest) {
         saturdaySurge: parsed.saturdaySurge?.toString() || '0',
         isActive: parsed.isActive,
         isTrackable: parsed.isTrackable,
+        itemType: parsed.itemType || 'RAW_MATERIAL',
         categoryId: parsed.categoryId || null,
         subcategoryId: parsed.subcategoryId || null,
       }).returning({ id: items.id });

@@ -33,7 +33,8 @@ export default function MarketingOverviewPage() {
     if (!selected?.organizationId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/marketing/stats?organizationId=${selected.organizationId}`);
+      const locParam = selected.locationId ? `&locationId=${selected.locationId}` : "";
+      const res = await fetch(`/api/marketing/stats?organizationId=${selected.organizationId}${locParam}`);
       const json = await res.json();
       if (json.success) {
         setStats(json.data);
@@ -47,7 +48,7 @@ export default function MarketingOverviewPage() {
 
   useEffect(() => {
     fetchStats();
-  }, [selected?.organizationId]);
+  }, [selected?.organizationId, selected?.locationId]);
 
   const query = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "";
 

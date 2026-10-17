@@ -78,15 +78,70 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "No items reached reorder level", created: false });
     }
 
+    // 1. Get vendor details for the PO number and communication
+    const { vendors, locationRoleAssignments, organizationRoleAssignments, businessRoles } = await import('@/db/schema');
+    const { sql } = await import('drizzle-orm');
+    const [vendorRec] = await db.select().from(vendors).where(eq(vendors.id, vendorId));
+    const shortCode = vendorRec?.shortCode || "PO";
+
+    // 2. Format date for PO number
+    const now = new Date();
+    const dd = String(now.getDate()).padStart(2, '0');
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const dateString = `${dd}_${mm}_${yyyy}`;
+
+    // 3. Get sequence number
+    const likePattern = `${shortCode}-${dateString}-%`;
+    const countRes = await db.execute<{ count: number }>(sql`
+      SELECT COUNT(*)::int as count 
+      FROM purchase_orders 
+      WHERE vendor_id = ${vendorId} AND po_number LIKE ${likePattern}
+    `);
+    const countVal = (countRes as any).rows ? (countRes as any).rows[0].count : (countRes as any)[0].count;
+    const seq = String((countVal || 0) + 1).padStart(2, '0');
+    const poNumber = `${shortCode}-${dateString}-${seq}`;
+
+    // 4. Determine roles for workflow
+    let processOwnerRoleId = null;
+    let reviewRoleId = null;
+
+    const lRole = await db.select().from(locationRoleAssignments).where(
+      and(eq(locationRoleAssignments.userId, session.user.id), eq(locationRoleAssignments.locationId, locationId))
+    ).limit(1);
+    
+    let userRole = null;
+    if (lRole.length > 0) {
+      userRole = lRole[0].roleId;
+    } else {
+      const oRole = await db.select().from(organizationRoleAssignments).where(
+        and(eq(organizationRoleAssignments.userId, session.user.id), eq(organizationRoleAssignments.organizationId, organizationId))
+      ).limit(1);
+      if (oRole.length > 0) userRole = oRole[0].roleId;
+    }
+
+    if (userRole) {
+      processOwnerRoleId = userRole;
+      const roleInfo = await db.select().from(businessRoles).where(eq(businessRoles.id, userRole)).limit(1);
+      if (roleInfo.length > 0 && roleInfo[0].reportsToRoleId) {
+        reviewRoleId = roleInfo[0].reportsToRoleId;
+      }
+    }
+
     // Create Draft PO
     const publicToken = crypto.randomBytes(16).toString('hex');
     const [newPo] = await db.insert(purchaseOrders).values({
       organizationId: organizationId,
       locationId: locationId,
       vendorId: vendorId,
-      status: "draft", // Or pending_approval depending on the strict flow
+      poNumber: poNumber,
+      status: "draft",
       totalAmount: totalAmount.toString(),
       publicToken: publicToken,
+      processOwnerRoleId: processOwnerRoleId,
+      reviewRoleId: reviewRoleId,
+      billReviewRoleId: reviewRoleId,
+      createdByUserId: session.user.id,
     }).returning();
 
     // Insert Lines
@@ -99,20 +154,47 @@ export async function POST(req: NextRequest) {
       }))
     );
 
-    // TODO: Generate Task for Reviewer/Manager
-
     // If this was triggered from a Task, mark it as complete
     if (taskId) {
       await db.update(taskInstances)
         .set({
           status: 'completed',
           completedAt: new Date(),
-          completionData: { submittedBy: session.user.id }
+          completionData: { submittedBy: session.user.id, poId: newPo.id }
         })
         .where(eq(taskInstances.id, taskId));
     }
 
-    return NextResponse.json({ message: "PO Draft created", created: true, poId: newPo.id });
+    // Fetch organization whatsappPoTemplate
+    const { organizations } = await import('@/db/schema');
+    const [orgRec] = await db
+      .select({ whatsappPoTemplate: organizations.whatsappPoTemplate })
+      .from(organizations)
+      .where(eq(organizations.id, organizationId));
+
+    return NextResponse.json({
+      message: "PO Draft created",
+      created: true,
+      poId: newPo.id,
+      purchaseOrder: newPo,
+      lines: itemsToOrder.map(item => {
+        const row = configuredItems.find(ci => ci.vendorItem.itemId === item.itemId);
+        return {
+          itemId: item.itemId,
+          itemName: row?.item.nameEn || row?.vendorItem.itemName || "Item",
+          orderedQuantity: item.orderedQuantity,
+          unitOfMeasure: row?.item.purchaseUnit || row?.vendorItem.unitOfMeasure || row?.item.unit || "",
+          unitRate: item.unitRate
+        };
+      }),
+      whatsappPoTemplate: orgRec?.whatsappPoTemplate || null,
+      vendor: vendorRec ? {
+        name: vendorRec.name,
+        contactDetails: vendorRec.contactDetails,
+        poDeliveryMethod: vendorRec.poDeliveryMethod,
+        poWhatsappPreference: vendorRec.poWhatsappPreference,
+      } : null,
+    });
 
   } catch (error: any) {
     console.error("Error in stock assessment:", error);

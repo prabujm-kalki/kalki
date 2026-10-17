@@ -35,12 +35,14 @@ function LoginForm() {
         return;
       }
 
-      // Verify that the employee is active (not EXITED or DRAFT)
+      // Verify that the employee is active and check location scopes
+      let sessionData: any = null;
       try {
         const res = await fetch("/api/session-context?t=" + Date.now());
         if (!res.ok) {
           throw new Error("Account is no longer active.");
         }
+        sessionData = await res.json();
       } catch (err) {
         await authClient.signOut();
         setPending(false);
@@ -49,7 +51,32 @@ function LoginForm() {
       }
 
       setPending(false);
-      router.replace(searchParams.get("next") || "/");
+      
+      const nextParam = searchParams.get("next");
+      const scopes = sessionData?.session?.scopes || [];
+      const isOwner = sessionData?.session?.isOwner || false;
+
+      // If user has a single location, append organizationId and locationId automatically
+      if (scopes.length === 1) {
+        const singleScope = scopes[0];
+        const target = nextParam && nextParam !== "/" ? nextParam : "/";
+        const url = new URL(target, window.location.origin);
+        if (!url.searchParams.has("organizationId")) {
+          url.searchParams.set("organizationId", singleScope.organizationId);
+        }
+        if (!url.searchParams.has("locationId")) {
+          url.searchParams.set("locationId", singleScope.locationId);
+        }
+        router.replace(url.pathname + url.search);
+      } else {
+        // Global User (multiple locations or no fixed default locationId)
+        // Safely redirect to root global dashboard ("/") or "/work" to prevent 404s on un-scoped module routes
+        if (nextParam && (nextParam === "/" || nextParam === "/work")) {
+          router.replace(nextParam);
+        } else {
+          router.replace("/");
+        }
+      }
     } catch (err) {
       setPending(false);
       // If a network crash happens, this will display the red error box instead of reloading!

@@ -132,16 +132,30 @@ export async function createReceipt(input: {
     }
 
     // 3. Find System Accounts
-    const systemAccounts = await tx.select().from(accounts).where(and(
-      eq(accounts.organizationId, input.organizationId),
-      eq(accounts.isSystemAccount, true)
-    ));
+    const allAccounts = await tx.select().from(accounts).where(
+      eq(accounts.organizationId, input.organizationId)
+    );
 
-    const arAccount = systemAccounts.find(a => a.controlAccountType === 'ACCOUNTS_RECEIVABLE');
-    const cashAccount = systemAccounts.find(a => a.controlAccountType === 'CASH_AND_BANK' || a.controlAccountType === 'CASH');
+    const arAccount = allAccounts.find(a => 
+      a.controlAccountType === 'ACCOUNTS_RECEIVABLE' || 
+      a.controlAccountType === 'CUSTOMER_RECEIVABLE' ||
+      a.code === '1210' ||
+      a.code === 'AR-CTRL' ||
+      a.name.toLowerCase().includes('accounts receivable')
+    );
+    const cashAccount = allAccounts.find(a => 
+      a.controlAccountType === 'CASH_AND_BANK' || 
+      a.controlAccountType === 'CASH' ||
+      a.code === '1110' ||
+      a.code === '1130' ||
+      a.code === 'CASH-001' ||
+      a.code === 'BANK-001' ||
+      a.name.toLowerCase().includes('cash in hand') ||
+      a.name.toLowerCase().includes('bank')
+    );
 
     if (!arAccount || !cashAccount) {
-      throw new Error("Critical system accounts (AR or CASH) are not configured.");
+      throw new Error("Critical system accounts (AR or CASH/BANK) are not configured.");
     }
 
     // 4. Create Double-Entry Journal
@@ -286,13 +300,25 @@ export async function createSalesInvoice(input: {
     }).returning();
 
     // 2. Find System Accounts
-    const systemAccounts = await tx.select().from(accounts).where(and(
-      eq(accounts.organizationId, input.organizationId),
-      eq(accounts.isSystemAccount, true)
-    ));
+    const allAccounts = await tx.select().from(accounts).where(
+      eq(accounts.organizationId, input.organizationId)
+    );
 
-    const arAccount = systemAccounts.find(a => a.controlAccountType === 'ACCOUNTS_RECEIVABLE');
-    const revenueAccount = systemAccounts.find(a => a.controlAccountType === 'REVENUE_SALES');
+    const arAccount = allAccounts.find(a => 
+      a.controlAccountType === 'ACCOUNTS_RECEIVABLE' || 
+      a.controlAccountType === 'CUSTOMER_RECEIVABLE' ||
+      a.code === '1210' ||
+      a.code === 'AR-CTRL' ||
+      a.name.toLowerCase().includes('accounts receivable')
+    );
+    const revenueAccount = allAccounts.find(a => 
+      a.controlAccountType === 'REVENUE_SALES' || 
+      a.controlAccountType === 'REVENUE' ||
+      a.code === '1001' ||
+      a.code === '4100' ||
+      a.name.toLowerCase().includes('sales') ||
+      a.name.toLowerCase().includes('revenue')
+    );
 
     if (!arAccount || !revenueAccount) {
       throw new Error("Critical system accounts (AR or REVENUE) are not configured.");

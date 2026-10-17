@@ -12,17 +12,22 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const orgId = searchParams.get('organizationId');
+    const categoryType = searchParams.get('categoryType'); // 'PROCUREMENT' | 'MENU' | 'ALL'
     if (!orgId) return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
+
+    const conditions = [
+      eq(itemCategories.organizationId, orgId),
+      eq(itemCategories.isActive, true)
+    ];
+
+    if (categoryType && categoryType !== 'ALL') {
+      conditions.push(eq(itemCategories.categoryType, categoryType));
+    }
 
     const categories = await db
       .select()
       .from(itemCategories)
-      .where(
-        and(
-          eq(itemCategories.organizationId, orgId),
-          eq(itemCategories.isActive, true)
-        )
-      )
+      .where(and(...conditions))
       .orderBy(itemCategories.name);
 
     return NextResponse.json(categories);

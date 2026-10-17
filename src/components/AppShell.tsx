@@ -57,6 +57,13 @@ function AppShellContent({ children }: { children: ReactNode }) {
     };
   }, [pathname, router, searchParams]);
 
+  // Initialize Native Push Notifications & Capgo OTA Updater when on native device
+  useEffect(() => {
+    import("@/lib/mobileNative").then(({ initializeNativeMobile }) => {
+      initializeNativeMobile();
+    });
+  }, []);
+
   const selected = useMemo(
     () => session?.scopes.find((scope) => scope.organizationId === organizationId && scope.locationId === locationId) ?? null,
     [locationId, organizationId, session],
@@ -71,11 +78,20 @@ function AppShellContent({ children }: { children: ReactNode }) {
   }, [pathname, router, searchParams, selected, session]);
 
   function changeScope(value: string) {
+    if (!value) {
+      // User selected "Select Location..." (reset scope)
+      const next = new URLSearchParams(searchParams.toString());
+      next.delete("organizationId");
+      next.delete("locationId");
+      const qs = next.toString();
+      router.push(`${pathname}${qs ? `?${qs}` : ""}`);
+      return;
+    }
     const [nextOrganizationId, nextLocationId] = value.split(":");
-    const next = new URLSearchParams();
+    const next = new URLSearchParams(searchParams.toString());
     next.set("organizationId", nextOrganizationId);
     next.set("locationId", nextLocationId);
-    const nextPath = pathname.startsWith("/work/") || pathname === "/work" ? "/work" : pathname;
+    const nextPath = pathname.startsWith("/work/") ? "/work" : pathname;
     router.push(`${nextPath}?${next.toString()}`);
   }
 
@@ -167,7 +183,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
                   value={selected ? scopeKey(selected) : ""}
                   onChange={(event) => changeScope(event.target.value)}
                 >
-                  <option value="" disabled>Select Location...</option>
+                  <option value="">Select Location...</option>
                   {session.scopes.map((scope) => (
                     <option key={scopeKey(scope)} value={scopeKey(scope)}>
                       {scope.organizationName} / {scope.locationName}

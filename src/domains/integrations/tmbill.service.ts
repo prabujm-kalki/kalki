@@ -17,7 +17,7 @@ import {
   items,
   itemCategories
 } from "@/db/schema";
-import { eq, and, sql, inArray } from "drizzle-orm";
+import { eq, and, sql, inArray, gte, lte } from "drizzle-orm";
 import { posChannelMappings } from "@/db/schema";
 import { randomUUID } from "crypto";
 import { evaluateSalesConversionForCustomer } from "@/domains/marketing/attributionService";
@@ -257,16 +257,25 @@ export class TMBillService {
     }
   }
 
-  async pushToSalesInvoices(userId: string): Promise<number> {
-    let query = db.select().from(tmbillOrders)
-      .where(
-        and(
-          eq(tmbillOrders.organizationId, this.organizationId),
-          eq(tmbillOrders.isSyncedToFinance, false)
-        )
-      );
+  async pushToSalesInvoices(userId: string, fromDate?: string, toDate?: string): Promise<number> {
+    const conditions = [
+      eq(tmbillOrders.organizationId, this.organizationId),
+      eq(tmbillOrders.isSyncedToFinance, false)
+    ];
 
-    const unsyncedOrders = await query;
+    if (this.locationId) {
+      conditions.push(eq(tmbillOrders.locationId, this.locationId));
+    }
+
+    if (fromDate) {
+      conditions.push(gte(tmbillOrders.orderDateTime, new Date(fromDate)));
+    }
+
+    if (toDate) {
+      conditions.push(lte(tmbillOrders.orderDateTime, new Date(toDate)));
+    }
+
+    const unsyncedOrders = await db.select().from(tmbillOrders).where(and(...conditions));
     if (unsyncedOrders.length === 0) return 0;
 
     const ordersToProcess = unsyncedOrders;
@@ -404,7 +413,8 @@ export class TMBillService {
                 id: catId,
                 organizationId: this.organizationId,
                 name: categoryName,
-                code: categoryName.substring(0, 5).toUpperCase()
+                code: categoryName.substring(0, 5).toUpperCase(),
+                categoryType: "MENU"
               });
             }
 

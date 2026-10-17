@@ -60,7 +60,7 @@ export async function POST(request: Request) {
 
     const [newDef] = await db.insert(taskDefinitions).values({
       organizationId: orgId,
-      module: "system",
+      module: body.module || "system",
       title: body.title,
       description: body.description,
       triggerType: body.triggerType,

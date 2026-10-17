@@ -73,7 +73,7 @@ export async function runAbsenteeismEscalation(targetDate: Date = new Date()) {
       violationType = "MISSING_PUNCH"; // Forgot to punch in or out
     }
 
-    // 4. Trigger Escalation to KUAB
+    // 4. Trigger Escalation to KUAB & Auto-Delegate Tasks
     if (violationType) {
       await emitEvent({
         organizationId: emp.organizationId,
@@ -87,6 +87,20 @@ export async function runAbsenteeismEscalation(targetDate: Date = new Date()) {
           departmentId: emp.departmentId
         }
       });
+
+      if (violationType === "NO_SHOW") {
+        try {
+          const { reassignPendingTasksForAbsentEmployee } = await import("@/domains/tasks/absence-delegation");
+          await reassignPendingTasksForAbsentEmployee({
+            employeeId: emp.id,
+            organizationId: emp.organizationId,
+            reason: `Unexcused absence / No-show on ${dateStr}. Auto-delegated to Supervisor.`,
+          });
+        } catch (delErr) {
+          console.warn("Absence auto-delegation error:", delErr);
+        }
+      }
+
       escalatedCount++;
     }
   }

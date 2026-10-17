@@ -14,8 +14,10 @@ import {
   kuabTasks,
   marketingCampaigns,
   campaignAudiences,
+  crmIntelligenceConfigurations,
+  events,
 } from "@/db/schema";
-import { eq, and, desc, sql, ilike, or } from "drizzle-orm";
+import { eq, and, desc, sql, ilike, or, lte, gte } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 // ---------------------------------------------------------------------------
@@ -366,7 +368,27 @@ export async function updateLeadStage(leadId: string, stage: string) {
       .set({ stage, updatedAt: new Date() })
       .where(eq(crmLeads.id, leadId));
 
-    revalidatePath("/crm/leads");
+    // Reverse sync to linked Event if this lead corresponds to an event
+    const stageToEventStatus: Record<string, string> = {
+      NEW_ENQUIRY: "ENQUIRY",
+      CONTACTED: "LIKELY",
+      QUOTE_SENT: "CONFIRMED_NO_ADVANCE",
+      WON: "BOOKED_PAID",
+      LOST: "CANCELLED",
+    };
+
+    const targetEventStatus = stageToEventStatus[stage];
+    if (targetEventStatus) {
+      await db
+        .update(events)
+        .set({ status: targetEventStatus, updatedAt: new Date() })
+        .where(eq(events.leadId, leadId));
+    }
+
+    try {
+      revalidatePath("/crm/leads");
+      revalidatePath("/events");
+    } catch {}
     return { success: true };
   } catch (err: any) {
     console.error("[updateLeadStage Error]:", err);
@@ -534,3 +556,292 @@ export async function resolveTicket(ticketId: string, resolutionNotes: string) {
     return { success: false, error: err?.message || "Failed to resolve ticket" };
   }
 }
+
+// ---------------------------------------------------------------------------
+// 5. CRM INTELLIGENCE HUB & DYNAMIC LIST EVALUATION
+// ---------------------------------------------------------------------------
+
+export interface CrmConfigValues {
+  dormantVipDays: number;
+  dormantVipMinSpend: number;
+  aovDropPercentage: number;
+  criticalDebtorDays: number;
+  newVipMinSpend: number;
+  anomalyAovMultiplier: number;
+  concentrationTopCount: number;
+}
+
+export async function getCrmIntelligenceConfig(organizationId: string, locationId?: string | null): Promise<CrmConfigValues> {
+  let row: any = null;
+  if (locationId && locationId !== "ALL") {
+    const [locRow] = await db
+      .select()
+      .from(crmIntelligenceConfigurations)
+      .where(
+        and(
+          eq(crmIntelligenceConfigurations.organizationId, organizationId),
+          eq(crmIntelligenceConfigurations.locationId, locationId)
+        )
+      )
+      .limit(1);
+    row = locRow;
+  }
+
+  if (!row) {
+    const [orgRow] = await db
+      .select()
+      .from(crmIntelligenceConfigurations)
+      .where(
+        and(
+          eq(crmIntelligenceConfigurations.organizationId, organizationId),
+          sql`${crmIntelligenceConfigurations.locationId} IS NULL`
+        )
+      )
+      .limit(1);
+    row = orgRow;
+  }
+
+  return {
+    dormantVipDays: row?.dormantVipDays ?? 90,
+    dormantVipMinSpend: Number(row?.dormantVipMinSpend ?? 10000),
+    aovDropPercentage: Number(row?.aovDropPercentage ?? 5.0),
+    criticalDebtorDays: row?.criticalDebtorDays ?? 30,
+    newVipMinSpend: Number(row?.newVipMinSpend ?? 10000),
+    anomalyAovMultiplier: Number(row?.anomalyAovMultiplier ?? 3.0),
+    concentrationTopCount: row?.concentrationTopCount ?? 5,
+  };
+}
+
+export async function updateCrmIntelligenceConfig(
+  organizationId: string,
+  locationId: string | null,
+  values: Partial<CrmConfigValues>
+) {
+  try {
+    const existing = await db
+      .select({ id: crmIntelligenceConfigurations.id })
+      .from(crmIntelligenceConfigurations)
+      .where(
+        and(
+          eq(crmIntelligenceConfigurations.organizationId, organizationId),
+          locationId ? eq(crmIntelligenceConfigurations.locationId, locationId) : sql`${crmIntelligenceConfigurations.locationId} IS NULL`
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      await db
+        .update(crmIntelligenceConfigurations)
+        .set({
+          ...(values.dormantVipDays !== undefined && { dormantVipDays: values.dormantVipDays }),
+          ...(values.dormantVipMinSpend !== undefined && { dormantVipMinSpend: values.dormantVipMinSpend.toFixed(2) }),
+          ...(values.aovDropPercentage !== undefined && { aovDropPercentage: values.aovDropPercentage.toFixed(2) }),
+          ...(values.criticalDebtorDays !== undefined && { criticalDebtorDays: values.criticalDebtorDays }),
+          ...(values.newVipMinSpend !== undefined && { newVipMinSpend: values.newVipMinSpend.toFixed(2) }),
+          ...(values.anomalyAovMultiplier !== undefined && { anomalyAovMultiplier: values.anomalyAovMultiplier.toFixed(2) }),
+          ...(values.concentrationTopCount !== undefined && { concentrationTopCount: values.concentrationTopCount }),
+          updatedAt: new Date(),
+        })
+        .where(eq(crmIntelligenceConfigurations.id, existing[0].id));
+    } else {
+      await db.insert(crmIntelligenceConfigurations).values({
+        organizationId,
+        locationId: locationId || null,
+        dormantVipDays: values.dormantVipDays ?? 90,
+        dormantVipMinSpend: (values.dormantVipMinSpend ?? 10000).toFixed(2),
+        aovDropPercentage: (values.aovDropPercentage ?? 5.0).toFixed(2),
+        criticalDebtorDays: values.criticalDebtorDays ?? 30,
+        newVipMinSpend: (values.newVipMinSpend ?? 10000).toFixed(2),
+        anomalyAovMultiplier: (values.anomalyAovMultiplier ?? 3.0).toFixed(2),
+        concentrationTopCount: values.concentrationTopCount ?? 5,
+      });
+    }
+
+    revalidatePath("/crm/intelligence");
+    return { success: true };
+  } catch (err: any) {
+    console.error("[updateCrmIntelligenceConfig Error]:", err);
+    return { success: false, error: err?.message };
+  }
+}
+
+/**
+ * Evaluates Dormant VIP customers dynamically.
+ */
+export async function getDormantVIPs(organizationId: string, locationId?: string | null) {
+  const config = await getCrmIntelligenceConfig(organizationId, locationId);
+  const dormantThresholdDate = new Date();
+  dormantThresholdDate.setDate(dormantThresholdDate.getDate() - config.dormantVipDays);
+
+  const baseWhere = [
+    eq(salesInvoices.organizationId, organizationId),
+    sql`${salesInvoices.status} != 'CANCELLED' AND ${salesInvoices.paymentStatus} != 'CANCELLED'`,
+    sql`TRIM(${salesInvoices.customerName}) != '' AND ${salesInvoices.customerName} IS NOT NULL`,
+  ];
+  if (locationId && locationId !== "ALL") {
+    baseWhere.push(eq(salesInvoices.locationId, locationId));
+  }
+
+  const nameCol = sql<string>`COALESCE(NULLIF(TRIM(${salesInvoices.customerName}), ''), 'Guest')`;
+  const phoneCol = sql<string>`COALESCE(NULLIF(TRIM(${customers.phone}), ''), '-')`;
+
+  const results = await db
+    .select({
+      customerId: sql<string>`MAX(CAST(${salesInvoices.customerId} AS TEXT))`,
+      customerName: nameCol,
+      customerPhone: phoneCol,
+      totalSpend: sql<number>`SUM(CAST(${salesInvoices.grandTotal} AS NUMERIC))`,
+      totalOrders: sql<number>`COUNT(${salesInvoices.id})`,
+      lastPurchaseDate: sql<string>`MAX(${salesInvoices.invoiceDate})`,
+    })
+    .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
+    .where(and(...baseWhere))
+    .groupBy(nameCol, phoneCol)
+    .having(
+      sql`MAX(${salesInvoices.invoiceDate}) < ${dormantThresholdDate} AND (COUNT(${salesInvoices.id}) >= 3 OR SUM(CAST(${salesInvoices.grandTotal} AS NUMERIC)) >= ${config.dormantVipMinSpend})`
+    );
+
+  const totalAtRisk = results.reduce((sum, r) => sum + Number(r.totalSpend), 0);
+
+  return {
+    rule: "DORMANT_VIPS",
+    title: `${results.length} Dormant VIPs (> ${config.dormantVipDays} Days Inactive)`,
+    description: `Revenue at risk: ₹${totalAtRisk.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+    badge: "Retention Risk",
+    count: results.length,
+    customers: results,
+  };
+}
+
+/**
+ * Evaluates Customers experiencing Average Order Value (AOV) drops.
+ */
+export async function getAovDrops(organizationId: string, locationId?: string | null) {
+  const config = await getCrmIntelligenceConfig(organizationId, locationId);
+  const now = new Date();
+  const activeStart = new Date(now);
+  activeStart.setDate(activeStart.getDate() - 30);
+
+  const baselineStart = new Date(activeStart);
+  baselineStart.setDate(baselineStart.getDate() - 90);
+
+  const baseWhere = [
+    eq(salesInvoices.organizationId, organizationId),
+    sql`${salesInvoices.status} != 'CANCELLED' AND ${salesInvoices.paymentStatus} != 'CANCELLED'`,
+    sql`TRIM(${salesInvoices.customerName}) != '' AND ${salesInvoices.customerName} IS NOT NULL`,
+  ];
+  if (locationId && locationId !== "ALL") {
+    baseWhere.push(eq(salesInvoices.locationId, locationId));
+  }
+
+  const nameCol = sql<string>`COALESCE(NULLIF(TRIM(${salesInvoices.customerName}), ''), 'Guest')`;
+  const phoneCol = sql<string>`COALESCE(NULLIF(TRIM(${customers.phone}), ''), '-')`;
+
+  const results = await db
+    .select({
+      customerId: sql<string>`MAX(CAST(${salesInvoices.customerId} AS TEXT))`,
+      customerName: nameCol,
+      customerPhone: phoneCol,
+      recentAov: sql<number>`AVG(CASE WHEN ${salesInvoices.invoiceDate} >= ${activeStart} THEN CAST(${salesInvoices.grandTotal} AS NUMERIC) END)`,
+      baselineAov: sql<number>`AVG(CASE WHEN ${salesInvoices.invoiceDate} >= ${baselineStart} AND ${salesInvoices.invoiceDate} < ${activeStart} THEN CAST(${salesInvoices.grandTotal} AS NUMERIC) END)`,
+      totalSpend: sql<number>`SUM(CAST(${salesInvoices.grandTotal} AS NUMERIC))`,
+      totalOrders: sql<number>`COUNT(${salesInvoices.id})`,
+      lastPurchaseDate: sql<string>`MAX(${salesInvoices.invoiceDate})`,
+    })
+    .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
+    .where(and(...baseWhere))
+    .groupBy(nameCol, phoneCol)
+    .having(
+      sql`AVG(CASE WHEN ${salesInvoices.invoiceDate} >= ${baselineStart} AND ${salesInvoices.invoiceDate} < ${activeStart} THEN CAST(${salesInvoices.grandTotal} AS NUMERIC) END) > 0 
+          AND AVG(CASE WHEN ${salesInvoices.invoiceDate} >= ${activeStart} THEN CAST(${salesInvoices.grandTotal} AS NUMERIC) END) > 0`
+    );
+
+  const dropRatio = (100 - config.aovDropPercentage) / 100;
+  const filtered = results.filter((r) => Number(r.recentAov) < Number(r.baselineAov) * dropRatio);
+
+  return {
+    rule: "AOV_DROPS",
+    title: `Basket Value Dropped > ${config.aovDropPercentage}% for ${filtered.length} Customers`,
+    description: `Underperforming vs their 90-day historical baseline spend`,
+    badge: "Upsell Deficit",
+    count: filtered.length,
+    customers: filtered,
+  };
+}
+
+/**
+ * Evaluates Critical Debtors with overdue outstanding invoices.
+ */
+export async function getCriticalDebtors(organizationId: string, locationId?: string | null) {
+  const config = await getCrmIntelligenceConfig(organizationId, locationId);
+  const debtorThresholdDate = new Date();
+  debtorThresholdDate.setDate(debtorThresholdDate.getDate() - config.criticalDebtorDays);
+
+  const baseWhere = [
+    eq(salesInvoices.organizationId, organizationId),
+    sql`${salesInvoices.paymentStatus} != 'PAID' AND ${salesInvoices.status} != 'CANCELLED'`,
+    sql`TRIM(${salesInvoices.customerName}) != '' AND ${salesInvoices.customerName} IS NOT NULL`,
+    lte(salesInvoices.invoiceDate, debtorThresholdDate),
+  ];
+  if (locationId && locationId !== "ALL") {
+    baseWhere.push(eq(salesInvoices.locationId, locationId));
+  }
+
+  const nameCol = sql<string>`COALESCE(NULLIF(TRIM(${salesInvoices.customerName}), ''), 'Guest')`;
+  const phoneCol = sql<string>`COALESCE(NULLIF(TRIM(${customers.phone}), ''), '-')`;
+
+  const results = await db
+    .select({
+      customerId: sql<string>`MAX(CAST(${salesInvoices.customerId} AS TEXT))`,
+      customerName: nameCol,
+      customerPhone: phoneCol,
+      totalSpend: sql<number>`SUM(CAST(${salesInvoices.grandTotal} AS NUMERIC))`,
+      totalOrders: sql<number>`COUNT(${salesInvoices.id})`,
+      lastPurchaseDate: sql<string>`MAX(${salesInvoices.invoiceDate})`,
+    })
+    .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
+    .where(and(...baseWhere))
+    .groupBy(nameCol, phoneCol);
+
+  const totalOverdue = results.reduce((sum, r) => sum + Number(r.totalSpend), 0);
+
+  return {
+    rule: "CRITICAL_DEBTORS",
+    title: `${results.length} Accounts > ${config.criticalDebtorDays} Days Overdue`,
+    description: `Outstanding balance: ₹${totalOverdue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`,
+    badge: "Credit Risk",
+    count: results.length,
+    customers: results,
+  };
+}
+
+/**
+ * Master evaluator for a dynamic list by triggerRule key.
+ */
+export async function getDynamicListEvaluation(
+  organizationId: string,
+  triggerRule: string,
+  locationId?: string | null
+) {
+  switch (triggerRule) {
+    case "DORMANT_VIPS":
+      return await getDormantVIPs(organizationId, locationId);
+    case "AOV_DROPS":
+      return await getAovDrops(organizationId, locationId);
+    case "CRITICAL_DEBTORS":
+      return await getCriticalDebtors(organizationId, locationId);
+    default:
+      return {
+        rule: triggerRule,
+        title: "No Matching Rule",
+        description: "Unrecognized trigger rule",
+        badge: "None",
+        count: 0,
+        customers: [],
+      };
+  }
+}
+

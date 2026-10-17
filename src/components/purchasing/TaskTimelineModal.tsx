@@ -18,6 +18,14 @@ export function TaskTimelineModal({ taskId, onClose }: TaskTimelineModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     fetch(`/api/tasks/${taskId}/timeline`)
       .then(res => res.json())
       .then(json => {

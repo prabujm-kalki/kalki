@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { purchaseOrders, purchaseOrderLines, items, vendors } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { eq, and } from "drizzle-orm";
+import { getSessionContext } from "@/domains/session/service";
+import { eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -12,6 +13,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     const { id } = await params;
+    if (!id) {
+      return NextResponse.json({ error: "PO ID is required" }, { status: 400 });
+    }
+
+    const context = await getSessionContext(session.user);
+    const userOrgIds = context.scopes.map((s) => s.organizationId);
 
     const poQuery = await db
       .select({
@@ -20,35 +27,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       })
       .from(purchaseOrders)
       .innerJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
-      .where(
-        and(
-          eq(purchaseOrders.id, id),
-          eq(purchaseOrders.organizationId, (session.user as any).organizationId)
-        )
-      )
+      .where(eq(purchaseOrders.id, id))
       .limit(1);
 
     if (poQuery.length === 0) {
       return NextResponse.json({ error: "PO not found" }, { status: 404 });
     }
 
+    const po = poQuery[0].po;
+    if (!context.isOwner && !userOrgIds.includes(po.organizationId)) {
+      return NextResponse.json({ error: "Unauthorized access to PO" }, { status: 403 });
+    }
+
     const lines = await db
       .select({
         line: purchaseOrderLines,
         itemName: items.nameEn,
-        
       })
       .from(purchaseOrderLines)
       .innerJoin(items, eq(purchaseOrderLines.itemId, items.id))
       .where(eq(purchaseOrderLines.poId, id));
 
     return NextResponse.json({
-      po: poQuery[0].po,
+      po: po,
       vendorName: poQuery[0].vendorName,
       lines: lines.map(l => ({
         ...l.line,
         itemName: l.itemName,
-        
       }))
     });
   } catch (error: any) {

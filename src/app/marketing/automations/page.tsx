@@ -1,6 +1,11 @@
 import React from "react";
 import { db } from "@/db";
-import { marketingAutomations } from "@/db/schema";
+import {
+  marketingAutomations,
+  marketingTemplates,
+  whatsappTemplates,
+  organizations,
+} from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import AutomationsClient from "./AutomationsClient";
 import "../marketing.css";
@@ -11,13 +16,24 @@ interface PageProps {
   searchParams: Promise<{
     organizationId?: string;
     locationId?: string;
+    targetRule?: string;
+    openCreate?: string;
   }>;
 }
 
 export default async function MarketingAutomationsPage(props: PageProps) {
   const searchParams = await props.searchParams;
-  const organizationId = searchParams.organizationId || "";
+  let organizationId = searchParams.organizationId || "";
   const locationId = searchParams.locationId || "";
+  const targetRule = searchParams.targetRule || "";
+  const openCreate = searchParams.openCreate === "true";
+
+  if (!organizationId) {
+    const defaultOrg = await db.select({ id: organizations.id }).from(organizations).limit(1);
+    if (defaultOrg.length > 0) {
+      organizationId = defaultOrg[0].id;
+    }
+  }
 
   if (!organizationId) {
     return (
@@ -27,20 +43,59 @@ export default async function MarketingAutomationsPage(props: PageProps) {
     );
   }
 
-  const conditions = [eq(marketingAutomations.organizationId, organizationId)];
+  // 1. Fetch Lifecycle Dynamic Drip Automated Templates
+  const templateConditions = [
+    eq(marketingTemplates.organizationId, organizationId),
+    eq(marketingTemplates.isAutomated, true),
+  ];
   if (locationId && locationId !== "ALL") {
-    conditions.push(eq(marketingAutomations.locationId, locationId));
+    templateConditions.push(eq(marketingTemplates.locationId, locationId));
+  }
+
+  const automatedTemplates = await db
+    .select()
+    .from(marketingTemplates)
+    .where(and(...templateConditions))
+    .orderBy(desc(marketingTemplates.createdAt));
+
+  // 2. Fetch Meta Cloud WhatsApp Templates for template mapping
+  const metaTemplates = await db
+    .select({
+      id: whatsappTemplates.id,
+      name: whatsappTemplates.name,
+      displayName: whatsappTemplates.displayName,
+      category: whatsappTemplates.category,
+      language: whatsappTemplates.language,
+      status: whatsappTemplates.status,
+      bodyText: whatsappTemplates.bodyText,
+    })
+    .from(whatsappTemplates)
+    .where(eq(whatsappTemplates.organizationId, organizationId))
+    .orderBy(desc(whatsappTemplates.createdAt));
+
+  // 3. Fetch Event-triggered Journeys
+  const autoConditions = [eq(marketingAutomations.organizationId, organizationId)];
+  if (locationId && locationId !== "ALL") {
+    autoConditions.push(eq(marketingAutomations.locationId, locationId));
   }
 
   const automations = await db
     .select()
     .from(marketingAutomations)
-    .where(and(...conditions))
+    .where(and(...autoConditions))
     .orderBy(desc(marketingAutomations.createdAt));
 
   return (
     <div className="marketing-container">
-      <AutomationsClient organizationId={organizationId} automations={automations} />
+      <AutomationsClient
+        organizationId={organizationId}
+        locationId={locationId || null}
+        targetRule={targetRule}
+        openCreate={openCreate}
+        automatedTemplates={automatedTemplates}
+        metaTemplates={metaTemplates}
+        automations={automations}
+      />
     </div>
   );
 }

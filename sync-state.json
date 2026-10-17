@@ -1,0 +1,18 @@
+{
+  "locationId": "0aaf0100-391c-4517-adfb-6e162134287b",
+  "locationName": "Avalpoondurai Restaurant",
+  "lastProcessedBatch": 4,
+  "lastCompletedWindow": {
+    "fromDate": "2025-11-29",
+    "toDate": "2025-12-29"
+  },
+  "nextEndDate": "2025-11-28",
+  "batch4RecordsProcessed": 2225,
+  "totalInvoicesRecorded": "20621",
+  "invoiceDateRange": {
+    "earliest": "2025-12-30T06:41:41.000Z",
+    "latest": "2026-10-11T17:23:32.000Z"
+  },
+  "status": "PAUSED",
+  "pausedAt": "2026-10-13T02:52:35.260Z"
+}

@@ -15,7 +15,7 @@ import {
   Clock,
   Sparkles,
 } from "lucide-react";
-import { recalculateRfmSegments } from "@/domains/crm/crmService";
+import { updateCrmIntelligenceConfig, recalculateRfmSegments, CrmConfigValues } from "@/domains/crm/crmService";
 import { GlobalTemplateModal } from "@/components/crm/GlobalTemplateModal";
 
 interface SegmentStat {
@@ -23,6 +23,15 @@ interface SegmentStat {
   count: number;
   totalSpend: number;
   avgFrequency: number;
+}
+
+interface AlertCardItem {
+  rule: string;
+  title: string;
+  description: string;
+  badge: string;
+  count: number;
+  type: string;
 }
 
 interface CohortItem {
@@ -42,6 +51,9 @@ interface CohortItem {
 
 interface IntelligenceClientProps {
   organizationId: string;
+  locationId?: string | null;
+  alertCards?: AlertCardItem[];
+  dynamicRule?: string;
   segmentStats: SegmentStat[];
   cohortList: CohortItem[];
   currentPage: number;
@@ -50,11 +62,15 @@ interface IntelligenceClientProps {
   selectedSegment: string;
   recencyMax: number;
   minSpend: number;
+  configValues?: CrmConfigValues;
 }
 
 export default function IntelligenceClient(props: IntelligenceClientProps) {
   const {
     organizationId,
+    locationId,
+    alertCards = [],
+    dynamicRule = "",
     segmentStats,
     cohortList,
     currentPage,
@@ -63,6 +79,7 @@ export default function IntelligenceClient(props: IntelligenceClientProps) {
     selectedSegment,
     recencyMax,
     minSpend,
+    configValues,
   } = props;
 
   const router = useRouter();
@@ -70,6 +87,14 @@ export default function IntelligenceClient(props: IntelligenceClientProps) {
   const searchParams = useSearchParams();
   const [recalculating, setRecalculating] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showConfigModal, setShowConfigModal] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  // Dynamic Rule Threshold State
+  const [cfgDormantDays, setCfgDormantDays] = useState(configValues?.dormantVipDays ?? 90);
+  const [cfgDormantSpend, setCfgDormantSpend] = useState(configValues?.dormantVipMinSpend ?? 10000);
+  const [cfgAovDropPct, setCfgAovDropPct] = useState(configValues?.aovDropPercentage ?? 5.0);
+  const [cfgDebtorDays, setCfgDebtorDays] = useState(configValues?.criticalDebtorDays ?? 30);
 
   // Threshold sliders
   const [localRecency, setLocalRecency] = useState(recencyMax);
@@ -144,17 +169,46 @@ export default function IntelligenceClient(props: IntelligenceClientProps) {
     },
   };
 
+  const handleSaveConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingConfig(true);
+    try {
+      const res = await updateCrmIntelligenceConfig(organizationId, locationId || null, {
+        dormantVipDays: Number(cfgDormantDays),
+        dormantVipMinSpend: Number(cfgDormantSpend),
+        aovDropPercentage: Number(cfgAovDropPct),
+        criticalDebtorDays: Number(cfgDebtorDays),
+      });
+      if (res.success) {
+        setShowConfigModal(false);
+        router.refresh();
+      } else {
+        alert(res.error || "Failed to update configuration");
+      }
+    } finally {
+      setSavingConfig(false);
+    }
+  };
+
   return (
     <>
       {/* 1. Header & Actions */}
       <div className="crm-header">
         <div>
-          <h1 className="crm-header-title">Auto-Segmentation & RFM Engine</h1>
+          <h1 className="crm-header-title">CRM Intelligence Hub & Dynamic Lists</h1>
           <p className="crm-header-subtitle">
-            Algorithmic Recency, Frequency, and Monetary cohort clustering linked with closed-loop POS sales.
+            Autonomous anomaly evaluation engine evaluating Dormant VIPs, AOV drops, and Debtors in real-time.
           </p>
         </div>
         <div className="crm-header-actions">
+          <button
+            onClick={() => setShowConfigModal(true)}
+            className="crm-btn-ghost"
+            title="Configure Anomaly Detection Rules"
+          >
+            <Sliders size={14} />
+            Rule Thresholds
+          </button>
           <button
             onClick={handleRecalculate}
             disabled={recalculating}
@@ -175,7 +229,108 @@ export default function IntelligenceClient(props: IntelligenceClientProps) {
         </div>
       </div>
 
-      {/* 2. RFM Cohort Summary Cards */}
+      {/* 2. Anomaly Alert Cards Grid (Dynamic Lists Engine) */}
+      {alertCards.length > 0 && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#475569", marginBottom: "0.75rem", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Actionable Dynamic Lists
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem" }}>
+            {alertCards.map((alert) => {
+              const isSelected = dynamicRule === alert.rule;
+              const isCritical = alert.type === "critical";
+              const borderColor = isCritical ? "#ef4444" : "#f59e0b";
+              const badgeBg = isCritical ? "#fef2f2" : "#fffbeb";
+              const badgeColor = isCritical ? "#991b1b" : "#92400e";
+
+              return (
+                <div
+                  key={alert.rule}
+                  style={{
+                    backgroundColor: isSelected ? "#fffbeb" : "#ffffff",
+                    border: isSelected ? `2px solid ${borderColor}` : "1px solid #e2e8f0",
+                    borderLeft: `4px solid ${borderColor}`,
+                    borderRadius: "0.5rem",
+                    padding: "1rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                      <span
+                        style={{
+                          backgroundColor: badgeBg,
+                          color: badgeColor,
+                          fontSize: "0.725rem",
+                          fontWeight: 700,
+                          padding: "0.2rem 0.5rem",
+                          borderRadius: "0.25rem",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {alert.badge}
+                      </span>
+                      <span style={{ fontSize: "1.25rem", fontWeight: 800, color: borderColor }}>
+                        {alert.count}
+                      </span>
+                    </div>
+                    <h3 style={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a", margin: "0 0 0.25rem 0" }}>
+                      {alert.title}
+                    </h3>
+                    <p style={{ fontSize: "0.825rem", color: "#64748b", margin: "0 0 1rem 0" }}>
+                      {alert.description}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+                    <button
+                      onClick={() => updateQueryParam({ dynamicRule: isSelected ? null : alert.rule, segment: "ALL", page: "1" })}
+                      style={{
+                        padding: "0.4rem 0.75rem",
+                        fontSize: "0.775rem",
+                        fontWeight: 600,
+                        backgroundColor: isSelected ? "#0f172a" : "#f1f5f9",
+                        color: isSelected ? "#ffffff" : "#0f172a",
+                        border: "none",
+                        borderRadius: "0.375rem",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {isSelected ? "Showing List" : "Inspect List"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const locParam = locationId ? `&locationId=${locationId}` : "";
+                        router.push(`/marketing/automations?targetRule=${alert.rule}&organizationId=${organizationId}${locParam}&openCreate=true`);
+                      }}
+                      style={{
+                        padding: "0.4rem 0.75rem",
+                        fontSize: "0.775rem",
+                        fontWeight: 600,
+                        backgroundColor: "#d97706",
+                        color: "#ffffff",
+                        border: "none",
+                        borderRadius: "0.375rem",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      <Sparkles size={13} />
+                      Configure Automation
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 3. RFM Cohort Summary Cards */}
       <div className="crm-kpi-grid" style={{ gridTemplateColumns: "repeat(5, minmax(0, 1fr))" }}>
         {Object.entries(segmentsMap).map(([key, def]) => {
           const stat = segmentStats.find((s) => s.segment === key);
@@ -388,6 +543,213 @@ export default function IntelligenceClient(props: IntelligenceClientProps) {
           </>
         )}
       </div>
+
+      {showConfigModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "0.75rem",
+              width: "100%",
+              maxWidth: "520px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                padding: "1.25rem 1.5rem",
+                borderBottom: "1px solid #e2e8f0",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#0f172a" }}>
+                  CRM Anomaly & Intelligence Thresholds
+                </h3>
+                <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                  Fine-tune enterprise sensitivity rules for dynamic customer lists
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConfigModal(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  fontSize: "1.25rem",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveConfig} style={{ padding: "1.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    Dormant VIP Days Inactivity Threshold
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="730"
+                    value={cfgDormantDays}
+                    onChange={(e) => setCfgDormantDays(Number(e.target.value))}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.55rem 0.75rem",
+                      borderRadius: "0.375rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.9rem",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem", display: "block" }}>
+                    Customers inactive longer than this will trigger Dormant alerts. (Default: 90 days)
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    Dormant VIP Minimum Lifetime Spend (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="100"
+                    step="500"
+                    value={cfgDormantSpend}
+                    onChange={(e) => setCfgDormantSpend(Number(e.target.value))}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.55rem 0.75rem",
+                      borderRadius: "0.375rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.9rem",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem", display: "block" }}>
+                    Minimum revenue threshold to qualify customer as a VIP. (Default: ₹10,000)
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    Average Order Value (AOV) Drop Alert (% Sensitivity)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    step="0.5"
+                    value={cfgAovDropPct}
+                    onChange={(e) => setCfgAovDropPct(Number(e.target.value))}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.55rem 0.75rem",
+                      borderRadius: "0.375rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.9rem",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem", display: "block" }}>
+                    Triggers alert when recent 30-day bill average declines by more than this % vs 90-day baseline. (Default: 5%)
+                  </span>
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "0.825rem", fontWeight: 600, color: "#334155", marginBottom: "0.35rem" }}>
+                    Critical Debtor Overdue Period (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="365"
+                    value={cfgDebtorDays}
+                    onChange={(e) => setCfgDebtorDays(Number(e.target.value))}
+                    required
+                    style={{
+                      width: "100%",
+                      padding: "0.55rem 0.75rem",
+                      borderRadius: "0.375rem",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "0.9rem",
+                    }}
+                  />
+                  <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.2rem", display: "block" }}>
+                    Days an invoice remains unpaid before flagging customer as Critical Debtor. (Default: 30 days)
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "0.75rem",
+                  marginTop: "1.75rem",
+                  paddingTop: "1rem",
+                  borderTop: "1px solid #f1f5f9",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowConfigModal(false)}
+                  style={{
+                    padding: "0.5rem 1rem",
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #cbd5e1",
+                    borderRadius: "0.375rem",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    color: "#475569",
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingConfig}
+                  style={{
+                    padding: "0.5rem 1.25rem",
+                    backgroundColor: "#0284c7",
+                    border: "none",
+                    borderRadius: "0.375rem",
+                    fontWeight: 600,
+                    fontSize: "0.85rem",
+                    color: "#ffffff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {savingConfig ? "Saving..." : "Save Thresholds"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showTemplateModal && (
         <GlobalTemplateModal

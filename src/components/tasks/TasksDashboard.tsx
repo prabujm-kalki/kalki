@@ -1,14 +1,29 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import Link from "next/link";
 
 export function TasksDashboard() {
   const { selected } = useSessionView();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
   const [tasks, setTasks] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<"pending" | "audit" | "definitions">("pending");
+  const [activeTab, setActiveTab] = useState<"pending" | "audit" | "definitions">(
+    tabParam === "audit" ? "audit" : tabParam === "definitions" ? "definitions" : "pending"
+  );
+
+  useEffect(() => {
+    if (tabParam === "audit") {
+      setActiveTab("audit");
+    } else if (tabParam === "definitions") {
+      setActiveTab("definitions");
+    } else if (tabParam === "pending") {
+      setActiveTab("pending");
+    }
+  }, [tabParam]);
   const [definitions, setDefinitions] = useState<any[]>([]);
   const [auditTasks, setAuditTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);

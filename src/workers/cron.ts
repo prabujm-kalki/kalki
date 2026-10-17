@@ -94,4 +94,18 @@ cron.schedule("0 9 * * 1", async () => {
   }
 });
 
+// 4. Automated Lifecycle Marketing & Dynamic Drip Engine: Runs every Monday at 09:30 AM
+cron.schedule("30 9 * * 1", async () => {
+  console.log("[CRON] Executing KUAB Automated Lifecycle Drips...");
+  try {
+    const { runAutomatedLifecycleDrips } = await import("../../scripts/automated-lifecycle-drips");
+    const result = await runAutomatedLifecycleDrips();
+    if (result.success) {
+      console.log(`[CRON] Automated Lifecycle Drips finished successfully. Evaluated: ${result.templatesEvaluated}, Enrolled: ${result.newAudiencesEnrolled}`);
+    }
+  } catch (error) {
+    logError("Automated Lifecycle Drips Engine", error);
+  }
+});
+
 console.log("[CRON] Workers initialized. Listening for scheduled tasks...");

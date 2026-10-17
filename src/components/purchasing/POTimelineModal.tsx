@@ -14,6 +14,14 @@ export function POTimelineModal({ poId, onClose }: POTimelineModalProps) {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  useEffect(() => {
     fetch(`/api/purchase-orders/${poId}/timeline`)
       .then(res => res.json())
       .then(json => {
@@ -34,6 +42,7 @@ export function POTimelineModal({ poId, onClose }: POTimelineModalProps) {
   const getActionIcon = (action: string) => {
     switch (action.toLowerCase()) {
       case 'purchase order drafted': return <PlayCircle size={16} className="text-blue-500" />;
+      case 'purchase order rejected': return <AlertCircle size={16} style={{ color: '#ef4444' }} />;
       case 'verified by cashier':
       case 'goods received (process owner)':
       case 'audit audited': 
@@ -45,6 +54,7 @@ export function POTimelineModal({ poId, onClose }: POTimelineModalProps) {
   const getActionColor = (action: string) => {
     switch (action.toLowerCase()) {
       case 'purchase order drafted': return 'bg-blue-50 border-blue-200';
+      case 'purchase order rejected': return 'bg-red-50 border-red-200';
       case 'verified by cashier':
       case 'goods received (process owner)':
       case 'audit audited':
@@ -86,7 +96,33 @@ export function POTimelineModal({ poId, onClose }: POTimelineModalProps) {
                   </div>
                   <div>
                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 'bold', color: '#64748b', marginBottom: '0.25rem' }}>Current Status</div>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', padding: '0.25rem 0.75rem', borderRadius: '9999px', fontSize: '0.8rem', fontWeight: '600', backgroundColor: data.po.status.includes('pending') ? '#e0e7ff' : data.po.status === 'audited' || data.po.status === 'completed' ? '#dcfce7' : '#f1f5f9', color: data.po.status.includes('pending') ? '#4f46e5' : data.po.status === 'audited' || data.po.status === 'completed' ? '#16a34a' : '#475569', textTransform: 'capitalize' }}>
+                    <div style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '9999px',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                      backgroundColor: data.po.status === 'rejected' || data.po.status === 'cancelled'
+                        ? '#fee2e2'
+                        : data.po.status.includes('pending')
+                        ? '#e0e7ff'
+                        : data.po.status === 'audited'
+                        ? '#f3e8ff'
+                        : data.po.status === 'completed'
+                        ? '#dcfce7'
+                        : '#f1f5f9',
+                      color: data.po.status === 'rejected' || data.po.status === 'cancelled'
+                        ? '#dc2626'
+                        : data.po.status.includes('pending')
+                        ? '#4f46e5'
+                        : data.po.status === 'audited'
+                        ? '#7e22ce'
+                        : data.po.status === 'completed'
+                        ? '#16a34a'
+                        : '#475569',
+                      textTransform: 'capitalize'
+                    }}>
                       {data.po.status.replace(/_/g, ' ')}
                     </div>
                     

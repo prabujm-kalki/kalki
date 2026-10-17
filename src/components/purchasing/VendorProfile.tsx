@@ -7,9 +7,17 @@ import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import { VendorForm } from "./VendorForm";
 
+import { ArrowLeft, Edit3, UserX, Plus, Calendar, Package, Phone, Mail, User, CreditCard, Clock, Truck, ShieldAlert, Trash2 } from "lucide-react";
+import { KalkiButton } from "@/components/ui/KalkiButton";
+import { KalkiInput } from "@/components/ui/KalkiInput";
+import { KalkiSelect } from "@/components/ui/KalkiSelect";
+import { KalkiSection } from "@/components/ui/KalkiSection";
+import { KalkiCard } from "@/components/ui/KalkiCard";
+
 type VendorView = {
   id: string;
   name: string;
+  shortCode?: string;
   isActive: boolean;
   contactDetails: {
     name?: string;
@@ -19,6 +27,9 @@ type VendorView = {
   paymentTerms: string | null;
   creditDays: number | null;
   creditLimitAmount?: number | null;
+  expectedDeliveryDays?: number | null;
+  poDeliveryMethod?: string;
+  poWhatsappPreference?: string;
 };
 
 type VendorItemView = {
@@ -111,7 +122,7 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
       setItems({ requestKey, list: itemsPayload.items });
       setSchedules({ requestKey, list: schedulesPayload.items });
       setRoles({ requestKey, list: rolesPayload.roles });
-      setMasterItems(itemsMasterPayload.items);
+      setMasterItems((itemsMasterPayload.items || []).filter((item: any) => item.itemType !== 'MENU_ITEM'));
     }).catch((caught) => {
       if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load vendor profile" });
     });
@@ -132,7 +143,7 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
     }
   }
 
-    async function handleAddItem(event: FormEvent<HTMLFormElement>) {
+  async function handleAddItem(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected) return;
     setAddingItem(true);
@@ -192,196 +203,387 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
   if (!vendor || vendor.requestKey !== requestKey || !items || !schedules || !roles) return <StatusMessage tone="loading">Loading vendor profile…</StatusMessage>;
 
   const v = vendor.data;
+  const locationParams = `?organizationId=${selected.organizationId}&locationId=${selected.locationId}`;
 
   return (
-    <div className="stack">
-      <Link href={`/purchasing?organizationId=${selected.organizationId}&locationId=${selected.locationId}`} className="nav-link" style={{ alignSelf: "flex-start" }}>
-        ← Back to Vendors
-      </Link>
-
-      <section className="panel">
-        <div className="panel-header">
+    <div className="kalki-main-content">
+      {/* Top Header */}
+      <div className="kalki-page-header" style={{ marginBottom: "20px" }}>
+        <Link 
+          href={`/purchasing/vendors${locationParams}`} 
+          className="kalki-breadcrumbs" 
+          style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginBottom: "8px", textDecoration: "none" }}
+        >
+          <ArrowLeft size={14} /> Back to Vendors
+        </Link>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
-            <p className="muted">Vendor Profile</p>
-            <h2>{v.name} {v.isActive ? "" : "(Inactive)"}</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <h1 className="kalki-page-title" style={{ fontSize: "22px", margin: 0 }}>
+                {v.name}
+              </h1>
+              <span 
+                style={{
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  padding: "3px 10px",
+                  borderRadius: "999px",
+                  backgroundColor: v.isActive ? "#dcfce7" : "#fee2e2",
+                  color: v.isActive ? "#16a34a" : "#dc2626",
+                }}
+              >
+                {v.isActive ? "Active" : "Inactive"}
+              </span>
+            </div>
+            <p className="kalki-page-description" style={{ marginTop: "4px" }}>
+              {selected.organizationName} · {selected.locationName}
+            </p>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button className="secondary-button" onClick={() => setIsEditing(true)}>Edit</button>
+          
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            {!isEditing && (
+              <KalkiButton 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Edit3 size={15} /> Edit Vendor
+              </KalkiButton>
+            )}
             {v.isActive && (
-              <button className="secondary-button" style={{ color: "var(--danger)", borderColor: "var(--danger-light)" }} onClick={() => void deactivateVendor()} disabled={isDeactivating}>
-                Deactivate
-              </button>
+              <KalkiButton 
+                variant="danger" 
+                size="sm"
+                onClick={() => void deactivateVendor()} 
+                disabled={isDeactivating}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <UserX size={15} /> {isDeactivating ? "Deactivating..." : "Deactivate"}
+              </KalkiButton>
             )}
           </div>
         </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        {/* Vendor Form in Edit Mode OR Overview Cards */}
         {isEditing ? (
-          <div style={{ marginTop: "1rem" }}>
-            <VendorForm 
-              organizationId={selected.organizationId}
-              locationId={selected.locationId}
-              initialData={v}
-              onCancel={() => setIsEditing(false)}
-              onSuccess={() => {
-                setIsEditing(false);
-                setRefreshKey(k => k + 1);
-              }}
-            />
-          </div>
+          <VendorForm 
+            organizationId={selected.organizationId}
+            locationId={selected.locationId}
+            initialData={v}
+            onCancel={() => setIsEditing(false)}
+            onSuccess={() => {
+              setIsEditing(false);
+              setRefreshKey(k => k + 1);
+            }}
+          />
         ) : (
-          <div className="grid" style={{ marginTop: "1rem" }}>
-            <div>
-              <strong>Contact</strong>
-              <p>{v.contactDetails.name || "N/A"}</p>
-              <p>{v.contactDetails.phone || "N/A"}</p>
-              <p>{v.contactDetails.email || "N/A"}</p>
-            </div>
-            <div>
-              <strong>Commercials</strong>
-              <p>Payment Terms: {v.paymentTerms ? v.paymentTerms.replace(/_/g, ' ').toUpperCase() : "N/A"}</p>
-              <p>Credit Days: {v.paymentTerms === 'DUE_ON_RECEIPT' || v.paymentTerms === 'CASH_IN_ADVANCE' || v.paymentTerms?.toLowerCase() === 'cash' ? '0' : (v.creditDays !== null ? v.creditDays : "N/A")}</p>
-              <p>Credit Limit: {v.creditLimitAmount !== null && v.creditLimitAmount !== undefined ? `₹${v.creditLimitAmount}` : "N/A"}</p>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px" }}>
+            {/* Contact Details Card */}
+            <KalkiSection title="Contact Information" icon={<User size={16} />}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                  <div style={{ width: "32px", height: "32px", borderRadius: "6px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
+                    <User size={16} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Contact Person</div>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--kalki-text-primary)", marginTop: "2px" }}>
+                      {v.contactDetails.name || "Not Specified"}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                  <div style={{ width: "32px", height: "32px", borderRadius: "6px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
+                    <Phone size={16} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Phone Number</div>
+                    <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--kalki-text-primary)", marginTop: "2px" }}>
+                      {v.contactDetails.phone || "Not Specified"}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                  <div style={{ width: "32px", height: "32px", borderRadius: "6px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b", flexShrink: 0 }}>
+                    <Mail size={16} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Email Address</div>
+                    <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--kalki-text-primary)", marginTop: "2px" }}>
+                      {v.contactDetails.email || "Not Specified"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </KalkiSection>
+
+            {/* Commercials & Terms */}
+            <KalkiSection title="Commercials & Credit Terms" icon={<CreditCard size={16} />}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid var(--kalki-border)" }}>
+                  <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Payment Terms</div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--kalki-text-primary)", marginTop: "4px" }}>
+                    {v.paymentTerms ? v.paymentTerms.replace(/_/g, " ").toUpperCase() : "N/A"}
+                  </div>
+                </div>
+
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid var(--kalki-border)" }}>
+                  <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Credit Days</div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--kalki-text-primary)", marginTop: "4px" }}>
+                    {v.paymentTerms === "DUE_ON_RECEIPT" || v.paymentTerms === "CASH_IN_ADVANCE" || v.paymentTerms?.toLowerCase() === "cash" 
+                      ? "0 Days" 
+                      : (v.creditDays !== null && v.creditDays !== undefined ? `${v.creditDays} Days` : "N/A")}
+                  </div>
+                </div>
+
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid var(--kalki-border)" }}>
+                  <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Credit Limit</div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--kalki-text-primary)", marginTop: "4px" }}>
+                    {v.creditLimitAmount !== null && v.creditLimitAmount !== undefined ? `₹${Number(v.creditLimitAmount).toLocaleString("en-IN")}` : "N/A"}
+                  </div>
+                </div>
+
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid var(--kalki-border)" }}>
+                  <div style={{ fontSize: "11px", textTransform: "uppercase", fontWeight: 600, color: "var(--kalki-text-secondary)" }}>Expected Delivery</div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--kalki-text-primary)", marginTop: "4px" }}>
+                    {v.expectedDeliveryDays != null ? `${v.expectedDeliveryDays} day${v.expectedDeliveryDays === 1 ? "" : "s"}` : "2 days (Default)"}
+                  </div>
+                </div>
+              </div>
+            </KalkiSection>
           </div>
         )}
-      </section>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h3>Purchase Schedules</h3>
-            <span className="muted">Automated reminders for this vendor</span>
+        {/* Purchase Schedules Section */}
+        <KalkiSection 
+          title="Purchase Schedules" 
+          icon={<Calendar size={16} />}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <span style={{ fontSize: "13px", color: "var(--kalki-text-secondary)" }}>
+              Automated reminders and ordering routines configured for this vendor.
+            </span>
+            {!showScheduleForm && (
+              <KalkiButton 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setShowScheduleForm(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Plus size={15} /> Add Schedule
+              </KalkiButton>
+            )}
           </div>
-          {!showScheduleForm && <button type="button" className="action-button" onClick={() => setShowScheduleForm(true)}>Add Schedule</button>}
-        </div>
 
-        {showScheduleForm && (
-          <form onSubmit={(e) => void handleAddSchedule(e)} style={{ marginTop: "1rem", padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-            <h4>Add New Schedule</h4>
-            {scheduleError && <StatusMessage tone="error">{scheduleError}</StatusMessage>}
-            <div className="grid" style={{ marginTop: "1rem" }}>
-              <label>
-                Responsible Role *
-                <select name="responsibleRoleId" required disabled={addingSchedule || roles.list.length === 0}>
+          {showScheduleForm && (
+            <form onSubmit={(e) => void handleAddSchedule(e)} style={{ marginBottom: "20px", padding: "16px", backgroundColor: "#f8fafc", border: "1px solid var(--kalki-border)", borderRadius: "8px" }}>
+              <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--kalki-text-primary)", marginBottom: "12px" }}>
+                Add New Schedule
+              </div>
+              {scheduleError && <StatusMessage tone="error">{scheduleError}</StatusMessage>}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+                <KalkiSelect 
+                  label="Responsible Role" 
+                  name="responsibleRoleId" 
+                  required 
+                  disabled={addingSchedule || roles.list.length === 0}
+                >
                   <option value="">Select a role...</option>
                   {roles.list.map(r => (
                     <option key={r.id} value={r.id}>{r.name}</option>
                   ))}
-                </select>
-                {roles.list.length === 0 && <span className="muted" style={{fontSize: "0.8rem"}}>No roles available. Please create a role first.</span>}
-              </label>
-              <label>
-                Frequency Rule (e.g., 'Every Monday', '1st of Month') *
-                <input name="frequencyRule" required disabled={addingSchedule} />
-              </label>
-              <label>
-                Reminder Time (e.g., '09:00 AM') *
-                <input name="reminderTime" required disabled={addingSchedule} />
-              </label>
-            </div>
-            <div className="form-actions" style={{ marginTop: "1rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setShowScheduleForm(false)} disabled={addingSchedule}>Cancel</button>
-              <button type="submit" className="action-button" disabled={addingSchedule || roles.list.length === 0}>
-                {addingSchedule ? "Adding…" : "Add Schedule"}
-              </button>
-            </div>
-          </form>
-        )}
+                </KalkiSelect>
+                <KalkiInput 
+                  label="Frequency Rule" 
+                  name="frequencyRule" 
+                  required 
+                  disabled={addingSchedule} 
+                  placeholder="e.g. Every Monday, 1st of Month" 
+                />
+                <KalkiInput 
+                  label="Reminder Time" 
+                  name="reminderTime" 
+                  required 
+                  disabled={addingSchedule} 
+                  placeholder="e.g. 09:00 AM" 
+                />
+              </div>
+              <div style={{ marginTop: "16px", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <KalkiButton type="button" variant="secondary" size="sm" onClick={() => setShowScheduleForm(false)} disabled={addingSchedule}>
+                  Cancel
+                </KalkiButton>
+                <KalkiButton type="submit" variant="primary" size="sm" disabled={addingSchedule || roles.list.length === 0}>
+                  {addingSchedule ? "Adding…" : "Save Schedule"}
+                </KalkiButton>
+              </div>
+            </form>
+          )}
 
-        {schedules.list.length === 0 ? (
-          <p className="muted" style={{ marginTop: "1rem" }}>No active schedules.</p>
-        ) : (
-          <div className="work-list" style={{ marginTop: "1rem" }}>
-            {schedules.list.map(s => {
-              const roleName = roles.list.find(r => r.id === s.responsibleRoleId)?.name || "Unknown Role";
-              return (
-                <div key={s.id} className="panel" style={{ padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <strong>{s.frequencyRule} at {s.reminderTime}</strong>
-                    <span className="muted">Role: {roleName}</span>
+          {schedules.list.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "28px 16px", color: "var(--kalki-text-secondary)", fontSize: "13px" }}>
+              No automated purchase schedules configured for this vendor.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "12px" }}>
+              {schedules.list.map(s => {
+                const roleName = roles.list.find(r => r.id === s.responsibleRoleId)?.name || "Unknown Role";
+                return (
+                  <div 
+                    key={s.id} 
+                    style={{ 
+                      padding: "14px 16px", 
+                      backgroundColor: "#fff", 
+                      border: "1px solid var(--kalki-border)", 
+                      borderRadius: "8px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between"
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "34px", height: "34px", borderRadius: "6px", backgroundColor: "#f1f5f9", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--kalki-primary)" }}>
+                        <Clock size={16} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--kalki-text-primary)" }}>
+                          {s.frequencyRule} at {s.reminderTime}
+                        </div>
+                        <div style={{ fontSize: "12px", color: "var(--kalki-text-secondary)", marginTop: "2px" }}>
+                          Assigned to: <strong>{roleName}</strong>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                );
+              })}
+            </div>
+          )}
+        </KalkiSection>
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h3>Predefined Item Catalogue</h3>
-            <span className="muted">Items supplied by this vendor</span>
+        {/* Predefined Item Catalogue */}
+        <KalkiSection 
+          title="Predefined Item Catalogue" 
+          icon={<Package size={16} />}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+            <span style={{ fontSize: "13px", color: "var(--kalki-text-secondary)" }}>
+              Items supplied by this vendor with regular rates and target inventory levels.
+            </span>
+            {!showItemForm && (
+              <KalkiButton 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setShowItemForm(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <Plus size={15} /> Add Item
+              </KalkiButton>
+            )}
           </div>
-          {!showItemForm && <button type="button" className="action-button" onClick={() => setShowItemForm(true)}>Add Item</button>}
-        </div>
 
-        {showItemForm && (
-                    <form onSubmit={(e) => void handleAddItem(e)} style={{ marginTop: "1rem", padding: "1rem", border: "1px solid var(--border)", borderRadius: "var(--radius)" }}>
-            <h4>Assign Item to Catalogue</h4>
-            {itemError && <StatusMessage tone="error">{itemError}</StatusMessage>}
-            <div className="grid" style={{ marginTop: "1rem" }}>
-              <label>
-                Select Item *
-                <select name="itemId" required disabled={addingItem}>
+          {showItemForm && (
+            <form onSubmit={(e) => void handleAddItem(e)} style={{ marginBottom: "20px", padding: "16px", backgroundColor: "#f8fafc", border: "1px solid var(--kalki-border)", borderRadius: "8px" }}>
+              <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--kalki-text-primary)", marginBottom: "12px" }}>
+                Assign Item to Catalogue
+              </div>
+              {itemError && <StatusMessage tone="error">{itemError}</StatusMessage>}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "14px" }}>
+                <KalkiSelect label="Select Master Item" name="itemId" required disabled={addingItem}>
                   <option value="">-- Choose an item --</option>
                   {masterItems.map(item => (
                     <option key={item.id} value={item.id}>{item.nameEn} ({item.unit})</option>
                   ))}
-                </select>
-              </label>
-              <label>
-                Target Stock (Usual Qty)
-                <input name="normalQuantity" type="number" step="0.01" disabled={addingItem} />
-              </label>
-              <label>
-                Reorder Level (Min Stock)
-                <input name="minimumStock" type="number" step="0.01" disabled={addingItem} />
-              </label>
+                </KalkiSelect>
+                <KalkiInput 
+                  label="Target Stock (Usual Qty)" 
+                  name="normalQuantity" 
+                  type="number" 
+                  step="0.01" 
+                  disabled={addingItem} 
+                  placeholder="e.g. 50" 
+                />
+                <KalkiInput 
+                  label="Reorder Level (Min Stock)" 
+                  name="minimumStock" 
+                  type="number" 
+                  step="0.01" 
+                  disabled={addingItem} 
+                  placeholder="e.g. 10" 
+                />
+              </div>
+              <div style={{ marginTop: "16px", display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <KalkiButton type="button" variant="secondary" size="sm" onClick={() => setShowItemForm(false)} disabled={addingItem}>
+                  Cancel
+                </KalkiButton>
+                <KalkiButton type="submit" variant="primary" size="sm" disabled={addingItem}>
+                  {addingItem ? "Assigning…" : "Assign Item"}
+                </KalkiButton>
+              </div>
+            </form>
+          )}
+
+          {items.list.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--kalki-text-secondary)", fontSize: "13px" }}>
+              No items assigned to this vendor catalogue yet.
             </div>
-            <div className="form-actions" style={{ marginTop: "1rem", display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => setShowItemForm(false)} disabled={addingItem}>Cancel</button>
-              <button type="submit" className="action-button" disabled={addingItem}>
-                {addingItem ? "Assigning…" : "Assign Item"}
-              </button>
-            </div>
-          </form>
-        )}
-        
-        {items.list.length === 0 ? (
-          <p className="muted" style={{ marginTop: "1rem" }}>No items in catalogue.</p>
-        ) : (
-          <div style={{ marginTop: "1rem", overflowX: "auto" }}>
-            <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ borderBottom: "2px solid var(--border)" }}>
-                  <th style={{ padding: "0.5rem" }}>Name</th>
-                  <th style={{ padding: "0.5rem" }}>Code</th>
-                  <th style={{ padding: "0.5rem" }}>UoM</th>
-                  <th style={{ padding: "0.5rem" }}>Reorder Level (Min)</th>
-                  <th style={{ padding: "0.5rem" }}>Usual Qty</th>
-                  <th style={{ padding: "0.5rem" }}>Last Rate</th>
-                  <th style={{ padding: "0.5rem", textAlign: "right" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.list.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "0.5rem" }}><strong>{item.itemName}</strong></td>
-                    <td style={{ padding: "0.5rem" }}>{item.itemCode || "-"}</td>
-                    <td style={{ padding: "0.5rem" }}>{item.unitOfMeasure}</td>
-                    <td style={{ padding: "0.5rem" }}>{item.minimumStock || item.baseMinStock || "-"}</td>
-                    <td style={{ padding: "0.5rem" }}>{item.normalQuantity || item.targetStock || "-"}</td>
-                    <td style={{ padding: "0.5rem" }}>{item.lastRate ? `₹${item.lastRate}` : "-"}</td>
-                    <td style={{ padding: "0.5rem", textAlign: "right" }}>
-                      <button type="button" onClick={() => handleRemoveItem(item.id)} style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", fontSize: "0.75rem", textDecoration: "underline" }}>Remove</button>
-                    </td>
+          ) : (
+            <div className="kalki-table-container">
+              <table className="kalki-table">
+                <thead>
+                  <tr>
+                    <th>Item Name</th>
+                    <th>Code</th>
+                    <th>UoM</th>
+                    <th>Reorder Level (Min)</th>
+                    <th>Usual Qty</th>
+                    <th>Last Rate</th>
+                    <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+                </thead>
+                <tbody>
+                  {items.list.map((item) => (
+                    <tr key={item.id}>
+                      <td>
+                        <strong>{item.itemName}</strong>
+                      </td>
+                      <td style={{ color: "var(--kalki-text-secondary)" }}>
+                        {item.itemCode || "—"}
+                      </td>
+                      <td>
+                        <span style={{ padding: "2px 8px", backgroundColor: "#f1f5f9", borderRadius: "4px", fontSize: "12px", fontWeight: 500 }}>
+                          {item.unitOfMeasure}
+                        </span>
+                      </td>
+                      <td>{item.minimumStock || item.baseMinStock || "—"}</td>
+                      <td>{item.normalQuantity || item.targetStock || "—"}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        {item.lastRate ? `₹${item.lastRate}` : "—"}
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <button 
+                          type="button" 
+                          onClick={() => handleRemoveItem(item.id)} 
+                          className="kalki-button kalki-button--ghost kalki-button--danger"
+                          style={{ padding: "4px 8px", fontSize: "12px" }}
+                          title="Remove item"
+                        >
+                          <Trash2 size={14} style={{ marginRight: "4px" }} /> Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </KalkiSection>
+      </div>
     </div>
   );
 }
+

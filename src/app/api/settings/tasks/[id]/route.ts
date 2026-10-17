@@ -90,6 +90,7 @@ export async function PUT(
     // Update definition
     const [updatedDef] = await db.update(taskDefinitions).set({
       title: body.title,
+      module: body.module || "system",
       triggerType: body.triggerType,
       triggerConfig: body.triggerConfig || {},
       targetRoleId: body.targetRoleId || null,

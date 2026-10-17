@@ -7,9 +7,15 @@ import { redirect } from "next/navigation";
 import { BillsQueue } from "./BillsQueue";
 import { loadAuthorizationGrants } from "@/lib/authorization";
 
-export default async function BillsPage() {
+export default async function BillsPage(props: {
+  searchParams?: Promise<{ organizationId?: string; locationId?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) redirect("/login");
+
+  const searchParams = props.searchParams ? await props.searchParams : {};
+  const organizationId = searchParams?.organizationId;
+  const locationId = searchParams?.locationId;
 
   const grants = await loadAuthorizationGrants(session.user.id);
   
@@ -18,13 +24,21 @@ export default async function BillsPage() {
     const locRoles = await db.select({ roleId: locationRoleAssignments.roleId }).from(locationRoleAssignments).where(eq(locationRoleAssignments.userId, session.user.id));
     const orgRoles = await db.select({ roleId: organizationRoleAssignments.roleId }).from(organizationRoleAssignments).where(eq(organizationRoleAssignments.userId, session.user.id));
     userRoleIds = [...new Set([...locRoles.map(r => r.roleId), ...orgRoles.map(r => r.roleId)])];
-    
-    // In a real scenario, we might also explicitly check if any of these roles have "accounts" authority, 
-    // but for now we enforce that at least one role must match the target's required role, 
-    // or if no role is required, we fallback to isOwner.
-    // For BillsPage, typically only specific finance roles should access this.
-    // We will restrict the query so they only see POs assigned to their role for bill review,
-    // OR if they are owner they see all.
+  }
+
+  const conditions: any[] = [
+    inArray(purchaseOrders.status, ["accounts_pending", "audited"]),
+    grants.isOwner ? isNotNull(purchaseOrders.id) : 
+    (userRoleIds.length > 0 
+      ? or(isNull(purchaseOrders.billReviewRoleId), inArray(purchaseOrders.billReviewRoleId, userRoleIds))
+      : isNull(purchaseOrders.billReviewRoleId))
+  ];
+
+  if (organizationId) {
+    conditions.push(eq(purchaseOrders.organizationId, organizationId));
+  }
+  if (locationId && locationId !== "ALL") {
+    conditions.push(eq(purchaseOrders.locationId, locationId));
   }
 
   const rawPos = await db
@@ -44,15 +58,7 @@ export default async function BillsPage() {
     })
     .from(purchaseOrders)
     .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
-    .where(
-      and(
-        eq(purchaseOrders.status, "accounts_pending"),
-        grants.isOwner ? isNotNull(purchaseOrders.id) : 
-        (userRoleIds.length > 0 
-          ? or(isNull(purchaseOrders.billReviewRoleId), inArray(purchaseOrders.billReviewRoleId, userRoleIds))
-          : isNull(purchaseOrders.billReviewRoleId))
-      )
-    )
+    .where(and(...conditions))
     .orderBy(purchaseOrders.createdAt);
 
   return (

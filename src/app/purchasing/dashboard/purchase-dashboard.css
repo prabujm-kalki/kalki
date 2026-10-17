@@ -1,0 +1,900 @@
+/* ==========================================================================
+   Responsive Hybrid Purchase Dashboard Styles
+   Tier-1 Enterprise SaaS Aesthetic (Slate-50 Background, Premium Shadows, Refined Typography)
+   ========================================================================== */
+
+/* 1. Page Background & Container */
+.purchase-dashboard-page {
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  color: #1e293b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #f8fafc; /* Slate-50 background so white cards pop */
+  min-height: 100%;
+}
+
+/* 2. Top Header Section */
+.purchase-dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.purchase-dashboard-title-group h1 {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
+
+.purchase-dashboard-subtitle {
+  font-size: 0.8125rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.purchase-header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.purchase-date-dropdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.purchase-date-dropdown:hover {
+  border-color: #cbd5e1;
+}
+
+.purchase-quick-bill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: #78350f; /* Deep warm amber/brown */
+  color: #ffffff;
+  padding: 0.55rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  box-shadow: 0 2px 8px rgba(120, 53, 15, 0.2);
+  transition: all 0.15s ease-in-out;
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+.purchase-quick-bill-btn:hover {
+  background: #5c2809;
+  transform: translateY(-1px);
+}
+
+/* 3. Top KPI Grid (Strict 5-column desktop) */
+.purchase-kpi-5grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Depth & Card Aesthetics */
+.purchase-kpi-card-v2 {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  display: flex;
+  align-items: center;
+  gap: 1.125rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+.purchase-kpi-card-v2:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+}
+
+.purchase-kpi-icon-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.purchase-kpi-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+/* Typography Hierarchy (KPIs) */
+.purchase-kpi-details .kpi-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin: 0;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.purchase-kpi-details .kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.purchase-kpi-details .kpi-subtext {
+  font-size: 0.725rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* 4. Analytics Section (Strict 70% / 30% Desktop Grid) */
+.purchase-analytics-row {
+  display: grid;
+  grid-template-columns: 70% 30%;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.purchase-panel {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.35rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-sizing: border-box;
+}
+
+.purchase-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.purchase-panel-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.purchase-link-btn {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.purchase-link-btn:hover {
+  text-decoration: underline;
+}
+
+.time-range-toggle {
+  display: inline-flex;
+  background-color: #f1f5f9;
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.time-range-btn {
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.time-range-btn.active {
+  background-color: #1e293b;
+  color: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* Monthly Trend Mock Chart */
+.monthly-trend-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  height: 220px;
+  position: relative;
+  justify-content: flex-end;
+  padding-top: 1rem;
+}
+
+.trend-bars-container {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 160px;
+  gap: 1rem;
+  padding: 0 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.trend-bar-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 1;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+/* Chart Column Softening */
+.stacked-bar-fill {
+  width: 100%;
+  max-width: 44px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column-reverse;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.bar-segment-green { background: #22c55e; }
+.bar-segment-orange { background: #f97316; }
+.bar-segment-yellow { background: #eab308; }
+.bar-segment-blue { background: #38bdf8; }
+
+.trend-bar-label {
+  font-size: 0.725rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.trend-legend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  font-size: 0.725rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+/* Category Donut Visual */
+.category-visual-container {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  height: 220px;
+}
+
+.donut-mock-box {
+  width: 145px;
+  height: 145px;
+  border-radius: 50%;
+  background: conic-gradient(
+    #22c55e 0% 28%,
+    #ef4444 28% 50%,
+    #eab308 50% 68%,
+    #0284c7 68% 78%,
+    #6366f1 78% 86%,
+    #a855f7 86% 94%,
+    #94a3b8 94% 100%
+  );
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.donut-inner-hole {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.donut-inner-val {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.donut-inner-lbl {
+  font-size: 0.625rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.category-legend-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.category-legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.775rem;
+  color: #334155;
+}
+
+/* 5. Operational Tables (Strict 2-Column Desktop Grid) */
+.purchase-tables-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.purchase-mini-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Table Header Polish */
+.purchase-mini-table thead {
+  background-color: #f1f5f9;
+}
+
+.purchase-mini-table th {
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  background-color: #f1f5f9;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.purchase-mini-table td {
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.purchase-mini-table tr:hover td {
+  background-color: #f8fafc;
+}
+
+/* 6. Performance Section (Strict 3-Column Desktop Grid) */
+.purchase-performance-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ranking-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.ranking-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.ranking-rank {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.ranking-item:nth-child(1) .ranking-rank {
+  background: #78350f;
+  color: #ffffff;
+}
+
+.ranking-name {
+  font-weight: 600;
+  color: #1e293b;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Progress Bar Refinement */
+.ranking-bar-track {
+  width: 85px;
+  height: 8px;
+  background-color: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.ranking-bar-fill {
+  height: 100%;
+  background-color: #b45309;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.ranking-val {
+  font-weight: 700;
+  color: #0f172a;
+  font-family: monospace;
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+  min-width: 65px;
+  text-align: right;
+}
+
+/* 7. Status Pills (Rounded Capsules) */
+.po-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.po-status-received {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.po-status-delayed,
+.po-status-overdue {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.po-status-in-transit,
+.po-status-awaiting {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+.po-status-partially {
+  background-color: #ffedd5;
+  color: #c2410c;
+}
+
+.po-status-sent {
+  background-color: #e0f2fe;
+  color: #0369a1;
+}
+
+.po-status-draft {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.purchase-urgent-action-btn {
+  background-color: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.purchase-urgent-action-btn:hover {
+  opacity: 0.9;
+}
+
+/* Action Required / Pending Tasks Alerts */
+.purchase-pending-tasks-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.purchase-tasks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.purchase-tasks-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+
+.purchase-tasks-count-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+}
+
+.purchase-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.purchase-task-card {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-left: 4px solid #d97706;
+  border-radius: 12px;
+  padding: 0.875rem 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  transition: all 0.15s ease-in-out;
+}
+
+.purchase-task-card.task-urgent {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+}
+
+.purchase-task-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.purchase-task-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.purchase-task-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.purchase-task-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: #fde68a;
+  color: #92400e;
+  text-transform: uppercase;
+}
+
+.purchase-task-card.task-urgent .purchase-task-badge {
+  background: #fecaca;
+  color: #991b1b;
+}
+
+.purchase-task-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.purchase-task-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #ffffff;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: all 0.15s ease-in-out;
+  min-height: 36px;
+}
+
+.purchase-task-card.task-urgent .purchase-task-action-btn {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.purchase-task-action-btn:hover {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+}
+
+/* Visibility Control Classes */
+.mobile-only-cards {
+  display: none;
+}
+
+.desktop-only-table {
+  display: block;
+}
+
+.purchase-order-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem 1.125rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.purchase-order-card-row-top,
+.purchase-order-card-row-middle,
+.purchase-order-card-row-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.purchase-order-card-row-middle {
+  padding-bottom: 0.5rem;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.purchase-order-vendor {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.purchase-order-date {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+}
+
+.purchase-order-number {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  font-family: monospace;
+  background-color: #f8fafc;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #edf2f7;
+}
+
+.purchase-order-amount {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.po-ghost-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Skeleton Pulse Animation */
+@keyframes kalkiPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.skeleton-pulse {
+  animation: kalkiPulse 1.5s ease-in-out infinite;
+  background-color: #e2e8f0;
+  border-radius: 6px;
+}
+
+/* ==========================================================================
+   Mobile Collapse (@media max-width: 768px)
+   Enforces exact requested mobile hierarchy:
+   Quick Bill -> Top 5 KPIs -> Recent POs -> Low Stock Alerts (hiding heavy charts)
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .purchase-dashboard-page {
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .purchase-dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    order: 1;
+  }
+
+  .purchase-header-controls {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .purchase-date-dropdown,
+  .purchase-quick-bill-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Force KPI grid to 2 columns with 5th spanning full width */
+  .purchase-kpi-5grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    order: 2;
+  }
+
+  .purchase-kpi-card-v2:nth-child(5) {
+    grid-column: span 2;
+  }
+
+  .purchase-kpi-card-v2 {
+    padding: 0.875rem;
+    gap: 0.625rem;
+  }
+
+  .purchase-kpi-icon-box {
+    width: 40px;
+    height: 40px;
+  }
+
+  .purchase-kpi-details .kpi-value {
+    font-size: 22px;
+  }
+
+  /* Hide heavy analytics charts on mobile to save CPU & viewport */
+  .purchase-analytics-row {
+    display: none !important;
+  }
+
+  /* Collapse Operational Tables to single column and order Recent POs before others */
+  .purchase-tables-2col {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    order: 3;
+  }
+
+  .desktop-only-table {
+    display: none;
+  }
+
+  .mobile-only-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  /* Collapse Performance Grid and prioritize Low Stock Alerts */
+  .purchase-performance-3col {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    order: 4;
+  }
+
+  .purchase-performance-3col .purchase-panel:nth-child(1),
+  .purchase-performance-3col .purchase-panel:nth-child(2) {
+    display: none;
+  }
+
+  .purchase-performance-3col .purchase-panel:nth-child(3) {
+    display: flex;
+  }
+
+  .purchase-task-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .purchase-task-action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

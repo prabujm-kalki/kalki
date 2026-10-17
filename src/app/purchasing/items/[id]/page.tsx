@@ -20,6 +20,7 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     nameEn: '',
     nameTa: '',
     nameHi: '',
+    itemType: 'RAW_MATERIAL' as 'RAW_MATERIAL' | 'EXPENSE' | 'MENU_ITEM',
     categoryId: '',
     subcategoryId: '',
     isActive: true,
@@ -93,6 +94,7 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           nameEn: payload.item.nameEn || '',
           nameTa: payload.item.nameTa || '',
           nameHi: payload.item.nameHi || '',
+          itemType: payload.item.itemType || 'RAW_MATERIAL',
           categoryId: payload.item.categoryId || '',
           subcategoryId: payload.item.subcategoryId || '',
           isActive: payload.item.isActive,
@@ -118,12 +120,16 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         setError(err.message || "Failed to load item data.");
         setLoading(false);
       });
-      
-    fetch(`/api/item-categories?organizationId=${selected.organizationId}`)
+  }, [selected, itemId]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const catType = formData.itemType === 'MENU_ITEM' ? 'MENU' : 'PROCUREMENT';
+    fetch(`/api/item-categories?organizationId=${selected.organizationId}&categoryType=${catType}`)
       .then(res => res.json())
       .then(data => setCategories(Array.isArray(data) ? data : []))
       .catch(console.error);
-  }, [selected, itemId]);
+  }, [selected, formData.itemType]);
 
   useEffect(() => {
     if (formData.categoryId) {
@@ -265,6 +271,19 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
               onChange={e => setFormData(p => ({ ...p, nameHi: e.target.value }))}
             />
           </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
+            <KalkiSelect
+              label="Item Type"
+              value={formData.itemType}
+              onChange={e => setFormData(p => ({ ...p, itemType: e.target.value as any, categoryId: '', subcategoryId: '' }))}
+            >
+              <option value="RAW_MATERIAL">Raw Material / Ingredient</option>
+              <option value="EXPENSE">Operating Expense / Consumable</option>
+              <option value="MENU_ITEM">Restaurant Menu Item (POS)</option>
+            </KalkiSelect>
+            <div />
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '1rem' }}>
             <KalkiSelect
               label="Category"

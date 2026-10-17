@@ -16,11 +16,25 @@ export async function POST(req: NextRequest) {
     const [po] = await db.select().from(purchaseOrders).where(eq(purchaseOrders.id, poId));
     if (!po) return NextResponse.json({ error: "PO not found" }, { status: 404 });
 
-    if (po.status !== "accounts_pending") {
-      return NextResponse.json({ error: "PO is not in accounts pending status" }, { status: 400 });
+    if (po.status !== "accounts_pending" && po.status !== "audited") {
+      return NextResponse.json({ error: "PO is not in accounts pending or audited status" }, { status: 400 });
     }
 
     const invoiceNumber = po.poNumber || `INV-${po.id.substring(0, 8).toUpperCase()}`;
+    const billAmount = parseFloat(po.cashierBillAmount || po.totalAmount || "0");
+
+    if (billAmount <= 0) {
+      // 0 amount PO (e.g. no items received/cancelled) cannot create a financial ledger invoice
+      await db.update(purchaseOrders).set({ 
+        status: 'cancelled',
+        updatedAt: new Date()
+      }).where(eq(purchaseOrders.id, poId));
+
+      return NextResponse.json({ 
+        success: true, 
+        message: "Purchase Order has zero amount. Marked as Cancelled without ledger impact." 
+      });
+    }
 
     const [employee] = await db.select().from(employees).where(eq(employees.userId, user.id));
     if (!employee) return NextResponse.json({ error: "Employee record not found for this user" }, { status: 403 });
@@ -33,12 +47,12 @@ export async function POST(req: NextRequest) {
       invoiceNumber: invoiceNumber,
       invoiceDate: new Date().toISOString(),
       dueDate: null, 
-      totalAmount: parseFloat(po.cashierBillAmount || po.totalAmount),
+      totalAmount: billAmount,
       recordedByEmployeeId: employee.id
     });
 
     // Update PO status to completed
-    await db.update(purchaseOrders).set({ status: 'completed' }).where(eq(purchaseOrders.id, poId));
+    await db.update(purchaseOrders).set({ status: 'completed', updatedAt: new Date() }).where(eq(purchaseOrders.id, poId));
 
     return NextResponse.json({ success: true });
   } catch (error: any) {

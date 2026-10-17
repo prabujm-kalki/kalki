@@ -16,9 +16,8 @@ export function MasterDataDashboard() {
   }
 
   return (
-    <div className="kalki-main-wrapper">
-      <div className="kalki-main-content">
-        <div className="kalki-page-header">
+    <>
+      <div className="kalki-page-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ backgroundColor: 'var(--kalki-primary)', padding: '12px', borderRadius: 'var(--radius-lg)', color: 'white' }}>
               <Database size={28} strokeWidth={1.5} />
@@ -100,7 +99,6 @@ export function MasterDataDashboard() {
           {activeTab === "salary" && <SalaryComponentsDashboard />}
           {activeTab === "locations" && <div style={{ padding: "3rem", textAlign: "center", color: "var(--kalki-text-secondary)" }}>Locations management module under development.</div>}
         </div>
-      </div>
-    </div>
+    </>
   );
 }

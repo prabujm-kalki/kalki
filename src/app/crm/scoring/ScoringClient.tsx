@@ -25,6 +25,8 @@ interface ScoringItem {
   predictedNextVisitDays: number | null;
   monetarySpend: string;
   rfmSegment: string;
+  recencyDays?: number;
+  frequencyOrders?: number;
   lastCalculatedAt: Date;
 }
 
@@ -36,6 +38,9 @@ interface ScoringClientProps {
   totalCount: number;
   selectedStage: string;
   minScore: number;
+  initialRWeight?: number;
+  initialFWeight?: number;
+  initialMWeight?: number;
 }
 
 export default function ScoringClient(props: ScoringClientProps) {
@@ -47,6 +52,9 @@ export default function ScoringClient(props: ScoringClientProps) {
     totalCount,
     selectedStage,
     minScore,
+    initialRWeight = 35,
+    initialFWeight = 35,
+    initialMWeight = 30,
   } = props;
 
   const router = useRouter();
@@ -54,9 +62,15 @@ export default function ScoringClient(props: ScoringClientProps) {
   const searchParams = useSearchParams();
 
   // Rule Builder Weights
-  const [recencyWeight, setRecencyWeight] = useState(35);
-  const [frequencyWeight, setFrequencyWeight] = useState(35);
-  const [monetaryWeight, setMonetaryWeight] = useState(30);
+  const [recencyWeight, setRecencyWeight] = useState(initialRWeight);
+  const [frequencyWeight, setFrequencyWeight] = useState(initialFWeight);
+  const [monetaryWeight, setMonetaryWeight] = useState(initialMWeight);
+  const [isApplying, setIsApplying] = useState(false);
+
+  const hasWeightChanges =
+    recencyWeight !== initialRWeight ||
+    frequencyWeight !== initialFWeight ||
+    monetaryWeight !== initialMWeight;
 
   const updateQueryParam = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -68,6 +82,29 @@ export default function ScoringClient(props: ScoringClientProps) {
       }
     });
     router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleApplyWeights = () => {
+    setIsApplying(true);
+    updateQueryParam({
+      rWeight: String(recencyWeight),
+      fWeight: String(frequencyWeight),
+      mWeight: String(monetaryWeight),
+      page: "1",
+    });
+    setTimeout(() => setIsApplying(false), 500);
+  };
+
+  const handleResetWeights = () => {
+    setRecencyWeight(35);
+    setFrequencyWeight(35);
+    setMonetaryWeight(30);
+    updateQueryParam({
+      rWeight: "35",
+      fWeight: "35",
+      mWeight: "30",
+      page: "1",
+    });
   };
 
   return (
@@ -93,11 +130,53 @@ export default function ScoringClient(props: ScoringClientProps) {
 
       {/* 2. Top Rule-Builder Section */}
       <div className="crm-card" style={{ marginBottom: "1.25rem" }}>
-        <div className="crm-card-header">
+        <div className="crm-card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 className="crm-card-title">
             <Sliders size={16} color="#d97706" />
             Priority Score Weighting Rule-Builder (0 - 100 Algorithm)
           </h2>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            {hasWeightChanges && (
+              <button
+                type="button"
+                onClick={handleResetWeights}
+                style={{
+                  background: "none",
+                  border: "1px solid #cbd5e1",
+                  borderRadius: "6px",
+                  padding: "0.35rem 0.75rem",
+                  fontSize: "0.78rem",
+                  color: "#64748b",
+                  cursor: "pointer",
+                }}
+              >
+                Reset to Default
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleApplyWeights}
+              disabled={isApplying}
+              style={{
+                backgroundColor: hasWeightChanges ? "#d97706" : "#f1f5f9",
+                color: hasWeightChanges ? "#ffffff" : "#94a3b8",
+                border: "none",
+                borderRadius: "6px",
+                padding: "0.45rem 1rem",
+                fontSize: "0.825rem",
+                fontWeight: 600,
+                cursor: hasWeightChanges ? "pointer" : "default",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                boxShadow: hasWeightChanges ? "0 1px 3px rgba(217, 119, 6, 0.3)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <Zap size={14} />
+              {isApplying ? "Calculating..." : "Apply Scoring Weights"}
+            </button>
+          </div>
         </div>
         <div style={{ padding: "1.25rem", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "1.5rem" }}>
           <div>
@@ -111,7 +190,7 @@ export default function ScoringClient(props: ScoringClientProps) {
               max="70"
               value={recencyWeight}
               onChange={(e) => setRecencyWeight(parseInt(e.target.value, 10))}
-              style={{ width: "100%", accentColor: "#d97706" }}
+              style={{ width: "100%", accentColor: "#d97706", cursor: "pointer" }}
             />
             <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
               Scores recent visits higher; penalizes dormancy.
@@ -129,7 +208,7 @@ export default function ScoringClient(props: ScoringClientProps) {
               max="70"
               value={frequencyWeight}
               onChange={(e) => setFrequencyWeight(parseInt(e.target.value, 10))}
-              style={{ width: "100%", accentColor: "#d97706" }}
+              style={{ width: "100%", accentColor: "#d97706", cursor: "pointer" }}
             />
             <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
               Weights multi-visit repeat brand loyalty.
@@ -147,7 +226,7 @@ export default function ScoringClient(props: ScoringClientProps) {
               max="70"
               value={monetaryWeight}
               onChange={(e) => setMonetaryWeight(parseInt(e.target.value, 10))}
-              style={{ width: "100%", accentColor: "#d97706" }}
+              style={{ width: "100%", accentColor: "#d97706", cursor: "pointer" }}
             />
             <span style={{ fontSize: "0.72rem", color: "#64748b" }}>
               Weights overall cumulative gross billing value.
@@ -236,9 +315,17 @@ export default function ScoringClient(props: ScoringClientProps) {
                         <strong style={{ color: "#0f172a", fontSize: "0.9rem", display: "block" }}>
                           {item.customerName}
                         </strong>
-                        <span style={{ fontSize: "0.75rem", color: "#64748b" }}>
-                          {item.customerPhone || "No phone logged"}
-                        </span>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b", display: "flex", gap: "0.4rem", alignItems: "center", marginTop: "2px" }}>
+                          <span>{item.customerPhone || "No phone"}</span>
+                          <span>•</span>
+                          <span style={{ color: "#475569" }}>
+                            {item.recencyDays !== undefined ? `${item.recencyDays}d ago` : ""}
+                          </span>
+                          <span>•</span>
+                          <span style={{ color: "#475569" }}>
+                            {item.frequencyOrders !== undefined ? `${item.frequencyOrders} orders` : ""}
+                          </span>
+                        </div>
                       </td>
                       <td>
                         <span

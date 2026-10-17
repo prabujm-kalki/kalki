@@ -108,6 +108,16 @@ export async function PATCH(request: Request) {
         })
         .where(eq(businessRoles.id, roleId))
         .returning({ id: businessRoles.id });
+
+      // Keep authorization roles table in sync with the updated role name and code
+      const { roles } = await import("@/db/schema");
+      await db.update(roles)
+        .set({
+          name: body.name,
+          code: finalIdentifier.toLowerCase(),
+        })
+        .where(eq(roles.id, roleId));
+
       return NextResponse.json({ role });
     }
 

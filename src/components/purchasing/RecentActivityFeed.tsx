@@ -20,6 +20,7 @@ export interface Activity {
   poDeliveryMethod?: string | null;
   poWhatsappPreference?: string | null;
   whatsappPoTemplate?: string | null;
+  actionUrl?: string | null;
 }
 
 interface RecentActivityFeedProps {
@@ -223,10 +224,26 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                   <button onClick={() => setPreviewToken(activity.publicToken!)} style={{ color: '#4f46e5', textDecoration: 'none', fontWeight: '500', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit' }}>
                     {activity.id}
                   </button>
+                ) : activity.realId && activity.type === 'Task' ? (
+                  <button onClick={() => setTimelineTaskId(activity.realId!)} style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit' }}>
+                    {activity.id}
+                  </button>
                 ) : activity.id}
               </td>
               <td style={{ padding: '0.5rem 0.75rem' }}>{activity.type}</td>
-              <td style={{ padding: '0.5rem 0.75rem' }}>{activity.entity}</td>
+              <td style={{ padding: '0.5rem 0.75rem' }}>
+                {activity.actionUrl && (activity.status === 'In Progress' || activity.status === 'Pending') ? (
+                  <Link href={activity.actionUrl} style={{ color: '#16a34a', textDecoration: 'none', fontWeight: '600' }}>
+                    {activity.entity}
+                  </Link>
+                ) : activity.realId && activity.type === 'Task' ? (
+                  <button onClick={() => setTimelineTaskId(activity.realId!)} style={{ color: '#0f172a', fontWeight: '500', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', textAlign: 'left' }}>
+                    {activity.entity}
+                  </button>
+                ) : (
+                  activity.entity
+                )}
+              </td>
               <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)' }}>{activity.date}</td>
               <td style={{ padding: '0.5rem 0.75rem' }}>{getStatusBadge(activity.status)}</td>
               <td style={{ padding: '0.5rem 0.75rem' }}>{formatCurrency(activity.value)}</td>
@@ -317,14 +334,24 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                   ) : activity.type === 'Routine Assessment' ? (
                     <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)', fontSize: '0.65rem', cursor: 'not-allowed' }} disabled>N/A</button>
                   ) : activity.type === 'Task' && activity.realId ? (
-                    <button 
-                      onClick={() => setTimelineTaskId(activity.realId!)} 
-                      style={{ padding: '0.2rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: '#f8fafc', color: '#2563eb', fontWeight: '600', fontSize: '0.65rem', cursor: 'pointer', transition: 'all 0.2s' }}
-                      onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#eff6ff')}
-                      onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                    >
-                      View
-                    </button>
+                    <>
+                      {activity.actionUrl && (activity.status === 'In Progress' || activity.status === 'Pending') && (
+                        <Link 
+                          href={activity.actionUrl}
+                          style={{ padding: '0.2rem 0.6rem', border: '1px solid #16a34a', borderRadius: '0.25rem', backgroundColor: '#f0fdf4', color: '#16a34a', fontWeight: 'bold', fontSize: '0.65rem', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+                        >
+                          Execute
+                        </Link>
+                      )}
+                      <button 
+                        onClick={() => setTimelineTaskId(activity.realId!)} 
+                        style={{ padding: '0.2rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: '#f8fafc', color: '#2563eb', fontWeight: '600', fontSize: '0.65rem', cursor: 'pointer', transition: 'all 0.2s' }}
+                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#eff6ff')}
+                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                      >
+                        View
+                      </button>
+                    </>
                   ) : (
                     <button style={{ padding: '0.2rem 0.4rem', border: '1px solid var(--border-color)', borderRadius: '0.25rem', backgroundColor: 'white', fontSize: '0.65rem', cursor: 'pointer' }}>View</button>
                   )}

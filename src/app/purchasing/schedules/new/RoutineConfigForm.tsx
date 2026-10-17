@@ -97,7 +97,7 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
 
       const qs = searchParams.toString();
       const suffix = qs ? `&${qs}` : '';
-      router.push(`/purchasing/schedules?success=schedule_saved${suffix}`);
+      router.push(`/purchasing/configuration?success=schedule_saved${suffix}`);
       router.refresh();
     } catch (err: any) {
       setError(err.message);
@@ -117,7 +117,7 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
       
       const qs = searchParams.toString();
       const suffix = qs ? `&${qs}` : '';
-      router.push(`/purchasing/schedules?success=schedule_deleted${suffix}`);
+      router.push(`/purchasing/configuration?success=schedule_deleted${suffix}`);
       router.refresh();
     } catch (err: any) {
       setError(err.message);

@@ -57,7 +57,7 @@ export async function processAccountingEvent(payload: AccountingEventPayload) {
 
     for (const line of payload.lines) {
       // Find the mapped account for this operational item
-      const mappings = await tx.select().from(accountingMappings).where(
+      let mappings = await tx.select().from(accountingMappings).where(
         and(
           eq(accountingMappings.organizationId, payload.organizationId),
           eq(accountingMappings.sourceModule, payload.sourceModule),
@@ -65,7 +65,70 @@ export async function processAccountingEvent(payload: AccountingEventPayload) {
           eq(accountingMappings.sourceReferenceId, line.sourceReferenceId)
         )
       ).limit(1);
-      const mapping = mappings[0];
+      let mapping = mappings[0];
+
+      // Fallback 1: Check other source modules (e.g. PURCHASE, SYSTEM, POS) if not configured under SALES
+      if (!mapping && line.mappingType === "SYSTEM_DEFAULT") {
+        const crossMappings = await tx.select().from(accountingMappings).where(
+          and(
+            eq(accountingMappings.organizationId, payload.organizationId),
+            eq(accountingMappings.mappingType, "SYSTEM_DEFAULT"),
+            eq(accountingMappings.sourceReferenceId, line.sourceReferenceId)
+          )
+        ).limit(1);
+        if (crossMappings.length > 0) {
+          mapping = crossMappings[0];
+        }
+      }
+
+      // Fallback 2: Intelligent Chart of Accounts Auto-Resolution
+      if (!mapping) {
+        const { accounts, accountGroups, accountTypes } = await import("@/db/schema");
+        const orgAccounts = await tx
+          .select({
+            id: accounts.id,
+            code: accounts.code,
+            name: accounts.name,
+            category: accountTypes.category,
+          })
+          .from(accounts)
+          .leftJoin(accountGroups, eq(accounts.accountGroupId, accountGroups.id))
+          .leftJoin(accountTypes, eq(accountGroups.accountTypeId, accountTypes.id))
+          .where(and(eq(accounts.organizationId, payload.organizationId), eq(accounts.isActive, true)));
+
+        let autoAccount: { id: string } | undefined;
+
+        if (line.sourceReferenceId === "BANK_CASH" || line.mappingType === "PAYMENT_METHOD") {
+          autoAccount = orgAccounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("cash in hand"))
+            || orgAccounts.find(a => a.code === "1120" || a.code === "CASH-001" || a.name.toLowerCase().includes("petty cash"))
+            || orgAccounts.find(a => a.code === "1130" || a.code === "BANK-001" || a.name.toLowerCase().includes("bank"))
+            || orgAccounts.find(a => a.category === "ASSET");
+        } else if (line.sourceReferenceId === "CASH_SHORTAGE_EXPENSE") {
+          autoAccount = orgAccounts.find(a => a.code === "6200" || a.name.toLowerCase().includes("variance") || a.name.toLowerCase().includes("shortage"))
+            || orgAccounts.find(a => a.category === "EXPENSE");
+        } else if (line.sourceReferenceId === "CASH_OVERAGE_REVENUE" || line.sourceReferenceId === "SALES_REVENUE") {
+          autoAccount = orgAccounts.find(a => a.code === "1001" || a.name.toLowerCase().includes("sales") || a.name.toLowerCase().includes("revenue"))
+            || orgAccounts.find(a => a.category === "INCOME");
+        } else if (line.sourceReferenceId === "TAX_PAYABLE") {
+          autoAccount = orgAccounts.find(a => a.code === "2220" || a.name.toLowerCase().includes("gst output") || a.name.toLowerCase().includes("tax"))
+            || orgAccounts.find(a => a.category === "LIABILITY");
+        } else if (line.sourceReferenceId === "ACCOUNTS_RECEIVABLE") {
+          autoAccount = orgAccounts.find(a => a.code === "1210" || a.code === "AR-CTRL" || a.name.toLowerCase().includes("receivable"))
+            || orgAccounts.find(a => a.category === "ASSET");
+        }
+
+        if (autoAccount) {
+          // Auto-persist mapping so future events hit the cache directly
+          const [saved] = await tx.insert(accountingMappings).values({
+            organizationId: payload.organizationId,
+            sourceModule: payload.sourceModule,
+            mappingType: line.mappingType,
+            sourceReferenceId: line.sourceReferenceId,
+            accountId: autoAccount.id,
+          }).returning();
+          mapping = saved;
+        }
+      }
 
       if (!mapping) {
         throw new AccountingError(

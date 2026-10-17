@@ -1312,6 +1312,7 @@ export const itemCategories = pgTable("item_categories", {
     .references(() => organizations.id),
   name: text("name").notNull(),
   code: text("code"),
+  categoryType: text("category_type").notNull().default("PROCUREMENT"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1351,6 +1352,10 @@ export const items = pgTable(
     moq: numeric("moq"),
     imageUrl: text("image_url"),
     isTrackable: boolean("is_trackable").notNull().default(true),
+    allowSpotPurchase: boolean("allow_spot_purchase").notNull().default(false),
+    spotPurchasePriceLimit: numeric("spot_purchase_price_limit"),
+    isInventoryTracked: boolean("is_inventory_tracked").notNull().default(true),
+    itemType: text("item_type").notNull().default("RAW_MATERIAL"),
     isActive: boolean("is_active").notNull().default(true),
     categoryId: uuid("category_id").references(() => itemCategories.id),
     subcategoryId: uuid("subcategory_id").references(() => itemSubcategories.id),
@@ -1393,6 +1398,7 @@ export const vendors = pgTable(
     poWhatsappPreference: text("po_whatsapp_preference")
       .notNull()
       .default("TEXT_AND_PDF_LINK"),
+    expectedDeliveryDays: integer("expected_delivery_days").default(2),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -3304,6 +3310,8 @@ export const salesInvoices = pgTable("b2b_sales_invoices", {
   igstAmount: decimal("igst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
   roundOffAmount: decimal("round_off_amount", { precision: 6, scale: 2 }).default("0.00").notNull(),
   grandTotal: decimal("grand_total", { precision: 12, scale: 2 }).notNull(),
+  advancePaid: decimal("advance_paid", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  balanceDue: decimal("balance_due", { precision: 12, scale: 2 }),
   
   paymentStatus: text("payment_status").notNull(), 
   paymentMode: text("payment_mode").notNull(),
@@ -3709,6 +3717,9 @@ export const marketingTemplates = pgTable('marketing_templates', {
   name: varchar('name', { length: 255 }).notNull(), // e.g., "D Mart VIP_Oct26"
   cycleDurationWeeks: integer('cycle_duration_weeks').default(1).notNull(),
   status: varchar('status', { length: 20 }).default('ACTIVE').notNull(), // ACTIVE, COMPLETED
+  isAutomated: boolean('is_automated').default(false).notNull(),
+  triggerRule: varchar('trigger_rule', { length: 100 }), // DORMANT_VIPS, AOV_DROPS, CRITICAL_DEBTORS, NEW_VIPS, SPEND_ANOMALIES
+  scheduleCron: varchar('schedule_cron', { length: 100 }), // e.g. "0 9 * * 1" (Every Monday 9 AM)
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -3950,3 +3961,193 @@ export const marketingAutomations = pgTable('marketing_automations', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
+// 9. CRM Intelligence Configurations (Threshold Rules for Dynamic Lists & Anomaly Detection)
+export const crmIntelligenceConfigurations = pgTable('crm_intelligence_configurations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  organizationId: uuid('organization_id').references(() => organizations.id).notNull(),
+  locationId: uuid('location_id').references(() => locations.id),
+  dormantVipDays: integer('dormant_vip_days').default(90).notNull(),
+  dormantVipMinSpend: decimal('dormant_vip_min_spend', { precision: 12, scale: 2 }).default('10000.00').notNull(),
+  aovDropPercentage: decimal('aov_drop_percentage', { precision: 5, scale: 2 }).default('5.00').notNull(),
+  criticalDebtorDays: integer('critical_debtor_days').default(30).notNull(),
+  newVipMinSpend: decimal('new_vip_min_spend', { precision: 12, scale: 2 }).default('10000.00').notNull(),
+  anomalyAovMultiplier: decimal('anomaly_aov_multiplier', { precision: 5, scale: 2 }).default('3.00').notNull(),
+  concentrationTopCount: integer('concentration_top_count').default(5).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ==========================================
+// 10. EVENTS & CATERING MODULE
+// ==========================================
+
+export const eventConfigurations = pgTable("event_configurations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  locationId: uuid("location_id").references(() => locations.id).notNull(),
+  hallName: varchar("hall_name", { length: 255 }).notNull(),
+  capacity: integer("capacity").notNull().default(100),
+  timeSlots: jsonb("time_slots").default(["MORNING", "EVENING", "FULL_DAY"]).notNull(),
+  functionTypes: jsonb("function_types").default(["WEDDING", "RECEPTION", "BIRTHDAY", "CORPORATE", "ANNIVERSARY", "GET_TOGETHER"]).notNull(),
+  baseRent: decimal("base_rent", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  cleaningFee: decimal("cleaning_fee", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  cautionDeposit: decimal("caution_deposit", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const cateringCombos = pgTable("catering_combos", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  locationId: uuid("location_id").references(() => locations.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  mealType: varchar("meal_type", { length: 50 }).notNull(), // BREAKFAST, LUNCH, DINNER, HIGH_TEA, SNACKS
+  description: text("description"),
+  menuItems: jsonb("menu_items").default([]).notNull(), // ["Idli", "Vada", "Poori", "Sambar", "Chutney (3 types)", "Coffee"]
+  basePricePerPax: decimal("base_price_per_pax", { precision: 12, scale: 2 }).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const comboPricingTiers = pgTable("combo_pricing_tiers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  comboId: uuid("combo_id").references(() => cateringCombos.id, { onDelete: "cascade" }).notNull(),
+  minPax: integer("min_pax").notNull(),
+  maxPax: integer("max_pax"), // null means 'and above' (e.g. 300+)
+  pricePerPax: decimal("price_per_pax", { precision: 12, scale: 2 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const events = pgTable("events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  locationId: uuid("location_id").references(() => locations.id).notNull(),
+  customerId: uuid("customer_id").references(() => customers.id),
+  leadId: uuid("lead_id").references(() => crmLeads.id),
+  hallId: uuid("hall_id").references(() => eventConfigurations.id),
+  comboId: uuid("combo_id").references(() => cateringCombos.id),
+  title: varchar("title", { length: 255 }).notNull(),
+  functionType: varchar("function_type", { length: 100 }).notNull(), // WEDDING, RECEPTION, BIRTHDAY, etc.
+  eventDate: timestamp("event_date", { withTimezone: true }).notNull(),
+  timeSlot: varchar("time_slot", { length: 50 }).notNull(), // MORNING, EVENING, FULL_DAY, CUSTOM
+  guaranteedPax: integer("guaranteed_pax").notNull().default(50),
+  expectedPax: integer("expected_pax").notNull().default(50),
+  pricePerPax: decimal("price_per_pax", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  hallRent: decimal("hall_rent", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("ENQUIRY"), 
+  // ENQUIRY (Yellow), LIKELY (Orange), CONFIRMED_NO_ADVANCE (Blue), BOOKED_PAID (Green), AT_RISK (Gray), CANCELLED (Red), COMPLETED_PENDING (Pink)
+  contactName: varchar("contact_name", { length: 255 }).notNull(),
+  contactPhone: varchar("contact_phone", { length: 50 }).notNull(),
+  contactEmail: varchar("contact_email", { length: 255 }),
+  specialInstructions: text("special_instructions"),
+  dietaryRestrictions: text("dietary_restrictions"),
+  notes: text("notes"),
+  kuabKitchenTaskId: uuid("kuab_kitchen_task_id").references(() => kuabTasks.id),
+  kuabPurchasingTaskId: uuid("kuab_purchasing_task_id").references(() => kuabTasks.id),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const eventFinancials = pgTable("event_financials", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  organizationId: uuid("organization_id").references(() => organizations.id).notNull(),
+  eventId: uuid("event_id").references(() => events.id, { onDelete: "cascade" }).notNull().unique(),
+  invoiceId: uuid("invoice_id").references(() => salesInvoices.id),
+  channelId: uuid("channel_id").references(() => salesChannels.id),
+  totalFoodCost: decimal("total_food_cost", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  hallRentAmount: decimal("hall_rent_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  additionalCharges: decimal("additional_charges", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  taxAmount: decimal("tax_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  grandTotal: decimal("grand_total", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  advancePaid: decimal("advance_paid", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  balanceDue: decimal("balance_due", { precision: 12, scale: 2 }).default("0.00").notNull(),
+  paymentStatus: varchar("payment_status", { length: 50 }).default("UNPAID").notNull(), // UNPAID, PARTIAL, PAID
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+
+
+// ==========================================
+// 11. QUICK PURCHASE / MICRO-PROCUREMENT (KALKI-SPEC-PURCHASE-004)
+// ==========================================
+
+export const branchPurchasePolicies = pgTable(
+  "branch_purchase_policies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id),
+    maxSpotPurchaseTransactionLimit: decimal("max_spot_purchase_transaction_limit", { precision: 12, scale: 2 })
+      .notNull()
+      .default("2000.00"),
+    maxDailySpotPurchaseTotal: decimal("max_daily_spot_purchase_total", { precision: 12, scale: 2 })
+      .notNull()
+      .default("5000.00"),
+    maxItemDailyFrequency: integer("max_item_daily_frequency").notNull().default(3),
+    requirePhotoEvidence: boolean("require_photo_evidence").notNull().default(true),
+    slaHours: integer("sla_hours").notNull().default(4),
+    reviewRoleId: uuid("review_role_id").references(() => businessRoles.id),
+    escalationRoleId: uuid("escalation_role_id").references(() => businessRoles.id),
+    autoEscalateToOwner: boolean("auto_escalate_to_owner").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("branch_purchase_policies_org_loc_idx").on(table.organizationId, table.locationId),
+    unique("branch_purchase_policies_unique").on(table.organizationId, table.locationId),
+  ]
+);
+
+export const spotPurchaseAuditStatuses = ["PENDING_AUDIT", "AUDITED_CLEARED", "FLAGGED_DISCREPANCY"] as const;
+
+export const spotPurchases = pgTable(
+  "spot_purchases",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id),
+    voucherNumber: varchar("voucher_number", { length: 50 }).notNull(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => items.id),
+    vendorName: varchar("vendor_name", { length: 255 }).notNull(),
+    quantity: decimal("quantity", { precision: 12, scale: 4 }).notNull(),
+    uom: varchar("uom", { length: 50 }).notNull(),
+    unitPrice: decimal("unit_price", { precision: 12, scale: 2 }).notNull(),
+    totalAmount: decimal("total_amount", { precision: 12, scale: 2 }).notNull(),
+    paymentSource: varchar("payment_source", { length: 50 }).notNull().default("PETTY_CASH"), // PETTY_CASH, UPI, CASHIER_DRAWER
+    receiptPhotoUrl: text("receipt_photo_url"),
+    submittedByUserId: text("submitted_by_user_id")
+      .notNull()
+      .references(() => authUsers.id),
+    auditStatus: text("audit_status", { enum: spotPurchaseAuditStatuses })
+      .notNull()
+      .default("PENDING_AUDIT"),
+    auditedByUserId: text("audited_by_user_id").references(() => authUsers.id),
+    auditNotes: text("audit_notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("spot_purchases_org_loc_idx").on(table.organizationId, table.locationId),
+    index("spot_purchases_audit_status_idx").on(table.auditStatus),
+    unique("spot_purchases_voucher_unique").on(table.organizationId, table.voucherNumber),
+  ]
+);
+
+
+// ==========================================

@@ -173,10 +173,8 @@ function RolePermissionMatrixContent() {
   };
 
   return (
-    <div className="kalki-main-wrapper">
-      <div className="kalki-main-content">
-        
-        {/* Main Header Area */}
+    <>
+      {/* Main Header Area */}
         <div className="kalki-page-header">
           <Link href={`/settings/roles${locationParams}`} className="kalki-breadcrumbs">
             <ChevronLeft size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
@@ -358,8 +356,7 @@ function RolePermissionMatrixContent() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </>
   );
 }
 

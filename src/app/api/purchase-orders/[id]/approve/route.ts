@@ -34,9 +34,10 @@ export async function POST(
     let newLinesToInsert: any[] = [];
     const hasLineChanges = body && body.lines && Array.isArray(body.lines);
 
-    if (currentPo.status === 'audited') {
-      if (action === 'reject') nextStatus = 'rejected';
-      else if (action === 'return') nextStatus = 'pending_receipt';
+    if (action === 'reject' || action === 'cancel') {
+      nextStatus = action === 'cancel' ? 'cancelled' : 'rejected';
+    } else if (currentPo.status === 'audited') {
+      if (action === 'return') nextStatus = 'pending_receipt';
       else nextStatus = 'accounts_pending';
       finalTotalAmount = Number(currentPo.totalAmount || 0);
     }
@@ -69,7 +70,7 @@ export async function POST(
     let nextReviewRoleId = currentPo.reviewRoleId;
 
     // --- APPROVAL LIMITS LOGIC ---
-    if (currentPo.status === 'draft' || currentPo.status === 'pending_review') {
+    if (action !== 'reject' && action !== 'cancel' && (currentPo.status === 'draft' || currentPo.status === 'pending_review')) {
       if (currentPo.status === 'pending_review' && currentPo.cashierBillAmount) {
         // This was escalated from the Cashier Bill Audit phase!
         nextStatus = 'accounts_pending';

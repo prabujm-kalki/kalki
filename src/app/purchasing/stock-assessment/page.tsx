@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
+import { buildPoWhatsappMessage } from "@/lib/whatsapp-po";
 
 interface VendorItem {
   id: string;
@@ -19,7 +20,7 @@ interface VendorItem {
 export default function StockAssessmentPage() {
   const { selected } = useSessionView();
   const router = useRouter();
-  const searchParams = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  const searchParams = useSearchParams();
   const taskId = searchParams.get("taskId");
   const urlVendorId = searchParams.get("vendorId");
 
@@ -30,6 +31,12 @@ export default function StockAssessmentPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (urlVendorId) {
+      setSelectedVendorId(urlVendorId);
+    }
+  }, [urlVendorId]);
 
   useEffect(() => {
     if (selected) {
@@ -121,9 +128,50 @@ export default function StockAssessmentPage() {
       }
 
       const result = await res.json();
-      alert(result.message);
-      if (result.created) {
+      if (result.created && result.purchaseOrder) {
+        const createdPo = result.purchaseOrder;
+        const currentVendor = result.vendor;
+        const vendorPhoneRaw = currentVendor?.contactDetails?.phone || currentVendor?.contactDetails?.whatsapp || currentVendor?.contactDetails?.mobile || "";
+        const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
+
+        const shouldSendWhatsApp = (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && createdPo?.publicToken;
+
+        if (shouldSendWhatsApp) {
+          const confirmSend = window.confirm(
+            `Purchase Order created successfully!\n\nWould you like to send this PO via WhatsApp to ${currentVendor?.name || "the vendor"} (${vendorPhoneRaw || "Vendor"}) now?`
+          );
+
+          if (confirmSend) {
+            const poNumber = createdPo.poNumber || `PO-${createdPo.id.slice(0, 8).toUpperCase()}`;
+
+            const { whatsappUrl } = buildPoWhatsappMessage({
+              poNumber,
+              totalAmount: createdPo.totalAmount,
+              publicToken: createdPo.publicToken,
+              lines: result.lines || null,
+              vendorPhone: phoneDigits,
+              poWhatsappPreference: currentVendor?.poWhatsappPreference,
+              whatsappPoTemplate: result.whatsappPoTemplate || null
+            });
+
+            try {
+              await fetch(`/api/purchase-orders/${createdPo.id}/mark-sent`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" }
+              });
+            } catch (e) {
+              console.error("Failed to mark as sent", e);
+            }
+
+            window.open(whatsappUrl, "_blank");
+          }
+        } else {
+          alert("Purchase Order created successfully!");
+        }
+
         router.push("/purchasing");
+      } else {
+        alert(result.message || "Stock assessment submitted.");
       }
     } catch (err: any) {
       setError(err.message);
@@ -147,17 +195,36 @@ export default function StockAssessmentPage() {
         )}
 
         <div style={{ marginBottom: "24px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: 500 }}>Select Vendor</label>
-          <select 
-            value={selectedVendorId} 
-            onChange={(e) => setSelectedVendorId(e.target.value)}
-            style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}
-          >
-            <option value="">-- Choose a vendor --</option>
-            {vendors.map(v => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: 500 }}>Vendor</label>
+          {urlVendorId ? (
+            <div style={{ 
+              padding: "10px 14px", 
+              borderRadius: "6px", 
+              border: "1px solid var(--border-color)", 
+              backgroundColor: "#f8fafc", 
+              color: "#0f172a", 
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+              <span>{vendors.find(v => v.id === selectedVendorId)?.name || "Bhavanitha Broilers"}</span>
+              <span style={{ fontSize: "0.75rem", backgroundColor: "#e2e8f0", color: "#475569", padding: "2px 8px", borderRadius: "12px", fontWeight: 500 }}>
+                Assigned Task
+              </span>
+            </div>
+          ) : (
+            <select 
+              value={selectedVendorId} 
+              onChange={(e) => setSelectedVendorId(e.target.value)}
+              style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}
+            >
+              <option value="">-- Choose a vendor --</option>
+              {vendors.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {loading ? (

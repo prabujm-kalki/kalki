@@ -3,7 +3,13 @@ import { purchaseOrders, vendors, vendorItems, organizations, taskInstances } fr
 import { eq, sum, count, desc, and, gte, lt, sql, inArray } from "drizzle-orm";
 import { Activity } from "@/components/purchasing/RecentActivityFeed";
 
-export async function getDashboardData(isOwner: boolean = false, userId?: string, userRoleIds: string[] = []) {
+export async function getDashboardData(
+  isOwner: boolean = false, 
+  userId?: string, 
+  userRoleIds: string[] = [],
+  organizationId?: string,
+  locationId?: string
+) {
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -11,30 +17,37 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thirtyFiveDaysAgo = new Date(now.getTime() - 35 * 24 * 60 * 60 * 1000);
 
+  // Tenant isolation conditions
+  const tenantConditions: any[] = [];
+  if (organizationId) tenantConditions.push(eq(purchaseOrders.organizationId, organizationId));
+  if (locationId) tenantConditions.push(eq(purchaseOrders.locationId, locationId));
+
   const totalSpendPromise = db
     .select({ total: sum(purchaseOrders.totalAmount) })
     .from(purchaseOrders)
-    .where(gte(purchaseOrders.createdAt, startOfMonth));
+    .where(and(gte(purchaseOrders.createdAt, startOfMonth), ...tenantConditions));
 
   const pastSpendPromise = db
     .select({ total: sum(purchaseOrders.totalAmount) })
     .from(purchaseOrders)
     .where(and(
       gte(purchaseOrders.createdAt, startOfLastMonth),
-      lt(purchaseOrders.createdAt, startOfMonth)
+      lt(purchaseOrders.createdAt, startOfMonth),
+      ...tenantConditions
     ));
 
   const pendingOrdersPromise = db
     .select({ count: count() })
     .from(purchaseOrders)
-    .where(inArray(purchaseOrders.status, ['draft', 'pending_review']));
+    .where(and(inArray(purchaseOrders.status, ['draft', 'pending_review']), ...tenantConditions));
 
   const urgentOrdersPromise = db
     .select({ count: count() })
     .from(purchaseOrders)
     .where(and(
       inArray(purchaseOrders.status, ['draft', 'pending_review']),
-      lt(purchaseOrders.createdAt, twoDaysAgo)
+      lt(purchaseOrders.createdAt, twoDaysAgo),
+      ...tenantConditions
     ));
 
   const processingTimePromise = db
@@ -42,14 +55,15 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
       avgTime: sql<number>`avg(extract(epoch from (updated_at - created_at)))`
     })
     .from(purchaseOrders)
-    .where(sql`status != 'draft'`);
+    .where(and(sql`status != 'draft'`, ...tenantConditions));
 
   const outflowPromise = db
     .select({ total: sum(purchaseOrders.totalAmount) })
     .from(purchaseOrders)
     .where(and(
       eq(purchaseOrders.status, 'approved'),
-      gte(purchaseOrders.createdAt, sevenDaysAgo)
+      gte(purchaseOrders.createdAt, sevenDaysAgo),
+      ...tenantConditions
     ));
 
   const pastOutflowPromise = db
@@ -58,7 +72,8 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
     .where(and(
       eq(purchaseOrders.status, 'approved'),
       gte(purchaseOrders.createdAt, thirtyFiveDaysAgo),
-      lt(purchaseOrders.createdAt, sevenDaysAgo)
+      lt(purchaseOrders.createdAt, sevenDaysAgo),
+      ...tenantConditions
     ));
 
   const lowStockPromise = db.execute(sql`
@@ -98,13 +113,16 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
     .from(purchaseOrders)
     .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
     .leftJoin(organizations, eq(purchaseOrders.organizationId, organizations.id))
+    .where(tenantConditions.length > 0 ? and(...tenantConditions) : undefined)
     .orderBy(desc(purchaseOrders.createdAt))
-    .limit(5);
+    .limit(10);
 
   const monthlySpendPromise = db.execute(sql`
     SELECT to_char(created_at, 'Mon') as name, SUM(total_amount) as total
     FROM purchase_orders
     WHERE created_at >= date_trunc('year', CURRENT_DATE)
+      ${organizationId ? sql`AND organization_id = ${organizationId}` : sql``}
+      ${locationId ? sql`AND location_id = ${locationId}` : sql``}
     GROUP BY to_char(created_at, 'Mon'), extract(month from created_at)
     ORDER BY extract(month from created_at)
   `);
@@ -119,8 +137,16 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
     LEFT JOIN item_categories c ON i.category_id = c.id
     WHERE po.status != 'draft'
       AND po.created_at >= date_trunc('month', CURRENT_DATE)
+      ${organizationId ? sql`AND po.organization_id = ${organizationId}` : sql``}
+      ${locationId ? sql`AND po.location_id = ${locationId}` : sql``}
     GROUP BY c.id, c.name
   `);
+
+  const taskTenantConditions: any[] = [];
+  if (organizationId) taskTenantConditions.push(eq(taskInstances.organizationId, organizationId));
+  if (locationId) {
+    taskTenantConditions.push(sql`(${taskInstances.contextData}->>'locationId' = ${locationId} OR ${taskInstances.contextData}->>'locationId' IS NULL)`);
+  }
 
   const recentTasksPromise = db
     .select({
@@ -128,12 +154,16 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
       createdAt: taskInstances.createdAt,
       completedAt: taskInstances.completedAt,
       updatedAt: taskInstances.updatedAt,
+      dueAt: taskInstances.dueAt,
       contextData: taskInstances.contextData,
       status: taskInstances.status,
+      assignedRoleId: taskInstances.assignedRoleId,
+      assignedUserId: taskInstances.assignedUserId,
     })
     .from(taskInstances)
+    .where(taskTenantConditions.length > 0 ? and(...taskTenantConditions) : undefined)
     .orderBy(desc(taskInstances.updatedAt))
-    .limit(5);
+    .limit(10);
 
   const [
     totalSpendResult,
@@ -221,13 +251,14 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
         date: (t.updatedAt || t.createdAt).toLocaleDateString(),
         status: displayStatus,
         value: 0,
+        actionUrl: ctx.actionUrl || null,
         timestamp: (t.updatedAt || t.createdAt).getTime()
       };
     });
 
   const activities = [...poActivities, ...taskActivities]
     .sort((a: any, b: any) => b.timestamp - a.timestamp)
-    .slice(0, 8);
+    .slice(0, 10);
 
   const pendingApprovals = recentPOs
     .filter(po => {
@@ -251,6 +282,27 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
       status: po.status,
     }));
 
+  const pendingRoutineTasks = recentTasks
+    .filter(t => {
+      if (t.status !== 'in_progress' && t.status !== 'pending') return false;
+      // Belongs to the user if assigned directly or assigned to one of their active roles
+      const isAssigned = (userId && t.assignedUserId === userId) ||
+        (t.assignedRoleId && userRoleIds.includes(t.assignedRoleId));
+      return isAssigned;
+    })
+    .map(t => {
+      const ctx = t.contextData as any;
+      return {
+        id: `TASK-${t.id.substring(0, 5).toUpperCase()}`,
+        realId: t.id,
+        title: ctx.title || ctx.vendorName || 'Routine Task',
+        vendorName: ctx.vendorName || null,
+        status: t.status,
+        dueAt: t.dueAt ? new Date(t.dueAt).toISOString() : null,
+        actionUrl: ctx.actionUrl || null,
+      };
+    });
+
   const msRows = (monthlySpendResult as any).rows || monthlySpendResult;
   const spendTrendData = msRows.map((r: any) => ({ name: r.name as string, spend: Number(r.total) }));
 
@@ -270,6 +322,7 @@ export async function getDashboardData(isOwner: boolean = false, userId?: string
     },
     activities,
     pendingApprovals,
+    pendingRoutineTasks,
     charts: {
       spendTrendData: spendTrendData.length > 0 ? spendTrendData : [{ name: 'Jan', spend: 0 }],
       categoryData: categoryData.length > 0 && categoryData[0]?.value ? categoryData : [{ name: 'General', value: 0 }],

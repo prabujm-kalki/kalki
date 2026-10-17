@@ -2,7 +2,7 @@
 
 import { db } from "@/db";
 import { marketingTemplates, marketingTemplateAudiences, customers, items, vendors, employees } from "@/db/schema";
-import { eq, inArray, and, ilike } from "drizzle-orm";
+import { eq, inArray, and, ilike, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { unstable_noStore as noStore } from "next/cache";
 
@@ -10,32 +10,56 @@ export async function validateAudienceList(targetEntityType: string, entityIds: 
   noStore();
   if (!entityIds.length) return [];
 
-  // Find active enrollments for the given entities
-  const activeEnrollments = await db
-    .select({
-      targetEntityId: marketingTemplateAudiences.targetEntityId,
-      templateName: marketingTemplates.name,
-    })
-    .from(marketingTemplateAudiences)
-    .innerJoin(marketingTemplates, eq(marketingTemplateAudiences.templateId, marketingTemplates.id))
-    .where(
-      and(
-        eq(marketingTemplateAudiences.targetEntityType, targetEntityType),
-        inArray(marketingTemplateAudiences.targetEntityId, entityIds),
-        eq(marketingTemplateAudiences.enrollmentStatus, "ACTIVE"),
-        eq(marketingTemplates.status, "ACTIVE")
-      )
-    );
+  // Query active enrollments and customer consent settings
+  const [activeEnrollments, customerRecords] = await Promise.all([
+    db
+      .select({
+        targetEntityId: marketingTemplateAudiences.targetEntityId,
+        templateName: marketingTemplates.name,
+      })
+      .from(marketingTemplateAudiences)
+      .innerJoin(marketingTemplates, eq(marketingTemplateAudiences.templateId, marketingTemplates.id))
+      .where(
+        and(
+          eq(marketingTemplateAudiences.targetEntityType, targetEntityType),
+          inArray(marketingTemplateAudiences.targetEntityId, entityIds),
+          eq(marketingTemplateAudiences.enrollmentStatus, "ACTIVE"),
+          eq(marketingTemplates.status, "ACTIVE")
+        )
+      ),
+    targetEntityType.toUpperCase() === "CUSTOMER"
+      ? db
+          .select({
+            id: customers.id,
+            crmWhatsappConsent: sql<boolean | null>`(SELECT "whatsapp_consent" FROM "crm_customer_profiles" WHERE "crm_customer_profiles"."customer_id" = "customers"."id" LIMIT 1)`,
+          })
+          .from(customers)
+          .where(inArray(customers.id, entityIds))
+      : Promise.resolve([]),
+  ]);
 
   const activeMap = new Map(
     activeEnrollments.map((record) => [record.targetEntityId, record.templateName])
   );
 
-  return entityIds.map((id) => ({
-    targetEntityId: id,
-    isEligible: !activeMap.has(id),
-    activeTemplateName: activeMap.get(id),
-  }));
+  const optedOutCustomerSet = new Set(
+    customerRecords
+      .filter((c) => c.crmWhatsappConsent === false)
+      .map((c) => c.id)
+  );
+
+  return entityIds.map((id) => {
+    const isAlreadyActive = activeMap.has(id);
+    const isOptedOut = optedOutCustomerSet.has(id);
+    const isEligible = !isAlreadyActive && !isOptedOut;
+
+    return {
+      targetEntityId: id,
+      isEligible,
+      activeTemplateName: activeMap.get(id),
+      reason: isOptedOut ? "WhatsApp Opted-Out (Spam Protection)" : isAlreadyActive ? `Active in ${activeMap.get(id)}` : undefined,
+    };
+  });
 }
 
 export async function createMarketingTemplate(payload: {

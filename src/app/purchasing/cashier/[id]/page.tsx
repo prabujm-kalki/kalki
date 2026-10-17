@@ -1,10 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 
-export default function CashierVerifyPage({ params }: { params: { id: string } }) {
+export default function CashierVerifyPage() {
   const router = useRouter();
+  const routeParams = useParams();
+  const searchParams = useSearchParams();
+
+  const id = typeof routeParams?.id === "string" ? routeParams.id : "";
+  const organizationId = searchParams?.get("organizationId") || "";
+  const locationId = searchParams?.get("locationId") || "";
+
   const [po, setPo] = useState<any>(null);
   const [vendorName, setVendorName] = useState("");
   const [lines, setLines] = useState<any[]>([]);
@@ -22,29 +29,32 @@ export default function CashierVerifyPage({ params }: { params: { id: string } }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchPODetails();
-  }, [params.id]);
-
-  const fetchPODetails = async () => {
+  const fetchPODetails = useCallback(async () => {
+    if (!id) return;
+    setLoading(true);
+    setError("");
     try {
-      const res = await fetch(`/api/purchase-orders/${params.id}/cashier-details`);
+      const res = await fetch(`/api/purchase-orders/${id}/cashier-details`);
       if (!res.ok) throw new Error("Failed to load PO details");
       const data = await res.json();
       setPo(data.po);
-      setVendorName(data.vendorName);
+      setVendorName(data.vendorName || "Direct Vendor");
       
-      const initializedLines = data.lines.map((l: any) => ({
+      const initializedLines = (data.lines || []).map((l: any) => ({
         ...l,
         verifiedUnitRate: l.suggestedRate,
       }));
       setLines(initializedLines);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "Failed to load PO details");
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchPODetails();
+  }, [fetchPODetails]);
 
   const handleRateChange = (index: number, value: string) => {
     const newLines = [...lines];
@@ -88,7 +98,7 @@ export default function CashierVerifyPage({ params }: { params: { id: string } }
     if (neftId && cashierPaymentMethod === "NEFT") atts.push({ type: "NEFT_ID", text: neftId });
 
     try {
-      const res = await fetch(`/api/purchase-orders/${params.id}/cashier-verify`, {
+      const res = await fetch(`/api/purchase-orders/${id}/cashier-verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

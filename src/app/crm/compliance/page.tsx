@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 interface PageProps {
   searchParams: Promise<{
     organizationId?: string;
+    locationId?: string;
     page?: string;
     search?: string;
     channel?: string;
@@ -19,6 +20,7 @@ interface PageProps {
 export default async function CompliancePage(props: PageProps) {
   const searchParams = await props.searchParams;
   const organizationId = searchParams.organizationId || "";
+  const locationId = searchParams.locationId;
   const page = parseInt(searchParams.page || "1", 10);
   const search = searchParams.search || "";
   const channelFilter = searchParams.channel || "ALL";
@@ -33,7 +35,13 @@ export default async function CompliancePage(props: PageProps) {
   }
 
   const offset = (page - 1) * pageSize;
+  const isLocFiltered = !!(locationId && locationId !== "ALL" && locationId !== "all");
+
   const conditions = [eq(customers.organizationId, organizationId)];
+
+  if (isLocFiltered) {
+    conditions.push(eq(crmCustomerProfiles.preferredLocationId, locationId));
+  }
 
   if (search.trim()) {
     conditions.push(
@@ -45,7 +53,7 @@ export default async function CompliancePage(props: PageProps) {
   }
 
   // 1. Fetch Customer Master Consent Ledger
-  const consentList = await db
+  const consentListQuery = db
     .select({
       id: customers.id,
       name: customers.name,
@@ -56,12 +64,21 @@ export default async function CompliancePage(props: PageProps) {
       consentUpdatedAt: crmCustomerProfiles.consentUpdatedAt,
       createdAt: customers.createdAt,
     })
-    .from(customers)
-    .leftJoin(crmCustomerProfiles, eq(customers.id, crmCustomerProfiles.customerId))
-    .where(and(...conditions))
-    .orderBy(desc(customers.createdAt))
-    .limit(pageSize)
-    .offset(offset);
+    .from(customers);
+
+  const consentList = isLocFiltered
+    ? await consentListQuery
+        .innerJoin(crmCustomerProfiles, eq(customers.id, crmCustomerProfiles.customerId))
+        .where(and(...conditions))
+        .orderBy(desc(customers.createdAt))
+        .limit(pageSize)
+        .offset(offset)
+    : await consentListQuery
+        .leftJoin(crmCustomerProfiles, eq(customers.id, crmCustomerProfiles.customerId))
+        .where(and(...conditions))
+        .orderBy(desc(customers.createdAt))
+        .limit(pageSize)
+        .offset(offset);
 
   // 2. Fetch Recent Audit Logs for Consent Activity
   const auditLogs = await db
@@ -81,10 +98,15 @@ export default async function CompliancePage(props: PageProps) {
     .orderBy(desc(crmConsentLogs.createdAt))
     .limit(10);
 
-  const [countRes] = await db
+  const countQuery = db
     .select({ count: sql<number>`count(*)` })
-    .from(customers)
-    .where(and(...conditions));
+    .from(customers);
+
+  const [countRes] = isLocFiltered
+    ? await countQuery
+        .innerJoin(crmCustomerProfiles, eq(customers.id, crmCustomerProfiles.customerId))
+        .where(and(...conditions))
+    : await countQuery.where(and(...conditions));
 
   const totalCount = Number(countRes?.count || 0);
   const totalPages = Math.ceil(totalCount / pageSize) || 1;

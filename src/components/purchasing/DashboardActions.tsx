@@ -1,7 +1,8 @@
 "use client";
 
-import { Plus, Users, PackagePlus, FileCheck, X, Trash2 } from "lucide-react";
+import { Plus, Users, PackagePlus, FileCheck, X, Trash2, Zap } from "lucide-react";
 import Link from "next/link";
+import { QuickPurchaseModal } from "./QuickPurchaseModal";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -22,23 +23,47 @@ interface PendingApproval {
   processOwnerAttachments?: any;
 }
 
+interface PendingRoutineTask {
+  id: string;
+  realId: string;
+  title: string;
+  vendorName?: string | null;
+  status: string;
+  dueAt?: string | null;
+  actionUrl?: string | null;
+}
+
 interface DashboardActionsProps {
   pendingApprovals: PendingApproval[];
+  pendingRoutineTasks?: PendingRoutineTask[];
+  organizationId?: string;
+  locationId?: string;
+  currentUserId?: string;
 }
 
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 };
 
-export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
+export function DashboardActions({ 
+  pendingApprovals,
+  pendingRoutineTasks = [],
+  organizationId,
+  locationId,
+  currentUserId = "current-user",
+}: DashboardActionsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loadingId, setLoadingId] = useState<string | null>(null);
+  const [isQuickPurchaseOpen, setIsQuickPurchaseOpen] = useState(false);
   
   // Review Modal State
   const [reviewingApproval, setReviewingApproval] = useState<PendingApproval | null>(null);
   const [reviewLines, setReviewLines] = useState<any[]>([]);
   const [loadingLines, setLoadingLines] = useState(false);
+  
+  const resolvedOrgId = organizationId || searchParams.get('organizationId') || '';
+  const resolvedLocId = locationId || searchParams.get('locationId') || '';
   
   const query = searchParams.toString();
   const href = `/purchasing/purchase-orders/create${query ? '?' + query : ''}`;
@@ -285,9 +310,55 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
         </div>
       )}
 
+      {/* Quick Purchase Modal */}
+      {isQuickPurchaseOpen && resolvedOrgId && resolvedLocId && (
+        <QuickPurchaseModal
+          isOpen={isQuickPurchaseOpen}
+          onClose={() => setIsQuickPurchaseOpen(false)}
+          organizationId={resolvedOrgId}
+          locationId={resolvedLocId}
+          currentUserId={currentUserId}
+          onSuccess={() => router.refresh()}
+        />
+      )}
+
       <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem' }}>Quick Actions</h3>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+        {/* Highlighted Quick Purchase Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!resolvedOrgId || !resolvedLocId) {
+              alert("Please select an active branch context first.");
+              return;
+            }
+            setIsQuickPurchaseOpen(true);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            width: '100%',
+            padding: '0.45rem 0.5rem',
+            backgroundColor: 'rgba(234, 88, 12, 0.08)',
+            border: '1px solid rgba(234, 88, 12, 0.3)',
+            borderRadius: '0.375rem',
+            textAlign: 'left',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            color: '#c2410c',
+            fontWeight: 700
+          }}
+          onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'rgba(234, 88, 12, 0.16)'}
+          onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'rgba(234, 88, 12, 0.08)'}
+        >
+          <div style={{ padding: '0.25rem', backgroundColor: '#ea580c', color: '#ffffff', borderRadius: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Zap size={13} />
+          </div>
+          <span style={{ fontSize: '0.75rem' }}>Quick Purchase ⚡</span>
+        </button>
+
         <Link href={`/purchasing/stock-assessment${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
           <div style={{ padding: '0.2rem', backgroundColor: '#e0e7ff', color: '#4f46e5', borderRadius: '0.25rem' }}>
             <FileCheck size={12} />
@@ -316,13 +387,76 @@ export function DashboardActions({ pendingApprovals }: DashboardActionsProps) {
           <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Add New Vendor</span>
         </Link>
 
-        <Link href={`/purchasing/schedules${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
+        <Link href={`/purchasing/configuration${query ? '?' + query : ''}`} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%', padding: '0.35rem', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '0.25rem', textAlign: 'left', cursor: 'pointer', transition: 'background-color 0.2s', textDecoration: 'none', color: 'inherit' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f8fafc'}>
           <div style={{ padding: '0.2rem', backgroundColor: '#f3e8ff', color: '#9333ea', borderRadius: '0.25rem' }}>
             <FileCheck size={12} />
           </div>
           <span style={{ fontWeight: '500', fontSize: '0.7rem' }}>Routine Tasks</span>
         </Link>
       </div>
+
+      {pendingRoutineTasks.length > 0 && (
+        <div style={{ marginTop: '0.75rem' }}>
+          <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#b45309' }}>
+            <FileCheck size={14} /> Routine Tasks Due ({pendingRoutineTasks.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {pendingRoutineTasks.map(task => (
+              <div key={task.id} style={{ padding: '0.5rem', border: '1px solid #fde68a', backgroundColor: '#fffbeb', borderRadius: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.125rem' }}>
+                  <span style={{ fontWeight: '600', fontSize: '0.75rem', color: '#92400e' }}>{task.id}</span>
+                  <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', backgroundColor: '#fef3c7', color: '#b45309', borderRadius: '0.25rem', fontWeight: 'bold' }}>
+                    {task.status === 'in_progress' ? 'In Progress' : 'Pending'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '0.7rem', fontWeight: '500', color: '#1e293b', marginBottom: '0.25rem' }}>
+                  {task.title}
+                </div>
+                {task.dueAt && (
+                  <div style={{ fontSize: '0.65rem', color: '#64748b', marginBottom: '0.375rem' }}>
+                    Due: {new Date(task.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                )}
+                {task.actionUrl ? (
+                  <Link
+                    href={task.actionUrl}
+                    style={{
+                      display: 'block',
+                      textAlign: 'center',
+                      padding: '0.25rem',
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.7rem',
+                      fontWeight: 'bold',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    Execute Task Now
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/tasks?organizationId=${resolvedOrgId}&locationId=${resolvedLocId}`}
+                    style={{
+                      display: 'block',
+                      textAlign: 'center',
+                      padding: '0.25rem',
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.7rem',
+                      fontWeight: 'bold',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    Open in Task Engine
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: '0.75rem' }}>
         <h3 style={{ fontSize: '0.875rem', fontWeight: '600', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

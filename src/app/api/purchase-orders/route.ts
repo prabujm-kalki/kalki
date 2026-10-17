@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireAuthenticatedUser } from '@/lib/authorization';
 import { createPurchaseOrder, InventoryServiceError } from '@/domains/inventory/service';
 import { db } from '@/db';
-import { purchaseOrders, vendors } from '@/db/schema';
+import { purchaseOrders, vendors, organizations } from '@/db/schema';
 import { eq, desc, and } from 'drizzle-orm';
 
 export async function GET(request: Request) {
@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     const pos = await db
       .select({
         id: purchaseOrders.id,
+        poNumber: purchaseOrders.poNumber,
         status: purchaseOrders.status,
         totalAmount: purchaseOrders.totalAmount,
         createdAt: purchaseOrders.createdAt,
@@ -30,9 +31,11 @@ export async function GET(request: Request) {
         vendorPhone: vendors.contactDetails,
         poDeliveryMethod: vendors.poDeliveryMethod,
         poWhatsappPreference: vendors.poWhatsappPreference,
+        whatsappPoTemplate: organizations.whatsappPoTemplate,
       })
       .from(purchaseOrders)
       .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
+      .leftJoin(organizations, eq(purchaseOrders.organizationId, organizations.id))
       .where(and(
         eq(purchaseOrders.organizationId, organizationId),
         eq(purchaseOrders.locationId, locationId)
@@ -55,7 +58,18 @@ export async function POST(request: Request) {
     }
     const body = await request.json();
     const po = await createPurchaseOrder(actor, body);
-    return NextResponse.json({ purchaseOrder: po }, { status: 201 });
+
+    // Fetch org template for WhatsApp messaging
+    let whatsappPoTemplate: string | null = null;
+    if (body.organizationId) {
+      const [org] = await db
+        .select({ whatsappPoTemplate: organizations.whatsappPoTemplate })
+        .from(organizations)
+        .where(eq(organizations.id, body.organizationId));
+      whatsappPoTemplate = org?.whatsappPoTemplate || null;
+    }
+
+    return NextResponse.json({ purchaseOrder: po, whatsappPoTemplate }, { status: 201 });
   } catch (error) {
     if (error instanceof InventoryServiceError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });

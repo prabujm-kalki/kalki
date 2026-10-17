@@ -636,6 +636,21 @@ export async function actionLeaveRequest(
       }
     });
 
+    // Auto-delegate any pending tasks/reviews to the reporting supervisor during the leave period
+    if (status === "APPROVED") {
+      try {
+        const { reassignPendingTasksForAbsentEmployee } = await import("@/domains/tasks/absence-delegation");
+        await reassignPendingTasksForAbsentEmployee({
+          employeeId: request.employeeId,
+          organizationId: request.organizationId,
+          reason: `Approved Leave from ${request.startDate} to ${request.endDate}: ${request.reason}`,
+          actorUserId: session.user.id,
+        });
+      } catch (delegationErr) {
+        console.warn("Auto-delegation for leave approval non-blocking error:", delegationErr);
+      }
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Leave action failed:", error);

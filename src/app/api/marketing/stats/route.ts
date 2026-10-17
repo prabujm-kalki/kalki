@@ -14,21 +14,49 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const organizationId = searchParams.get("organizationId");
+    const locationId = searchParams.get("locationId");
 
     if (!organizationId) {
       return NextResponse.json({ error: "organizationId is required" }, { status: 400 });
     }
 
-    // 1. Total Audiences (Customers with valid phone numbers)
-    const audienceStats = await db
-      .select({
-        totalCustomers: sql<number>`count(*)`,
-        reachableOnWhatsApp: sql<number>`count(case when phone is not null and length(phone) >= 10 then 1 end)`,
-      })
-      .from(customers)
-      .where(eq(customers.organizationId, organizationId));
+    const isLocationFiltered = !!(locationId && locationId !== "all" && locationId !== "ALL");
 
-    // 2. Aggregate Campaign Delivery Funnel
+    // 1. Total Audiences (Customers with valid phone numbers, filtered by preferred location if locationId specified)
+    const audienceConditions = [eq(customers.organizationId, organizationId)];
+    let audienceStats;
+
+    if (isLocationFiltered) {
+      const { crmCustomerProfiles } = await import("@/db/schema");
+      audienceStats = await db
+        .select({
+          totalCustomers: sql<number>`count(*)`,
+          reachableOnWhatsApp: sql<number>`count(case when ${customers.phone} is not null and length(${customers.phone}) >= 10 then 1 end)`,
+        })
+        .from(customers)
+        .innerJoin(crmCustomerProfiles, eq(customers.id, crmCustomerProfiles.customerId))
+        .where(
+          and(
+            eq(customers.organizationId, organizationId),
+            eq(crmCustomerProfiles.preferredLocationId, locationId)
+          )
+        );
+    } else {
+      audienceStats = await db
+        .select({
+          totalCustomers: sql<number>`count(*)`,
+          reachableOnWhatsApp: sql<number>`count(case when phone is not null and length(phone) >= 10 then 1 end)`,
+        })
+        .from(customers)
+        .where(eq(customers.organizationId, organizationId));
+    }
+
+    // 2. Aggregate Campaign Delivery Funnel (Messages Dispatched, Delivered & Read)
+    const campaignConditions = [
+      eq(marketingCampaigns.organizationId, organizationId),
+      isLocationFiltered ? eq(marketingCampaigns.locationId, locationId) : undefined,
+    ].filter(Boolean) as any[];
+
     const campaignStats = await db
       .select({
         totalCampaigns: sql<number>`count(*)`,
@@ -39,22 +67,27 @@ export async function GET(req: NextRequest) {
         totalFailed: sql<number>`coalesce(sum(failed_count), 0)`,
       })
       .from(marketingCampaigns)
-      .where(eq(marketingCampaigns.organizationId, organizationId));
+      .where(and(...campaignConditions));
 
-    // 3. Inbound vs Outbound 2-Way Volume
+    // 3. Two-Way Inbound vs Outbound Volume
+    const commConditions = [
+      eq(whatsappCommunications.organizationId, organizationId),
+      isLocationFiltered ? eq(whatsappCommunications.locationId, locationId) : undefined,
+    ].filter(Boolean) as any[];
+
     const commStats = await db
       .select({
         totalOutbound: sql<number>`count(case when direction = 'OUTBOUND' then 1 end)`,
         totalInbound: sql<number>`count(case when direction = 'INBOUND' then 1 end)`,
       })
       .from(whatsappCommunications)
-      .where(eq(whatsappCommunications.organizationId, organizationId));
+      .where(and(...commConditions));
 
-    // 4. Recent Campaigns
+    // 4. Recent Campaigns (Latest 5 records)
     const recentCampaigns = await db
       .select()
       .from(marketingCampaigns)
-      .where(eq(marketingCampaigns.organizationId, organizationId))
+      .where(and(...campaignConditions))
       .orderBy(desc(marketingCampaigns.createdAt))
       .limit(5);
 

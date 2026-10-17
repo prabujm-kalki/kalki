@@ -14,6 +14,7 @@ export function SalesNav() {
     { href: "/sales/orders", label: "Orders", perm: "sales:read" },
     { href: "/sales/invoices", label: "Invoices", perm: "sales:read" },
     { href: "/sales/returns", label: "Returns & Credit Notes", perm: "sales:read" },
+    { href: "/sales/day-close", label: "Day Close", perm: "sales:read" },
     { href: "/sales/reports", label: "Reports", perm: "sales:read" },
     { href: "/sales/settings", label: "Settings", perm: "sales:read" }
   ];

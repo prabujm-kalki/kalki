@@ -30,8 +30,8 @@ export default async function LeadsPage(props: PageProps) {
   }
 
   const conditions = [eq(crmLeads.organizationId, organizationId)];
-  if (locationId && locationId !== "ALL") {
-    conditions.push(eq(crmLeads.locationId, locationId));
+  if (locationId && locationId !== "ALL" && locationId !== "all") {
+    conditions.push(sql`(${crmLeads.locationId} = ${locationId} OR ${crmLeads.locationId} IS NULL)`);
   }
   if (leadType !== "ALL") {
     conditions.push(eq(crmLeads.leadType, leadType));
@@ -65,6 +65,7 @@ export default async function LeadsPage(props: PageProps) {
     <div className="crm-container">
       <LeadsClient
         organizationId={organizationId}
+        locationId={locationId || undefined}
         leads={rawLeads}
         locations={locs}
         selectedType={leadType}

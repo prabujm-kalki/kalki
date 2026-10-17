@@ -148,6 +148,21 @@ export async function POST(
         if (requiresEscalation) {
           nextBillReviewRoleId = finalRoleId;
           nextStatus = 'audited'; // Escalated bill approval
+        } else {
+          // Within cashier limit! Auto-process invoice or close if zero amount
+          const billNum = parseFloat(verifiedBillAmount || '0');
+          if (billNum <= 0) {
+            nextStatus = 'cancelled';
+          } else {
+            nextStatus = 'completed';
+          }
+        }
+      } else {
+        const billNum = parseFloat(verifiedBillAmount || '0');
+        if (billNum <= 0) {
+          nextStatus = 'cancelled';
+        } else {
+          nextStatus = 'completed';
         }
       }
 
@@ -159,6 +174,7 @@ export async function POST(
           cashierBillAmount: verifiedBillAmount,
           cashierPaymentMethod: paymentMethod || po.paymentMethod || 'cash',
           cashierAttachments: fileUrl ? { notes, fileUrl } : (notes ? { ...(po.cashierAttachments as any || {}), notes } : po.cashierAttachments),
+          updatedAt: new Date(),
         })
         .where(eq(purchaseOrders.id, id));
 
@@ -173,9 +189,36 @@ export async function POST(
             .where(eq(purchaseOrderLines.id, line.id));
         }
       }
+
+      // 3. If within limit and auto-completed, record the supplier invoice directly in finance ledger
+      if (nextStatus === 'completed') {
+        const billNum = parseFloat(verifiedBillAmount || '0');
+        if (billNum > 0) {
+          const { employees } = await import('@/db/schema');
+          const { recordSupplierInvoice } = await import('@/domains/finance/service');
+          
+          const [employee] = await tx.select().from(employees).where(eq(employees.userId, user.id));
+          if (employee) {
+            const invoiceNumber = po.poNumber || `INV-${po.id.substring(0, 8).toUpperCase()}`;
+            await recordSupplierInvoice({ id: user.id }, {
+              organizationId: po.organizationId,
+              locationId: po.locationId,
+              vendorId: po.vendorId,
+              invoiceNumber: invoiceNumber,
+              invoiceDate: new Date().toISOString(),
+              dueDate: null,
+              totalAmount: billNum,
+              recordedByEmployeeId: employee.id,
+            });
+          }
+        }
+      }
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      message: "Payment audit processed successfully" 
+    });
   } catch (error) {
     console.error('Audit processing error:', error);
     return NextResponse.json({ error: 'Failed to process audit' }, { status: 500 });

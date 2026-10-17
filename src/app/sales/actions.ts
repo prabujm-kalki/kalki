@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { eq, and, or, ilike, sql, desc, inArray, gte, lte } from "drizzle-orm";
-import { items, customers, salesInvoices, salesInvoiceLines, salesReturns, salesReturnLines, organizations, creditNotes, creditNoteApplications, salesReceiptAllocations, refunds } from "@/db/schema";
+import { items, customers, salesInvoices, salesInvoiceLines, salesReturns, salesReturnLines, organizations, creditNotes, creditNoteApplications, salesReceiptAllocations, refunds, salesInvoicePayments, eventFinancials, campaignAudiences, salesReceipts, salesCreditNotes, tmbillOrders } from "@/db/schema";
 import crypto from "crypto";
 import { headers } from "next/headers";
 import { requireAuthenticatedUser, authorizeEmployeeOperation } from "@/lib/authorization";
@@ -38,7 +38,7 @@ export async function addCustomer(organizationId: string, data: any) {
 }
 
 export async function createB2BInvoice(data: any) {
-  const { organizationId, locationId, customerId, customerName, items: invoiceItems, paymentTerms, invoiceDate, dueDate, overallDiscount } = data;
+  const { organizationId, locationId, customerId, customerName, items: invoiceItems, paymentTerms, invoiceDate, dueDate, overallDiscount, advancePaid: inputAdvancePaid } = data;
   
   if (!organizationId || !locationId || !customerId) {
     throw new Error("Missing required fields for B2B Invoice");
@@ -98,6 +98,17 @@ export async function createB2BInvoice(data: any) {
   
   const roundedGrandTotal = Math.round(grandTotal);
   const roundOffAmount = roundedGrandTotal - grandTotal;
+
+  // Advance Payment Math & Status Synchronization
+  const advance = Math.max(0, parseFloat(inputAdvancePaid) || 0);
+  const balanceDue = Math.max(0, roundedGrandTotal - advance);
+  
+  let dynamicPaymentStatus = paymentTerms === "Cash" ? "PAID" : "PENDING";
+  if (balanceDue <= 0 && roundedGrandTotal > 0) {
+    dynamicPaymentStatus = "PAID";
+  } else if (advance > 0 && balanceDue > 0) {
+    dynamicPaymentStatus = "PARTIAL";
+  }
   
   const invoiceNumber = `INV-${Date.now()}`;
 
@@ -121,8 +132,10 @@ export async function createB2BInvoice(data: any) {
     roundOffAmount: roundOffAmount.toFixed(2).toString(),
     grandTotal: roundedGrandTotal.toString(),
     totalAmount: roundedGrandTotal.toString(),
-    paymentStatus: paymentTerms === "Cash" ? "PAID" : "PENDING",
-    paymentMode: paymentTerms || "CREDIT",
+    advancePaid: advance.toFixed(2),
+    balanceDue: balanceDue.toFixed(2),
+    paymentStatus: dynamicPaymentStatus,
+    paymentMode: advance > 0 && paymentTerms !== "Cash" ? "ADVANCE_SETTLED" : (paymentTerms || "CREDIT"),
     status: "ISSUED",
     createdUserId: "system", // Should come from session in a real app
   }).returning();
@@ -991,4 +1004,128 @@ export async function fetchAllOrders(organizationId: string, locationId: string,
   const total = Number(totalResult[0]?.count || 0);
 
   return { data, total };
+}
+
+export async function deleteSalesInvoice(invoiceId: string) {
+  if (!invoiceId) throw new Error("Invoice ID is required");
+
+  // Authentication check
+  const user = await requireAuthenticatedUser(await headers());
+  if (!user) throw new Error("Unauthorized");
+
+  // Fetch invoice details first to verify existence and check dependencies
+  const [invoice] = await db.select().from(salesInvoices).where(eq(salesInvoices.id, invoiceId));
+  if (!invoice) throw new Error("Invoice not found");
+
+  // Check if there are associated sales returns
+  const returns = await db.select({ id: salesReturns.id }).from(salesReturns).where(eq(salesReturns.invoiceId, invoiceId));
+  if (returns.length > 0) {
+    throw new Error("Cannot delete invoice: associated sales returns exist. Please remove or resolve returns first.");
+  }
+
+  // Check for credit note applications
+  const cnApps = await db.select({ id: creditNoteApplications.id }).from(creditNoteApplications).where(eq(creditNoteApplications.appliedToInvoiceId, invoiceId));
+  if (cnApps.length > 0) {
+    throw new Error("Cannot delete invoice: credit notes are applied to this invoice.");
+  }
+
+  // Safe deletion transaction
+  await db.transaction(async (tx) => {
+    // 1. Unlink marketing audience references if any
+    await tx.update(campaignAudiences)
+      .set({ convertedInvoiceId: null, isConverted: false })
+      .where(eq(campaignAudiences.convertedInvoiceId, invoiceId));
+
+    // 2. Unlink event financials if any
+    await tx.update(eventFinancials)
+      .set({ invoiceId: null })
+      .where(eq(eventFinancials.invoiceId, invoiceId));
+
+    // 3. Unlink tmbill raw orders if any
+    await tx.update(tmbillOrders)
+      .set({ financeSalesInvoiceId: null })
+      .where(eq(tmbillOrders.financeSalesInvoiceId, invoiceId));
+
+    // 4. Handle receipt allocations and clean up associated receipts created for this invoice
+    const allocations = await tx.select({ 
+      id: salesReceiptAllocations.id, 
+      receiptId: salesReceiptAllocations.receiptId 
+    }).from(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, invoiceId));
+    
+    if (allocations.length > 0) {
+      const receiptIds = allocations.map(a => a.receiptId);
+      // Delete allocations for this invoice
+      await tx.delete(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, invoiceId));
+
+      // If any of these receipts have NO remaining allocations to other invoices, clean them up too
+      for (const rId of receiptIds) {
+        const remaining = await tx.select({ id: salesReceiptAllocations.id })
+          .from(salesReceiptAllocations)
+          .where(eq(salesReceiptAllocations.receiptId, rId));
+        if (remaining.length === 0) {
+          await tx.delete(salesReceipts).where(eq(salesReceipts.id, rId));
+        }
+      }
+    }
+
+    // 5. Also delete any receipt directly created with referenceNumber equal to this invoiceNumber
+    if (invoice.invoiceNumber) {
+      await tx.delete(salesReceipts).where(and(
+        eq(salesReceipts.organizationId, invoice.organizationId),
+        eq(salesReceipts.referenceNumber, invoice.invoiceNumber)
+      ));
+    }
+
+    // 6. Delete invoice credit notes created directly for this invoice
+    await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.invoiceId, invoiceId));
+
+    // 7. Delete invoice payments
+    await tx.delete(salesInvoicePayments).where(eq(salesInvoicePayments.invoiceId, invoiceId));
+
+    // 8. Delete invoice line items
+    await tx.delete(salesInvoiceLines).where(eq(salesInvoiceLines.invoiceId, invoiceId));
+
+    // 9. Finally delete invoice
+    await tx.delete(salesInvoices).where(eq(salesInvoices.id, invoiceId));
+  });
+
+  revalidatePath("/sales/invoices");
+  revalidatePath("/sales/invoices/all");
+  return { success: true };
+}
+
+export async function updateSalesInvoice(data: {
+  id: string;
+  customerName?: string;
+  customerGstin?: string;
+  billingAddress?: string;
+  dueDate?: string;
+  paymentStatus?: string;
+  paymentMode?: string;
+  status?: string;
+}) {
+  if (!data.id) throw new Error("Invoice ID is required");
+
+  const user = await requireAuthenticatedUser(await headers());
+  if (!user) throw new Error("Unauthorized");
+
+  const [existing] = await db.select().from(salesInvoices).where(eq(salesInvoices.id, data.id));
+  if (!existing) throw new Error("Invoice not found");
+
+  const updateFields: any = {};
+  if (data.customerName !== undefined) updateFields.customerName = data.customerName;
+  if (data.customerGstin !== undefined) updateFields.customerGstin = data.customerGstin;
+  if (data.billingAddress !== undefined) updateFields.billingAddress = data.billingAddress;
+  if (data.dueDate !== undefined) updateFields.dueDate = data.dueDate ? new Date(data.dueDate) : null;
+  if (data.paymentStatus !== undefined) updateFields.paymentStatus = data.paymentStatus;
+  if (data.paymentMode !== undefined) updateFields.paymentMode = data.paymentMode;
+  if (data.status !== undefined) updateFields.status = data.status;
+
+  await db.update(salesInvoices)
+    .set(updateFields)
+    .where(eq(salesInvoices.id, data.id));
+
+  revalidatePath("/sales/invoices");
+  revalidatePath("/sales/invoices/all");
+  return { success: true };
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Plus, Edit } from "lucide-react";
+import { Plus, Edit, Search, Package, CheckCircle2, XCircle } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { apiGet } from "@/lib/api";
+import { KalkiButton } from "@/components/ui/KalkiButton";
 
 type ItemView = {
   id: string;
@@ -19,6 +20,8 @@ export default function ItemsPage() {
   const query = selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : '';
   const [itemsList, setItemsList] = useState<ItemView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
 
   useEffect(() => {
     if (!selected) {
@@ -31,7 +34,7 @@ export default function ItemsPage() {
     });
     apiGet<{ items: ItemView[] }>(`/api/items?${params.toString()}`)
       .then(res => {
-        setItemsList(res.items);
+        setItemsList(res.items || []);
         setLoading(false);
       })
       .catch(err => {
@@ -40,56 +43,222 @@ export default function ItemsPage() {
       });
   }, [selected]);
 
+  const filteredItems = useMemo(() => {
+    return itemsList.filter((item) => {
+      const matchesSearch = item.nameEn.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus =
+        statusFilter === "ALL"
+          ? true
+          : statusFilter === "ACTIVE"
+          ? item.isActive
+          : !item.isActive;
+      return matchesSearch && matchesStatus;
+    });
+  }, [itemsList, searchQuery, statusFilter]);
+
+  const activeCount = useMemo(() => itemsList.filter((i) => i.isActive).length, [itemsList]);
+
   return (
-    <div className="stack">
-      <section className="panel">
-        <div className="row" style={{ justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+    <div className="kalki-main-content">
+      {/* Page Header */}
+      <div className="kalki-page-header" style={{ marginBottom: "20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
           <div>
-            <h1 className="page-title">Items</h1>
-            <p className="muted">Manage products, pricing, and link them to your suppliers.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <h1 className="kalki-page-title" style={{ fontSize: "22px", margin: 0 }}>
+                Item Master
+              </h1>
+              <span style={{ fontSize: "12px", color: "var(--kalki-text-secondary)", backgroundColor: "#f1f5f9", padding: "2px 8px", borderRadius: "999px", fontWeight: 600 }}>
+                {itemsList.length} Items ({activeCount} Active)
+              </span>
+            </div>
+            <p className="kalki-page-description" style={{ marginTop: "4px" }}>
+              Manage products, procurement pricing, units of measure, and supplier assignments.
+            </p>
           </div>
           <div>
-            <Link href={`/purchasing/items/create${query}`} className="action-button" style={{ textDecoration: 'none' }}>
-              <Plus size={18} /> Add New Item
+            <Link href={`/purchasing/items/create${query}`} style={{ textDecoration: "none" }}>
+              <KalkiButton variant="primary" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <Plus size={16} /> Add New Item
+              </KalkiButton>
             </Link>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section className="panel">
+      {/* Filter and Search Bar */}
+      <div 
+        style={{ 
+          backgroundColor: "#fff", 
+          border: "1px solid var(--kalki-border)", 
+          borderRadius: "8px", 
+          padding: "12px 16px", 
+          marginBottom: "16px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: "12px",
+          flexWrap: "wrap"
+        }}
+      >
+        <div style={{ position: "relative", minWidth: "260px", flex: 1, maxWidth: "400px" }}>
+          <Search size={16} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+          <input 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search items by name..."
+            className="kalki-input"
+            style={{ paddingLeft: "36px", height: "38px", fontSize: "13px" }}
+          />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button 
+            type="button"
+            onClick={() => setStatusFilter("ALL")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "6px",
+              border: "1px solid",
+              borderColor: statusFilter === "ALL" ? "var(--kalki-primary)" : "var(--kalki-border)",
+              backgroundColor: statusFilter === "ALL" ? "#eff6ff" : "#fff",
+              color: statusFilter === "ALL" ? "var(--kalki-primary)" : "var(--kalki-text-secondary)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            All ({itemsList.length})
+          </button>
+          <button 
+            type="button"
+            onClick={() => setStatusFilter("ACTIVE")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "6px",
+              border: "1px solid",
+              borderColor: statusFilter === "ACTIVE" ? "#16a34a" : "var(--kalki-border)",
+              backgroundColor: statusFilter === "ACTIVE" ? "#f0fdf4" : "#fff",
+              color: statusFilter === "ACTIVE" ? "#16a34a" : "var(--kalki-text-secondary)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            Active ({activeCount})
+          </button>
+          <button 
+            type="button"
+            onClick={() => setStatusFilter("INACTIVE")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "6px",
+              border: "1px solid",
+              borderColor: statusFilter === "INACTIVE" ? "#dc2626" : "var(--kalki-border)",
+              backgroundColor: statusFilter === "INACTIVE" ? "#fef2f2" : "#fff",
+              color: statusFilter === "INACTIVE" ? "#dc2626" : "var(--kalki-text-secondary)",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer"
+            }}
+          >
+            Inactive ({itemsList.length - activeCount})
+          </button>
+        </div>
+      </div>
+
+      {/* Items Table Card */}
+      <div 
+        style={{ 
+          backgroundColor: "#fff", 
+          border: "1px solid var(--kalki-border)", 
+          borderRadius: "8px", 
+          overflow: "hidden" 
+        }}
+      >
         {loading ? (
-          <div className="status-message">Loading items...</div>
-        ) : itemsList.length === 0 ? (
-          <div className="status-message empty">
-            <p>You haven't added any items yet.</p>
-            <Link href={`/purchasing/items/create${query}`} className="secondary-button" style={{ marginTop: '1rem', textDecoration: 'none' }}>Create your first item</Link>
+          <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--kalki-text-secondary)", fontSize: "14px" }}>
+            Loading item catalogue...
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "48px 16px", color: "var(--kalki-text-secondary)" }}>
+            <Package size={36} style={{ color: "#cbd5e1", marginBottom: "8px" }} />
+            <p style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: 500 }}>
+              {searchQuery || statusFilter !== "ALL" ? "No items match your search criteria." : "You haven't added any items yet."}
+            </p>
+            {!searchQuery && statusFilter === "ALL" && (
+              <Link href={`/purchasing/items/create${query}`} style={{ textDecoration: "none" }}>
+                <KalkiButton variant="secondary" size="sm">
+                  Create your first item
+                </KalkiButton>
+              </Link>
+            )}
           </div>
         ) : (
-          <div className="table-responsive">
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+          <div className="kalki-table-container">
+            <table className="kalki-table">
               <thead>
-                <tr style={{ borderBottom: '2px solid var(--border-color)', backgroundColor: 'var(--kalki-primary-light)', color: 'var(--kalki-primary)' }}>
-                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Item Name</th>
-                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Unit</th>
-                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Current Price</th>
-                  <th style={{ textAlign: 'left', padding: '0.75rem 1rem', fontWeight: 600 }}>Status</th>
-                  <th style={{ textAlign: 'center', padding: '0.75rem 1rem', fontWeight: 600 }}>Actions</th>
+                <tr>
+                  <th style={{ width: "40%" }}>Item Name</th>
+                  <th style={{ width: "15%" }}>Unit of Measure</th>
+                  <th style={{ width: "20%" }}>Current Price</th>
+                  <th style={{ width: "15%" }}>Status</th>
+                  <th style={{ width: "10%", textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {itemsList.map(item => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
-                    <td style={{ padding: '0.75rem 1rem' }}><strong>{item.nameEn}</strong></td>
-                    <td style={{ padding: '0.75rem 1rem', color: 'var(--text-muted)' }}>{item.unit}</td>
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 500 }}>₹{item.currentPrice}</td>
-                    <td style={{ padding: '0.75rem 1rem' }}>
-                      <span className="pill" style={{ background: item.isActive ? 'var(--success-light)' : 'var(--border-color)', color: item.isActive ? 'var(--success)' : 'var(--text-muted)', padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600 }}>
-                        {item.isActive ? 'Active' : 'Inactive'}
+                {filteredItems.map((item) => (
+                  <tr key={item.id} style={{ transition: "background-color 0.15s ease" }}>
+                    <td>
+                      <span style={{ fontWeight: 600, color: "var(--kalki-text-primary)", fontSize: "14px" }}>
+                        {item.nameEn}
                       </span>
                     </td>
-                    <td style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
-                      <Link href={`/purchasing/items/${item.id}${query}`} className="secondary-button" title="Edit Item" style={{ padding: '0.4rem 0.6rem', display: 'inline-flex', borderRadius: '0.375rem', border: '1px solid var(--border-color)', background: 'white', color: 'var(--kalki-primary)' }}>
-                        <Edit size={16} />
+                    <td>
+                      <span 
+                        style={{ 
+                          padding: "3px 8px", 
+                          backgroundColor: "#f1f5f9", 
+                          borderRadius: "4px", 
+                          fontSize: "12px", 
+                          fontWeight: 500,
+                          color: "var(--kalki-text-secondary)"
+                        }}
+                      >
+                        {item.unit}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 600, color: "var(--kalki-text-primary)", fontSize: "13px" }}>
+                        ₹{item.currentPrice ? Number(item.currentPrice).toLocaleString("en-IN") : "0"}
+                      </span>
+                    </td>
+                    <td>
+                      <span 
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          backgroundColor: item.isActive ? "#dcfce7" : "#fee2e2",
+                          color: item.isActive ? "#16a34a" : "#dc2626"
+                        }}
+                      >
+                        {item.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <Link 
+                        href={`/purchasing/items/${item.id}${query}`} 
+                        className="kalki-button kalki-button--ghost"
+                        style={{ padding: "6px 8px", display: "inline-flex", alignItems: "center", color: "var(--kalki-primary)" }}
+                        title="Edit Item"
+                      >
+                        <Edit size={15} />
                       </Link>
                     </td>
                   </tr>
@@ -98,7 +267,8 @@ export default function ItemsPage() {
             </table>
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }
+

@@ -14,15 +14,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const { id } = await params;
-    const formData = await req.formData();
-    
-    const receivedLinesStr = formData.get("receivedLines");
-    if (!receivedLinesStr || typeof receivedLinesStr !== 'string') {
-      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    let receivedLines: any[] = [];
+    let processOwnerAttachments: string[] | null = null;
+
+    const contentType = req.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const body = await req.json();
+      receivedLines = body.receivedLines;
+      if (body.processOwnerAttachments) {
+        processOwnerAttachments = body.processOwnerAttachments;
+      }
+    } else {
+      const formData = await req.formData();
+      const receivedLinesStr = formData.get("receivedLines");
+      if (receivedLinesStr && typeof receivedLinesStr === 'string') {
+        receivedLines = JSON.parse(receivedLinesStr);
+      }
+      
+      const proofFile = formData.get("processOwnerProof") as File | null;
+      if (proofFile && proofFile.size > 0) {
+        const uploadDir = path.join(process.cwd(), "public", "uploads", "process_owner");
+        await fs.mkdir(uploadDir, { recursive: true });
+        
+        const fileExt = proofFile.name.split('.').pop();
+        const fileName = `${id}_${Date.now()}.${fileExt}`;
+        const filePath = path.join(uploadDir, fileName);
+        
+        const buffer = Buffer.from(await proofFile.arrayBuffer());
+        await fs.writeFile(filePath, buffer);
+        
+        processOwnerAttachments = [`/uploads/process_owner/${fileName}`];
+      }
     }
-    
-    const receivedLines = JSON.parse(receivedLinesStr);
-    if (!Array.isArray(receivedLines)) {
+
+    if (!Array.isArray(receivedLines) || receivedLines.length === 0) {
       return NextResponse.json({ error: "Invalid payload format" }, { status: 400 });
     }
 
@@ -34,24 +59,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     if (!po) {
       return NextResponse.json({ error: "PO not found" }, { status: 404 });
-    }
-
-    // Handle process owner proof file upload
-    const proofFile = formData.get("processOwnerProof") as File | null;
-    let processOwnerAttachments: string[] | null = null;
-    
-    if (proofFile) {
-      const uploadDir = path.join(process.cwd(), "public", "uploads", "process_owner");
-      await fs.mkdir(uploadDir, { recursive: true });
-      
-      const fileExt = proofFile.name.split('.').pop();
-      const fileName = `${id}_${Date.now()}.${fileExt}`;
-      const filePath = path.join(uploadDir, fileName);
-      
-      const buffer = Buffer.from(await proofFile.arrayBuffer());
-      await fs.writeFile(filePath, buffer);
-      
-      processOwnerAttachments = [`/uploads/process_owner/${fileName}`];
     }
 
     // Update lines
@@ -72,17 +79,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .where(eq(purchaseOrderLines.id, line.id));
     }
 
+    // Check if ALL lines have received quantity 0 (i.e. nothing was delivered)
+    const allZero = receivedLines.every((l: any) => Number(l.receivedQuantity || 0) === 0);
+
     // Check for custom routing config
     const [config] = await db.select().from(purchaseRoutingConfigs)
       .where(and(eq(purchaseRoutingConfigs.organizationId, po.organizationId), eq(purchaseRoutingConfigs.locationId, po.locationId)))
       .limit(1);
 
     const updateData: any = { 
-      status: 'received',
-      receivedByUserId: user.id 
+      status: allZero ? 'cancelled' : 'received',
+      receivedByUserId: user.id,
+      cashierBillAmount: allZero ? '0' : po.cashierBillAmount,
+      updatedAt: new Date()
     };
 
-    if (config && config.targetRoleId) {
+    if (!allZero && config && config.targetRoleId) {
       updateData.billReviewRoleId = config.targetRoleId;
     }
 
@@ -94,7 +106,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .set(updateData)
       .where(eq(purchaseOrders.id, id));
 
-    return NextResponse.json({ message: "Goods receipt processed successfully" });
+    return NextResponse.json({ 
+      message: allZero ? "Purchase Order marked as Cancelled (0 items received)" : "Goods receipt processed successfully",
+      status: allZero ? 'cancelled' : 'received'
+    });
   } catch (error: any) {
     console.error("Error receiving PO:", error);
     return NextResponse.json(

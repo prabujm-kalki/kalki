@@ -14,6 +14,9 @@ interface PageProps {
     page?: string;
     stage?: string;
     minScore?: string;
+    rWeight?: string;
+    fWeight?: string;
+    mWeight?: string;
   }>;
 }
 
@@ -24,6 +27,9 @@ export default async function ScoringPage(props: PageProps) {
   const page = parseInt(searchParams.page || "1", 10);
   const stage = searchParams.stage || "ALL";
   const minScore = parseInt(searchParams.minScore || "0", 10);
+  const rWeight = parseInt(searchParams.rWeight || "35", 10);
+  const fWeight = parseInt(searchParams.fWeight || "35", 10);
+  const mWeight = parseInt(searchParams.mWeight || "30", 10);
   const pageSize = 10;
 
   if (!organizationId) {
@@ -37,7 +43,7 @@ export default async function ScoringPage(props: PageProps) {
   const offset = (page - 1) * pageSize;
   const conditions = [eq(crmCustomerProfiles.organizationId, organizationId)];
 
-  if (locationId && locationId !== "ALL") {
+  if (locationId && locationId !== "ALL" && locationId !== "all") {
     conditions.push(eq(crmCustomerProfiles.preferredLocationId, locationId));
   }
 
@@ -45,24 +51,41 @@ export default async function ScoringPage(props: PageProps) {
     conditions.push(eq(crmCustomerProfiles.lifecycleStage, stage));
   }
 
+  // Dynamic priority score formula based on weighted RFM factors (0 - 100)
+  // Recency score (0-100): 100 if recency <= 7 days, smoothly decreases as days increase
+  // Frequency score (0-100): 100 if frequency >= 10 orders, linear scale up to 10
+  // Monetary score (0-100): 100 if spend >= 10,000, linear scale up to 10,000
+  const totalWeight = (rWeight + fWeight + mWeight) || 100;
+  const dynamicScoreSql = sql<number>`
+    LEAST(100, GREATEST(0, ROUND(
+      (
+        (${rWeight} * GREATEST(0, (100 - LEAST(100, ${crmCustomerProfiles.recencyDays} * 100 / 120)))) +
+        (${fWeight} * LEAST(100, ${crmCustomerProfiles.frequencyOrders} * 10)) +
+        (${mWeight} * LEAST(100, (${crmCustomerProfiles.monetarySpend}::numeric / 100)))
+      ) / ${totalWeight}
+    )))
+  `;
+
   const scoringList = await db
     .select({
       id: crmCustomerProfiles.id,
       customerId: crmCustomerProfiles.customerId,
       customerName: customers.name,
       customerPhone: customers.phone,
-      priorityScore: crmCustomerProfiles.priorityScore,
+      priorityScore: dynamicScoreSql,
       lifecycleStage: crmCustomerProfiles.lifecycleStage,
       churnRiskPercentage: crmCustomerProfiles.churnRiskPercentage,
       predictedNextVisitDays: crmCustomerProfiles.predictedNextVisitDays,
       monetarySpend: crmCustomerProfiles.monetarySpend,
       rfmSegment: crmCustomerProfiles.rfmSegment,
+      recencyDays: crmCustomerProfiles.recencyDays,
+      frequencyOrders: crmCustomerProfiles.frequencyOrders,
       lastCalculatedAt: crmCustomerProfiles.lastCalculatedAt,
     })
     .from(crmCustomerProfiles)
     .innerJoin(customers, eq(crmCustomerProfiles.customerId, customers.id))
     .where(and(...conditions))
-    .orderBy(desc(crmCustomerProfiles.priorityScore))
+    .orderBy(desc(dynamicScoreSql))
     .limit(pageSize)
     .offset(offset);
 
@@ -84,6 +107,9 @@ export default async function ScoringPage(props: PageProps) {
         totalCount={totalCount}
         selectedStage={stage}
         minScore={minScore}
+        initialRWeight={rWeight}
+        initialFWeight={fWeight}
+        initialMWeight={mWeight}
       />
     </div>
   );

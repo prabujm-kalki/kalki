@@ -68,6 +68,7 @@ const createVendorSchema = scopeSchema.extend({
   creditLimitAmount: z.number().min(0).nullable().optional(),
   poDeliveryMethod: z.enum(["WHATSAPP", "EMAIL", "MANUAL"]).optional().default("WHATSAPP"),
   poWhatsappPreference: z.enum(["TEXT_ONLY", "PDF_LINK_ONLY", "TEXT_AND_PDF_LINK"]).optional().default("TEXT_AND_PDF_LINK"),
+  expectedDeliveryDays: z.number().int().min(0).max(365).optional().default(2),
 }).strict().refine((data) => {
   if (data.paymentTerms) {
     return data.creditDays === PaymentTermsMap[data.paymentTerms];
@@ -98,6 +99,7 @@ export async function createVendor(actor: Actor, input: CreateVendorInput) {
     creditLimitAmount: parsed.data.creditLimitAmount?.toString() ?? null,
     poDeliveryMethod: parsed.data.poDeliveryMethod,
     poWhatsappPreference: parsed.data.poWhatsappPreference,
+    expectedDeliveryDays: parsed.data.expectedDeliveryDays ?? 2,
   }).returning();
 
   return vendor;
@@ -118,6 +120,7 @@ const updateVendorSchema = scopeSchema.extend({
   isActive: z.boolean().optional(),
   poDeliveryMethod: z.enum(["WHATSAPP", "EMAIL", "MANUAL"]).optional(),
   poWhatsappPreference: z.enum(["TEXT_ONLY", "PDF_LINK_ONLY", "TEXT_AND_PDF_LINK"]).optional(),
+  expectedDeliveryDays: z.number().int().min(0).max(365).nullable().optional(),
 }).strict();
 
 export type UpdateVendorInput = z.infer<typeof updateVendorSchema>;
@@ -139,6 +142,7 @@ export async function updateVendor(actor: Actor, input: UpdateVendorInput) {
     ...(parsed.data.isActive !== undefined ? { isActive: parsed.data.isActive } : {}),
     ...(parsed.data.poDeliveryMethod !== undefined ? { poDeliveryMethod: parsed.data.poDeliveryMethod } : {}),
     ...(parsed.data.poWhatsappPreference !== undefined ? { poWhatsappPreference: parsed.data.poWhatsappPreference } : {}),
+    ...(parsed.data.expectedDeliveryDays !== undefined ? { expectedDeliveryDays: parsed.data.expectedDeliveryDays ?? 2 } : {}),
   }).where(and(
     eq(vendors.id, parsed.data.vendorId),
     eq(vendors.organizationId, parsed.data.organizationId),

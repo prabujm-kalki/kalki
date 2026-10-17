@@ -2,7 +2,7 @@ import React, { Suspense } from "react";
 import { KalkiPageHeader } from "@/components/ui/KalkiPageHeader";
 import { db } from "@/db";
 import { marketingTemplates } from "@/db/schema";
-import { desc } from "drizzle-orm";
+import { desc, eq, and } from "drizzle-orm";
 import { StatusMessage } from "@/components/StatusMessage";
 
 import Link from "next/link";
@@ -16,7 +16,19 @@ export default async function TemplatesPage(props: any) {
   const orgId = searchParams?.organizationId || "";
   const locId = searchParams?.locationId || "";
 
-  const templates = await db.select().from(marketingTemplates).orderBy(desc(marketingTemplates.createdAt));
+  const conditions = [];
+  if (orgId) {
+    conditions.push(eq(marketingTemplates.organizationId, orgId));
+  }
+  if (locId && locId !== "all" && locId !== "ALL") {
+    conditions.push(eq(marketingTemplates.locationId, locId));
+  }
+
+  const templates = await db
+    .select()
+    .from(marketingTemplates)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(marketingTemplates.createdAt));
 
   return (
     <Suspense fallback={<main className="app-main"><StatusMessage tone="loading">Loading...</StatusMessage></main>}>

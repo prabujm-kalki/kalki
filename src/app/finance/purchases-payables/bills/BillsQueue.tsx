@@ -40,6 +40,31 @@ export function BillsQueue({ initialPos }: { initialPos: any[] }) {
     }
   };
 
+  const handleCancelPo = async (po: any) => {
+    const confirmCancel = window.confirm(`Are you sure you want to cancel Purchase Order #${po.poNumber || po.id.slice(0, 8)}?`);
+    if (!confirmCancel) return;
+    setSubmittingId(po.id);
+    try {
+      const res = await fetch(`/api/purchase-orders/${po.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Cancelled by accounts manager on Bills page" })
+      });
+      if (res.ok) {
+        setPos(pos.filter(p => p.id !== po.id));
+        router.refresh();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "Failed to cancel PO");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error cancelling PO");
+    } finally {
+      setSubmittingId(null);
+    }
+  };
+
   const handleViewPo = async (po: any) => {
     setViewingPo(po);
     setLoadingLines(true);
@@ -73,6 +98,7 @@ export function BillsQueue({ initialPos }: { initialPos: any[] }) {
           <tbody>
             {pos.map(po => {
                const attachments = po.cashierAttachments as any || {};
+               const isZeroBill = Number(po.verifiedBillAmount || po.totalAmount || 0) <= 0;
                return (
                  <tr key={po.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                    <td style={{ padding: '0.75rem 1rem' }}>{new Date(po.createdAt).toLocaleDateString()}</td>
@@ -86,7 +112,10 @@ export function BillsQueue({ initialPos }: { initialPos: any[] }) {
                      </button>
                    </td>
                    <td style={{ padding: '0.75rem 1rem' }}>{po.vendorName}</td>
-                   <td style={{ padding: '0.75rem 1rem', fontWeight: '600', color: '#10b981' }}>{formatCurrency(po.verifiedBillAmount || po.totalAmount)}</td>
+                   <td style={{ padding: '0.75rem 1rem', fontWeight: '600', color: isZeroBill ? '#ef4444' : '#10b981' }}>
+                     {formatCurrency(po.verifiedBillAmount || po.totalAmount)}
+                     {isZeroBill && <span style={{ fontSize: '0.7rem', color: '#dc2626', display: 'block' }}>(Not Received)</span>}
+                   </td>
                    <td style={{ padding: '0.75rem 1rem' }}>
                      {attachments.notes && <div style={{ fontSize: '0.75rem', marginBottom: '4px', maxWidth: '150px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={attachments.notes}>{attachments.notes}</div>}
                      {attachments.fileUrl && (
@@ -96,13 +125,47 @@ export function BillsQueue({ initialPos }: { initialPos: any[] }) {
                      )}
                    </td>
                    <td style={{ padding: '0.75rem 1rem' }}>
-                     <button 
-                       onClick={() => processBill(po)}
-                       disabled={submittingId === po.id}
-                       style={{ padding: '0.3rem 0.75rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '0.25rem', cursor: submittingId === po.id ? 'not-allowed' : 'pointer', fontWeight: '500', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                     >
-                       {submittingId === po.id ? 'Processing...' : <><CheckCircle size={14} /> Record Invoice</>}
-                     </button>
+                     <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                       <button 
+                         onClick={() => processBill(po)}
+                         disabled={submittingId === po.id}
+                         style={{
+                           padding: '0.35rem 0.75rem',
+                           backgroundColor: isZeroBill ? '#64748b' : '#10b981',
+                           color: 'white',
+                           border: 'none',
+                           borderRadius: '0.25rem',
+                           cursor: submittingId === po.id ? 'not-allowed' : 'pointer',
+                           fontWeight: '500',
+                           fontSize: '0.75rem',
+                           display: 'flex',
+                           alignItems: 'center',
+                           gap: '0.25rem'
+                         }}
+                       >
+                         {submittingId === po.id ? 'Processing...' : (isZeroBill ? <><X size={14} /> Close Zero Bill</> : <><CheckCircle size={14} /> Record Invoice</>)}
+                       </button>
+                       <button 
+                         onClick={() => handleCancelPo(po)}
+                         disabled={submittingId === po.id}
+                         title="Cancel this Purchase Order"
+                         style={{
+                           padding: '0.35rem 0.6rem',
+                           backgroundColor: '#fef2f2',
+                           color: '#dc2626',
+                           border: '1px solid #fecaca',
+                           borderRadius: '0.25rem',
+                           cursor: submittingId === po.id ? 'not-allowed' : 'pointer',
+                           fontWeight: '500',
+                           fontSize: '0.75rem',
+                           display: 'flex',
+                           alignItems: 'center',
+                           gap: '0.2rem'
+                         }}
+                       >
+                         <X size={13} /> Cancel
+                       </button>
+                     </div>
                    </td>
                  </tr>
                );
@@ -166,24 +229,13 @@ export function BillsQueue({ initialPos }: { initialPos: any[] }) {
                         );
                       })}
                     </tbody>
-                    <tfoot>
-                      <tr>
-                        <td colSpan={4} style={{ padding: '1rem 0.5rem', textAlign: 'right', fontWeight: 'bold' }}>Total Final Amount:</td>
-                        <td style={{ padding: '1rem 0.5rem', textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem', color: '#10b981' }}>
-                          {formatCurrency(viewingPo.verifiedBillAmount || viewingPo.totalAmount)}
-                        </td>
-                      </tr>
-                    </tfoot>
                   </table>
                 </>
               )}
             </div>
             
             <div style={{ padding: '1rem', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc' }}>
-              <button 
-                onClick={() => setViewingPo(null)}
-                style={{ padding: '0.5rem 1.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer', fontWeight: '600' }}
-              >
+              <button onClick={() => setViewingPo(null)} style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer' }}>
                 Close
               </button>
             </div>

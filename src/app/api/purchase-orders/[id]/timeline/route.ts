@@ -72,11 +72,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             .limit(1);
           if (orgAssignees.length > 0) {
             pendingEmployeeName = orgAssignees[0].name;
+          } else {
+            pendingEmployeeName = "Unassigned (Role Vacant)";
           }
         }
       }
     } else if (expectsPending) {
-      pendingRoleName = "System Owner (Escalated)";
+      pendingRoleName = "System Owner (Direct)";
       pendingEmployeeName = "System Owner";
     }
 
@@ -162,8 +164,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       });
     }
 
-    // 4. Final Status (if Audited, etc)
-    if (po.status === 'audited' || po.status === 'completed') {
+    // 4. Final Status (if Audited, Rejected, etc)
+    if (po.status === 'rejected') {
+      logs.push({
+        id: `${id}-rejected`,
+        action: 'Purchase Order Rejected',
+        createdAt: po.updatedAt,
+        actorName: 'Reviewer / Auditor',
+      });
+    } else if (po.status === 'audited' || po.status === 'completed') {
       logs.push({
         id: `${id}-audited`,
         action: `Audit ${po.status}`,

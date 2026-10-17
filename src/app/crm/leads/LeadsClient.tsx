@@ -35,13 +35,14 @@ interface LeadItem {
 
 interface LeadsClientProps {
   organizationId: string;
+  locationId?: string;
   leads: LeadItem[];
   locations: { id: string; name: string }[];
   selectedType: string;
 }
 
 export default function LeadsClient(props: LeadsClientProps) {
-  const { organizationId, leads, locations, selectedType } = props;
+  const { organizationId, locationId, leads, locations, selectedType } = props;
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -54,6 +55,7 @@ export default function LeadsClient(props: LeadsClientProps) {
   // New Lead Form
   const [newTitle, setNewTitle] = useState("");
   const [newType, setNewType] = useState("CATERING");
+  const [leadLocationId, setLeadLocationId] = useState(locationId || "");
   const [newName, setNewName] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -88,6 +90,7 @@ export default function LeadsClient(props: LeadsClientProps) {
     try {
       const res = await createCrmLead({
         organizationId,
+        locationId: leadLocationId || locationId || undefined,
         title: newTitle,
         leadType: newType,
         contactName: newName,
@@ -163,7 +166,10 @@ export default function LeadsClient(props: LeadsClientProps) {
             </strong>
           </div>
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={() => {
+              setLeadLocationId(locationId || "");
+              setIsAddModalOpen(true);
+            }}
             className="crm-btn-primary"
           >
             <Plus size={16} />
@@ -347,6 +353,24 @@ export default function LeadsClient(props: LeadsClientProps) {
                     <option value="FRANCHISE">Franchise Expansion</option>
                   </select>
                 </div>
+
+                {locations.length > 0 && (
+                  <div className="crm-form-group">
+                    <label className="crm-form-label">Branch Location</label>
+                    <select
+                      value={leadLocationId}
+                      onChange={(e) => setLeadLocationId(e.target.value)}
+                      className="crm-form-select"
+                    >
+                      <option value="">Organization-Wide (No specific branch)</option>
+                      {locations.map((loc) => (
+                        <option key={loc.id} value={loc.id}>
+                          {loc.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                   <div className="crm-form-group">

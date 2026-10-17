@@ -48,6 +48,31 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
     }
   };
 
+  const handleCancelPo = async (po: any) => {
+    const confirmCancel = window.confirm(`Are you sure you want to cancel Purchase Order #${po.poNumber || po.id.slice(0, 8)}?`);
+    if (!confirmCancel) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/purchase-orders/${po.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Cancelled by cashier during Payment Audit" })
+      });
+      if (res.ok) {
+        setPos(pos.filter(p => p.id !== po.id));
+        setAuditingPo(null);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setErrorMsg(d.error || "Failed to cancel PO");
+      }
+    } catch (e) {
+      console.error(e);
+      setErrorMsg("Error cancelling PO");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const calculatedTotal = auditLines.reduce((acc, line) => {
     const qty = Number(line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity);
     const price = Number(line.unitRate || 0);
@@ -60,10 +85,6 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
     setErrorMsg("");
     const finalAmount = verifiedBillAmount || calculatedTotal.toString();
     
-    if (!finalAmount) {
-      setErrorMsg("Please enter the actual Auditor Bill Amount.");
-      return;
-    }
     if (auditingPo.status !== 'audited' && !billFile) {
       setErrorMsg("It is mandatory to upload the physical bill image/PDF.");
       return;
@@ -120,7 +141,7 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
             
             <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem' }}>
               {loadingLines ? (
-                <div style={{ textAlign: 'center', padding: '2rem' }}>Loading lines...</div>
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading line details...</div>
               ) : (
                 <>
                   <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '2rem' }}>
@@ -128,44 +149,28 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                       <p className="muted" style={{ margin: '0 0 0.25rem 0' }}>Vendor</p>
                       <p style={{ margin: 0, fontWeight: 'bold' }}>{auditingPo.vendorName}</p>
                     </div>
-                    <div>
-                      <p className="muted" style={{ margin: '0 0 0.25rem 0' }}>Status</p>
-                      <p style={{ margin: 0, fontWeight: 'bold', color: '#f59e0b' }}>Awaiting Audit</p>
-                    </div>
                   </div>
 
-                  <h3 style={{ fontSize: '0.875rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>Manager's Received Quantities</h3>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                     <thead>
                       <tr style={{ borderBottom: '1px solid #e2e8f0', textAlign: 'left', backgroundColor: '#f8fafc' }}>
                         <th style={{ padding: '0.5rem' }}>Item</th>
                         <th style={{ padding: '0.5rem', textAlign: 'right' }}>Ordered</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right', color: '#2563eb' }}>Received</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Price</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Line Total</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Received</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Unit Rate</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {auditLines.map((line, idx) => {
                         const recQty = Number(line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity);
                         const lineTotal = recQty * Number(line.unitRate || 0);
-                        
                         return (
                           <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ padding: '0.5rem' }}>{line.itemName} - {line.unitOfMeasure}</td>
                             <td style={{ padding: '0.5rem', textAlign: 'right', color: 'var(--text-muted)' }}>{line.orderedQuantity}</td>
-                            <td style={{ padding: '0.5rem', textAlign: 'right' }}>
-                              <input 
-                                type="number" 
-                                step="any"
-                                value={line.receivedQuantity !== undefined && line.receivedQuantity !== null ? line.receivedQuantity : line.orderedQuantity}
-                                onChange={(e) => {
-                                  const newLines = [...auditLines];
-                                  newLines[idx].receivedQuantity = e.target.value;
-                                  setAuditLines(newLines);
-                                }}
-                                style={{ width: '80px', textAlign: 'right', padding: '0.2rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontWeight: 'bold', color: '#2563eb' }}
-                              />
+                            <td style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 'bold', color: recQty === 0 ? '#ef4444' : '#2563eb' }}>
+                              {recQty}
                             </td>
                             <td style={{ padding: '0.5rem', textAlign: 'right' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.2rem' }}>
@@ -225,7 +230,7 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                         </div>
                         <input 
                           type="number" 
-                          value={verifiedBillAmount || calculatedTotal || ""}
+                          value={verifiedBillAmount !== "" ? verifiedBillAmount : (calculatedTotal !== 0 ? calculatedTotal : "")}
                           onChange={(e) => setverifiedBillAmount(e.target.value)}
                           style={{ width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', fontSize: '1rem', fontWeight: 'bold' }}
                           placeholder="0.00"
@@ -308,10 +313,17 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
               <div style={{ color: '#ef4444', fontWeight: 'bold', fontSize: '0.875rem' }}>{errorMsg}</div>
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button 
+                  onClick={() => handleCancelPo(auditingPo)}
+                  disabled={submitting}
+                  style={{ padding: '0.5rem 1rem', border: '1px solid #fecaca', borderRadius: '0.25rem', backgroundColor: '#fef2f2', color: '#dc2626', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                >
+                  Cancel Order
+                </button>
+                <button 
                   onClick={() => setAuditingPo(null)}
                   style={{ padding: '0.5rem 1rem', border: '1px solid #cbd5e1', borderRadius: '0.25rem', backgroundColor: 'white', cursor: 'pointer', fontWeight: '500' }}
                 >
-                  Cancel
+                  Close
                 </button>
                 <button 
                   onClick={submitAudit}
@@ -319,7 +331,7 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                   style={{ padding: '0.5rem 1.5rem', border: 'none', borderRadius: '0.25rem', backgroundColor: '#10b981', color: 'white', cursor: submitting ? 'not-allowed' : 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                 >
                   <CheckCircle size={16} />
-                  {submitting ? 'Processing...' : 'Verify & Send to Accounts'}
+                  {submitting ? 'Processing...' : 'Verify & Send / Complete'}
                 </button>
               </div>
             </div>
@@ -347,12 +359,21 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                 <td style={{ padding: '0.75rem 1rem' }}>{po.vendorName}</td>
                 <td style={{ padding: '0.75rem 1rem' }}>{formatCurrency(po.verifiedBillAmount || po.totalAmount)}</td>
                 <td style={{ padding: '0.75rem 1rem' }}>
-                  <button 
-                    onClick={() => handleAuditClick(po)}
-                    style={{ padding: '0.3rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.75rem' }}
-                  >
-                    Audit Bill
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button 
+                      onClick={() => handleAuditClick(po)}
+                      style={{ padding: '0.3rem 0.75rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.75rem' }}
+                    >
+                      Audit Bill
+                    </button>
+                    <button 
+                      onClick={() => handleCancelPo(po)}
+                      title="Cancel this Purchase Order"
+                      style={{ padding: '0.3rem 0.5rem', backgroundColor: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '0.25rem', cursor: 'pointer', fontWeight: '500', fontSize: '0.75rem' }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

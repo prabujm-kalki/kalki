@@ -78,16 +78,29 @@ export default async function ServicePage(props: PageProps) {
   const totalCount = Number(countRes?.count || 0);
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
 
-  // Open vs Resolved count summary
+  // Open vs Resolved count summary (isolated by locationId)
+  const isLocFiltered = !!(locationId && locationId !== "ALL" && locationId !== "all");
+  const openConditions = [
+    eq(crmTickets.organizationId, organizationId),
+    eq(crmTickets.status, "OPEN"),
+    isLocFiltered ? eq(crmTickets.locationId, locationId) : undefined,
+  ].filter(Boolean) as any[];
+
+  const resolvedConditions = [
+    eq(crmTickets.organizationId, organizationId),
+    eq(crmTickets.status, "RESOLVED"),
+    isLocFiltered ? eq(crmTickets.locationId, locationId) : undefined,
+  ].filter(Boolean) as any[];
+
   const [openCountRes] = await db
     .select({ count: sql<number>`count(*)` })
     .from(crmTickets)
-    .where(and(eq(crmTickets.organizationId, organizationId), eq(crmTickets.status, "OPEN")));
+    .where(and(...openConditions));
 
   const [resolvedCountRes] = await db
     .select({ count: sql<number>`count(*)` })
     .from(crmTickets)
-    .where(and(eq(crmTickets.organizationId, organizationId), eq(crmTickets.status, "RESOLVED")));
+    .where(and(...resolvedConditions));
 
   const locs = await db
     .select({ id: locations.id, name: locations.name })
@@ -98,6 +111,7 @@ export default async function ServicePage(props: PageProps) {
     <div className="crm-container">
       <ServiceClient
         organizationId={organizationId}
+        locationId={locationId || undefined}
         tickets={tickets}
         locations={locs}
         currentPage={page}
