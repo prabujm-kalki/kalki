@@ -16,4 +16,5 @@ certificates
 backups/
 *.apk
 android/
-public/uploads/
+public/uploads/
+node_modules
