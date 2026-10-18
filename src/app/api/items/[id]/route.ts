@@ -125,17 +125,49 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           eq(items.locationId, locationId)
         ));
 
-      // Re-link vendors by deleting and re-inserting
-      await tx.delete(vendorItems).where(eq(vendorItems.itemId, itemId));
+      // Re-link vendors gracefully without deleting referenced records:
+      // 1. Fetch current vendor links for this item
+      const existingVendorItems = await tx.select({ id: vendorItems.id, vendorId: vendorItems.vendorId })
+        .from(vendorItems)
+        .where(eq(vendorItems.itemId, itemId));
 
-      if (parsed.vendorIds.length > 0) {
-        const vendorLinks = parsed.vendorIds.map(vendorId => ({
+      const existingVendorIds = new Set(existingVendorItems.map(v => v.vendorId));
+      const targetVendorIds = new Set(parsed.vendorIds);
+
+      // 2. Identify vendor links to remove (that are no longer selected)
+      const toRemove = existingVendorItems.filter(v => !targetVendorIds.has(v.vendorId));
+      for (const vi of toRemove) {
+        // Attempt soft-delete or delete if unreferenced, otherwise deactivate
+        try {
+          await tx.delete(vendorItems).where(eq(vendorItems.id, vi.id));
+        } catch {
+          await tx.update(vendorItems)
+            .set({ isActive: false, updatedAt: new Date() })
+            .where(eq(vendorItems.id, vi.id));
+        }
+      }
+
+      // 3. Update existing retained vendor items with latest name and unit
+      await tx.update(vendorItems)
+        .set({
+          itemName: parsed.nameEn,
+          unitOfMeasure: parsed.unit,
+          isActive: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(vendorItems.itemId, itemId));
+
+      // 4. Insert only new vendor links that didn't exist before
+      const newVendorIds = parsed.vendorIds.filter(vid => !existingVendorIds.has(vid));
+      if (newVendorIds.length > 0) {
+        const vendorLinks = newVendorIds.map(vendorId => ({
           organizationId,
           locationId,
           vendorId,
           itemId: itemId,
           itemName: parsed.nameEn,
           unitOfMeasure: parsed.unit,
+          isActive: true,
         }));
         await tx.insert(vendorItems).values(vendorLinks);
       }
