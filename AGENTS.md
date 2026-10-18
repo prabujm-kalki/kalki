@@ -23,3 +23,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **No Tailwind**: NEVER use Tailwind CSS classes (e.g. `flex`, `p-4`, `text-center`). The project uses Vanilla CSS.
 - **Kalki Premium UI**: Look at existing modules (like `SalesOverview.tsx`) for reference. Use inline styles with clean, professional, premium UI layouts.
 - **Standard Classes**: Use the global CSS classes like `.card`, `.kalki-module-topbar`, `.kalki-login-wrapper` instead of Tailwind.
+
+## 3. Strict Three-Tier Deployment Rule (100% Code Parity)
+- **Zero Direct Server Edits**: Under NO circumstances should any AI agent or tool edit code directly on the remote production server.
+- **Mandatory Flow**: All code changes MUST follow:
+  $$\text{Local Workspace} \longrightarrow \text{GitHub (origin/main)} \longrightarrow \text{Production Server (git pull)}$$
+- **100% Parity**: Local code, GitHub main, and Production Server code must be strictly identical at all times. No drifts, no untracked server patches.
+

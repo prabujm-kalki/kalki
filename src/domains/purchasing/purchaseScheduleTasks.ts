@@ -27,13 +27,25 @@ export async function generateRoutinePurchaseTasks() {
 
   const now = new Date();
   
-  // Format current time as HH:mm
-  const currentHours = now.getHours().toString().padStart(2, '0');
-  const currentMinutes = now.getMinutes().toString().padStart(2, '0');
-  const currentTimeStr = `${currentHours}:${currentMinutes}`;
+  // Format current time, day of week, and day of month explicitly in Asia/Kolkata (IST)
+  // This ensures identical behavior across local machines, cloud servers (UTC), and containers.
+  const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  const currentTimeStr = timeFormatter.format(now);
   
-  const currentDayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
-  const currentDayOfMonth = now.getDate().toString();
+  const currentDayOfWeek = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    weekday: "long"
+  }).format(now);
+
+  const currentDayOfMonth = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric"
+  }).format(now);
 
   let tasksCreated = 0;
 
