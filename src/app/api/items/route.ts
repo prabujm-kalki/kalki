@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { eq, and, desc } from 'drizzle-orm';
 import { db } from '@/db';
-import { items, vendorItems, vendors } from '@/db/schema';
+import { items, vendorItems, vendors, itemCategories, itemSubcategories } from '@/db/schema';
 import { requireAuthenticatedUser } from '@/lib/authorization';
 import { z } from 'zod';
 
@@ -64,8 +64,38 @@ export async function GET(req: NextRequest) {
       conditions.push(eq(items.itemType, itemType));
     }
 
-    const fetchedItems = await db.select()
+    const fetchedItems = await db.select({
+      id: items.id,
+      organizationId: items.organizationId,
+      locationId: items.locationId,
+      nameEn: items.nameEn,
+      nameTa: items.nameTa,
+      nameHi: items.nameHi,
+      currentPrice: items.currentPrice,
+      maxPrice: items.maxPrice,
+      unit: items.unit,
+      purchaseUnit: items.purchaseUnit,
+      purchaseUnitConversion: items.purchaseUnitConversion,
+      baseMinStock: items.baseMinStock,
+      targetStock: items.targetStock,
+      replenishmentStrategy: items.replenishmentStrategy,
+      reorderQuantity: items.reorderQuantity,
+      orderFrequency: items.orderFrequency,
+      fridaySurge: items.fridaySurge,
+      saturdaySurge: items.saturdaySurge,
+      isActive: items.isActive,
+      isTrackable: items.isTrackable,
+      itemType: items.itemType,
+      categoryId: items.categoryId,
+      categoryName: itemCategories.name,
+      subcategoryId: items.subcategoryId,
+      subcategoryName: itemSubcategories.name,
+      createdAt: items.createdAt,
+      updatedAt: items.updatedAt,
+    })
       .from(items)
+      .leftJoin(itemCategories, eq(items.categoryId, itemCategories.id))
+      .leftJoin(itemSubcategories, eq(items.subcategoryId, itemSubcategories.id))
       .where(and(...conditions))
       .orderBy(desc(items.createdAt));
 
