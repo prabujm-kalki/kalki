@@ -33,7 +33,7 @@ async function runE2ETest() {
 
   // 2. Discover roles: Head Chef (operational), Manager (approver/reporting), Cashier (bill auditor), Owner
   const allRoles = await db.select().from(businessRoles).where(eq(businessRoles.organizationId, org.id));
-  const headChefRole = allRoles.find(r => r.name.toLowerCase().includes("head chef") || r.name.toLowerCase().includes("chef"));
+  const headChefRole = allRoles.find(r => r.name.toLowerCase() === "head chef") || allRoles.find(r => r.name.toLowerCase().includes("chef"));
   const managerRole = allRoles.find(r => r.name.toLowerCase().includes("manager"));
   const cashierRole = allRoles.find(r => r.name.toLowerCase().includes("cashier"));
   const ownerRole = allRoles.find(r => r.name.toLowerCase().includes("owner"));
@@ -48,7 +48,12 @@ async function runE2ETest() {
     throw new Error("Required business roles missing (Head Chef or Cashier).");
   }
 
-  // 3. Find test users assigned to these roles
+  // 3. Find test users assigned to these roles or users in the system
+  const allUsers = await db.select({ id: user.id, name: user.name, email: user.email }).from(user).limit(10);
+  if (allUsers.length === 0) {
+    throw new Error("No users found in database.");
+  }
+
   const assignments = await db
     .select({
       userId: user.id,
@@ -60,10 +65,10 @@ async function runE2ETest() {
     .innerJoin(locationRoleAssignments, eq(user.id, locationRoleAssignments.userId))
     .where(eq(locationRoleAssignments.locationId, loc.id));
 
-  const headChefUser = assignments.find(a => a.roleId === headChefRole.id) || assignments[0];
+  const headChefUser = assignments.find(a => a.roleId === headChefRole.id) || { userId: allUsers[0].id, userName: allUsers[0].name, userEmail: allUsers[0].email, roleId: headChefRole.id };
   const approverRoleId = headChefRole.reportsToRoleId || managerRole?.id || ownerRole?.id;
-  const approverUser = assignments.find(a => a.roleId === approverRoleId) || assignments[0];
-  const cashierUser = assignments.find(a => a.roleId === cashierRole.id) || assignments[0];
+  const approverUser = assignments.find(a => a.roleId === approverRoleId) || { userId: allUsers[0].id, userName: allUsers[0].name, userEmail: allUsers[0].email, roleId: approverRoleId };
+  const cashierUser = assignments.find(a => a.roleId === cashierRole.id) || { userId: allUsers[0].id, userName: allUsers[0].name, userEmail: allUsers[0].email, roleId: cashierRole.id };
 
   console.log(`[Assigned Test Users]
   - Head Chef User: ${headChefUser?.userName} (${headChefUser?.userId})
