@@ -242,32 +242,42 @@ async function runE2ETest() {
     const billAmount = totalAmount; // exact match
     const voucherNumber = `BILL-${Date.now().toString().slice(-6)}`;
 
-    // Create supplier invoice record
+    const { employees } = await import("@/db/schema");
+    let [cashierEmployee] = await db.select().from(employees).where(eq(employees.userId, cashierUser.userId)).limit(1);
+    if (!cashierEmployee) {
+      [cashierEmployee] = await db.insert(employees).values({
+        organizationId: org.id,
+        primaryLocationId: loc.id,
+        userId: cashierUser.userId,
+        name: cashierUser.userName || "Cashier User",
+        email: cashierUser.userEmail || "cashier@kalki.local",
+        systemRole: "EMPLOYEE",
+        status: "ACTIVE"
+      }).returning();
+    }
+
+    // Create supplier invoice record with valid employee reference
     const [inv] = await db.insert(supplierInvoices).values({
       organizationId: org.id,
       locationId: loc.id,
       vendorId: vendor.id,
-      poId: po.id,
       invoiceNumber: voucherNumber,
       invoiceDate: new Date().toISOString().slice(0, 10),
-      subtotalAmount: billAmount.toString(),
       totalAmount: billAmount.toString(),
-      balanceAmount: billAmount.toString(),
-      status: "VERIFIED",
-      verifiedByUserId: cashierUser.userId,
-      verifiedAt: new Date()
+      status: "APPROVED",
+      recordedBy: cashierEmployee.id
     }).returning();
     createdIds.invoiceId = inv.id;
 
     await db.update(purchaseOrders).set({
-      status: "audited",
+      status: "completed",
       cashierBillAmount: billAmount.toString(),
       cashierVerifiedByUserId: cashierUser.userId,
       cashierVerifiedAt: new Date(),
       updatedAt: new Date()
     }).where(eq(purchaseOrders.id, po.id));
 
-    console.log(`✓ Step 6: Cashier Bill Audited & Cleared. Invoice #${inv.invoiceNumber} created. PO status: 'audited'`);
+    console.log(`✓ Step 6: Cashier Bill Audited & Cleared. Invoice #${inv.invoiceNumber} recorded by employee ${cashierEmployee.name}. PO status: 'completed'`);
 
     // =========================================================================
     // NEGATIVE / ESCALATION SCENARIOS
