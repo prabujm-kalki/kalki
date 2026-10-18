@@ -67,14 +67,14 @@ function LoginForm() {
         if (!url.searchParams.has("locationId")) {
           url.searchParams.set("locationId", singleScope.locationId);
         }
-        router.replace(url.pathname + url.search);
+        window.location.href = url.pathname + url.search;
       } else {
         // Global User (multiple locations or no fixed default locationId)
         // Safely redirect to root global dashboard ("/") or "/work" to prevent 404s on un-scoped module routes
         if (nextParam && (nextParam === "/" || nextParam === "/work")) {
-          router.replace(nextParam);
+          window.location.href = nextParam;
         } else {
-          router.replace("/");
+          window.location.href = "/";
         }
       }
     } catch (err) {
