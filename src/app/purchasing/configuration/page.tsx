@@ -46,8 +46,10 @@ export default async function ConfigurationPage({ searchParams }: { searchParams
   };
 
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  // Ensure calendar day boundaries and timestamps are strictly aligned to Indian Standard Time (IST)
+  const istDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  const startOfToday = new Date(`${istDateStr}T00:00:00+05:30`);
+  const endOfToday = new Date(`${istDateStr}T23:59:59.999+05:30`);
 
   // Fetch recent tasks linked to any schedule
   const recentTasks = await db
@@ -430,10 +432,12 @@ export default async function ConfigurationPage({ searchParams }: { searchParams
                           </td>
                           <td style={{ padding: '10px 12px', color: '#475569' }}>
                             {new Date(t.createdAt).toLocaleString('en-IN', {
+                              timeZone: 'Asia/Kolkata',
                               day: 'numeric',
                               month: 'short',
                               hour: '2-digit',
-                              minute: '2-digit'
+                              minute: '2-digit',
+                              hour12: true
                             })}
                           </td>
                           <td style={{ padding: '10px 12px', color: '#334155', fontWeight: 500 }}>
@@ -459,7 +463,7 @@ export default async function ConfigurationPage({ searchParams }: { searchParams
                             )}
                           </td>
                           <td style={{ padding: '10px 12px', color: t.completedAt ? '#16a34a' : '#94a3b8' }}>
-                            {t.completedAt ? new Date(t.completedAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                            {t.completedAt ? new Date(t.completedAt).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '—'}
                           </td>
                           <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                             <Link 

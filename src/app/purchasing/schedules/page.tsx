@@ -74,8 +74,9 @@ export default async function SchedulesListPage({ searchParams }: { searchParams
 
   // Fetch real task instances for each schedule to determine status
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const istDateStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(now);
+  const startOfToday = new Date(`${istDateStr}T00:00:00+05:30`);
+  const endOfToday = new Date(`${istDateStr}T23:59:59.999+05:30`);
 
   const recentTasks = await db
     .select({

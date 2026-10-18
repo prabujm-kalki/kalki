@@ -1010,25 +1010,29 @@ export default async function PurchaseReportsPage({
                         </td>
                         <td style={{ padding: "12px 16px", color: "#334155" }}>
                           {new Date(rt.createdAt).toLocaleString("en-IN", {
+                            timeZone: "Asia/Kolkata",
                             day: "numeric",
                             month: "short",
                             year: "numeric",
                             hour: "2-digit",
-                            minute: "2-digit"
+                            minute: "2-digit",
+                            hour12: true
                           })}
                         </td>
                         <td style={{ padding: "12px 16px", color: "#475569", fontWeight: 600 }}>
                           {rt.roleName || "Head Chef / Kitchen"}
                         </td>
                         <td style={{ padding: "12px 16px", color: "#64748b" }}>
-                          {rt.dueAt ? new Date(rt.dueAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—"}
+                          {rt.dueAt ? new Date(rt.dueAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true }) : "—"}
                         </td>
                         <td style={{ padding: "12px 16px", color: rt.completedAt ? "#16a34a" : "#94a3b8" }}>
                           {rt.completedAt ? new Date(rt.completedAt).toLocaleString("en-IN", {
+                            timeZone: "Asia/Kolkata",
                             day: "numeric",
                             month: "short",
                             hour: "2-digit",
-                            minute: "2-digit"
+                            minute: "2-digit",
+                            hour12: true
                           }) : "—"}
                         </td>
                         <td style={{ padding: "12px 16px" }}>

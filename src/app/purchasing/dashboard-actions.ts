@@ -960,7 +960,9 @@ export async function fetchPurchaseDashboardData(params?: {
       const ctx = (rt.contextData as any) || {};
       const vendorName = ctx.vendorName || "Routine Vendor";
       const actionUrl = ctx.actionUrl || `/purchasing/stock-assessment?vendorId=${ctx.vendorId}&taskId=${rt.id}`;
-      const isAuditorOrAssigned = isOwner || (rt.assignedRoleId && userRoleIds.includes(rt.assignedRoleId));
+      // Routine daily procurement tasks must strictly target the designated operational role (e.g. Head Chef)
+      // They should NOT clutter the Owner's pending action banner unless the user actually holds that operational role
+      const isAuditorOrAssigned = rt.assignedRoleId ? userRoleIds.includes(rt.assignedRoleId) : isOwner;
 
       if (isAuditorOrAssigned) {
         pendingTasks.push({
