@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { 
-  user, 
+  authUsers, 
   locationRoleAssignments, 
   businessRoles, 
   vendors, 
@@ -49,20 +49,20 @@ async function runE2ETest() {
   }
 
   // 3. Find test users assigned to these roles or users in the system
-  const allUsers = await db.select({ id: user.id, name: user.name, email: user.email }).from(user).limit(10);
+  const allUsers = await db.select({ id: authUsers.id, name: authUsers.name, email: authUsers.email }).from(authUsers).limit(10);
   if (allUsers.length === 0) {
     throw new Error("No users found in database.");
   }
 
   const assignments = await db
     .select({
-      userId: user.id,
-      userName: user.name,
-      userEmail: user.email,
+      userId: authUsers.id,
+      userName: authUsers.name,
+      userEmail: authUsers.email,
       roleId: locationRoleAssignments.roleId
     })
-    .from(user)
-    .innerJoin(locationRoleAssignments, eq(user.id, locationRoleAssignments.userId))
+    .from(authUsers)
+    .innerJoin(locationRoleAssignments, eq(authUsers.id, locationRoleAssignments.userId))
     .where(eq(locationRoleAssignments.locationId, loc.id));
 
   const headChefUser = assignments.find(a => a.roleId === headChefRole.id) || { userId: allUsers[0].id, userName: allUsers[0].name, userEmail: allUsers[0].email, roleId: headChefRole.id };
