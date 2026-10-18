@@ -22,13 +22,14 @@ export async function proxy(request: NextRequest) {
     // Fetch directly from localhost to avoid looping out to the internet and being blocked by Cloudflare
     const headers = new Headers(request.headers);
     // Overwrite the host header to ensure Better Auth matches the configured baseURL
-    headers.set("host", "localhost:3001");
+    const appPort = process.env.PORT || "3000";
+    headers.set("host", `localhost:${appPort}`);
     // Explicitly ensure authorization header is passed
     if (request.headers.get("authorization")) {
       headers.set("authorization", request.headers.get("authorization")!);
     }
 
-    const response = await fetch(`http://localhost:3001/api/auth/get-session`, {
+    const response = await fetch(`http://127.0.0.1:${appPort}/api/auth/get-session`, {
       headers,
     });
     if (response.ok) {

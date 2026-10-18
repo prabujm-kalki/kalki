@@ -657,6 +657,21 @@ export default function PurchaseDashboardPage() {
         </span>
       );
     }
+    if (s === "PENDING APPROVAL") {
+      return (
+        <span style={{
+          padding: "3px 10px",
+          borderRadius: "99px",
+          backgroundColor: "#fef3c7",
+          color: "#b45309",
+          fontSize: "11px",
+          fontWeight: 600,
+          display: "inline-block"
+        }}>
+          Pending Approval
+        </span>
+      );
+    }
     if (s === "APPROVED") {
       return (
         <span style={{
@@ -1525,8 +1540,34 @@ export default function PurchaseDashboardPage() {
                               </Link>
                             )}
 
-                            {/* WhatsApp Action Button - For generated POs */}
-                            {!po.isRoutineTask && (
+                            {/* Review & Approve Button - For pending_approval POs */}
+                            {!po.isRoutineTask && (po.rawStatus === "pending_approval" || po.rawStatus === "pending_review") && (
+                              <button
+                                type="button"
+                                onClick={() => openApprovalModal(po.id, po.poNumber, po.publicToken)}
+                                title="Review and Approve PO"
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  backgroundColor: "#059669",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  padding: "3px 9px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                  boxShadow: "0 1px 2px rgba(5, 150, 105, 0.25)"
+                                }}
+                              >
+                                <CheckCircle2 size={12} />
+                                <span>Review</span>
+                              </button>
+                            )}
+
+                            {/* WhatsApp Action Button - For approved or sent POs */}
+                            {!po.isRoutineTask && po.rawStatus !== "pending_approval" && po.rawStatus !== "pending_review" && (
                               <button
                                 type="button"
                                 onClick={() => handleSendWhatsApp(po)}
@@ -1683,8 +1724,33 @@ export default function PurchaseDashboardPage() {
                       </Link>
                     )}
 
+                    {/* Review & Approve Button - For pending_approval POs */}
+                    {!po.isRoutineTask && (po.rawStatus === "pending_approval" || po.rawStatus === "pending_review") && (
+                      <button
+                        type="button"
+                        onClick={() => openApprovalModal(po.id, po.poNumber, po.publicToken)}
+                        title="Review and Approve PO"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "3px",
+                          backgroundColor: "#059669",
+                          color: "#ffffff",
+                          border: "none",
+                          borderRadius: "4px",
+                          padding: "3px 8px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          cursor: "pointer"
+                        }}
+                      >
+                        <CheckCircle2 size={11} />
+                        <span>Review</span>
+                      </button>
+                    )}
+
                     {/* WhatsApp Button */}
-                    {!po.isRoutineTask && (
+                    {!po.isRoutineTask && po.rawStatus !== "pending_approval" && po.rawStatus !== "pending_review" && (
                       <button
                         type="button"
                         onClick={() => handleSendWhatsApp(po)}

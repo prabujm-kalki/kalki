@@ -102,45 +102,87 @@ export async function POST(req: NextRequest) {
     const seq = String((countVal || 0) + 1).padStart(2, '0');
     const poNumber = `${shortCode}-${dateString}-${seq}`;
 
-    // 4. Determine roles for workflow
+    // 4. Determine roles for workflow (check schedule definition or user reporting hierarchy)
     let processOwnerRoleId = null;
     let reviewRoleId = null;
+    let billReviewRoleId = null;
 
-    const lRole = await db.select().from(locationRoleAssignments).where(
-      and(eq(locationRoleAssignments.userId, session.user.id), eq(locationRoleAssignments.locationId, locationId))
-    ).limit(1);
-    
-    let userRole = null;
-    if (lRole.length > 0) {
-      userRole = lRole[0].roleId;
-    } else {
-      const oRole = await db.select().from(organizationRoleAssignments).where(
-        and(eq(organizationRoleAssignments.userId, session.user.id), eq(organizationRoleAssignments.organizationId, organizationId))
-      ).limit(1);
-      if (oRole.length > 0) userRole = oRole[0].roleId;
-    }
+    if (taskId) {
+      const [taskRec] = await db
+        .select({
+          contextData: taskInstances.contextData,
+          assignedRoleId: taskInstances.assignedRoleId,
+        })
+        .from(taskInstances)
+        .where(eq(taskInstances.id, taskId))
+        .limit(1);
 
-    if (userRole) {
-      processOwnerRoleId = userRole;
-      const roleInfo = await db.select().from(businessRoles).where(eq(businessRoles.id, userRole)).limit(1);
-      if (roleInfo.length > 0 && roleInfo[0].reportsToRoleId) {
-        reviewRoleId = roleInfo[0].reportsToRoleId;
+      const schedId = (taskRec?.contextData as any)?.scheduleId;
+      if (schedId) {
+        const { purchaseSchedules } = await import('@/db/schema');
+        const [schedRec] = await db
+          .select({
+            responsibleRoleId: purchaseSchedules.responsibleRoleId,
+            reviewRoleId: purchaseSchedules.reviewRoleId,
+            billReviewRoleId: purchaseSchedules.billReviewRoleId,
+          })
+          .from(purchaseSchedules)
+          .where(eq(purchaseSchedules.id, schedId))
+          .limit(1);
+
+        if (schedRec) {
+          processOwnerRoleId = schedRec.responsibleRoleId;
+          reviewRoleId = schedRec.reviewRoleId;
+          billReviewRoleId = schedRec.billReviewRoleId;
+        }
       }
     }
 
-    // Create Draft PO
+    // Fallback to user's assigned role and reporting hierarchy if not found on schedule
+    if (!processOwnerRoleId || !reviewRoleId) {
+      const { locationRoleAssignments, organizationRoleAssignments, businessRoles } = await import('@/db/schema');
+      const lRole = await db.select().from(locationRoleAssignments).where(
+        and(eq(locationRoleAssignments.userId, session.user.id), eq(locationRoleAssignments.locationId, locationId))
+      ).limit(1);
+      
+      let userRole = null;
+      if (lRole.length > 0) {
+        userRole = lRole[0].roleId;
+      } else {
+        const oRole = await db.select().from(organizationRoleAssignments).where(
+          and(eq(organizationRoleAssignments.userId, session.user.id), eq(organizationRoleAssignments.organizationId, organizationId))
+        ).limit(1);
+        if (oRole.length > 0) userRole = oRole[0].roleId;
+      }
+
+      if (userRole) {
+        if (!processOwnerRoleId) processOwnerRoleId = userRole;
+        if (!reviewRoleId) {
+          const roleInfo = await db.select().from(businessRoles).where(eq(businessRoles.id, userRole)).limit(1);
+          if (roleInfo.length > 0 && roleInfo[0].reportsToRoleId) {
+            reviewRoleId = roleInfo[0].reportsToRoleId;
+          }
+        }
+      }
+    }
+
+    if (!billReviewRoleId) {
+      billReviewRoleId = reviewRoleId;
+    }
+
+    // Create PO in 'pending_approval' status so reporting manager reviews it
     const publicToken = crypto.randomBytes(16).toString('hex');
     const [newPo] = await db.insert(purchaseOrders).values({
       organizationId: organizationId,
       locationId: locationId,
       vendorId: vendorId,
       poNumber: poNumber,
-      status: "draft",
+      status: "pending_approval",
       totalAmount: totalAmount.toString(),
       publicToken: publicToken,
       processOwnerRoleId: processOwnerRoleId,
       reviewRoleId: reviewRoleId,
-      billReviewRoleId: reviewRoleId,
+      billReviewRoleId: billReviewRoleId,
       createdByUserId: session.user.id,
     }).returning();
 

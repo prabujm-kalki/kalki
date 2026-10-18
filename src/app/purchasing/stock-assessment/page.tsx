@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
-import { buildPoWhatsappMessage } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, formatIndianCurrency } from "@/lib/whatsapp-po";
+import { MessageSquare, Check, X } from "lucide-react";
 
 interface VendorItem {
   id: string;
@@ -52,10 +53,17 @@ export default function StockAssessmentPage() {
     }
   }, [selectedVendorId, selected]);
 
+  const getOrgAndLoc = () => {
+    const org = searchParams.get("organizationId") || selected?.organizationId || "";
+    const loc = searchParams.get("locationId") || selected?.locationId || "";
+    return { org, loc };
+  };
+
   const fetchVendors = async () => {
-    if (!selected) return;
+    const { org, loc } = getOrgAndLoc();
+    if (!org) return;
     try {
-      const res = await fetch(`/api/vendors?organizationId=${selected.organizationId}&locationId=${selected.locationId}`);
+      const res = await fetch(`/api/vendors?organizationId=${org}&locationId=${loc}`);
       if (!res.ok) throw new Error("Failed to load vendors");
       const data = await res.json();
       setVendors(data.items || []);
@@ -65,10 +73,11 @@ export default function StockAssessmentPage() {
   };
 
   const fetchVendorItems = async (vendorId: string) => {
-    if (!selected) return;
+    const { org, loc } = getOrgAndLoc();
+    if (!org) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/vendor-items?organizationId=${selected.organizationId}&locationId=${selected.locationId}&vendorId=${vendorId}`);
+      const res = await fetch(`/api/vendor-items?organizationId=${org}&locationId=${loc}&vendorId=${vendorId}`);
       if (!res.ok) throw new Error("Failed to load items");
       const data = await res.json();
       const itemsList = data.items || [];
@@ -90,6 +99,45 @@ export default function StockAssessmentPage() {
     setStockInputs(prev => ({ ...prev, [itemId]: value }));
   };
 
+  const [whatsAppModal, setWhatsAppModal] = useState<{
+    poNumber: string;
+    totalAmount: number | string | null;
+    vendorName: string;
+    vendorPhone: string;
+    whatsappUrl: string;
+    poId: string;
+  } | null>(null);
+
+  const getDashboardUrl = () => {
+    const org = searchParams.get("organizationId") || selected?.organizationId;
+    const loc = searchParams.get("locationId") || selected?.locationId;
+    const params = new URLSearchParams();
+    if (org) params.set("organizationId", org);
+    if (loc && loc !== "ALL") params.set("locationId", loc);
+    const qs = params.toString();
+    return `/purchasing/dashboard${qs ? `?${qs}` : ""}`;
+  };
+
+  const handleCloseWhatsAppModal = () => {
+    setWhatsAppModal(null);
+    router.push(getDashboardUrl());
+  };
+
+  const handleConfirmSendWhatsApp = async () => {
+    if (!whatsAppModal) return;
+    try {
+      await fetch(`/api/purchase-orders/${whatsAppModal.poId}/mark-sent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch (e) {
+      console.error("Failed to mark as sent", e);
+    }
+    window.open(whatsAppModal.whatsappUrl, "_blank");
+    setWhatsAppModal(null);
+    router.push(getDashboardUrl());
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError("");
@@ -109,14 +157,16 @@ export default function StockAssessmentPage() {
     }
 
     try {
-      // Get location from the first vendor or global state. We'll use locationId from first vendor item
+      const activeOrgId = searchParams.get("organizationId") || selected?.organizationId;
+      const activeLocId = searchParams.get("locationId") || selected?.locationId;
+
       const res = await fetch("/api/purchasing/stock-assessment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           vendorId: selectedVendorId,
-          organizationId: selected?.organizationId,
-          locationId: selected?.locationId,
+          organizationId: activeOrgId,
+          locationId: activeLocId,
           stockInputs: inputs,
           taskId: taskId
         }),
@@ -134,44 +184,36 @@ export default function StockAssessmentPage() {
         const vendorPhoneRaw = currentVendor?.contactDetails?.phone || currentVendor?.contactDetails?.whatsapp || currentVendor?.contactDetails?.mobile || "";
         const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
 
-        const shouldSendWhatsApp = (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && createdPo?.publicToken;
+        const isApprovedOrSent = createdPo.status === "approved" || createdPo.status === "sent_to_vendor";
+        const shouldSendWhatsApp = isApprovedOrSent && (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && createdPo?.publicToken;
 
         if (shouldSendWhatsApp) {
-          const confirmSend = window.confirm(
-            `Purchase Order created successfully!\n\nWould you like to send this PO via WhatsApp to ${currentVendor?.name || "the vendor"} (${vendorPhoneRaw || "Vendor"}) now?`
-          );
+          const poNumber = createdPo.poNumber || `PO-${createdPo.id.slice(0, 8).toUpperCase()}`;
 
-          if (confirmSend) {
-            const poNumber = createdPo.poNumber || `PO-${createdPo.id.slice(0, 8).toUpperCase()}`;
+          const { whatsappUrl } = buildPoWhatsappMessage({
+            poNumber,
+            totalAmount: createdPo.totalAmount,
+            publicToken: createdPo.publicToken,
+            lines: result.lines || null,
+            vendorPhone: phoneDigits,
+            poWhatsappPreference: currentVendor?.poWhatsappPreference,
+            whatsappPoTemplate: result.whatsappPoTemplate || null
+          });
 
-            const { whatsappUrl } = buildPoWhatsappMessage({
-              poNumber,
-              totalAmount: createdPo.totalAmount,
-              publicToken: createdPo.publicToken,
-              lines: result.lines || null,
-              vendorPhone: phoneDigits,
-              poWhatsappPreference: currentVendor?.poWhatsappPreference,
-              whatsappPoTemplate: result.whatsappPoTemplate || null
-            });
-
-            try {
-              await fetch(`/api/purchase-orders/${createdPo.id}/mark-sent`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" }
-              });
-            } catch (e) {
-              console.error("Failed to mark as sent", e);
-            }
-
-            window.open(whatsappUrl, "_blank");
-          }
+          // Show Kalki BOS styled modal instead of browser window.confirm
+          setWhatsAppModal({
+            poNumber,
+            totalAmount: createdPo.totalAmount,
+            vendorName: currentVendor?.name || "the vendor",
+            vendorPhone: vendorPhoneRaw || "Vendor",
+            whatsappUrl,
+            poId: createdPo.id,
+          });
         } else {
-          alert("Purchase Order created successfully!");
+          router.push(getDashboardUrl());
         }
-
-        router.push("/purchasing");
       } else {
-        alert(result.message || "Stock assessment submitted.");
+        router.push(getDashboardUrl());
       }
     } catch (err: any) {
       setError(err.message);
@@ -285,6 +327,177 @@ export default function StockAssessmentPage() {
         ) : selectedVendorId ? (
           <p>No items configured for this vendor. Please configure items first.</p>
         ) : null}
+
+        {/* Kalki BOS Styled WhatsApp Dispatch Modal */}
+        {whatsAppModal && (
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(15, 23, 42, 0.6)",
+              backdropFilter: "blur(4px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999,
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: "#ffffff",
+                borderRadius: "12px",
+                width: "100%",
+                maxWidth: "460px",
+                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)",
+                overflow: "hidden",
+                border: "1px solid #e2e8f0",
+              }}
+            >
+              {/* Header */}
+              <div
+                style={{
+                  padding: "18px 20px",
+                  borderBottom: "1px solid #f1f5f9",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  backgroundColor: "#fafafa",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <div
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "8px",
+                      backgroundColor: "#ecfdf5",
+                      color: "#10b981",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <MessageSquare size={20} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "700", color: "#0f172a" }}>
+                      Send PO via WhatsApp
+                    </h3>
+                    <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
+                      Purchase Order #{whatsAppModal.poNumber} created
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseWhatsAppModal}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#94a3b8",
+                    padding: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderRadius: "6px",
+                  }}
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: "20px" }}>
+                <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#334155", lineHeight: 1.5 }}>
+                  The purchase order has been generated successfully. Would you like to dispatch it to the supplier now?
+                </p>
+
+                <div
+                  style={{
+                    backgroundColor: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "8px",
+                    padding: "14px 16px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    fontSize: "13px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#64748b" }}>Supplier:</span>
+                    <strong style={{ color: "#0f172a" }}>{whatsAppModal.vendorName}</strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: "#64748b" }}>Contact:</span>
+                    <span style={{ color: "#0f172a", fontFamily: "monospace" }}>{whatsAppModal.vendorPhone}</span>
+                  </div>
+                  {whatsAppModal.totalAmount ? (
+                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed #e2e8f0", paddingTop: "6px" }}>
+                      <span style={{ color: "#64748b" }}>Est. Total:</span>
+                      <strong style={{ color: "#16a34a" }}>{formatIndianCurrency(whatsAppModal.totalAmount)}</strong>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Actions Footer */}
+              <div
+                style={{
+                  padding: "14px 20px",
+                  backgroundColor: "#f8fafc",
+                  borderTop: "1px solid #f1f5f9",
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "10px",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleCloseWhatsAppModal}
+                  style={{
+                    padding: "9px 16px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    backgroundColor: "#ffffff",
+                    color: "#475569",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                  }}
+                >
+                  Skip for Now
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSendWhatsApp}
+                  style={{
+                    padding: "9px 18px",
+                    borderRadius: "6px",
+                    border: "none",
+                    backgroundColor: "#16a34a",
+                    color: "#ffffff",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+                  }}
+                >
+                  <Check size={16} />
+                  Send via WhatsApp
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

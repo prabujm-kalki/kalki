@@ -56,7 +56,7 @@ export interface RecentPurchaseItem {
   date: string;
   itemsCount: number;
   amount: number;
-  status: "IN TRANSIT" | "RECEIVED" | "AWAITING AUDIT" | "AUDITED" | "COMPLETED" | "OVERDUE" | "DRAFT" | "DELAYED" | "PARTIALLY RECEIVED" | "SENT" | "APPROVED" | "REJECTED" | "CANCELLED" | "CYCLE STARTED" | "ASSESSMENT PENDING";
+  status: "IN TRANSIT" | "RECEIVED" | "AWAITING AUDIT" | "AUDITED" | "COMPLETED" | "OVERDUE" | "DRAFT" | "PENDING APPROVAL" | "DELAYED" | "PARTIALLY RECEIVED" | "SENT" | "APPROVED" | "REJECTED" | "CANCELLED" | "CYCLE STARTED" | "ASSESSMENT PENDING";
   rawStatus: string;
   publicToken?: string | null;
   poDeliveryMethod?: string | null;
@@ -576,6 +576,7 @@ export async function fetchPurchaseDashboardData(params?: {
         createdAt: taskInstances.createdAt,
         completedAt: taskInstances.completedAt,
         contextData: taskInstances.contextData,
+        completionData: taskInstances.completionData,
         assignedRoleId: taskInstances.assignedRoleId,
       })
       .from(taskInstances)
@@ -660,8 +661,15 @@ export async function fetchPurchaseDashboardData(params?: {
     const overdueCount = Number(overdueRes?.count || 0);
     const activeVendorCount = Number(vendorRes?.count || 0);
 
-    // Map Routine Tasks as Purchase Cycles (both active and recent history)
-    const routinePurchaseItems: RecentPurchaseItem[] = activeRoutineTasks.map((t) => {
+    // Map Routine Tasks as Purchase Cycles (exclude completed tasks that already created a PO, as that PO appears in Recent POs)
+    const routinePurchaseItems: RecentPurchaseItem[] = activeRoutineTasks
+      .filter((t) => {
+        const comp = (t.completionData as any) || {};
+        // If the task has already generated a PO, the PO record itself will represent it in the feed
+        if (comp.poId) return false;
+        return true;
+      })
+      .map((t) => {
        const ctx = (t.contextData as any) || {};
        const vendorName = ctx.vendorName || "Routine Vendor";
        const actionUrl = ctx.actionUrl || `/purchasing/stock-assessment?vendorId=${ctx.vendorId}&taskId=${t.id}`;
@@ -732,6 +740,8 @@ export async function fetchPurchaseDashboardData(params?: {
         mappedStatus = "SENT";
       } else if (raw === "approved") {
         mappedStatus = "APPROVED";
+      } else if (raw === "pending_approval" || raw === "pending_review") {
+        mappedStatus = "PENDING APPROVAL";
       } else {
         mappedStatus = "DRAFT";
       }
