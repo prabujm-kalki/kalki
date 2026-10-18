@@ -20,11 +20,14 @@ import crypto from "crypto";
 async function runE2ETest() {
   console.log("=== STARTING PURCHASING MODULE E2E TEST ===");
 
-  // 1. Fetch organization and location
-  const [loc] = await db.select().from(locations).limit(1);
-  const [org] = await db.select().from(organizations).limit(1);
-  if (!loc || !org) {
-    throw new Error("No location or organization found in database!");
+  // 1. Fetch pilot location and its linked organization
+  const [loc] = await db.select().from(locations).where(eq(locations.name, "Anakalpalayam (Pilot)")).limit(1);
+  if (!loc) {
+    throw new Error("Pilot location not found in database!");
+  }
+  const [org] = await db.select().from(organizations).where(eq(organizations.id, loc.organizationId)).limit(1);
+  if (!org) {
+    throw new Error("Linked organization not found for pilot location!");
   }
   console.log(`[Setup] Org: ${org.name} (${org.id}), Location: ${loc.name} (${loc.id})`);
 
