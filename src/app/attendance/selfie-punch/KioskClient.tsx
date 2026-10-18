@@ -109,7 +109,12 @@ export default function SelfiePunchKiosk() {
         setStatus("idle");
       }
     } else {
-      alert("Camera API not supported in this browser.");
+      const isSecure = window.isSecureContext;
+      if (!isSecure) {
+        alert("Camera access requires a secure connection (HTTPS). Please open this site via https:// or localhost.");
+      } else {
+        alert("Camera API not supported or disabled in this browser.");
+      }
       setSelectedEmployee(null);
       setStatus("idle");
     }
