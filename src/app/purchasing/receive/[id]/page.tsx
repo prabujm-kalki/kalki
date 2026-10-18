@@ -331,7 +331,7 @@ export default function POReceivePage() {
             </span>
           </div>
 
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+          <table className="desktop-only" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
             <thead style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
               <tr>
                 <th style={{ padding: "10px 16px", textAlign: "left", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Item Name</th>
@@ -473,6 +473,117 @@ export default function POReceivePage() {
               })}
             </tbody>
           </table>
+
+          {/* Mobile Items Verification Cards (<= 768px) */}
+          <div className="mobile-only" style={{ padding: "14px" }}>
+            {lines.map((line, idx) => {
+              const isAck = line.acknowledged;
+              const action = line.actionTaken;
+
+              return (
+                <div
+                  key={line.id}
+                  className="kalki-mobile-card"
+                  style={{
+                    borderLeft: !isAck
+                      ? "4px solid #cbd5e1"
+                      : action === "OK"
+                      ? "4px solid #16a34a"
+                      : action === "ZERO"
+                      ? "4px solid #dc2626"
+                      : "4px solid #d97706",
+                    marginBottom: "12px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{line.itemName}</div>
+                      <div style={{ fontSize: "12px", color: "#64748b" }}>Ordered: <strong>{line.orderedQuantity}</strong></div>
+                    </div>
+                    <div>
+                      {!isAck ? (
+                        <span style={{ padding: "3px 8px", borderRadius: "12px", backgroundColor: "#f1f5f9", color: "#64748b", fontSize: "11px", fontWeight: 600 }}>
+                          Pending
+                        </span>
+                      ) : action === "OK" ? (
+                        <span style={{ padding: "3px 8px", borderRadius: "12px", backgroundColor: "#dcfce7", color: "#16a34a", fontSize: "11px", fontWeight: 700 }}>
+                          ? All OK
+                        </span>
+                      ) : action === "ZERO" ? (
+                        <span style={{ padding: "3px 8px", borderRadius: "12px", backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "11px", fontWeight: 700 }}>
+                          ? Short (0)
+                        </span>
+                      ) : (
+                        <span style={{ padding: "3px 8px", borderRadius: "12px", backgroundColor: "#fef3c7", color: "#b45309", fontSize: "11px", fontWeight: 700 }}>
+                          ? Modified ({line.receivedQuantity})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quantity input & quick buttons */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", gap: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 600 }}>Received:</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.receivedQuantity}
+                        onChange={(e) => handleQtyChange(idx, e.target.value)}
+                        style={{
+                          width: "75px",
+                          padding: "6px 8px",
+                          borderRadius: "6px",
+                          border: line.isZero ? "1px solid #f87171" : (isAck ? "1px solid #86efac" : "1px solid #cbd5e1"),
+                          textAlign: "center",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          backgroundColor: line.isZero ? "#fee2e2" : "#ffffff",
+                          color: line.isZero ? "#b91c1c" : "#0f172a",
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSetOk(idx)}
+                        style={{
+                          padding: "6px 12px",
+                          backgroundColor: action === "OK" ? "#16a34a" : "#dcfce7",
+                          color: action === "OK" ? "#ffffff" : "#16a34a",
+                          border: action === "OK" ? "1px solid #15803d" : "1px solid #bbf7d0",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        All OK
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSetZero(idx)}
+                        style={{
+                          padding: "6px 10px",
+                          backgroundColor: action === "ZERO" ? "#dc2626" : "#fee2e2",
+                          color: action === "ZERO" ? "#ffffff" : "#dc2626",
+                          border: action === "ZERO" ? "1px solid #b91c1c" : "1px solid #fecaca",
+                          borderRadius: "6px",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        0 (Short)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
           
           <div style={{
             padding: "16px 20px",

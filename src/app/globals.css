@@ -935,3 +935,49 @@ input.input:focus, select.input:focus {
   margin-top: 0;
 }
 
+
+/* ==========================================================
+   Mobile Responsive Optimizations for Operational Modules
+   Preserves desktop tables & styles; adds card views for <= 768px
+   ========================================================== */
+.mobile-only {
+  display: none !important;
+}
+
+.desktop-only {
+  display: block;
+}
+
+table.desktop-only {
+  display: table;
+}
+
+@media (max-width: 768px) {
+  .mobile-only {
+    display: block !important;
+  }
+  .desktop-only {
+    display: none !important;
+  }
+
+  .kalki-mobile-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .kalki-mobile-sticky-footer {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    padding: 12px 16px;
+    z-index: 40;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+  }
+}

@@ -273,7 +273,7 @@ export default function StockAssessmentPage() {
           <p>Loading items...</p>
         ) : vendorItems.length > 0 ? (
           <div style={{ backgroundColor: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <table className="desktop-only" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead style={{ backgroundColor: "var(--background)", borderBottom: "1px solid var(--border-color)" }}>
                 <tr>
                   <th style={{ padding: "12px", textAlign: "left" }}>Item Name</th>
@@ -305,6 +305,112 @@ export default function StockAssessmentPage() {
                 ))}
               </tbody>
             </table>
+
+            {/* Mobile Card View (<= 768px) */}
+            <div className="mobile-only" style={{ padding: "12px" }}>
+              {vendorItems.map((item) => {
+                const currentVal = stockInputs[item.itemId] ?? "";
+                const numVal = parseFloat(currentVal) || 0;
+                const min = Number(item.minimumStock || item.baseMinStock || 0);
+                const target = Number(item.normalQuantity || item.targetStock || 0);
+                const isUnderStock = currentVal !== "" && numVal < min;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="kalki-mobile-card"
+                    style={{
+                      borderLeft: isUnderStock ? "4px solid #ef4444" : "4px solid #3b82f6",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{item.itemName}</div>
+                        <div style={{ fontSize: "12px", color: "#64748b" }}>Unit: {item.unitOfMeasure}</div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: "12px",
+                          backgroundColor: isUnderStock ? "#fee2e2" : "#f1f5f9",
+                          color: isUnderStock ? "#b91c1c" : "#475569",
+                        }}
+                      >
+                        {isUnderStock ? "Reorder Triggered" : "Active"}
+                      </span>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#f8fafc", padding: "6px 10px", borderRadius: "6px", fontSize: "12px", marginBottom: "10px" }}>
+                      <div><span style={{ color: "#64748b" }}>Min Reorder: </span><strong>{min}</strong></div>
+                      <div><span style={{ color: "#64748b" }}>Target Stock: </span><strong>{target}</strong></div>
+                    </div>
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Counted Stock:</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = Math.max(0, numVal - 1);
+                            handleStockChange(item.itemId, next.toString());
+                          }}
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            border: "1px solid #cbd5e1",
+                            background: "#ffffff",
+                            borderRadius: "6px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={stockInputs[item.itemId] || ""}
+                          onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                          placeholder="0"
+                          style={{
+                            width: "70px",
+                            height: "32px",
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-color)",
+                            textAlign: "center",
+                            fontSize: "14px",
+                            fontWeight: 700,
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = numVal + 1;
+                            handleStockChange(item.itemId, next.toString());
+                          }}
+                          style={{
+                            width: "32px",
+                            height: "32px",
+                            border: "1px solid #cbd5e1",
+                            background: "#ffffff",
+                            borderRadius: "6px",
+                            fontWeight: 700,
+                            cursor: "pointer",
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             
             <div style={{ padding: "16px", borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end" }}>
               <button 
