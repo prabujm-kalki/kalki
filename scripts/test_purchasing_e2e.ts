@@ -113,7 +113,20 @@ async function runE2ETest() {
     // =========================================================================
     console.log("\n>>> TEST CASE 1: Positive Happy Path (Routine Schedule -> Stock Assessment -> Approval -> Receiving -> Cashier Audit -> Invoice)");
 
-    // Step 1: Create a Routine Purchase Schedule
+    // Step 1: Find or create a Task Definition for Routine Procurement
+    const { taskDefinitions } = await import("@/db/schema");
+    let [taskDef] = await db.select().from(taskDefinitions).where(eq(taskDefinitions.organizationId, org.id)).limit(1);
+    if (!taskDef) {
+      [taskDef] = await db.insert(taskDefinitions).values({
+        organizationId: org.id,
+        title: "Daily Stock Assessment",
+        description: "Routine assessment of vendor inventory items",
+        priority: "medium",
+        completionTimeMins: 240,
+        assignedRoleId: headChefRole.id
+      }).returning();
+    }
+
     const [sched] = await db.insert(purchaseSchedules).values({
       organizationId: org.id,
       locationId: loc.id,
@@ -123,18 +136,19 @@ async function runE2ETest() {
       responsibleRoleId: headChefRole.id,
       reviewRoleId: approverRoleId,
       billReviewRoleId: cashierRole.id,
+      taskDefinitionId: taskDef.id,
       priority: "medium",
       isActive: true,
       description: "Automated E2E Test Schedule"
     }).returning();
     createdIds.scheduleId = sched.id;
-    console.log(`✓ Step 1: Routine schedule created (ID: ${sched.id})`);
+    console.log(`✓ Step 1: Routine schedule created (ID: ${sched.id}, TaskDef: ${taskDef.id})`);
 
     // Step 2: Trigger Routine Task Instance (Simulate Cron Job)
     const dueAt = new Date(Date.now() + 60 * 60 * 1000);
     const [task] = await db.insert(taskInstances).values({
       organizationId: org.id,
-      definitionId: sched.id, // linked
+      definitionId: taskDef.id,
       status: "pending",
       priority: sched.priority,
       assignedRoleId: sched.responsibleRoleId,
@@ -264,7 +278,7 @@ async function runE2ETest() {
     const pastDue = new Date(Date.now() - 30 * 60 * 1000); // 30 mins overdue
     const [overdueTask] = await db.insert(taskInstances).values({
       organizationId: org.id,
-      definitionId: sched.id,
+      definitionId: taskDef.id,
       status: "pending",
       priority: "high",
       assignedRoleId: headChefRole.id,
