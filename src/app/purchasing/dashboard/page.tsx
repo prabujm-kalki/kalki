@@ -221,8 +221,8 @@ export default function PurchaseDashboardPage() {
           ...l,
           orderedQuantity: l.orderedQuantity,
           receivedQuantity: l.orderedQuantity,
-          acknowledged: true,
-          actionTaken: "OK" as "OK" | "ZERO" | "MODIFIED" | null,
+          acknowledged: false,
+          actionTaken: null as "OK" | "ZERO" | "MODIFIED" | null,
           isZero: false,
         }))
       );
