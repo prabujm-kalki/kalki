@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, X, Check } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, X, Check, MessageCircle } from "lucide-react";
+import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl } from "@/lib/whatsapp-po";
 
 interface POLineItem {
   id: string;
@@ -35,6 +36,14 @@ export default function POReviewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  const [whatsAppModal, setWhatsAppModal] = useState<{
+    poNumber: string;
+    totalAmount: number | string | null;
+    vendorName: string;
+    vendorPhone: string;
+    whatsappUrl: string;
+    poId: string;
+  } | null>(null);
 
   const fetchPODetails = useCallback(async () => {
     if (!id) return;
@@ -105,16 +114,77 @@ export default function POReviewPage() {
         throw new Error(errData.error || `Failed to ${action} PO`);
       }
 
-      setSuccessMsg(action === "accept" ? "Purchase Order Approved successfully!" : "Purchase Order has been Rejected.");
-      setTimeout(() => {
-        router.push(`/purchasing/dashboard${tenantQuery}`);
-      }, 1200);
+      const resData = await res.json().catch(() => ({}));
+
+      if (action === "accept") {
+        const approvedPo = resData.po || po;
+        const currentVendor = resData.vendor;
+        const vendorPhoneRaw = currentVendor?.contactDetails?.phone || currentVendor?.contactDetails?.whatsapp || currentVendor?.contactDetails?.mobile || "";
+        const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
+
+        const shouldSendWhatsApp = (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && approvedPo?.publicToken;
+
+        if (shouldSendWhatsApp) {
+          const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
+
+          const { whatsappUrl } = buildPoWhatsappMessage({
+            poNumber,
+            totalAmount: approvedPo.totalAmount,
+            publicToken: approvedPo.publicToken,
+            lines: resData.lines || lines,
+            vendorPhone: phoneDigits,
+            poWhatsappPreference: currentVendor?.poWhatsappPreference,
+            whatsappPoTemplate: resData.whatsappPoTemplate || null,
+          });
+
+          setSuccessMsg("Purchase Order Approved successfully!");
+          setWhatsAppModal({
+            poNumber,
+            totalAmount: approvedPo.totalAmount,
+            vendorName: currentVendor?.name || vendorName || "the vendor",
+            vendorPhone: vendorPhoneRaw || "Vendor",
+            whatsappUrl,
+            poId: approvedPo.id,
+          });
+          return;
+        }
+
+        setSuccessMsg("Purchase Order Approved successfully!");
+        setTimeout(() => {
+          router.push(`/purchasing/dashboard${tenantQuery}`);
+        }, 1200);
+      } else {
+        setSuccessMsg("Purchase Order has been Rejected.");
+        setTimeout(() => {
+          router.push(`/purchasing/dashboard${tenantQuery}`);
+        }, 1200);
+      }
     } catch (err: any) {
       console.error(`Error during PO ${action}:`, err);
       setError(err.message || `An error occurred while trying to ${action} PO.`);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCloseWhatsAppModal = () => {
+    setWhatsAppModal(null);
+    router.push(`/purchasing/dashboard${tenantQuery}`);
+  };
+
+  const handleConfirmSendWhatsApp = async () => {
+    if (!whatsAppModal) return;
+    try {
+      await fetch(`/api/purchase-orders/${whatsAppModal.poId}/mark-sent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+    } catch (e) {
+      console.error("Failed to mark as sent", e);
+    }
+    openWhatsAppUrl(whatsAppModal.whatsappUrl);
+    setWhatsAppModal(null);
+    router.push(`/purchasing/dashboard${tenantQuery}`);
   };
 
   const totalAmount = lines.reduce(
@@ -374,6 +444,178 @@ export default function POReviewPage() {
           )}
         </div>
       </div>
+
+      {/* Kalki BOS Styled WhatsApp Dispatch Modal */}
+      {whatsAppModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+            padding: "20px",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              borderRadius: "12px",
+              width: "100%",
+              maxWidth: "480px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+              border: "1px solid #e2e8f0",
+              overflow: "hidden",
+              animation: "modalFadeIn 0.2s ease-out",
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                padding: "16px 20px",
+                borderBottom: "1px solid #f1f5f9",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#f8fafc",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div
+                  style={{
+                    width: "36px",
+                    height: "36px",
+                    borderRadius: "8px",
+                    backgroundColor: "#dcfce7",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#16a34a",
+                  }}
+                >
+                  <MessageCircle size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "#0f172a" }}>
+                    Send PO via WhatsApp
+                  </h3>
+                  <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
+                    Purchase Order #{whatsAppModal.poNumber} approved
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseWhatsAppModal}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#94a3b8",
+                  padding: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "6px",
+                }}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: "20px" }}>
+              <p style={{ margin: "0 0 16px 0", fontSize: "14px", color: "#334155", lineHeight: 1.5 }}>
+                The purchase order has been approved successfully. Would you like to dispatch it to the supplier now?
+              </p>
+
+              <div
+                style={{
+                  backgroundColor: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "8px",
+                  padding: "14px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  fontSize: "13px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#64748b" }}>Supplier:</span>
+                  <strong style={{ color: "#0f172a" }}>{whatsAppModal.vendorName}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span style={{ color: "#64748b" }}>Contact:</span>
+                  <span style={{ color: "#0f172a", fontFamily: "monospace" }}>{whatsAppModal.vendorPhone}</span>
+                </div>
+                {whatsAppModal.totalAmount ? (
+                  <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px dashed #e2e8f0", paddingTop: "6px" }}>
+                    <span style={{ color: "#64748b" }}>Total Amount:</span>
+                    <strong style={{ color: "#16a34a" }}>{formatIndianCurrency(whatsAppModal.totalAmount)}</strong>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Actions Footer */}
+            <div
+              style={{
+                padding: "14px 20px",
+                backgroundColor: "#f8fafc",
+                borderTop: "1px solid #f1f5f9",
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "10px",
+              }}
+            >
+              <button
+                type="button"
+                onClick={handleCloseWhatsAppModal}
+                style={{
+                  padding: "9px 16px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#ffffff",
+                  color: "#475569",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Skip for Now
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSendWhatsApp}
+                style={{
+                  padding: "9px 18px",
+                  borderRadius: "6px",
+                  border: "none",
+                  backgroundColor: "#16a34a",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
+                }}
+              >
+                <Check size={16} />
+                Send via WhatsApp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -67,3 +67,25 @@ export function buildPoWhatsappMessage(params: PoWhatsappParams): {
 
   return { text, whatsappUrl, phoneDigits };
 }
+
+/**
+ * Safely opens a WhatsApp URL across standard browsers, Capacitor Android WebView,
+ * and mobile devices.
+ */
+export function openWhatsAppUrl(url: string) {
+  if (typeof window === "undefined") return;
+
+  try {
+    // In Capacitor / mobile WebViews, window.open(url, '_system') asks the system to launch the external application/browser
+    const win = window.open(url, "_system");
+    if (!win) {
+      window.open(url, "_blank");
+    }
+  } catch (e) {
+    try {
+      window.location.href = url;
+    } catch (err) {
+      console.error("Failed to open WhatsApp URL:", err);
+    }
+  }
+}

@@ -12,7 +12,7 @@ import { KalkiButton } from "@/components/ui/KalkiButton";
 import { KalkiSelect } from "@/components/ui/KalkiSelect";
 import { KalkiInput } from "@/components/ui/KalkiInput";
 import { KalkiSection } from "@/components/ui/KalkiSection";
-import { buildPoWhatsappMessage } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, openWhatsAppUrl } from "@/lib/whatsapp-po";
 
 export default function CreatePOPage() {
   const { session, selected } = useSessionView();
@@ -165,7 +165,7 @@ export default function CreatePOPage() {
             console.error("Failed to mark as sent", e);
           }
 
-          window.open(whatsappUrl, "_blank");
+          openWhatsAppUrl(whatsappUrl);
         }
       } else if (createdPo?.status === "pending_approval") {
         alert(
@@ -541,11 +541,11 @@ export default function CreatePOPage() {
                                   
                                   try {
                                     await apiSend(`/api/purchase-orders/${po.id}/mark-sent`, "POST", {});
-                                    window.open(whatsappUrl, '_blank');
+                                    openWhatsAppUrl(whatsappUrl);
                                     fetchRecentPOs();
                                   } catch (e) {
                                     console.error("Failed to mark as sent", e);
-                                    window.open(whatsappUrl, '_blank');
+                                    openWhatsAppUrl(whatsappUrl);
                                   }
                                 }}
                                 className="kalki-button kalki-button--secondary"

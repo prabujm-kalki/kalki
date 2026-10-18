@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { purchaseOrders, purchaseOrderLines, vendorItems, approvalLimits } from "@/db/schema";
+import { purchaseOrders, purchaseOrderLines, vendorItems, approvalLimits, vendors, organizations, items } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { requireAuthenticatedUser } from "@/lib/authorization";
 
@@ -163,8 +163,42 @@ export async function POST(
       })
       .where(eq(purchaseOrders.id, resolvedParams.id))
       .returning();
+
+    // Fetch vendor and organization whatsapp details for immediate client dispatch
+    const [vendorRec] = await db
+      .select({
+        name: vendors.name,
+        contactDetails: vendors.contactDetails,
+        poDeliveryMethod: vendors.poDeliveryMethod,
+        poWhatsappPreference: vendors.poWhatsappPreference,
+      })
+      .from(vendors)
+      .where(eq(vendors.id, currentPo.vendorId));
+
+    const [orgRec] = await db
+      .select({ whatsappPoTemplate: organizations.whatsappPoTemplate })
+      .from(organizations)
+      .where(eq(organizations.id, currentPo.organizationId));
+
+    const finalLines = await db
+      .select({
+        itemId: purchaseOrderLines.itemId,
+        itemName: items.nameEn,
+        orderedQuantity: purchaseOrderLines.orderedQuantity,
+        unitOfMeasure: items.purchaseUnit,
+        unitRate: purchaseOrderLines.unitRate,
+      })
+      .from(purchaseOrderLines)
+      .leftJoin(items, eq(purchaseOrderLines.itemId, items.id))
+      .where(eq(purchaseOrderLines.poId, resolvedParams.id));
     
-    return NextResponse.json({ success: true, po: updatedPo });
+    return NextResponse.json({ 
+      success: true, 
+      po: updatedPo,
+      vendor: vendorRec || null,
+      whatsappPoTemplate: orgRec?.whatsappPoTemplate || null,
+      lines: finalLines || []
+    });
   } catch (error) {
     console.error("Failed to approve PO:", error);
     return NextResponse.json({ error: "Failed to approve PO" }, { status: 500 });

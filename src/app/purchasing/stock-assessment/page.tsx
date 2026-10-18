@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
-import { buildPoWhatsappMessage, formatIndianCurrency } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl } from "@/lib/whatsapp-po";
 import { MessageSquare, Check, X } from "lucide-react";
 
 interface VendorItem {
@@ -133,7 +133,7 @@ export default function StockAssessmentPage() {
     } catch (e) {
       console.error("Failed to mark as sent", e);
     }
-    window.open(whatsAppModal.whatsappUrl, "_blank");
+    openWhatsAppUrl(whatsAppModal.whatsappUrl);
     setWhatsAppModal(null);
     router.push(getDashboardUrl());
   };
