@@ -562,6 +562,18 @@ export async function fetchGlobalPendingTasks(params?: {
       }
 
       const isPurchasingRoutine = Boolean(ctx.scheduleId || ctx.vendorId || ctx.actionUrl?.includes("stock-assessment"));
+      
+      // If this is an operational purchasing routine task (e.g. Daily Stock Assessment),
+      // it must strictly target the designated operational role (e.g. Head Chef).
+      // It should NOT show on the System Owner's pending banner unless the user actually holds that role or is directly assigned.
+      if (isPurchasingRoutine) {
+        const isDirectlyAssigned = instance.assignedUserId === userId;
+        const hasAssignedRole = Boolean(instance.assignedRoleId && userRoleIds.includes(instance.assignedRoleId));
+        if (!isDirectlyAssigned && !hasAssignedRole) {
+          continue;
+        }
+      }
+
       const taskTitle = ctx.vendorName 
         ? `Stock Assessment: ${ctx.vendorName}` 
         : (ctx.title || definition.title || "Routine Task");
