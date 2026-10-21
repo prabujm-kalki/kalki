@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { generateAttendanceReport } from "@/domains/attendance/reportActions";
 import { useSessionView } from "@/components/AppShell";
-import { Download, Filter, Search, Table2, CalendarDays, PieChart } from "lucide-react";
+import { Download, Filter, Search, Table2, CalendarDays, PieChart, FileText } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type ReportType = "RAW" | "DETAILED" | "SUMMARY";
 
@@ -209,6 +211,191 @@ export default function ReportsClient({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const exportPDF = () => {
+    if (!reportData || reportData.length === 0) return;
+
+    const doc = new jsPDF({
+      orientation: reportType === "DETAILED" ? "landscape" : "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const titleMap: Record<ReportType, string> = {
+      RAW: "Raw Attendance Log Report",
+      DETAILED: "Detailed Employee Attendance Records",
+      SUMMARY: "Attendance Summary Overview Report",
+    };
+
+    // Header title
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    doc.text(titleMap[reportType], 14, 18);
+
+    // Meta details
+    doc.setFontSize(9);
+    doc.setTextColor(100, 116, 139);
+    const locationName = selected?.locationName || "All Locations";
+    doc.text(`Period: ${startDate} to ${endDate}  |  Location: ${locationName}  |  Generated: ${new Date().toLocaleString()}`, 14, 25);
+
+    if (reportType === "RAW") {
+      const head = [["Employee Code", "Name", "Department", "Role", "Punch Type", "Timestamp", "Source"]];
+      const body = reportData.map((r) => [
+        r.employeeCode,
+        r.employeeName,
+        r.departmentName || "N/A",
+        r.roleTitle || "N/A",
+        r.punchType.replace("_", " "),
+        new Date(r.punchTimestamp).toLocaleString(),
+        r.sourceType,
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        head,
+        body,
+        theme: "striped",
+        styles: { fontSize: 8, cellPadding: 2.5 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+    } else if (reportType === "DETAILED") {
+      const dates = getDatesInRange(startDate, endDate);
+      const filteredEmployees = employees.filter((e) => {
+        if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
+        if (e.locationId && e.locationId !== selected?.locationId) return false;
+        if (employeeId && e.id !== employeeId) return false;
+        if (departmentId && e.departmentId !== departmentId) return false;
+        return true;
+      });
+
+      const head = [["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT", "Status / Anomalies"]];
+      const body: string[][] = [];
+
+      filteredEmployees.forEach((emp) => {
+        dates.forEach((d) => {
+          const dayPunches = reportData.filter(
+            (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
+          );
+
+          if (dayPunches.length > 0) {
+            const pi = [...dayPunches].reverse().find((p) => p.punchType === "PUNCH_IN");
+            const bi = dayPunches.find((p) => p.punchType === "BREAK_IN");
+            const bo = dayPunches.find((p) => p.punchType === "BREAK_OUT");
+            const po = dayPunches.find((p) => p.punchType === "PUNCH_OUT");
+
+            const formatTime = (p: any) =>
+              p ? new Date(p.punchTimestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-";
+
+            let anomalies = [];
+            let status = "PRESENT";
+
+            if (pi && pi.shiftStartTime) {
+              const punchTime = new Date(pi.punchTimestamp);
+              const shiftStartParts = pi.shiftStartTime.split(":");
+              const expectedStart = new Date(punchTime);
+              expectedStart.setHours(
+                parseInt(shiftStartParts[0]),
+                parseInt(shiftStartParts[1]),
+                parseInt(shiftStartParts[2] || "0"),
+                0
+              );
+
+              const graceMs = (pi.shiftGracePeriod || 15) * 60 * 1000;
+              if (punchTime.getTime() > expectedStart.getTime() + graceMs) {
+                anomalies.push("LATE IN");
+                status = "LATE";
+              }
+
+              if (po) {
+                const punchOutTime = new Date(po.punchTimestamp);
+                const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
+
+                if (pi.shiftMinHoursHalfDay) {
+                  const minHalf = parseFloat(pi.shiftMinHoursHalfDay);
+                  const minFull = pi.shiftMinHoursFullDay ? parseFloat(pi.shiftMinHoursFullDay) : minHalf * 2;
+
+                  if (hoursWorked < minHalf) {
+                    anomalies.push(`SHORT (${hoursWorked.toFixed(1)}h)`);
+                    status = "ABSENT";
+                  } else if (hoursWorked < minFull) {
+                    anomalies.push(`SHORT (${hoursWorked.toFixed(1)}h)`);
+                    status = "HALF DAY";
+                  }
+                }
+              } else {
+                anomalies.push("MISSING OUT PUNCH");
+              }
+            } else if (dayPunches.length > 0) {
+              anomalies.push("NO SHIFT");
+            }
+
+            const anomalyText = anomalies.length > 0 ? `[${status}] ${anomalies.join(", ")}` : status;
+
+            body.push([
+              emp.code,
+              emp.name,
+              d,
+              formatTime(pi),
+              formatTime(bi),
+              formatTime(bo),
+              formatTime(po),
+              anomalyText,
+            ]);
+          } else if (employeeId) {
+            body.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT"]);
+          }
+        });
+      });
+
+      autoTable(doc, {
+        startY: 30,
+        head,
+        body,
+        theme: "striped",
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+    } else if (reportType === "SUMMARY") {
+      const dates = getDatesInRange(startDate, endDate);
+      const filteredEmployees = employees.filter((e) => {
+        if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
+        if (e.locationId && e.locationId !== selected?.locationId) return false;
+        if (employeeId && e.id !== employeeId) return false;
+        if (departmentId && e.departmentId !== departmentId) return false;
+        return true;
+      });
+
+      const head = [["Employee Code", "Name", "Total Days", "Days Attended", "Days Missed", "Attendance %"]];
+      const body: string[][] = [];
+
+      filteredEmployees.forEach((emp) => {
+        let attended = 0;
+        dates.forEach((d) => {
+          const hasPunch = reportData.some(
+            (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
+          );
+          if (hasPunch) attended++;
+        });
+        const missed = dates.length - attended;
+        const pct = dates.length > 0 ? `${Math.round((attended / dates.length) * 100)}%` : "0%";
+        body.push([emp.code, emp.name, dates.length.toString(), attended.toString(), missed.toString(), pct]);
+      });
+
+      autoTable(doc, {
+        startY: 30,
+        head,
+        body,
+        theme: "striped",
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+      });
+    }
+
+    doc.save(`attendance_${reportType.toLowerCase()}_report_${startDate}_to_${endDate}.pdf`);
   };
 
   if (!isMounted) return null;
@@ -527,9 +714,14 @@ export default function ReportsClient({
               <Search size={16} /> {loading ? "Generating..." : "Generate Report"}
             </button>
             {reportData && reportData.length > 0 && (
-              <button type="button" onClick={exportCSV} className="att-button-premium" style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--att-success)" }}>
-                <Download size={16} /> Export CSV
-              </button>
+              <>
+                <button type="button" onClick={exportCSV} className="att-button-premium" style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "var(--att-success)" }}>
+                  <Download size={16} /> Export CSV
+                </button>
+                <button type="button" onClick={exportPDF} className="att-button-premium" style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "#b91c1c", color: "#ffffff" }}>
+                  <FileText size={16} /> Export PDF
+                </button>
+              </>
             )}
           </div>
         </form>

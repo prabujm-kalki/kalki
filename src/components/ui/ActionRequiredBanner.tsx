@@ -142,95 +142,106 @@ export function ActionRequiredBanner({
 
       {/* Task cards list */}
       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {tasks.map((task) => (
-          <div
-            key={task.id}
-            style={{
-              backgroundColor: task.priority === "HIGH" ? "#fef2f2" : "#fffbeb",
-              border: `1px solid ${task.priority === "HIGH" ? "#fecaca" : "#fde68a"}`,
-              borderLeft: `4px solid ${task.priority === "HIGH" ? "#dc2626" : "#d97706"}`,
-              padding: "14px 18px",
-              borderRadius: "10px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: "16px",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: "240px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
-                  {task.title}
-                </h3>
-                <span
+        {tasks.map((task) => {
+          const isTaskEscalated = Boolean(task.isEscalated || (task.type === "ROUTINE" && task.priority === "HIGH"));
+          const isHigh = task.priority === "HIGH" || isTaskEscalated;
+          const displayType = isTaskEscalated ? "ESCALATED" : task.type;
+
+          return (
+            <div
+              key={task.id}
+              style={{
+                backgroundColor: isHigh ? "#fef2f2" : "#fffbeb",
+                border: `1px solid ${isHigh ? "#fecaca" : "#fde68a"}`,
+                borderLeft: `4px solid ${isHigh ? "#dc2626" : "#d97706"}`,
+                padding: "14px 18px",
+                borderRadius: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "16px",
+                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: 1, minWidth: "240px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                  <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
+                    {task.title}
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      backgroundColor: isHigh ? "#fee2e2" : "#fde68a",
+                      color: isHigh ? "#dc2626" : "#92400e",
+                      border: isHigh ? "1px solid #fca5a5" : "1px solid #fcd34d",
+                      textTransform: "uppercase",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "3px",
+                    }}
+                  >
+                    {isTaskEscalated && <AlertTriangle size={11} style={{ color: "#dc2626" }} />}
+                    {displayType}
+                  </span>
+                </div>
+                <p style={{ fontSize: "12px", color: isHigh ? "#7f1d1d" : "#475569", margin: "4px 0 0 0" }}>
+                  {task.description}
+                </p>
+              </div>
+
+              {task.type === "APPROVAL" && task.poId ? (
+                <button
+                  type="button"
+                  onClick={() => openApprovalModal(task.poId!, task.title, task.publicToken)}
                   style={{
-                    fontSize: "10px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    backgroundColor: "#ffffff",
+                    color: isHigh ? "#dc2626" : "#b45309",
+                    border: `1px solid ${isHigh ? "#fecaca" : "#fde68a"}`,
+                    padding: "6px 12px",
+                    fontSize: "12px",
                     fontWeight: 700,
-                    padding: "2px 6px",
-                    borderRadius: "4px",
-                    backgroundColor: task.priority === "HIGH" ? "#fecaca" : "#fde68a",
-                    color: task.priority === "HIGH" ? "#991b1b" : "#92400e",
-                    textTransform: "uppercase",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
                   }}
                 >
-                  {task.type}
-                </span>
-              </div>
-              <p style={{ fontSize: "12px", color: "#475569", margin: "4px 0 0 0" }}>
-                {task.description}
-              </p>
+                  <span>{task.actionLabel}</span>
+                  <ChevronRight size={13} />
+                </button>
+              ) : (
+                <Link
+                  href={task.actionUrl}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "4px",
+                    backgroundColor: "#ffffff",
+                    color: isHigh ? "#dc2626" : "#b45309",
+                    border: `1px solid ${isHigh ? "#fecaca" : "#fde68a"}`,
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    borderRadius: "6px",
+                    textDecoration: "none",
+                    flexShrink: 0,
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                  }}
+                >
+                  <span>{task.actionLabel}</span>
+                  <ChevronRight size={13} />
+                </Link>
+              )}
             </div>
-
-            {task.type === "APPROVAL" && task.poId ? (
-              <button
-                type="button"
-                onClick={() => openApprovalModal(task.poId!, task.title, task.publicToken)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  backgroundColor: "#ffffff",
-                  color: task.priority === "HIGH" ? "#dc2626" : "#b45309",
-                  border: `1px solid ${task.priority === "HIGH" ? "#fecaca" : "#fde68a"}`,
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  flexShrink: 0,
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                }}
-              >
-                <span>{task.actionLabel}</span>
-                <ChevronRight size={13} />
-              </button>
-            ) : (
-              <Link
-                href={task.actionUrl}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  backgroundColor: "#ffffff",
-                  color: task.priority === "HIGH" ? "#dc2626" : "#b45309",
-                  border: `1px solid ${task.priority === "HIGH" ? "#fecaca" : "#fde68a"}`,
-                  padding: "6px 12px",
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  borderRadius: "6px",
-                  textDecoration: "none",
-                  flexShrink: 0,
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                }}
-              >
-                <span>{task.actionLabel}</span>
-                <ChevronRight size={13} />
-              </Link>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* In-Modal Review & Approval Flow */}

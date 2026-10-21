@@ -47,6 +47,16 @@ cron.schedule("0 * * * *", async () => {
   }
 });
 
+// 0.3 Automated TMBill Sales Synchronization (Checks every 5 minutes against each store's interval)
+cron.schedule("*/5 * * * *", async () => {
+  try {
+    const { runTMBillAutoSync } = await import("../domains/integrations/tmbill-cron");
+    await runTMBillAutoSync();
+  } catch (error) {
+    logError("TMBill Auto Sync", error);
+  }
+});
+
 // 1. Monthly Accrual: Runs at 00:01 on the 1st of every month
 // Minute: 1, Hour: 0, Day of Month: 1, Month: *, Day of Week: *
 cron.schedule("1 0 1 * *", async () => {

@@ -26,6 +26,7 @@ export interface GlobalPendingTaskItem {
   description: string;
   type: "APPROVAL" | "AUDIT" | "FINANCE" | "ROUTINE";
   priority: "HIGH" | "NORMAL";
+  isEscalated?: boolean;
   actionUrl: string;
   actionLabel: string;
   createdAt?: string;
@@ -508,7 +509,7 @@ export async function fetchGlobalPendingTasks(params?: {
       }
 
       const taskTitle = ctx.title || definition.title || "Audit Task";
-      const isEscalated = ctx.escalated || ctx.escalationReason;
+      const isEscalated = Boolean(ctx.escalated || ctx.escalationReason || (instance.escalationLevel && instance.escalationLevel > 0));
       const descText = isEscalated 
         ? `Escalated to management: ${ctx.escalationReason || "Deadline missed by assignee"}. Awaiting your audit / approval.`
         : (ctx.description || definition.description || "Task execution complete. Requires supervisor audit verification.");
@@ -519,6 +520,7 @@ export async function fetchGlobalPendingTasks(params?: {
         description: descText,
         type: "AUDIT",
         priority: "HIGH",
+        isEscalated,
         actionUrl: `/tasks?tab=audit${tenantQs}`,
         actionLabel: "Audit Task",
         createdAt: instance.createdAt ? new Date(instance.createdAt).toISOString() : undefined,
@@ -577,14 +579,21 @@ export async function fetchGlobalPendingTasks(params?: {
       const taskTitle = ctx.vendorName 
         ? `Stock Assessment: ${ctx.vendorName}` 
         : (ctx.title || definition.title || "Routine Task");
-      const dueStr = instance.dueAt ? `Due: ${new Date(instance.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "";
+      
+      // Format time strictly in Asia/Kolkata (IST) so user sees actual scheduled/due time in their local timezone
+      const dueStr = instance.dueAt 
+        ? `Due: ${new Date(instance.dueAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: '2-digit', minute: '2-digit', hour12: true })}` 
+        : "";
+
+      const isEscalated = Boolean(ctx.escalated || ctx.escalationReason || (instance.escalationLevel && instance.escalationLevel > 0));
 
       tasks.push({
         id: `task-engine-routine-${instance.id}`,
         title: isPurchasingRoutine ? taskTitle : `Task: ${taskTitle}`,
         description: `${ctx.description || (isPurchasingRoutine ? "Scheduled daily purchasing order cycle started. Stock assessment pending completion." : definition.description) || "Assigned task awaiting completion."}${dueStr ? ` • ${dueStr}` : ""}`,
         type: "ROUTINE",
-        priority: instance.priority === "high" || instance.priority === "HIGH" ? "HIGH" : "NORMAL",
+        priority: isEscalated || instance.priority === "high" || instance.priority === "HIGH" ? "HIGH" : "NORMAL",
+        isEscalated,
         actionUrl: ctx.actionUrl ? `${ctx.actionUrl}${tenantQs}` : `/tasks${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
         actionLabel: ctx.actionLabel || (isPurchasingRoutine ? "Assess Stock" : "Open Task"),
         createdAt: instance.createdAt ? new Date(instance.createdAt).toISOString() : undefined,

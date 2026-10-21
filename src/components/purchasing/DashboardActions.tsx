@@ -414,7 +414,7 @@ export function DashboardActions({
                 </div>
                 {task.dueAt && (
                   <div style={{ fontSize: '0.65rem', color: '#64748b', marginBottom: '0.375rem' }}>
-                    Due: {new Date(task.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    Due: {new Date(task.dueAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: '2-digit', minute: '2-digit', hour12: true })}
                   </div>
                 )}
                 {task.actionUrl ? (

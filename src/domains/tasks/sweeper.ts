@@ -135,6 +135,9 @@ export async function runEscalationSweeper() {
 
       // Calculate new due date based on the matrix timeout
       const newDueAt = new Date(now.getTime() + (nextMatrix.timeoutMinutes * 60 * 1000));
+      const ctx: any = task.contextData || {};
+      ctx.escalated = true;
+      ctx.escalationReason = `Escalated to Level ${nextLevel}`;
 
       // Update the task to the next level
       await db.update(taskInstances)
@@ -143,6 +146,7 @@ export async function runEscalationSweeper() {
           assignedRoleId: finalRoleId,
           assignedUserId: finalUserId,
           dueAt: newDueAt,
+          contextData: ctx,
           updatedAt: now
         })
         .where(eq(taskInstances.id, task.id));
