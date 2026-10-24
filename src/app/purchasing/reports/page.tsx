@@ -85,7 +85,7 @@ export default async function PurchaseReportsPage({
         </span>
       );
     }
-    if (s === "RECEIVED" || s === "COMPLETED" || s === "PAID") {
+    if (s === "COMPLETED") {
       return (
         <span style={{
           padding: "3px 10px",
@@ -96,11 +96,30 @@ export default async function PurchaseReportsPage({
           fontWeight: 600,
           display: "inline-block"
         }}>
-          {status.replace(/_/g, " ").toUpperCase()}
+          Closed / Invoiced
         </span>
       );
     }
-    if (s === "DELAYED" || s === "OVERDUE" || s === "REJECTED") {
+    if (s === "RECEIVED" || s === "PAID") {
+      return (
+        <span style={{
+          padding: "3px 10px",
+          borderRadius: "99px",
+          backgroundColor: "#dcfce7",
+          color: "#16a34a",
+          fontSize: "11px",
+          fontWeight: 600,
+          display: "inline-block"
+        }}>
+          {s === "RECEIVED" ? "Received" : "Paid"}
+        </span>
+      );
+    }
+    if (s === "DELAYED" || s === "OVERDUE" || s === "REJECTED" || s === "CANCELLED") {
+      let label = "Rejected";
+      if (s === "DELAYED") label = "Delayed";
+      else if (s === "OVERDUE") label = "Overdue";
+      else if (s === "CANCELLED") label = "Cancelled";
       return (
         <span style={{
           padding: "3px 10px",
@@ -111,11 +130,15 @@ export default async function PurchaseReportsPage({
           fontWeight: 600,
           display: "inline-block"
         }}>
-          {status.replace(/_/g, " ").toUpperCase()}
+          {label}
         </span>
       );
     }
     if (s === "IN TRANSIT" || s === "IN_TRANSIT" || s === "PENDING_RECEIPT" || s === "ORDERED" || s === "AWAITING") {
+      let label = "In Transit";
+      if (s === "PENDING_RECEIPT") label = "Pending Receipt";
+      else if (s === "ORDERED") label = "Ordered";
+      else if (s === "AWAITING") label = "Awaiting";
       return (
         <span style={{
           padding: "3px 10px",
@@ -126,7 +149,7 @@ export default async function PurchaseReportsPage({
           fontWeight: 600,
           display: "inline-block"
         }}>
-          {status.replace(/_/g, " ").toUpperCase()}
+          {label}
         </span>
       );
     }
@@ -141,7 +164,22 @@ export default async function PurchaseReportsPage({
           fontWeight: 600,
           display: "inline-block"
         }}>
-          {status.replace(/_/g, " ").toUpperCase()}
+          {s === "APPROVED" ? "Approved" : "Sent"}
+        </span>
+      );
+    }
+    if (s === "PENDING_APPROVAL" || s === "PENDING APPROVAL") {
+      return (
+        <span style={{
+          padding: "3px 10px",
+          borderRadius: "99px",
+          backgroundColor: "#fef3c7",
+          color: "#b45309",
+          fontSize: "11px",
+          fontWeight: 600,
+          display: "inline-block"
+        }}>
+          Pending Approval
         </span>
       );
     }
@@ -155,7 +193,7 @@ export default async function PurchaseReportsPage({
         fontWeight: 600,
         display: "inline-block"
       }}>
-        {status.replace(/_/g, " ").toUpperCase()}
+        {status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
       </span>
     );
   };
@@ -663,8 +701,9 @@ export default async function PurchaseReportsPage({
                   <option value="in_transit">In Transit</option>
                   <option value="received">Received</option>
                   <option value="audited">Audited</option>
-                  <option value="completed">Completed</option>
+                  <option value="completed">Closed / Invoiced</option>
                   <option value="rejected">Rejected</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
               )}
             </div>

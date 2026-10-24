@@ -544,7 +544,7 @@ export default function PurchaseDashboardPage() {
           fontWeight: 600,
           display: "inline-block"
         }}>
-          Completed
+          Closed / Invoiced
         </span>
       );
     }
