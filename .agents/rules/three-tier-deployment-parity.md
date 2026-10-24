@@ -30,7 +30,9 @@ All changes must strictly follow the Three-Tier Deployment Pipeline:
    ```
 2. Verify that GitHub `origin main` is up to date.
 
-### Tier 3: Production Pull & Reload
+### Tier 3: Production Pull & Reload (ONLY on Explicit User Command)
+> **MANDATORY**: Never push to `origin/main` or trigger a production server deployment automatically. Work locally, batch changes, and deploy to production **only when the user explicitly instructs** (e.g. *"push to production"*).
+
 1. Pull the pushed changes from GitHub onto the production server:
    ```bash
    ssh -i "$HOME/.ssh/oracle_kalki.key" ubuntu@140.245.253.187 "cd /home/ubuntu/kalki && git pull origin main && pm2 restart all"

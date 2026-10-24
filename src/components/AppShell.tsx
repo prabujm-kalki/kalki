@@ -9,7 +9,7 @@ import { APP_MODULES } from "@/lib/modules";
 import { StatusMessage } from "@/components/StatusMessage";
 import type { SessionContext, SessionScope } from "@/components/work/types";
 import { ToastProvider } from "./ui/Toast";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User as UserIcon, LogOut, Settings as SettingsIcon, ChevronDown } from "lucide-react";
 import { NotificationPoller } from "./NotificationPoller";
 
 function scopeKey(scope: Pick<SessionScope, "organizationId" | "locationId">) {
@@ -34,6 +34,7 @@ function AppShellContent({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionContext | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   
   const organizationId = searchParams.get("organizationId");
   const locationId = searchParams.get("locationId");
@@ -208,16 +209,175 @@ function AppShellContent({ children }: { children: ReactNode }) {
                 )}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <span className="kalki-hide-on-mobile" style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>
-                  {session.user.name || session.user.email}
-                </span>
-                <Link href={selected ? `/me/settings?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/me/settings"} style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 1)', textDecoration: 'none' }}>
-                  Settings
-                </Link>
-                <button type="button" className="kalki-button kalki-button--ghost kalki-button--sm" style={{ color: 'rgba(255, 255, 255, 1)' }} onClick={() => void signOut()}>
-                  Sign out
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', position: 'relative' }}>
+                {/* User Profile Avatar (Google-style round badge) */}
+                <button
+                  type="button"
+                  onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    border: '2px solid rgba(212, 175, 55, 0.8)',
+                    padding: 0,
+                    margin: 0,
+                    cursor: 'pointer',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#7c3a27',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    textTransform: 'uppercase',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                    flexShrink: 0,
+                  }}
+                  title={session.user.name || session.user.email || "Account"}
+                >
+                  {session.user.image ? (
+                    <img
+                      src={session.user.image}
+                      alt={session.user.name || "User"}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        // Fallback to initial on image broken
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <span>{(session.user.name || session.user.email || "U").charAt(0).toUpperCase()}</span>
+                  )}
                 </button>
+
+                {/* Profile Popover / Dropdown Menu */}
+                {isProfileMenuOpen && (
+                  <>
+                    <div
+                      style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 998,
+                      }}
+                      onClick={() => setIsProfileMenuOpen(false)}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '42px',
+                        right: 0,
+                        backgroundColor: '#ffffff',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '12px',
+                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                        width: '260px',
+                        padding: '1rem',
+                        zIndex: 999,
+                        color: '#0f172a',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      {/* User Info Header */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9' }}>
+                        <div
+                          style={{
+                            width: '44px',
+                            height: '44px',
+                            borderRadius: '50%',
+                            backgroundColor: '#7c3a27',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 700,
+                            fontSize: '18px',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {session.user.image ? (
+                            <img
+                              src={session.user.image}
+                              alt="Avatar"
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            (session.user.name || session.user.email || "U").charAt(0).toUpperCase()
+                          )}
+                        </div>
+                        <div style={{ overflow: 'hidden', minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {session.user.name || "Kalki User"}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {session.user.email}
+                          </div>
+                          {session.isOwner && (
+                            <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: 700, backgroundColor: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '4px', marginTop: '2px' }}>
+                              System Owner
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Menu Options */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        <Link
+                          href={selected ? `/me/settings?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/me/settings"}
+                          onClick={() => setIsProfileMenuOpen(false)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            padding: '0.5rem 0.65rem',
+                            borderRadius: '6px',
+                            textDecoration: 'none',
+                            color: '#334155',
+                            fontSize: '0.85rem',
+                            fontWeight: 500,
+                            transition: 'background-color 0.15s ease',
+                          }}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <SettingsIcon size={16} color="#64748b" />
+                          <span>Account Settings</span>
+                        </Link>
+                      </div>
+
+                      {/* Sign Out Action */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileMenuOpen(false);
+                          void signOut();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '6px',
+                          border: 'none',
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          fontSize: '0.85rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          width: '100%',
+                          textAlign: 'left',
+                          marginTop: '0.25rem',
+                        }}
+                      >
+                        <LogOut size={16} />
+                        <span>Sign out</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </header>
 

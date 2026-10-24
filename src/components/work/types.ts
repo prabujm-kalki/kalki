@@ -9,7 +9,7 @@ export type SessionScope = {
 };
 
 export type SessionContext = {
-  user: { id: string; name: string | null; email: string | null };
+  user: { id: string; name: string | null; email: string | null; image?: string | null };
   isOwner: boolean;
   scopes: SessionScope[];
 };

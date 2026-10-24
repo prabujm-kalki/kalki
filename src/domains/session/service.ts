@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
-import { locations, organizations } from "@/db/schema";
+import { locations, organizations, authUsers, employees, people } from "@/db/schema";
 import { loadAuthorizationGrants } from "@/lib/authorization";
 
 type Actor = { id: string; name?: string | null; email?: string | null } | null;
@@ -90,11 +90,35 @@ export async function getSessionContext(actor: Actor) {
     }];
   });
 
+  // Fetch avatar photo if available
+  let userImage: string | null = null;
+  const [empRecord] = await db
+    .select({
+      empPhoto: employees.photoUrl,
+      personPhoto: people.photoUrl,
+    })
+    .from(employees)
+    .leftJoin(people, eq(people.id, employees.personId))
+    .where(eq(employees.userId, actor.id))
+    .limit(1);
+
+  if (empRecord?.empPhoto || empRecord?.personPhoto) {
+    userImage = empRecord.empPhoto || empRecord.personPhoto || null;
+  } else {
+    const [authRow] = await db
+      .select({ image: authUsers.image })
+      .from(authUsers)
+      .where(eq(authUsers.id, actor.id))
+      .limit(1);
+    userImage = authRow?.image || null;
+  }
+
   return {
     user: {
       id: actor.id,
       name: actor.name ?? null,
       email: actor.email ?? null,
+      image: userImage,
     },
     isOwner: grants.isOwner,
     scopes,

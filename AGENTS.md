@@ -30,3 +30,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
   $$\text{Local Workspace} \longrightarrow \text{GitHub (origin/main)} \longrightarrow \text{Production Server (git pull)}$$
 - **100% Parity**: Local code, GitHub main, and Production Server code must be strictly identical at all times. No drifts, no untracked server patches.
 
+## 4. Batched Deployment & Explicit Production Push Authorization
+- **Do NOT push to production automatically**: All fixes, enhancements, and tasks must be developed, tested, and verified **locally** first.
+- **Explicit Instruction Required**: NEVER push commits to `origin/main` or trigger a production server deployment (`git pull`, `npm run build`, `pm2 restart`) unless the user **explicitly commands** to push to production (e.g., *"push this to production"*, *"deploy to server"*).
+- **Batching Workflow**: Work accumulates locally across tasks. Multiple fixes will be verified locally and then deployed together in a single batch when requested.
+

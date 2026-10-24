@@ -16,7 +16,9 @@
 ssh -i "$HOME/.ssh/oracle_kalki.key" ubuntu@140.245.253.187
 ```
 
-### Git / Deployment Workflow
+### Git / Deployment Workflow (Triggered ONLY on Explicit User Command)
+> **MANDATORY**: Do not run this workflow automatically. Work and verify locally first; only push and deploy when the user explicitly requests it.
+
 On remote server `/home/ubuntu/kalki`:
 ```bash
 git pull origin main

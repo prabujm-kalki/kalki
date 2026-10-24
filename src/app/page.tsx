@@ -69,25 +69,29 @@ export default async function DashboardPage({
           <ActionRequiredBanner initialTasks={pendingTasks} />
         )}
 
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "2rem" }}>
-          {/* Left Column: Pending Approvals */}
+        <div className="kalki-dashboard-split">
+          {/* Modules Grid - Permitted Modules for Current Scope */}
           <div>
-            <h2 className="text-xl font-semibold mb-4" style={{ color: "var(--att-primary)" }}>Pending Leave Approvals</h2>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: "var(--att-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+              Authorized Modules
+            </h2>
+            <GlobalModulesGrid />
+          </div>
+
+          {/* Pending Approvals */}
+          <div>
+            <h2 className="text-xl font-semibold mb-4" style={{ color: "var(--att-primary)", display: "flex", alignItems: "center", gap: "8px" }}>
+              Pending Leave Approvals
+            </h2>
             {rawRequests.length > 0 ? (
               <div className="att-card">
                 <ApprovalList requests={rawRequests} />
               </div>
             ) : (
-              <div className="att-card" style={{ padding: "2rem", textAlign: "center", color: "var(--att-text-muted)" }}>
+              <div className="att-card" style={{ padding: "1.75rem", textAlign: "center", color: "var(--att-text-muted)" }}>
                 You have no pending leave approvals.
               </div>
             )}
-          </div>
-
-          {/* Right Column: Quick Links */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4" style={{ color: "var(--att-primary)" }}>Modules</h2>
-            <GlobalModulesGrid />
           </div>
         </div>
       </div>
