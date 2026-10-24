@@ -672,7 +672,14 @@ export async function fetchPurchaseDashboardData(params?: {
       .map((t) => {
        const ctx = (t.contextData as any) || {};
        const vendorName = ctx.vendorName || "Routine Vendor";
-       const actionUrl = ctx.actionUrl || `/purchasing/stock-assessment?vendorId=${ctx.vendorId}&taskId=${t.id}`;
+       const taskLocId = ctx.locationId || (locationId && locationId !== "ALL" ? locationId : undefined);
+       const tenantQuery = `&organizationId=${organizationId}${taskLocId ? `&locationId=${taskLocId}` : ""}`;
+       let actionUrl = ctx.actionUrl;
+       if (!actionUrl) {
+         actionUrl = `/purchasing/stock-assessment?vendorId=${ctx.vendorId}&taskId=${t.id}${tenantQuery}`;
+       } else if (!actionUrl.includes("organizationId=")) {
+         actionUrl = `${actionUrl}${tenantQuery}`;
+       }
        const scheduleTime = ctx.title?.split("_")?.[2] || "";
 
        let routineStatus: RecentPurchaseItem["status"] = "CYCLE STARTED";

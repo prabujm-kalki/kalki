@@ -22,6 +22,7 @@ import {
   Zap
 } from "lucide-react";
 import { getSessionContext } from "@/domains/session/service";
+import { RoutineAutomationsReportTable } from "@/components/purchasing/RoutineAutomationsReportTable";
 
 export default async function PurchaseReportsPage({
   searchParams,
@@ -247,10 +248,16 @@ export default async function PurchaseReportsPage({
         completedAt: taskInstances.completedAt,
         createdAt: taskInstances.createdAt,
         contextData: taskInstances.contextData,
+        completionData: taskInstances.completionData,
         roleName: businessRoles.name,
+        poNumber: purchaseOrders.poNumber,
+        publicToken: purchaseOrders.publicToken,
+        poId: purchaseOrders.id,
+        poStatus: purchaseOrders.status,
       })
       .from(taskInstances)
       .leftJoin(businessRoles, eq(taskInstances.assignedRoleId, businessRoles.id))
+      .leftJoin(purchaseOrders, sql`${purchaseOrders.id}::text = (${taskInstances.completionData}->>'poId')`)
       .where(and(...routineConditions))
       .orderBy(desc(taskInstances.createdAt));
 
@@ -622,7 +629,7 @@ export default async function PurchaseReportsPage({
               padding: "2px 8px",
               borderRadius: "99px"
             }}>
-              {isBillsView ? pendingBillsData.length : isSpotView ? spotPurchasesData.length : reportData.length} {(((isBillsView ? pendingBillsData.length : isSpotView ? spotPurchasesData.length : reportData.length) === 1) ? "Record" : "Records")}
+              {isBillsView ? pendingBillsData.length : isSpotView ? spotPurchasesData.length : isRoutinesView ? totalRoutineRuns : reportData.length} {(((isBillsView ? pendingBillsData.length : isSpotView ? spotPurchasesData.length : isRoutinesView ? totalRoutineRuns : reportData.length) === 1) ? "Record" : "Records")}
             </span>
             {dateFrom && dateTo && (
               <span style={{ fontSize: "11px", color: "#64748b" }}>
@@ -983,154 +990,7 @@ export default async function PurchaseReportsPage({
             </table>
           ) : isRoutinesView ? (
             /* Routine Automations & Assessment Cycles Table */
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
-              <thead style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
-                <tr>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Cycle / Vendor</th>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Scheduled Run Date</th>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Assigned Role</th>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Deadline / Due At</th>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Completed / Audited At</th>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase" }}>Status</th>
-                  <th style={{ padding: "10px 16px", fontWeight: 600, color: "#64748b", fontSize: "11px", textTransform: "uppercase", textAlign: "center" }}>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {routineTasksData.length > 0 ? (
-                  routineTasksData.map((rt) => {
-                    const ctx = (rt.contextData as any) || {};
-                    const vendorName = ctx.vendorName || "Routine Vendor";
-                    const isAuditPending = rt.status === "audit_pending";
-                    const isCompleted = rt.status === "completed";
-                    const isMissed = rt.status === "pending" && rt.dueAt && new Date(rt.dueAt) < new Date();
-                    const isInProgress = rt.status === "in_progress";
-
-                    let statusBadge = (
-                      <span style={{ padding: "3px 10px", borderRadius: "99px", backgroundColor: "#fef3c7", color: "#d97706", fontSize: "11px", fontWeight: 700, display: "inline-block" }}>
-                        Pending
-                      </span>
-                    );
-
-                    if (isCompleted) {
-                      statusBadge = (
-                        <span style={{ padding: "3px 10px", borderRadius: "99px", backgroundColor: "#dcfce7", color: "#16a34a", fontSize: "11px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                          <CheckCircle2 size={12} /> {ctx.escalated ? "Audited & Cleared" : "Completed"}
-                        </span>
-                      );
-                    } else if (isAuditPending) {
-                      statusBadge = (
-                        <span style={{ padding: "3px 10px", borderRadius: "99px", backgroundColor: "#ffedd5", color: "#c2410c", fontSize: "11px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                          <AlertCircle size={12} /> Audit Pending ({ctx.escalationReason || "Escalated"})
-                        </span>
-                      );
-                    } else if (isMissed) {
-                      statusBadge = (
-                        <span style={{ padding: "3px 10px", borderRadius: "99px", backgroundColor: "#fee2e2", color: "#dc2626", fontSize: "11px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                          <AlertCircle size={12} /> Overdue / Missed
-                        </span>
-                      );
-                    } else if (isInProgress) {
-                      statusBadge = (
-                        <span style={{ padding: "3px 10px", borderRadius: "99px", backgroundColor: "#eff6ff", color: "#2563eb", fontSize: "11px", fontWeight: 700, display: "inline-block" }}>
-                          In Progress
-                        </span>
-                      );
-                    }
-
-                    return (
-                      <tr key={rt.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                        <td style={{ padding: "12px 16px" }}>
-                          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>
-                            {vendorName}
-                          </div>
-                          <div style={{ fontSize: "11px", color: "#64748b", fontFamily: "monospace", marginTop: "2px" }}>
-                            {ctx.title || `Cycle #${rt.id.slice(0, 8)}`}
-                          </div>
-                        </td>
-                        <td style={{ padding: "12px 16px", color: "#334155" }}>
-                          {new Date(rt.createdAt).toLocaleString("en-IN", {
-                            timeZone: "Asia/Kolkata",
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true
-                          })}
-                        </td>
-                        <td style={{ padding: "12px 16px", color: "#475569", fontWeight: 600 }}>
-                          {rt.roleName || "Head Chef / Kitchen"}
-                        </td>
-                        <td style={{ padding: "12px 16px", color: "#64748b" }}>
-                          {rt.dueAt ? new Date(rt.dueAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true }) : "—"}
-                        </td>
-                        <td style={{ padding: "12px 16px", color: rt.completedAt ? "#16a34a" : "#94a3b8" }}>
-                          {rt.completedAt ? new Date(rt.completedAt).toLocaleString("en-IN", {
-                            timeZone: "Asia/Kolkata",
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true
-                          }) : "—"}
-                        </td>
-                        <td style={{ padding: "12px 16px" }}>
-                          {statusBadge}
-                        </td>
-                        <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                          {ctx.actionUrl && (rt.status === "pending" || rt.status === "in_progress") ? (
-                            <Link
-                              href={ctx.actionUrl}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                backgroundColor: "#7c3a27",
-                                color: "#ffffff",
-                                padding: "4px 8px",
-                                borderRadius: "4px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                textDecoration: "none"
-                              }}
-                            >
-                              <span>Assess Stock</span>
-                            </Link>
-                          ) : (
-                            <Link
-                              href={`/purchasing/dashboard?taskId=${rt.id}${tenantParams}`}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "4px",
-                                backgroundColor: "#f1f5f9",
-                                color: "#475569",
-                                padding: "4px 8px",
-                                borderRadius: "4px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                textDecoration: "none"
-                              }}
-                            >
-                              <span>Dashboard</span>
-                              <ExternalLink size={11} />
-                            </Link>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={7} style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
-                      <CheckCircle2 size={40} style={{ opacity: 0.25, margin: "0 auto 10px auto", display: "block" }} />
-                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#334155" }}>No routine automation records found</div>
-                      <div style={{ fontSize: "12px", color: "#94a3b8", marginTop: "2px" }}>No routine purchasing assessment tasks recorded for the selected filter.</div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+            <RoutineAutomationsReportTable rows={routineTasksData} tenantParams={tenantParams} />
           ) : (
             /* Purchase Orders Table */
             <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>

@@ -3,13 +3,26 @@ import { purchaseSchedules, vendors, businessRoles, locations, taskInstances } f
 import { eq, desc, isNotNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { Plus, Clock, MapPin, Users, CheckCircle2, AlertCircle, ArrowRight, PlayCircle, Edit2, Shield, GitMerge } from "lucide-react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getSessionContext } from "@/domains/session/service";
 import { ItemClassificationManager } from "@/components/purchasing/ItemClassificationManager";
 import { PurchaseRoutingConfigPanel } from "@/components/purchasing/PurchaseRoutingConfigPanel";
 import { RecentExecutionAuditLog } from "@/components/purchasing/RecentExecutionAuditLog";
 
 export default async function ConfigurationPage({ searchParams }: { searchParams: Promise<{ organizationId?: string; locationId?: string }> }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  const context = session?.user ? await getSessionContext(session.user) : null;
+  const primaryScope = context?.scopes?.[0];
+
   const resolvedParams = await searchParams;
-  const queryString = new URLSearchParams(resolvedParams as any).toString();
+  const organizationId = resolvedParams.organizationId || primaryScope?.organizationId || "";
+  const locationId = resolvedParams.locationId || primaryScope?.locationId || "";
+
+  const queryParams = new URLSearchParams();
+  if (organizationId) queryParams.set("organizationId", organizationId);
+  if (locationId) queryParams.set("locationId", locationId);
+  const queryString = queryParams.toString();
   const querySuffix = queryString ? `?${queryString}` : '';
 
   const schedules = await db

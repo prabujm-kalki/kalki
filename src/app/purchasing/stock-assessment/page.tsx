@@ -39,19 +39,22 @@ export default function StockAssessmentPage() {
     }
   }, [urlVendorId]);
 
-  useEffect(() => {
-    if (selected) {
-      fetchVendors();
-    }
-  }, [selected]);
+  const urlOrgId = searchParams.get("organizationId");
+  const urlLocId = searchParams.get("locationId");
 
   useEffect(() => {
-    if (selectedVendorId && selected) {
+    if (selected || urlOrgId) {
+      fetchVendors();
+    }
+  }, [selected, urlOrgId, urlLocId]);
+
+  useEffect(() => {
+    if (selectedVendorId && (selected || urlOrgId)) {
       fetchVendorItems(selectedVendorId);
-    } else {
+    } else if (!selectedVendorId) {
       setVendorItems([]);
     }
-  }, [selectedVendorId, selected]);
+  }, [selectedVendorId, selected, urlOrgId, urlLocId]);
 
   const getOrgAndLoc = () => {
     const org = searchParams.get("organizationId") || selected?.organizationId || "";
