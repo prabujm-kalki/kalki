@@ -60,7 +60,14 @@ export function buildPoWhatsappMessage(params: PoWhatsappParams): {
     text = `Hello, please find Purchase Order #${poNum} for ${amountFormatted}.\n\n${itemsList ? `Items:\n${itemsList}\n\n` : ""}View and download the PDF here: ${publicUrl}`;
   }
 
-  const phoneDigits = (params.vendorPhone || "").replace(/\D/g, "");
+  let phoneDigits = (params.vendorPhone || "").replace(/\D/g, "");
+  // Standardize 10-digit Indian mobile numbers by prefixing 91 (WhatsApp wa.me strictly requires country code)
+  if (phoneDigits.length === 10 && /^[6-9]/.test(phoneDigits)) {
+    phoneDigits = `91${phoneDigits}`;
+  } else if (phoneDigits.length === 11 && phoneDigits.startsWith("0")) {
+    phoneDigits = `91${phoneDigits.slice(1)}`;
+  }
+
   const whatsappUrl = phoneDigits
     ? `https://wa.me/${phoneDigits}?text=${encodeURIComponent(text)}`
     : `https://wa.me/?text=${encodeURIComponent(text)}`;
@@ -70,16 +77,25 @@ export function buildPoWhatsappMessage(params: PoWhatsappParams): {
 
 /**
  * Safely opens a WhatsApp URL across standard browsers, Capacitor Android WebView,
- * and mobile devices.
+ * iOS/Android mobile browsers, and desktop systems.
  */
 export function openWhatsAppUrl(url: string) {
   if (typeof window === "undefined") return;
 
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
   try {
-    // In Capacitor / mobile WebViews, window.open(url, '_system') asks the system to launch the external application/browser
-    const win = window.open(url, "_system");
-    if (!win) {
-      window.open(url, "_blank");
+    // On mobile devices, window.location.href or direct intent reliably triggers the WhatsApp app without getting blocked by popup blocker
+    if (isMobile) {
+      window.location.href = url;
+      return;
+    }
+
+    // On desktop browsers, open in a new tab
+    const win = window.open(url, "_blank");
+    if (!win || win.closed || typeof win.closed === "undefined") {
+      // Fallback if desktop popup blocker intercepted
+      window.location.href = url;
     }
   } catch (e) {
     try {

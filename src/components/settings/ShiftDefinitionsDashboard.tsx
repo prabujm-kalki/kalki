@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import { useSessionView } from "@/components/AppShell";
@@ -20,6 +20,9 @@ export function ShiftDefinitionsDashboard() {
     startTime: "09:00:00",
     endTime: "18:00:00",
     gracePeriodMinutes: 15,
+    maxMonthlyLateOccurrences: 3,
+    latePenaltyType: "HALF_DAY_DEDUCTION",
+    extremeLateThresholdMinutes: 120,
     minHoursHalfDay: "4.00",
     minHoursFullDay: "8.00",
     restBreakMinutes: 60,
@@ -58,7 +61,9 @@ export function ShiftDefinitionsDashboard() {
       loadShifts();
       setFormData({
         id: "", name: "", code: "", startTime: "09:00:00", endTime: "18:00:00",
-        gracePeriodMinutes: 15, minHoursHalfDay: "4.00", minHoursFullDay: "8.00",
+        gracePeriodMinutes: 15, maxMonthlyLateOccurrences: 3,
+        latePenaltyType: "HALF_DAY_DEDUCTION", extremeLateThresholdMinutes: 120,
+        minHoursHalfDay: "4.00", minHoursFullDay: "8.00",
         restBreakMinutes: 60, isActive: true
       });
     } catch (err) {
@@ -104,11 +109,27 @@ export function ShiftDefinitionsDashboard() {
             </div>
             <div>
               <label className="att-label">Grace Period (Minutes)</label>
-              <input required type="number" className="att-input-premium" value={formData.gracePeriodMinutes} onChange={e => setFormData({...formData, gracePeriodMinutes: parseInt(e.target.value)})} />
+              <input required type="number" className="att-input-premium" value={formData.gracePeriodMinutes} onChange={e => setFormData({...formData, gracePeriodMinutes: parseInt(e.target.value) || 0})} />
+            </div>
+            <div>
+              <label className="att-label">Max Allowed Late Counts / Month</label>
+              <input required type="number" className="att-input-premium" value={formData.maxMonthlyLateOccurrences} onChange={e => setFormData({...formData, maxMonthlyLateOccurrences: parseInt(e.target.value) || 0})} />
+            </div>
+            <div>
+              <label className="att-label">Late Penalty (Past Max)</label>
+              <select className="att-input-premium" value={formData.latePenaltyType} onChange={e => setFormData({...formData, latePenaltyType: e.target.value})}>
+                <option value="HALF_DAY_DEDUCTION">0.5 Day Salary Deduction</option>
+                <option value="LEAVE_DEDUCTION">Deduct from Leave Balance</option>
+                <option value="NONE">Warning Only (No Deduction)</option>
+              </select>
+            </div>
+            <div>
+              <label className="att-label">Extreme Delay Cutoff (Minutes)</label>
+              <input required type="number" className="att-input-premium" value={formData.extremeLateThresholdMinutes} onChange={e => setFormData({...formData, extremeLateThresholdMinutes: parseInt(e.target.value) || 0})} title="If late by more than this, maximum status is Half Day" />
             </div>
             <div>
               <label className="att-label">Rest Break (Minutes)</label>
-              <input required type="number" className="att-input-premium" value={formData.restBreakMinutes} onChange={e => setFormData({...formData, restBreakMinutes: parseInt(e.target.value)})} />
+              <input required type="number" className="att-input-premium" value={formData.restBreakMinutes} onChange={e => setFormData({...formData, restBreakMinutes: parseInt(e.target.value) || 0})} />
             </div>
             <div>
               <label className="att-label">Min Hours for Half Day</label>
@@ -143,9 +164,11 @@ export function ShiftDefinitionsDashboard() {
                   </div>
                   <div>
                     <h3 style={{ margin: "0 0 0.25rem 0" }}>{shift.name} ({shift.code})</h3>
-                    <div style={{ fontSize: "0.875rem", color: "var(--kalki-text-secondary)", display: "flex", gap: "1rem" }}>
+                    <div style={{ fontSize: "0.875rem", color: "var(--kalki-text-secondary)", display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
                       <span>{shift.startTime.slice(0,5)} - {shift.endTime.slice(0,5)}</span>
                       <span>• Grace: {shift.gracePeriodMinutes}m</span>
+                      <span>• Max Late: {shift.maxMonthlyLateOccurrences ?? 3}/mo</span>
+                      <span>• Extreme Delay: {shift.extremeLateThresholdMinutes ?? 120}m</span>
                       <span>• Full Day: {shift.minHoursFullDay}h</span>
                     </div>
                   </div>

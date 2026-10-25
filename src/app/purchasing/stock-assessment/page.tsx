@@ -16,6 +16,11 @@ interface VendorItem {
   lastRate: number;
   baseMinStock?: number;
   targetStock?: number;
+  prepUnit?: string | null;
+  prepUnitConversion?: string | number | null;
+  roundToWhole?: boolean;
+  fridaySurge?: string | number | null;
+  saturdaySurge?: string | number | null;
 }
 
 export default function StockAssessmentPage() {
@@ -29,6 +34,7 @@ export default function StockAssessmentPage() {
   const [selectedVendorId, setSelectedVendorId] = useState(urlVendorId || "");
   const [vendorItems, setVendorItems] = useState<VendorItem[]>([]);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
+  const [prepInputs, setPrepInputs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -87,10 +93,13 @@ export default function StockAssessmentPage() {
       setVendorItems(itemsList);
       // Initialize inputs
       const initInputs: Record<string, string> = {};
+      const initPrep: Record<string, string> = {};
       itemsList.forEach((i: VendorItem) => {
         initInputs[i.itemId] = "";
+        initPrep[i.itemId] = "";
       });
       setStockInputs(initInputs);
+      setPrepInputs(initPrep);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -100,6 +109,29 @@ export default function StockAssessmentPage() {
 
   const handleStockChange = (itemId: string, value: string) => {
     setStockInputs(prev => ({ ...prev, [itemId]: value }));
+  };
+
+  const handlePrepChange = (itemId: string, value: string) => {
+    setPrepInputs(prev => ({ ...prev, [itemId]: value }));
+  };
+
+  // Helper to calculate total equivalent stock in base unit
+  const computeTotalStock = (item: VendorItem): { total: number; hasEntered: boolean } => {
+    const rawStr = stockInputs[item.itemId] ?? "";
+    const prepStr = prepInputs[item.itemId] ?? "";
+    const hasRaw = rawStr !== "";
+    const hasPrep = prepStr !== "";
+
+    if (!hasRaw && !hasPrep) {
+      return { total: 0, hasEntered: false };
+    }
+
+    const rawVal = parseFloat(rawStr) || 0;
+    const prepVal = parseFloat(prepStr) || 0;
+    const prepRatio = Number(item.prepUnitConversion) || 0;
+
+    const total = rawVal + (prepVal * prepRatio);
+    return { total: Number(total.toFixed(3)), hasEntered: true };
   };
 
   const [whatsAppModal, setWhatsAppModal] = useState<{
@@ -145,13 +177,17 @@ export default function StockAssessmentPage() {
     setSubmitting(true);
     setError("");
     
-    // Prepare payload
-    const inputs = Object.entries(stockInputs)
-      .filter(([_, val]) => val !== "")
-      .map(([itemId, val]) => ({
-        itemId,
-        currentStock: Number(val)
-      }));
+    // Prepare payload (accounting for both raw and prep units)
+    const inputs = vendorItems
+      .map(item => {
+        const { total, hasEntered } = computeTotalStock(item);
+        if (!hasEntered) return null;
+        return {
+          itemId: item.itemId,
+          currentStock: total
+        };
+      })
+      .filter((entry): entry is { itemId: string; currentStock: number } => entry !== null);
 
     if (inputs.length === 0) {
       setError("Please enter current stock for at least one item.");
@@ -287,36 +323,122 @@ export default function StockAssessmentPage() {
                 </tr>
               </thead>
               <tbody>
-                {vendorItems.map((item, idx) => (
-                  <tr key={item.id} style={{ borderBottom: idx === vendorItems.length - 1 ? "none" : "1px solid var(--border-color)" }}>
-                    <td style={{ padding: "12px" }}>{item.itemName}</td>
-                    <td style={{ padding: "12px" }}>{item.unitOfMeasure}</td>
-                    <td style={{ padding: "12px", textAlign: "center", color: "var(--text-muted)" }}>{Number(item.minimumStock || item.baseMinStock || 0)}</td>
-                    <td style={{ padding: "12px", textAlign: "center", color: "var(--text-muted)" }}>{Number(item.normalQuantity || item.targetStock || 0)}</td>
-                    <td style={{ padding: "12px", textAlign: "center" }}>
-                      <input 
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={stockInputs[item.itemId] || ""}
-                        onChange={(e) => handleStockChange(item.itemId, e.target.value)}
-                        placeholder="Qty"
-                        style={{ width: "120px", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", textAlign: "center" }}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {vendorItems.map((item, idx) => {
+                  const hasPrep = Boolean(item.prepUnit && item.prepUnitConversion && Number(item.prepUnitConversion) > 0);
+                  const { total, hasEntered } = computeTotalStock(item);
+                  const dayOfWeek = new Date().getDay();
+                  const activeSurgePct = dayOfWeek === 5 ? Number(item.fridaySurge || 0) : dayOfWeek === 6 ? Number(item.saturdaySurge || 0) : 0;
+                  const surgeMult = activeSurgePct > 0 ? 1 + (activeSurgePct / 100) : 1;
+                  const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
+                  const min = Number((baseMin * surgeMult).toFixed(2));
+                  const baseTarget = Number(item.normalQuantity || item.targetStock || 0);
+                  const effectiveTarget = Number((baseTarget * surgeMult).toFixed(2));
+                  const isUnder = hasEntered && total < min;
+
+                  return (
+                    <tr key={item.id} style={{ borderBottom: idx === vendorItems.length - 1 ? "none" : "1px solid var(--border-color)", backgroundColor: isUnder ? "#fff1f2" : undefined }}>
+                      <td style={{ padding: "12px" }}>
+                        <div style={{ fontWeight: 600, color: "var(--kalki-text-primary)" }}>{item.itemName}</div>
+                        {activeSurgePct > 0 && (
+                          <div style={{ marginTop: "2px" }}>
+                            <span style={{ fontSize: "10px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                              ⚡ +{activeSurgePct}% {dayOfWeek === 5 ? 'Fri' : 'Sat'} Surge Active
+                            </span>
+                          </div>
+                        )}
+                        {hasPrep && (
+                          <div style={{ fontSize: "11px", color: "#0284c7", marginTop: "2px" }}>
+                            1 {item.prepUnit} = {item.prepUnitConversion} {item.unitOfMeasure}
+                          </div>
+                        )}
+                        {item.roundToWhole && (
+                          <div style={{ fontSize: "10px", color: "#7c3aed", fontWeight: 600, marginTop: "2px" }}>
+                            ⚡ Rounds up to full {item.unitOfMeasure}
+                          </div>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px" }}>
+                        <div>{item.unitOfMeasure}</div>
+                        {item.roundToWhole && (
+                          <span style={{ fontSize: "10px", background: "#f3e8ff", color: "#7c3aed", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>Whole Only</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center", color: activeSurgePct > 0 ? "#b45309" : "var(--text-muted)", fontWeight: activeSurgePct > 0 ? 600 : "normal" }}>
+                        {min}
+                        {activeSurgePct > 0 && <div style={{ fontSize: "10px", color: "#94a3b8" }}>(Base {baseMin})</div>}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center", color: activeSurgePct > 0 ? "#b45309" : "var(--text-muted)", fontWeight: activeSurgePct > 0 ? 600 : "normal" }}>
+                        {effectiveTarget}
+                        {activeSurgePct > 0 && <div style={{ fontSize: "10px", color: "#94a3b8" }}>(Base {baseTarget})</div>}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "center" }}>
+                        {hasPrep ? (
+                          <div style={{ display: "inline-flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={stockInputs[item.itemId] || ""}
+                                  onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                                  placeholder="0"
+                                  style={{ width: "85px", padding: "6px 8px", borderRadius: "4px", border: "1px solid var(--border-color)", textAlign: "center", fontSize: "13px" }}
+                                />
+                                <span style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>Raw ({item.unitOfMeasure})</span>
+                              </div>
+                              <span style={{ fontWeight: 700, color: "#94a3b8" }}>+</span>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                <input 
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={prepInputs[item.itemId] || ""}
+                                  onChange={(e) => handlePrepChange(item.itemId, e.target.value)}
+                                  placeholder="0"
+                                  style={{ width: "85px", padding: "6px 8px", borderRadius: "4px", border: "1px solid #38bdf8", backgroundColor: "#f0f9ff", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "#0369a1" }}
+                                />
+                                <span style={{ fontSize: "10px", color: "#0369a1", marginTop: "2px" }}>Prepped ({item.prepUnit})</span>
+                              </div>
+                            </div>
+                            {hasEntered && (
+                              <div style={{ fontSize: "11px", fontWeight: 700, color: isUnder ? "#dc2626" : "#15803d", backgroundColor: isUnder ? "#fee2e2" : "#f0fdf4", padding: "2px 8px", borderRadius: "12px", border: `1px solid ${isUnder ? "#fca5a5" : "#bbf7d0"}` }}>
+                                Total: {total} {item.unitOfMeasure}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <input 
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={stockInputs[item.itemId] || ""}
+                            onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                            placeholder="Qty"
+                            style={{ width: "120px", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", textAlign: "center" }}
+                          />
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
             {/* Mobile Card View (<= 768px) */}
             <div className="mobile-only" style={{ padding: "12px" }}>
               {vendorItems.map((item) => {
-                const currentVal = stockInputs[item.itemId] ?? "";
-                const numVal = parseFloat(currentVal) || 0;
-                const min = Number(item.minimumStock || item.baseMinStock || 0);
-                const target = Number(item.normalQuantity || item.targetStock || 0);
-                const isUnderStock = currentVal !== "" && numVal < min;
+                const hasPrep = Boolean(item.prepUnit && item.prepUnitConversion && Number(item.prepUnitConversion) > 0);
+                const { total, hasEntered } = computeTotalStock(item);
+                const rawVal = parseFloat(stockInputs[item.itemId] || "0") || 0;
+                const dayOfWeek = new Date().getDay();
+                const activeSurgePct = dayOfWeek === 5 ? Number(item.fridaySurge || 0) : dayOfWeek === 6 ? Number(item.saturdaySurge || 0) : 0;
+                const surgeMult = activeSurgePct > 0 ? 1 + (activeSurgePct / 100) : 1;
+                const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
+                const min = Number((baseMin * surgeMult).toFixed(2));
+                const baseTarget = Number(item.normalQuantity || item.targetStock || 0);
+                const target = Number((baseTarget * surgeMult).toFixed(2));
+                const isUnderStock = hasEntered && total < min;
 
                 return (
                   <div
@@ -325,12 +447,24 @@ export default function StockAssessmentPage() {
                     style={{
                       borderLeft: isUnderStock ? "4px solid #ef4444" : "4px solid #3b82f6",
                       marginBottom: "10px",
+                      backgroundColor: isUnderStock ? "#fff5f5" : "#ffffff",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{item.itemName}</div>
-                        <div style={{ fontSize: "12px", color: "#64748b" }}>Unit: {item.unitOfMeasure}</div>
+                        {activeSurgePct > 0 && (
+                          <div style={{ marginTop: "2px" }}>
+                            <span style={{ fontSize: "10px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                              ⚡ +{activeSurgePct}% {dayOfWeek === 5 ? 'Fri' : 'Sat'} Surge
+                            </span>
+                          </div>
+                        )}
+                        <div style={{ fontSize: "12px", color: "#64748b" }}>
+                          Unit: {item.unitOfMeasure}
+                          {hasPrep && ` • 1 ${item.prepUnit} = ${item.prepUnitConversion} ${item.unitOfMeasure}`}
+                          {item.roundToWhole && ` • Full ${item.unitOfMeasure} only`}
+                        </div>
                       </div>
                       <span
                         style={{
@@ -347,69 +481,133 @@ export default function StockAssessmentPage() {
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#f8fafc", padding: "6px 10px", borderRadius: "6px", fontSize: "12px", marginBottom: "10px" }}>
-                      <div><span style={{ color: "#64748b" }}>Min Reorder: </span><strong>{min}</strong></div>
-                      <div><span style={{ color: "#64748b" }}>Target Stock: </span><strong>{target}</strong></div>
-                    </div>
-
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Counted Stock:</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = Math.max(0, numVal - 1);
-                            handleStockChange(item.itemId, next.toString());
-                          }}
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            border: "1px solid #cbd5e1",
-                            background: "#ffffff",
-                            borderRadius: "6px",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={stockInputs[item.itemId] || ""}
-                          onChange={(e) => handleStockChange(item.itemId, e.target.value)}
-                          placeholder="0"
-                          style={{
-                            width: "70px",
-                            height: "32px",
-                            padding: "4px 8px",
-                            borderRadius: "6px",
-                            border: "1px solid var(--border-color)",
-                            textAlign: "center",
-                            fontSize: "14px",
-                            fontWeight: 700,
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const next = numVal + 1;
-                            handleStockChange(item.itemId, next.toString());
-                          }}
-                          style={{
-                            width: "32px",
-                            height: "32px",
-                            border: "1px solid #cbd5e1",
-                            background: "#ffffff",
-                            borderRadius: "6px",
-                            fontWeight: 700,
-                            cursor: "pointer",
-                          }}
-                        >
-                          +
-                        </button>
+                      <div>
+                        <span style={{ color: "#64748b" }}>Min Reorder: </span>
+                        <strong>{min}</strong> {activeSurgePct > 0 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>(Base {baseMin})</span>}
+                      </div>
+                      <div>
+                        <span style={{ color: "#64748b" }}>Target Stock: </span>
+                        <strong>{target}</strong> {activeSurgePct > 0 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>(Base {baseTarget})</span>}
                       </div>
                     </div>
+
+                    {hasPrep ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px", backgroundColor: "#f8fafc", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Raw Meat ({item.unitOfMeasure}):</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={stockInputs[item.itemId] || ""}
+                            onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                            placeholder="0"
+                            style={{
+                              width: "90px",
+                              height: "32px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color)",
+                              textAlign: "center",
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              backgroundColor: "#ffffff",
+                            }}
+                          />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#0369a1" }}>Prepped / Half-boiled ({item.prepUnit}):</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={prepInputs[item.itemId] || ""}
+                            onChange={(e) => handlePrepChange(item.itemId, e.target.value)}
+                            placeholder="0"
+                            style={{
+                              width: "90px",
+                              height: "32px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              border: "1px solid #38bdf8",
+                              textAlign: "center",
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              backgroundColor: "#f0f9ff",
+                              color: "#0369a1",
+                            }}
+                          />
+                        </div>
+                        {hasEntered && (
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "6px", borderTop: "1px dashed #cbd5e1" }}>
+                            <span style={{ fontSize: "11px", color: "#64748b" }}>Total Equivalent Stock:</span>
+                            <span style={{ fontSize: "13px", fontWeight: 800, color: isUnderStock ? "#dc2626" : "#15803d" }}>
+                              {total} {item.unitOfMeasure}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Counted Stock:</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = Math.max(0, rawVal - 1);
+                              handleStockChange(item.itemId, next.toString());
+                            }}
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              border: "1px solid #cbd5e1",
+                              background: "#ffffff",
+                              borderRadius: "6px",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={stockInputs[item.itemId] || ""}
+                            onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                            placeholder="0"
+                            style={{
+                              width: "70px",
+                              height: "32px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              border: "1px solid var(--border-color)",
+                              textAlign: "center",
+                              fontSize: "14px",
+                              fontWeight: 700,
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = rawVal + 1;
+                              handleStockChange(item.itemId, next.toString());
+                            }}
+                            style={{
+                              width: "32px",
+                              height: "32px",
+                              border: "1px solid #cbd5e1",
+                              background: "#ffffff",
+                              borderRadius: "6px",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

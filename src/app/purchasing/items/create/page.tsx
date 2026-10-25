@@ -32,6 +32,9 @@ export default function CreateItemPage() {
     reorderQuantity: '',
     purchaseUnit: '',
     purchaseUnitConversion: '',
+    prepUnit: '',
+    prepUnitConversion: '',
+    roundToWhole: false,
     // Hidden fields with defaults for API requirements
     orderFrequency: { daily: true, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
     customIntervalDays: '',
@@ -128,6 +131,8 @@ export default function CreateItemPage() {
           reorderQuantity: formData.replenishmentStrategy === 'fixed' ? Number(formData.reorderQuantity) : undefined,
           purchaseUnit: formData.purchaseUnit || undefined,
           purchaseUnitConversion: formData.purchaseUnitConversion ? Number(formData.purchaseUnitConversion) : undefined,
+          prepUnit: formData.prepUnit || undefined,
+          prepUnitConversion: formData.prepUnitConversion ? Number(formData.prepUnitConversion) : undefined,
           orderFrequency: {
             ...formData.orderFrequency,
             customIntervalDays: formData.customIntervalDays ? Number(formData.customIntervalDays) : undefined
@@ -432,21 +437,96 @@ export default function CreateItemPage() {
           </div>
         </KalkiSection>
 
+        <KalkiSection title="4.5 PREP / SECONDARY UNIT (OPTIONAL FOR MEATS & PRE-PREPPED ITEMS)" icon="🍗">
+          <p style={{ color: 'var(--kalki-text-secondary)', fontSize: '0.85rem', marginBottom: '1rem', marginTop: '-0.25rem' }}>
+            Configure only if kitchen pre-preps this item into standard portions (e.g., half-boiled chicken/mutton in Cups or Portions). 
+            Leave blank for grocery and vegetables.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <KalkiSelect
+              label="Kitchen Prep Unit (Optional)"
+              value={formData.prepUnit}
+              onChange={e => setFormData(p => ({ ...p, prepUnit: e.target.value }))}
+            >
+              <option value="">No Prep Unit (Base Unit only)</option>
+              <option value="Cup">Cup</option>
+              <option value="Portion">Portion</option>
+              <option value="Bowl">Bowl</option>
+              <option value="Plate">Plate</option>
+              <option value="Tub">Tub</option>
+              <option value="Piece">Piece</option>
+            </KalkiSelect>
+            <KalkiInput 
+              label={`Base ${formData.unit} per 1 ${formData.prepUnit || 'Prep Unit'}`}
+              type="number" 
+              step="any"
+              placeholder="e.g. 0.200 (for 200g per cup)"
+              value={formData.prepUnitConversion} 
+              onChange={e => setFormData(p => ({ ...p, prepUnitConversion: e.target.value }))} 
+            />
+          </div>
+
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--kalki-border)' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={formData.roundToWhole} 
+                onChange={e => setFormData(p => ({ ...p, roundToWhole: e.target.checked }))}
+                style={{ width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--kalki-foreground)' }}>
+                  Round order quantity up to next full {formData.unit || 'unit'} (No fractions in PO)
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--kalki-foreground-muted)', marginTop: '2px' }}>
+                  When calculated shortfall is fractional (e.g. 0.600 {formData.unit || 'Kg'}), round up to the next full number (1 {formData.unit || 'Kg'}) when generating Purchase Orders.
+                </div>
+              </div>
+            </label>
+          </div>
+        </KalkiSection>
+
         <KalkiSection title="5. DEMAND SURGE MULTIPLIERS (Overrides)" icon="📈">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="kalki-field">
-              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input type="checkbox" defaultChecked />
+              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={Number(formData.fridaySurge) > 0} 
+                  onChange={e => setFormData(p => ({ ...p, fridaySurge: e.target.checked ? 25 : 0 }))} 
+                />
                 Friday Night Order Surge (%)
               </label>
-              <input className="kalki-input" type="number" value={formData.fridaySurge} onChange={e => setFormData(p => ({ ...p, fridaySurge: Number(e.target.value) }))} />
+              <input 
+                className="kalki-input" 
+                type="number" 
+                min="0"
+                step="1"
+                disabled={Number(formData.fridaySurge) <= 0}
+                style={{ opacity: Number(formData.fridaySurge) <= 0 ? 0.6 : 1 }}
+                value={formData.fridaySurge} 
+                onChange={e => setFormData(p => ({ ...p, fridaySurge: Number(e.target.value) }))} 
+              />
             </div>
             <div className="kalki-field">
-              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input type="checkbox" defaultChecked />
+              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={Number(formData.saturdaySurge) > 0} 
+                  onChange={e => setFormData(p => ({ ...p, saturdaySurge: e.target.checked ? 30 : 0 }))} 
+                />
                 Saturday Night Order Surge (%)
               </label>
-              <input className="kalki-input" type="number" value={formData.saturdaySurge} onChange={e => setFormData(p => ({ ...p, saturdaySurge: Number(e.target.value) }))} />
+              <input 
+                className="kalki-input" 
+                type="number" 
+                min="0"
+                step="1"
+                disabled={Number(formData.saturdaySurge) <= 0}
+                style={{ opacity: Number(formData.saturdaySurge) <= 0 ? 0.6 : 1 }}
+                value={formData.saturdaySurge} 
+                onChange={e => setFormData(p => ({ ...p, saturdaySurge: Number(e.target.value) }))} 
+              />
             </div>
           </div>
         </KalkiSection>

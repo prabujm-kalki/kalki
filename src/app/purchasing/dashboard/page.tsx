@@ -183,7 +183,6 @@ export default function PurchaseDashboardPage() {
         const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
 
         setReviewingPo(null);
-        await loadData();
 
         if (action === "accept" && (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && approvedPo?.publicToken) {
           const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
@@ -207,6 +206,9 @@ export default function PurchaseDashboardPage() {
             poId: approvedPo.id,
           });
         }
+
+        // Refresh dashboard data quietly without disrupting modal display
+        loadData();
       } else {
         const errData = await res.json().catch(() => ({}));
         alert(errData.error || `Failed to ${action} PO.`);

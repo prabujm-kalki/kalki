@@ -80,12 +80,66 @@ export default function CreatePOPage() {
       setVendorItems(res.items.map(i => ({ 
         ...i, 
         orderedQuantity: 0, 
-        availableStock: '', // Used for routine mode
+        availableStock: '', // Used for routine mode (raw)
+        availablePrepStock: '', // Used for routine mode (prep/half-boiled)
         calculatedQty: '', // Used for manual override
         unitRate: i.lastRate || 0 
       })));
     }).catch(console.error);
   }, [selected, selectedVendorId]);
+
+  function recalcRoutineQty(itemsList: any[], index: number) {
+    const item = itemsList[index];
+    const rawStr = item.availableStock ?? '';
+    const prepStr = item.availablePrepStock ?? '';
+
+    if (rawStr === '' && prepStr === '') {
+      item.calculatedQty = '';
+      return;
+    }
+
+    const rawVal = parseFloat(rawStr) || 0;
+    const prepVal = parseFloat(prepStr) || 0;
+    const prepRatio = Number(item.prepUnitConversion) || 0;
+    const avail = rawVal + (prepVal * prepRatio);
+
+    // Demand Surge Multipliers: Check if today is Friday (5) or Saturday (6)
+    const dayOfWeek = new Date().getDay();
+    let surgePct = 0;
+    if (dayOfWeek === 5) {
+      surgePct = Number(item.fridaySurge || 0);
+    } else if (dayOfWeek === 6) {
+      surgePct = Number(item.saturdaySurge || 0);
+    }
+    const surgeMultiplier = surgePct > 0 ? 1 + (surgePct / 100) : 1;
+
+    const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
+    const minStock = Number((baseMin * surgeMultiplier).toFixed(3));
+    if (avail <= minStock) {
+      if (item.replenishmentStrategy === 'fixed') {
+        let reorderQty = Number(item.reorderQuantity || 1) * surgeMultiplier;
+        if (item.purchaseUnit && item.purchaseUnit !== item.unitOfMeasure && item.purchaseUnitConversion && item.purchaseUnitConversion > 0) {
+          reorderQty = Number((reorderQty / item.purchaseUnitConversion).toFixed(3));
+        }
+        if (item.roundToWhole && reorderQty > 0) {
+          reorderQty = Math.ceil(reorderQty);
+        }
+        item.calculatedQty = Number(reorderQty.toFixed(3));
+      } else {
+        const target = Number(item.normalQuantity || item.targetStock || 0) * surgeMultiplier;
+        let shortfall = Math.max(0, target - avail);
+        if (item.purchaseUnit && item.purchaseUnit !== item.unitOfMeasure && item.purchaseUnitConversion && item.purchaseUnitConversion > 0) {
+          shortfall = Number((shortfall / item.purchaseUnitConversion).toFixed(3));
+        }
+        if (item.roundToWhole && shortfall > 0) {
+          shortfall = Math.ceil(shortfall);
+        }
+        item.calculatedQty = Number(shortfall.toFixed(3));
+      }
+    } else {
+      item.calculatedQty = 0;
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -332,11 +386,25 @@ export default function CreatePOPage() {
                 <tbody>
                   {vendorItems.map((item, index) => {
                     const purchaseUnitDisplay = item.purchaseUnit ? ` ${item.purchaseUnit}` : '';
+                    const dayOfWeek = new Date().getDay();
+                    const activeSurgePct = dayOfWeek === 5 ? Number(item.fridaySurge || 0) : dayOfWeek === 6 ? Number(item.saturdaySurge || 0) : 0;
+                    const surgeMult = activeSurgePct > 0 ? 1 + (activeSurgePct / 100) : 1;
+                    const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
+                    const effectiveMin = Number((baseMin * surgeMult).toFixed(2));
+                    const baseTarget = Number(item.normalQuantity || item.targetStock || 0);
+                    const effectiveTarget = Number((baseTarget * surgeMult).toFixed(2));
                     
                     return (
                       <tr key={item.id}>
                         <td>
                           <span style={{ fontWeight: 600, color: "var(--kalki-text-primary)" }}>{item.itemName}</span>
+                          {activeSurgePct > 0 && (
+                            <div style={{ marginTop: '2px' }}>
+                              <span style={{ fontSize: '10px', backgroundColor: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>
+                                ⚡ +{activeSurgePct}% {dayOfWeek === 5 ? 'Fri' : 'Sat'} Surge
+                              </span>
+                            </div>
+                          )}
                         </td>
                         <td>
                           <span style={{ padding: "2px 8px", backgroundColor: "#f1f5f9", borderRadius: "4px", fontSize: "12px", fontWeight: 500, color: "var(--kalki-text-secondary)" }}>
@@ -346,54 +414,72 @@ export default function CreatePOPage() {
                         {isRoutineMode ? (
                           <>
                             <td style={{ fontSize: '12px', color: 'var(--kalki-text-secondary)' }}>
-                              Min: {item.minimumStock || item.baseMinStock || 0} {item.unitOfMeasure} <br/>
+                              Min: {effectiveMin} {item.unitOfMeasure} {activeSurgePct > 0 && <span style={{ color: '#d97706', fontSize: '10px' }}>(Base {baseMin})</span>} <br/>
                               {item.replenishmentStrategy === 'fixed' 
-                                ? `Reorder: ${item.reorderQuantity || 1}${purchaseUnitDisplay}`
-                                : `Target: ${item.normalQuantity || item.targetStock || 0} ${item.unitOfMeasure}`
+                                ? `Reorder: ${Number((Number(item.reorderQuantity || 1) * surgeMult).toFixed(2))}${purchaseUnitDisplay}`
+                                : `Target: ${effectiveTarget} ${item.unitOfMeasure}`
                               }
                             </td>
                             <td>
-                              <input 
-                                type="number" 
-                                min="0" 
-                                step="any"
-                                placeholder={`In ${item.unitOfMeasure}`}
-                                value={item.availableStock} 
-                                className="kalki-input"
-                                onChange={e => {
-                                  const next = [...vendorItems];
-                                  const val = e.target.value;
-                                  next[index].availableStock = val;
-                                  
-                                  if (val === '') {
-                                    next[index].calculatedQty = '';
-                                  } else {
-                                    const avail = Number(val);
-                                    const minStock = Number(item.minimumStock || item.baseMinStock || 0);
-                                    if (avail <= minStock) {
-                                      if (item.replenishmentStrategy === 'fixed') {
-                                        let reorderQty = Number(item.reorderQuantity || 1);
-                                        if (item.purchaseUnit && item.purchaseUnit !== item.unitOfMeasure && item.purchaseUnitConversion && item.purchaseUnitConversion > 0) {
-                                          reorderQty = Number((reorderQty / item.purchaseUnitConversion).toFixed(3));
-                                        }
-                                        next[index].calculatedQty = reorderQty;
-                                      } else {
-                                        const target = Number(item.normalQuantity || item.targetStock || 0);
-                                        let shortfall = Math.max(0, target - avail);
-                                        if (item.purchaseUnit && item.purchaseUnit !== item.unitOfMeasure && item.purchaseUnitConversion && item.purchaseUnitConversion > 0) {
-                                          shortfall = Number((shortfall / item.purchaseUnitConversion).toFixed(3));
-                                        }
-                                        next[index].calculatedQty = shortfall;
-                                      }
-                                    } else {
-                                      next[index].calculatedQty = 0;
-                                    }
-                                  }
-                                  
-                                  setVendorItems(next);
-                                }} 
-                                style={{ width: "120px", height: "36px", fontSize: "13px" }}
-                              />
+                              {item.prepUnit && item.prepUnitConversion && Number(item.prepUnitConversion) > 0 ? (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <div style={{ display: "flex", flexDirection: "column" }}>
+                                      <input 
+                                        type="number" 
+                                        min="0" 
+                                        step="any"
+                                        placeholder="0"
+                                        value={item.availableStock} 
+                                        className="kalki-input"
+                                        onChange={e => {
+                                          const next = [...vendorItems];
+                                          next[index].availableStock = e.target.value;
+                                          recalcRoutineQty(next, index);
+                                          setVendorItems(next);
+                                        }} 
+                                        style={{ width: "80px", height: "32px", fontSize: "12px", textAlign: "center" }}
+                                      />
+                                      <span style={{ fontSize: "10px", color: "var(--kalki-text-secondary)" }}>Raw ({item.unitOfMeasure})</span>
+                                    </div>
+                                    <span style={{ fontWeight: 700, color: "#94a3b8" }}>+</span>
+                                    <div style={{ display: "flex", flexDirection: "column" }}>
+                                      <input 
+                                        type="number" 
+                                        min="0" 
+                                        step="any"
+                                        placeholder="0"
+                                        value={item.availablePrepStock} 
+                                        className="kalki-input"
+                                        onChange={e => {
+                                          const next = [...vendorItems];
+                                          next[index].availablePrepStock = e.target.value;
+                                          recalcRoutineQty(next, index);
+                                          setVendorItems(next);
+                                        }} 
+                                        style={{ width: "80px", height: "32px", fontSize: "12px", textAlign: "center", backgroundColor: "#f0f9ff", borderColor: "#38bdf8", color: "#0369a1" }}
+                                      />
+                                      <span style={{ fontSize: "10px", color: "#0369a1" }}>Prep ({item.prepUnit})</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <input 
+                                  type="number" 
+                                  min="0" 
+                                  step="any"
+                                  placeholder={`In ${item.unitOfMeasure}`}
+                                  value={item.availableStock} 
+                                  className="kalki-input"
+                                  onChange={e => {
+                                    const next = [...vendorItems];
+                                    next[index].availableStock = e.target.value;
+                                    recalcRoutineQty(next, index);
+                                    setVendorItems(next);
+                                  }} 
+                                  style={{ width: "120px", height: "36px", fontSize: "13px" }}
+                                />
+                              )}
                             </td>
                             <td>
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>

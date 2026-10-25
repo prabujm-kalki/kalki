@@ -1,4 +1,4 @@
-﻿"use server";
+"use server";
 
 import { db } from "@/db";
 import { shiftDefinitions } from "@/db/schema";
@@ -28,6 +28,9 @@ export async function saveShift(payload: {
   startTime: string;
   endTime: string;
   gracePeriodMinutes: number;
+  maxMonthlyLateOccurrences?: number;
+  latePenaltyType?: string;
+  extremeLateThresholdMinutes?: number;
   minHoursHalfDay: string;
   minHoursFullDay: string;
   restBreakMinutes: number;
@@ -45,6 +48,9 @@ export async function saveShift(payload: {
         startTime: payload.startTime,
         endTime: payload.endTime,
         gracePeriodMinutes: payload.gracePeriodMinutes,
+        maxMonthlyLateOccurrences: payload.maxMonthlyLateOccurrences ?? 3,
+        latePenaltyType: payload.latePenaltyType ?? 'HALF_DAY_DEDUCTION',
+        extremeLateThresholdMinutes: payload.extremeLateThresholdMinutes ?? 120,
         minHoursHalfDay: payload.minHoursHalfDay,
         minHoursFullDay: payload.minHoursFullDay,
         restBreakMinutes: payload.restBreakMinutes,
@@ -61,6 +67,9 @@ export async function saveShift(payload: {
       startTime: payload.startTime,
       endTime: payload.endTime,
       gracePeriodMinutes: payload.gracePeriodMinutes,
+      maxMonthlyLateOccurrences: payload.maxMonthlyLateOccurrences ?? 3,
+      latePenaltyType: payload.latePenaltyType ?? 'HALF_DAY_DEDUCTION',
+      extremeLateThresholdMinutes: payload.extremeLateThresholdMinutes ?? 120,
       minHoursHalfDay: payload.minHoursHalfDay,
       minHoursFullDay: payload.minHoursFullDay,
       restBreakMinutes: payload.restBreakMinutes,

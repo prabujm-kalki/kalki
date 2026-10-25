@@ -45,10 +45,22 @@ export async function POST(req: NextRequest) {
       const config = row.vendorItem;
       const masterItem = row.item;
 
+      // Determine demand surge multiplier for Friday (5) or Saturday (6)
+      const dayOfWeek = new Date().getDay();
+      let surgePct = 0;
+      if (dayOfWeek === 5) {
+        surgePct = Number(masterItem.fridaySurge || 0);
+      } else if (dayOfWeek === 6) {
+        surgePct = Number(masterItem.saturdaySurge || 0);
+      }
+      const surgeMultiplier = surgePct > 0 ? 1 + (surgePct / 100) : 1;
+
       const currentStock = Number(input.currentStock);
-      // Fallbacks: Use vendor setting, or fallback to master item target/base min stock
-      const minStock = Number(config.minimumStock || masterItem.baseMinStock || 0);
-      const normalStock = Number(config.normalQuantity || masterItem.targetStock || 0);
+      // Fallbacks: Use vendor setting, or fallback to master item target/base min stock, boosted by surge multiplier if applicable
+      const baseMin = Number(config.minimumStock || masterItem.baseMinStock || 0);
+      const minStock = Number((baseMin * surgeMultiplier).toFixed(3));
+      const baseNormal = Number(config.normalQuantity || masterItem.targetStock || 0);
+      const normalStock = Number((baseNormal * surgeMultiplier).toFixed(3));
       
       // Critical fix: If vendor last rate is missing, fallback to master item's currentPrice
       const lastRate = Number(config.lastRate || masterItem.currentPrice || 0);
@@ -56,11 +68,16 @@ export async function POST(req: NextRequest) {
       if (currentStock <= minStock) {
         let orderQuantity = 0;
         if (masterItem.replenishmentStrategy === 'fixed') {
-          // Fixed Bulk: just order the strict fixed amount
-          orderQuantity = Number(masterItem.reorderQuantity || 1);
+          // Fixed Bulk: order the fixed reorder quantity boosted by surge multiplier
+          const baseReorder = Number(masterItem.reorderQuantity || 1);
+          orderQuantity = Number((baseReorder * surgeMultiplier).toFixed(3));
         } else {
-          // Top-Up: order exact amount needed to reach target stock
-          orderQuantity = Math.max(0, normalStock - currentStock);
+          // Top-Up: order exact amount needed to reach surged target stock
+          orderQuantity = Math.max(0, Number((normalStock - currentStock).toFixed(3)));
+        }
+
+        if (masterItem.roundToWhole && orderQuantity > 0) {
+          orderQuantity = Math.ceil(orderQuantity);
         }
 
         if (orderQuantity > 0) {

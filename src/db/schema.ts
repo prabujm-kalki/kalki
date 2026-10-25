@@ -1342,6 +1342,9 @@ export const items = pgTable(
     unit: text("unit").notNull(),
     purchaseUnit: text("purchase_unit"),
     purchaseUnitConversion: numeric("purchase_unit_conversion"),
+    prepUnit: text("prep_unit"),
+    prepUnitConversion: numeric("prep_unit_conversion"),
+    roundToWhole: boolean("round_to_whole").notNull().default(false),
     baseMinStock: numeric("base_min_stock").notNull(),
     targetStock: numeric("target_stock"),
     replenishmentStrategy: text("replenishment_strategy").notNull().default("top_up"),
@@ -2617,6 +2620,9 @@ export const shiftDefinitions = pgTable("shift_definitions", {
   startTime: time("start_time").notNull(),
   endTime: time("end_time").notNull(),
   gracePeriodMinutes: integer("grace_period_minutes").default(15).notNull(),
+  maxMonthlyLateOccurrences: integer("max_monthly_late_occurrences").default(3).notNull(),
+  latePenaltyType: varchar("late_penalty_type", { length: 50 }).default("HALF_DAY_DEDUCTION").notNull(),
+  extremeLateThresholdMinutes: integer("extreme_late_threshold_minutes").default(120).notNull(),
   isFlexible: boolean("is_flexible").default(false).notNull(),
   minHoursHalfDay: decimal("min_hours_half_day", { precision: 4, scale: 2 })
     .default("4.00")

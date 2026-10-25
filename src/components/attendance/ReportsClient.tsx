@@ -28,6 +28,7 @@ export default function ReportsClient({
   
   const [reportType, setReportType] = useState<ReportType>("RAW");
   const [reportData, setReportData] = useState<any[] | null>(null);
+  const [approvedLeaves, setApprovedLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -57,7 +58,13 @@ export default function ReportsClient({
         organizationId: selected?.organizationId,
         locationId: selected?.locationId
       });
-      setReportData(data);
+      if (data && typeof data === "object" && "punches" in data) {
+        setReportData(data.punches);
+        setApprovedLeaves(data.approvedLeaves || []);
+      } else {
+        setReportData(Array.isArray(data) ? data : []);
+        setApprovedLeaves([]);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to generate report");
     } finally {
@@ -105,73 +112,89 @@ export default function ReportsClient({
       });
 
       if (reportType === "DETAILED") {
-        const headers = ["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT", "Status / Anomalies"];
+        const headers = ["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT", "Status", "Remarks / Anomalies"];
         const rows: string[][] = [];
         filteredEmployees.forEach(emp => {
           dates.forEach(d => {
             const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
-            if (dayPunches.length > 0) {
-              const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
-              const bi = dayPunches.find(p => p.punchType === "BREAK_IN");
-              const bo = dayPunches.find(p => p.punchType === "BREAK_OUT");
-              const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
-              
-              const formatTime = (p: any) => p ? new Date(p.punchTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-";
-              
-              // Anomaly calculation for CSV
-              let anomalies = [];
-              let status = "PRESENT";
-              
-              if (pi && pi.shiftStartTime) {
-                const punchTime = new Date(pi.punchTimestamp);
-                const shiftStartParts = pi.shiftStartTime.split(":");
-                const expectedStart = new Date(punchTime);
-                expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
-                
-                const graceMs = (pi.shiftGracePeriod || 15) * 60 * 1000;
-                if (punchTime.getTime() > expectedStart.getTime() + graceMs) {
-                  anomalies.push("LATE IN");
-                  status = "LATE";
-                }
+            const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
 
-                if (po) {
-                  const punchOutTime = new Date(po.punchTimestamp);
-                  const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
-                  
-                  if (pi.shiftMinHoursHalfDay) {
-                    const minHalf = parseFloat(pi.shiftMinHoursHalfDay);
-                    const minFull = pi.shiftMinHoursFullDay ? parseFloat(pi.shiftMinHoursFullDay) : minHalf * 2;
-                    
-                    if (hoursWorked < minHalf) {
-                      anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
-                      status = "ABSENT";
-                    } else if (hoursWorked < minFull) {
-                      anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
-                      status = "HALF DAY";
-                    }
-                  }
-                } else {
-                  anomalies.push("MISSING OUT PUNCH");
-                }
-              } else if (dayPunches.length > 0) {
-                anomalies.push("NO SHIFT ASSIGNED");
+            if (leave) {
+              rows.push([emp.code, emp.name, d, "-", "-", "-", "-", "ON_LEAVE", `Approved Leave (${leave.leaveTypeName})`]);
+              return;
+            }
+
+            if (dayPunches.length === 0) {
+              rows.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT", "No Punch Recorded"]);
+              return;
+            }
+
+            const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
+            const bi = dayPunches.find(p => p.punchType === "BREAK_IN");
+            const bo = dayPunches.find(p => p.punchType === "BREAK_OUT");
+            const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
+            
+            const formatTime = (p: any) => p ? new Date(p.punchTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-";
+            
+            let anomalies = [];
+            let status = "PRESENT";
+            const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+            const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+            const shiftExtremeCutoff = pi?.shiftExtremeLateThresholdMinutes ?? emp.shiftExtremeLateThresholdMinutes ?? 120;
+            const minHalf = parseFloat(pi?.shiftMinHoursHalfDay || emp.shiftMinHoursHalfDay || "4.00");
+            const minFull = parseFloat(pi?.shiftMinHoursFullDay || emp.shiftMinHoursFullDay || "8.00");
+
+            if (pi && shiftStartTime) {
+              const punchTime = new Date(pi.punchTimestamp);
+              const shiftStartParts = shiftStartTime.split(":");
+              const expectedStart = new Date(punchTime);
+              expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+              
+              const graceMs = shiftGrace * 60 * 1000;
+              const isLate = punchTime.getTime() > expectedStart.getTime() + graceMs;
+              const extremeCutoffMs = shiftExtremeCutoff * 60 * 1000;
+              const isExtremeLate = punchTime.getTime() > expectedStart.getTime() + extremeCutoffMs;
+
+              if (isLate) {
+                anomalies.push("LATE IN");
+                status = "PRESENT_LATE";
               }
 
-              const anomalyText = anomalies.length > 0 ? `[${status}] ${anomalies.join(", ")}` : status;
-
-              rows.push([
-                emp.code,
-                emp.name,
-                d,
-                formatTime(pi),
-                formatTime(bi),
-                formatTime(bo),
-                formatTime(po),
-                anomalyText
-              ]);
-            } else if (employeeId) {
-              rows.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT"]);
+              if (po) {
+                const punchOutTime = new Date(po.punchTimestamp);
+                const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
+                
+                if (hoursWorked < minHalf) {
+                  anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                  status = "ABSENT";
+                } else if (hoursWorked < minFull || isExtremeLate) {
+                  if (isExtremeLate) anomalies.push(`EXTREME DELAY (>${shiftExtremeCutoff}m)`);
+                  else anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                  status = "HALF_DAY";
+                }
+              } else {
+                anomalies.push("MISSING OUT PUNCH");
+                status = "ABSENT";
+              }
+            } else {
+              anomalies.push(pi ? "NO SHIFT ASSIGNED" : "NO PUNCH");
+              if (!po) {
+                anomalies.push("MISSING OUT PUNCH");
+                status = "ABSENT";
+              }
             }
+
+            rows.push([
+              emp.code,
+              emp.name,
+              d,
+              formatTime(pi),
+              formatTime(bi),
+              formatTime(bo),
+              formatTime(po),
+              status,
+              anomalies.join(", ") || "On-Time"
+            ]);
           });
         });
         csvContent = [
@@ -179,21 +202,79 @@ export default function ReportsClient({
           ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
         ].join("\n");
       } else if (reportType === "SUMMARY") {
-        const headers = ["Employee Code", "Name", "Total Days", "Days Attended", "Days Missed"];
+        const headers = ["Employee Code", "Name", "Total Days", "Present (Full)", "Late Days", "Half Days", "Leaves", "Absent Days", "Attendance %"];
         const rows: string[][] = [];
         filteredEmployees.forEach(emp => {
-          let attended = 0;
+          let presentCount = 0;
+          let lateCount = 0;
+          let halfDayCount = 0;
+          let leaveCount = 0;
+          let absentCount = 0;
+
           dates.forEach(d => {
-            const hasPunch = reportData.some(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
-            if (hasPunch) attended++;
+            const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
+            if (leave) {
+              leaveCount++;
+              return;
+            }
+
+            const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
+            if (dayPunches.length === 0) {
+              absentCount++;
+              return;
+            }
+
+            const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
+            const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
+            if (!pi || !po) {
+              absentCount++;
+              return;
+            }
+
+            const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+            const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+            const shiftExtremeCutoff = pi?.shiftExtremeLateThresholdMinutes ?? emp.shiftExtremeLateThresholdMinutes ?? 120;
+            const minHalf = parseFloat(pi?.shiftMinHoursHalfDay || emp.shiftMinHoursHalfDay || "4.00");
+            const minFull = parseFloat(pi?.shiftMinHoursFullDay || emp.shiftMinHoursFullDay || "8.00");
+
+            const punchInTime = new Date(pi.punchTimestamp);
+            const punchOutTime = new Date(po.punchTimestamp);
+            const hoursWorked = (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60 * 60);
+
+            let isLate = false;
+            let isExtremeLate = false;
+            if (shiftStartTime) {
+              const shiftStartParts = shiftStartTime.split(":");
+              const expectedStart = new Date(punchInTime);
+              expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+              isLate = punchInTime.getTime() > expectedStart.getTime() + (shiftGrace * 60 * 1000);
+              isExtremeLate = punchInTime.getTime() > expectedStart.getTime() + (shiftExtremeCutoff * 60 * 1000);
+            }
+
+            if (hoursWorked < minHalf) {
+              absentCount++;
+            } else if (hoursWorked < minFull || isExtremeLate) {
+              halfDayCount++;
+              if (isLate) lateCount++;
+            } else {
+              presentCount++;
+              if (isLate) lateCount++;
+            }
           });
-          const missed = dates.length - attended;
+
+          const attendedEquivalent = presentCount + (halfDayCount * 0.5) + leaveCount;
+          const pct = dates.length > 0 ? `${Math.round((attendedEquivalent / dates.length) * 100)}%` : "0%";
+
           rows.push([
             emp.code,
             emp.name,
             dates.length.toString(),
-            attended.toString(),
-            missed.toString()
+            presentCount.toString(),
+            lateCount.toString(),
+            halfDayCount.toString(),
+            leaveCount.toString(),
+            absentCount.toString(),
+            pct
           ]);
         });
         csvContent = [
@@ -270,16 +351,26 @@ export default function ReportsClient({
         return true;
       });
 
-      const head = [["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT", "Status / Anomalies"]];
+      const head = [["Employee Code", "Name", "Date", "Punch IN", "Break IN", "Break OUT", "Punch OUT", "Status", "Remarks / Anomalies"]];
       const body: string[][] = [];
 
-      filteredEmployees.forEach((emp) => {
-        dates.forEach((d) => {
-          const dayPunches = reportData.filter(
-            (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
-          );
+        filteredEmployees.forEach((emp) => {
+          dates.forEach((d) => {
+            const dayPunches = reportData.filter(
+              (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
+            );
+            const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
 
-          if (dayPunches.length > 0) {
+            if (leave) {
+              body.push([emp.code, emp.name, d, "-", "-", "-", "-", "ON_LEAVE", `Approved Leave (${leave.leaveTypeName})`]);
+              return;
+            }
+
+            if (dayPunches.length === 0) {
+              body.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT", "No Punch Recorded"]);
+              return;
+            }
+
             const pi = [...dayPunches].reverse().find((p) => p.punchType === "PUNCH_IN");
             const bi = dayPunches.find((p) => p.punchType === "BREAK_IN");
             const bo = dayPunches.find((p) => p.punchType === "BREAK_OUT");
@@ -290,10 +381,15 @@ export default function ReportsClient({
 
             let anomalies = [];
             let status = "PRESENT";
+            const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+            const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+            const shiftExtremeCutoff = pi?.shiftExtremeLateThresholdMinutes ?? emp.shiftExtremeLateThresholdMinutes ?? 120;
+            const minHalf = parseFloat(pi?.shiftMinHoursHalfDay || emp.shiftMinHoursHalfDay || "4.00");
+            const minFull = parseFloat(pi?.shiftMinHoursFullDay || emp.shiftMinHoursFullDay || "8.00");
 
-            if (pi && pi.shiftStartTime) {
+            if (pi && shiftStartTime) {
               const punchTime = new Date(pi.punchTimestamp);
-              const shiftStartParts = pi.shiftStartTime.split(":");
+              const shiftStartParts = shiftStartTime.split(":");
               const expectedStart = new Date(punchTime);
               expectedStart.setHours(
                 parseInt(shiftStartParts[0]),
@@ -302,36 +398,39 @@ export default function ReportsClient({
                 0
               );
 
-              const graceMs = (pi.shiftGracePeriod || 15) * 60 * 1000;
-              if (punchTime.getTime() > expectedStart.getTime() + graceMs) {
+              const graceMs = shiftGrace * 60 * 1000;
+              const isLate = punchTime.getTime() > expectedStart.getTime() + graceMs;
+              const extremeCutoffMs = shiftExtremeCutoff * 60 * 1000;
+              const isExtremeLate = punchTime.getTime() > expectedStart.getTime() + extremeCutoffMs;
+
+              if (isLate) {
                 anomalies.push("LATE IN");
-                status = "LATE";
+                status = "PRESENT_LATE";
               }
 
               if (po) {
                 const punchOutTime = new Date(po.punchTimestamp);
                 const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
 
-                if (pi.shiftMinHoursHalfDay) {
-                  const minHalf = parseFloat(pi.shiftMinHoursHalfDay);
-                  const minFull = pi.shiftMinHoursFullDay ? parseFloat(pi.shiftMinHoursFullDay) : minHalf * 2;
-
-                  if (hoursWorked < minHalf) {
-                    anomalies.push(`SHORT (${hoursWorked.toFixed(1)}h)`);
-                    status = "ABSENT";
-                  } else if (hoursWorked < minFull) {
-                    anomalies.push(`SHORT (${hoursWorked.toFixed(1)}h)`);
-                    status = "HALF DAY";
-                  }
+                if (hoursWorked < minHalf) {
+                  anomalies.push(`SHORT (${hoursWorked.toFixed(1)}h)`);
+                  status = "ABSENT";
+                } else if (hoursWorked < minFull || isExtremeLate) {
+                  if (isExtremeLate) anomalies.push(`EXTREME DELAY (>${shiftExtremeCutoff}m)`);
+                  else anomalies.push(`SHORT (${hoursWorked.toFixed(1)}h)`);
+                  status = "HALF_DAY";
                 }
               } else {
                 anomalies.push("MISSING OUT PUNCH");
+                status = "ABSENT";
               }
-            } else if (dayPunches.length > 0) {
-              anomalies.push("NO SHIFT");
+            } else {
+              anomalies.push(pi ? "NO SHIFT" : "NO PUNCH");
+              if (!po) {
+                anomalies.push("MISSING OUT PUNCH");
+                status = "ABSENT";
+              }
             }
-
-            const anomalyText = anomalies.length > 0 ? `[${status}] ${anomalies.join(", ")}` : status;
 
             body.push([
               emp.code,
@@ -341,51 +440,111 @@ export default function ReportsClient({
               formatTime(bi),
               formatTime(bo),
               formatTime(po),
-              anomalyText,
+              status,
+              anomalies.join(", ") || "On-Time"
             ]);
-          } else if (employeeId) {
-            body.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT"]);
-          }
+          });
         });
-      });
 
-      autoTable(doc, {
-        startY: 30,
-        head,
-        body,
-        theme: "striped",
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-      });
-    } else if (reportType === "SUMMARY") {
-      const dates = getDatesInRange(startDate, endDate);
-      const filteredEmployees = employees.filter((e) => {
-        if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
-        if (e.locationId && e.locationId !== selected?.locationId) return false;
-        if (employeeId && e.id !== employeeId) return false;
-        if (departmentId && e.departmentId !== departmentId) return false;
-        return true;
-      });
-
-      const head = [["Employee Code", "Name", "Total Days", "Days Attended", "Days Missed", "Attendance %"]];
-      const body: string[][] = [];
-
-      filteredEmployees.forEach((emp) => {
-        let attended = 0;
-        dates.forEach((d) => {
-          const hasPunch = reportData.some(
-            (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
-          );
-          if (hasPunch) attended++;
+        autoTable(doc, {
+          startY: 30,
+          head,
+          body,
+          theme: "striped",
+          styles: { fontSize: 8, cellPadding: 2 },
+          headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
         });
-        const missed = dates.length - attended;
-        const pct = dates.length > 0 ? `${Math.round((attended / dates.length) * 100)}%` : "0%";
-        body.push([emp.code, emp.name, dates.length.toString(), attended.toString(), missed.toString(), pct]);
-      });
+      } else if (reportType === "SUMMARY") {
+        const dates = getDatesInRange(startDate, endDate);
+        const filteredEmployees = employees.filter((e) => {
+          if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
+          if (e.locationId && e.locationId !== selected?.locationId) return false;
+          if (employeeId && e.id !== employeeId) return false;
+          if (departmentId && e.departmentId !== departmentId) return false;
+          return true;
+        });
 
-      autoTable(doc, {
-        startY: 30,
+        const head = [["Employee Code", "Name", "Total Days", "Present", "Late Days", "Half Days", "Leaves", "Absent", "Attendance %"]];
+        const body: string[][] = [];
+
+        filteredEmployees.forEach((emp) => {
+          let presentCount = 0;
+          let lateCount = 0;
+          let halfDayCount = 0;
+          let leaveCount = 0;
+          let absentCount = 0;
+
+          dates.forEach((d) => {
+            const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
+            if (leave) {
+              leaveCount++;
+              return;
+            }
+
+            const dayPunches = reportData.filter(
+              (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
+            );
+            if (dayPunches.length === 0) {
+              absentCount++;
+              return;
+            }
+
+            const pi = [...dayPunches].reverse().find((p) => p.punchType === "PUNCH_IN");
+            const po = dayPunches.find((p) => p.punchType === "PUNCH_OUT");
+            if (!pi || !po) {
+              absentCount++;
+              return;
+            }
+
+            const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+            const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+            const shiftExtremeCutoff = pi?.shiftExtremeLateThresholdMinutes ?? emp.shiftExtremeLateThresholdMinutes ?? 120;
+            const minHalf = parseFloat(pi?.shiftMinHoursHalfDay || emp.shiftMinHoursHalfDay || "4.00");
+            const minFull = parseFloat(pi?.shiftMinHoursFullDay || emp.shiftMinHoursFullDay || "8.00");
+
+            const punchInTime = new Date(pi.punchTimestamp);
+            const punchOutTime = new Date(po.punchTimestamp);
+            const hoursWorked = (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60 * 60);
+
+            let isLate = false;
+            let isExtremeLate = false;
+            if (shiftStartTime) {
+              const shiftStartParts = shiftStartTime.split(":");
+              const expectedStart = new Date(punchInTime);
+              expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+              isLate = punchInTime.getTime() > expectedStart.getTime() + (shiftGrace * 60 * 1000);
+              isExtremeLate = punchInTime.getTime() > expectedStart.getTime() + (shiftExtremeCutoff * 60 * 1000);
+            }
+
+            if (hoursWorked < minHalf) {
+              absentCount++;
+            } else if (hoursWorked < minFull || isExtremeLate) {
+              halfDayCount++;
+              if (isLate) lateCount++;
+            } else {
+              presentCount++;
+              if (isLate) lateCount++;
+            }
+          });
+
+          const attendedEquivalent = presentCount + (halfDayCount * 0.5) + leaveCount;
+          const pct = dates.length > 0 ? `${Math.round((attendedEquivalent / dates.length) * 100)}%` : "0%";
+          body.push([
+            emp.code, 
+            emp.name, 
+            dates.length.toString(), 
+            presentCount.toString(), 
+            lateCount.toString(), 
+            halfDayCount.toString(), 
+            leaveCount.toString(), 
+            absentCount.toString(), 
+            pct
+          ]);
+        });
+
+        autoTable(doc, {
+          startY: 30,
         head,
         body,
         theme: "striped",
@@ -482,13 +641,17 @@ export default function ReportsClient({
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
             {filteredEmployees.map(emp => {
-              const hasAnyPunches = reportData.some(r => r.employeeId === emp.id);
-              if (!hasAnyPunches && !employeeId) return null;
-
               return (
                 <div key={emp.id} style={{ border: "1px solid var(--att-border)", borderRadius: "8px", overflow: "hidden" }}>
-                  <div style={{ padding: "1rem", backgroundColor: "var(--att-secondary)", borderBottom: "1px solid var(--att-border)", fontWeight: 600 }}>
-                    {emp.name} ({emp.code})
+                  <div style={{ padding: "0.85rem 1rem", backgroundColor: "var(--att-secondary)", borderBottom: "1px solid var(--att-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 600 }}>
+                      {emp.name} <span style={{ color: "var(--att-text-muted)", fontSize: "0.8rem", marginLeft: "0.5rem" }}>({emp.code})</span>
+                    </div>
+                    {emp.shiftStartTime && (
+                      <span style={{ fontSize: "0.75rem", color: "var(--att-text-muted)" }}>
+                        Shift: {emp.shiftStartTime.slice(0, 5)} - {emp.shiftEndTime ? emp.shiftEndTime.slice(0, 5) : "-"} (Grace: {emp.shiftGracePeriod ?? 15}m)
+                      </span>
+                    )}
                   </div>
                   <div style={{ overflowX: "auto" }}>
                     <table className="att-table" style={{ marginTop: 0 }}>
@@ -499,60 +662,102 @@ export default function ReportsClient({
                           <th>Break IN</th>
                           <th>Break OUT</th>
                           <th>Punch OUT</th>
-                          <th>Status / Anomalies</th>
+                          <th>Status / Remarks</th>
                         </tr>
                       </thead>
                       <tbody>
                         {dates.map(d => {
+                          const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
+                          if (leave) {
+                            return (
+                              <tr key={d} style={{ backgroundColor: "#eff6ff" }}>
+                                <td style={{ fontWeight: 500 }}>{d}</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>
+                                  <span style={{ color: "#2563eb", fontWeight: 600, fontSize: "0.85rem" }}>
+                                    ON LEAVE ({leave.leaveTypeName})
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          }
+
                           const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
+                          
+                          if (dayPunches.length === 0) {
+                            return (
+                              <tr key={d} style={{ backgroundColor: "#fff5f5" }}>
+                                <td style={{ fontWeight: 500 }}>{d}</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>-</td>
+                                <td>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                                    <span style={{ color: "var(--att-destructive)", fontWeight: 600 }}>ABSENT</span>
+                                    <span style={{ fontSize: "0.75rem", color: "#b91c1c" }}>No punch recorded</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          }
+
                           const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
                           const bi = dayPunches.find(p => p.punchType === "BREAK_IN");
                           const bo = dayPunches.find(p => p.punchType === "BREAK_OUT");
                           const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
                           
                           const formatTime = (p: any) => p ? new Date(p.punchTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-";
-                          
-                          if (dayPunches.length === 0 && !employeeId) return null;
 
-                          // Anomaly calculation
                           let anomalies = [];
-                          let status = dayPunches.length > 0 ? "PRESENT" : "ABSENT";
-                          
-                          if (pi && pi.shiftStartTime) {
-                            // Check for late punch
+                          let status = "PRESENT";
+                          const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+                          const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+                          const shiftExtremeCutoff = pi?.shiftExtremeLateThresholdMinutes ?? emp.shiftExtremeLateThresholdMinutes ?? 120;
+                          const minHalf = parseFloat(pi?.shiftMinHoursHalfDay || emp.shiftMinHoursHalfDay || "4.00");
+                          const minFull = parseFloat(pi?.shiftMinHoursFullDay || emp.shiftMinHoursFullDay || "8.00");
+
+                          if (pi && shiftStartTime) {
                             const punchTime = new Date(pi.punchTimestamp);
-                            const shiftStartParts = pi.shiftStartTime.split(":");
+                            const shiftStartParts = shiftStartTime.split(":");
                             const expectedStart = new Date(punchTime);
                             expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
                             
-                            const graceMs = (pi.shiftGracePeriod || 15) * 60 * 1000;
-                            if (punchTime.getTime() > expectedStart.getTime() + graceMs) {
+                            const graceMs = shiftGrace * 60 * 1000;
+                            const isLate = punchTime.getTime() > expectedStart.getTime() + graceMs;
+                            const extremeCutoffMs = shiftExtremeCutoff * 60 * 1000;
+                            const isExtremeLate = punchTime.getTime() > expectedStart.getTime() + extremeCutoffMs;
+
+                            if (isLate) {
                               anomalies.push("LATE IN");
-                              status = "LATE";
+                              status = "PRESENT_LATE";
                             }
 
-                            // Check for half day / early out if they punched out
                             if (po) {
                               const punchOutTime = new Date(po.punchTimestamp);
                               const hoursWorked = (punchOutTime.getTime() - punchTime.getTime()) / (1000 * 60 * 60);
                               
-                              if (pi.shiftMinHoursHalfDay) {
-                                const minHalf = parseFloat(pi.shiftMinHoursHalfDay);
-                                const minFull = pi.shiftMinHoursFullDay ? parseFloat(pi.shiftMinHoursFullDay) : minHalf * 2;
-                                
-                                if (hoursWorked < minHalf) {
-                                  anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
-                                  status = "ABSENT";
-                                } else if (hoursWorked < minFull) {
-                                  anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
-                                  status = "HALF DAY";
-                                }
+                              if (hoursWorked < minHalf) {
+                                anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                                status = "ABSENT";
+                              } else if (hoursWorked < minFull || isExtremeLate) {
+                                if (isExtremeLate) anomalies.push(`EXTREME DELAY (>${shiftExtremeCutoff}m)`);
+                                else anomalies.push(`SHORT HOURS (${hoursWorked.toFixed(1)}h)`);
+                                status = "HALF_DAY";
                               }
                             } else {
                               anomalies.push("MISSING OUT PUNCH");
+                              status = "ABSENT";
                             }
-                          } else if (dayPunches.length > 0) {
-                            anomalies.push("NO SHIFT ASSIGNED");
+                          } else {
+                            anomalies.push(pi ? "NO SHIFT ASSIGNED" : "NO PUNCH");
+                            if (!po) {
+                              anomalies.push("MISSING OUT PUNCH");
+                              status = "ABSENT";
+                            }
                           }
 
                           return (
@@ -564,14 +769,21 @@ export default function ReportsClient({
                               <td>{formatTime(po)}</td>
                               <td>
                                 {status === "ABSENT" ? (
-                                  <span style={{ color: "var(--att-destructive)", fontWeight: 600 }}>ABSENT</span>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                                    <span style={{ color: "var(--att-destructive)", fontWeight: 600 }}>ABSENT</span>
+                                    {anomalies.map((a, i) => (
+                                      <span key={i} style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", background: "#fee2e2", color: "#b91c1c", borderRadius: "4px", width: "fit-content" }}>
+                                        {a}
+                                      </span>
+                                    ))}
+                                  </div>
                                 ) : (
                                   <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                                    <span style={{ color: status === "PRESENT" ? "var(--att-success)" : "#d97706", fontWeight: 600 }}>
+                                    <span style={{ color: status === "PRESENT" ? "var(--att-success)" : status === "HALF_DAY" ? "#0284c7" : "#d97706", fontWeight: 600 }}>
                                       {status}
                                     </span>
                                     {anomalies.map((a, i) => (
-                                      <span key={i} style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", background: "#fee2e2", color: "#b91c1c", borderRadius: "4px", width: "fit-content" }}>
+                                      <span key={i} style={{ fontSize: "0.75rem", padding: "0.1rem 0.4rem", background: status === "PRESENT_LATE" ? "#fef3c7" : "#fee2e2", color: status === "PRESENT_LATE" ? "#92400e" : "#b91c1c", borderRadius: "4px", width: "fit-content" }}>
                                         {a}
                                       </span>
                                     ))}
@@ -598,36 +810,92 @@ export default function ReportsClient({
               <thead>
                 <tr>
                   <th>Employee</th>
-                  <th>Total Days in Range</th>
-                  <th>Days Attended</th>
-                  <th>Days Missed</th>
-                  <th>Attendance %</th>
+                  <th style={{ textAlign: "center" }}>Total Days</th>
+                  <th style={{ textAlign: "center" }}>Present</th>
+                  <th style={{ textAlign: "center" }}>Late Days</th>
+                  <th style={{ textAlign: "center" }}>Half Days</th>
+                  <th style={{ textAlign: "center" }}>Leaves</th>
+                  <th style={{ textAlign: "center" }}>Absent</th>
+                  <th style={{ textAlign: "center" }}>Attendance %</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredEmployees.map(emp => {
-                  let attended = 0;
+                  let presentCount = 0;
+                  let lateCount = 0;
+                  let halfDayCount = 0;
+                  let leaveCount = 0;
+                  let absentCount = 0;
+
                   dates.forEach(d => {
-                    const hasPunch = reportData.some(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
-                    if (hasPunch) attended++;
+                    const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
+                    if (leave) {
+                      leaveCount++;
+                      return;
+                    }
+
+                    const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
+                    if (dayPunches.length === 0) {
+                      absentCount++;
+                      return;
+                    }
+
+                    const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
+                    const po = dayPunches.find(p => p.punchType === "PUNCH_OUT");
+                    if (!pi || !po) {
+                      absentCount++;
+                      return;
+                    }
+
+                    const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+                    const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+                    const shiftExtremeCutoff = pi?.shiftExtremeLateThresholdMinutes ?? emp.shiftExtremeLateThresholdMinutes ?? 120;
+                    const minHalf = parseFloat(pi?.shiftMinHoursHalfDay || emp.shiftMinHoursHalfDay || "4.00");
+                    const minFull = parseFloat(pi?.shiftMinHoursFullDay || emp.shiftMinHoursFullDay || "8.00");
+
+                    const punchInTime = new Date(pi.punchTimestamp);
+                    const punchOutTime = new Date(po.punchTimestamp);
+                    const hoursWorked = (punchOutTime.getTime() - punchInTime.getTime()) / (1000 * 60 * 60);
+
+                    let isLate = false;
+                    let isExtremeLate = false;
+                    if (shiftStartTime) {
+                      const shiftStartParts = shiftStartTime.split(":");
+                      const expectedStart = new Date(punchInTime);
+                      expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+                      isLate = punchInTime.getTime() > expectedStart.getTime() + (shiftGrace * 60 * 1000);
+                      isExtremeLate = punchInTime.getTime() > expectedStart.getTime() + (shiftExtremeCutoff * 60 * 1000);
+                    }
+
+                    if (hoursWorked < minHalf) {
+                      absentCount++;
+                    } else if (hoursWorked < minFull || isExtremeLate) {
+                      halfDayCount++;
+                      if (isLate) lateCount++;
+                    } else {
+                      presentCount++;
+                      if (isLate) lateCount++;
+                    }
                   });
-                  const missed = dates.length - attended;
-                  const pct = Math.round((attended / dates.length) * 100) || 0;
-                  
-                  if (attended === 0 && !employeeId) return null;
+
+                  const attendedEquivalent = presentCount + (halfDayCount * 0.5) + leaveCount;
+                  const pct = dates.length > 0 ? Math.round((attendedEquivalent / dates.length) * 100) : 0;
 
                   return (
                     <tr key={emp.id}>
                       <td>
-                        <div style={{ fontWeight: 500 }}>{emp.name}</div>
+                        <div style={{ fontWeight: 600 }}>{emp.name}</div>
                         <div style={{ color: "var(--att-text-muted)", fontSize: "0.75rem" }}>{emp.code}</div>
                       </td>
-                      <td>{dates.length}</td>
-                      <td><span style={{ color: "var(--att-success)", fontWeight: 600 }}>{attended}</span></td>
-                      <td><span style={{ color: "var(--att-destructive)", fontWeight: 600 }}>{missed}</span></td>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                          <div style={{ flex: 1, backgroundColor: "var(--att-border)", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
+                      <td style={{ textAlign: "center", fontWeight: 500 }}>{dates.length}</td>
+                      <td style={{ textAlign: "center", color: "var(--att-success)", fontWeight: 600 }}>{presentCount}</td>
+                      <td style={{ textAlign: "center", color: "#d97706", fontWeight: 600 }}>{lateCount}</td>
+                      <td style={{ textAlign: "center", color: "#0284c7", fontWeight: 600 }}>{halfDayCount}</td>
+                      <td style={{ textAlign: "center", color: "#7c3aed", fontWeight: 600 }}>{leaveCount}</td>
+                      <td style={{ textAlign: "center", color: "var(--att-destructive)", fontWeight: 600 }}>{absentCount}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", justifyContent: "center" }}>
+                          <div style={{ width: "70px", backgroundColor: "var(--att-border)", height: "6px", borderRadius: "3px", overflow: "hidden" }}>
                             <div style={{ width: `${pct}%`, backgroundColor: pct > 80 ? "var(--att-success)" : pct > 50 ? "#eab308" : "var(--att-destructive)", height: "100%" }}></div>
                           </div>
                           <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>{pct}%</span>

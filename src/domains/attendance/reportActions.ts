@@ -74,6 +74,9 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     shiftStartTime: shiftDefinitions.startTime,
     shiftEndTime: shiftDefinitions.endTime,
     shiftGracePeriod: shiftDefinitions.gracePeriodMinutes,
+    shiftMaxMonthlyLateOccurrences: shiftDefinitions.maxMonthlyLateOccurrences,
+    shiftLatePenaltyType: shiftDefinitions.latePenaltyType,
+    shiftExtremeLateThresholdMinutes: shiftDefinitions.extremeLateThresholdMinutes,
     shiftMinHoursHalfDay: shiftDefinitions.minHoursHalfDay,
     shiftMinHoursFullDay: shiftDefinitions.minHoursFullDay,
   })
@@ -89,6 +92,29 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
 
   const results = await query;
 
+  // Fetch approved leaves in this date range
+  const { leaveRequests, leaveTypes } = await import("@/db/schema");
+  const approvedLeaves = await db
+    .select({
+      id: leaveRequests.id,
+      employeeId: leaveRequests.employeeId,
+      startDate: leaveRequests.startDate,
+      endDate: leaveRequests.endDate,
+      totalDays: leaveRequests.totalDays,
+      leaveTypeName: leaveTypes.name,
+      leaveTypeCode: leaveTypes.code,
+    })
+    .from(leaveRequests)
+    .innerJoin(leaveTypes, eq(leaveRequests.leaveTypeId, leaveTypes.id))
+    .where(
+      and(
+        eq(leaveRequests.organizationId, filters.organizationId),
+        eq(leaveRequests.status, "APPROVED"),
+        lte(leaveRequests.startDate, filters.endDate),
+        gte(leaveRequests.endDate, filters.startDate)
+      )
+    );
+
   // Manual filtering for joined tables for flexibility
   let finalResults = results;
   
@@ -99,7 +125,7 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     finalResults = finalResults.filter(r => r.roleId === filters.roleId);
   }
 
-  return finalResults.map(r => ({
+  const punches = finalResults.map(r => ({
     id: r.id,
     employeeId: r.employeeId,
     employeeName: r.employeeName,
@@ -113,7 +139,15 @@ export async function generateAttendanceReport(filters: AttendanceReportFilters)
     shiftStartTime: r.shiftStartTime,
     shiftEndTime: r.shiftEndTime,
     shiftGracePeriod: r.shiftGracePeriod,
+    shiftMaxMonthlyLateOccurrences: r.shiftMaxMonthlyLateOccurrences,
+    shiftLatePenaltyType: r.shiftLatePenaltyType,
+    shiftExtremeLateThresholdMinutes: r.shiftExtremeLateThresholdMinutes,
     shiftMinHoursHalfDay: r.shiftMinHoursHalfDay,
     shiftMinHoursFullDay: r.shiftMinHoursFullDay,
   }));
+
+  return {
+    punches,
+    approvedLeaves
+  };
 }

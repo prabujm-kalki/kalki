@@ -97,20 +97,27 @@ export async function processDailyAttendance(
       const minHalfDay = Number(defaultShift.minHoursHalfDay);
 
       // Status Derivation
+      const shiftStartParts = defaultShift.startTime.split(":");
+      const shiftStartMs = new Date(startOfDay).setHours(
+        parseInt(shiftStartParts[0]), 
+        parseInt(shiftStartParts[1]), 
+        0
+      );
+      const graceLimitMs = shiftStartMs + (defaultShift.gracePeriodMinutes * 60 * 1000);
+      const isLate = firstPunchIn.getTime() > graceLimitMs;
+      
+      const extremeLateLimitMs = shiftStartMs + ((defaultShift.extremeLateThresholdMinutes ?? 120) * 60 * 1000);
+      const isExtremeLate = firstPunchIn.getTime() > extremeLateLimitMs;
+
+      // Status Derivation
       if (netHours >= minFullDay) {
-        status = "PRESENT";
-        
-        // Late calculation based on grace period
-        const shiftStartParts = defaultShift.startTime.split(":");
-        const shiftStartMs = new Date(startOfDay).setHours(
-          parseInt(shiftStartParts[0]), 
-          parseInt(shiftStartParts[1]), 
-          0
-        );
-        const graceLimitMs = shiftStartMs + (defaultShift.gracePeriodMinutes * 60 * 1000);
-        
-        if (firstPunchIn.getTime() > graceLimitMs) {
+        if (isExtremeLate) {
+          // Rule 2: Extreme delay automatically forfeits first half of shift -> Capped to HALF_DAY
+          status = "HALF_DAY";
+        } else if (isLate) {
           status = "PRESENT_LATE";
+        } else {
+          status = "PRESENT";
         }
 
         // Overtime Calculation
@@ -123,7 +130,7 @@ export async function processDailyAttendance(
         status = "ABSENT"; // Did not meet minimum half-day requirement
       }
     } else {
-      // Only one punch exists
+      // Only one punch exists (Missing OUT punch) -> Industry Standard Rule 3: Must never be PRESENT
       status = "MISSED_PUNCH";
     }
 

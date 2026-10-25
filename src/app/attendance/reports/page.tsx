@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { departments, businessRoles, employees, people } from "@/db/schema";
+import { departments, businessRoles, employees, people, shiftDefinitions } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import ReportsClient from "@/components/attendance/ReportsClient";
 import { auth } from "@/lib/auth";
@@ -53,10 +53,20 @@ export default async function AttendanceReportsPage() {
     code: employees.employeeCode,
     name: people.displayName,
     organizationId: employees.organizationId,
-    locationId: employees.locationId
+    locationId: employees.locationId,
+    departmentId: employees.departmentId,
+    shiftStartTime: shiftDefinitions.startTime,
+    shiftEndTime: shiftDefinitions.endTime,
+    shiftGracePeriod: shiftDefinitions.gracePeriodMinutes,
+    shiftMaxMonthlyLateOccurrences: shiftDefinitions.maxMonthlyLateOccurrences,
+    shiftLatePenaltyType: shiftDefinitions.latePenaltyType,
+    shiftExtremeLateThresholdMinutes: shiftDefinitions.extremeLateThresholdMinutes,
+    shiftMinHoursHalfDay: shiftDefinitions.minHoursHalfDay,
+    shiftMinHoursFullDay: shiftDefinitions.minHoursFullDay,
   })
   .from(employees)
-  .innerJoin(people, eq(employees.personId, people.id));
+  .innerJoin(people, eq(employees.personId, people.id))
+  .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id));
 
   return (
     <div>

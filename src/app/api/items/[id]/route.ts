@@ -12,8 +12,11 @@ const itemSchema = z.object({
   currentPrice: z.number().positive(),
   maxPrice: z.number().positive(),
   unit: z.string().min(1),
-  purchaseUnit: z.string().optional(),
-  purchaseUnitConversion: z.number().positive().optional(),
+  purchaseUnit: z.string().optional().nullable(),
+  purchaseUnitConversion: z.number().positive().optional().nullable(),
+  prepUnit: z.string().optional().nullable(),
+  prepUnitConversion: z.number().positive().optional().nullable(),
+  roundToWhole: z.boolean().optional().default(false),
   baseMinStock: z.number().nonnegative(),
   targetStock: z.number().nonnegative().optional(),
   replenishmentStrategy: z.string().optional().default('top_up'),
@@ -106,6 +109,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
           unit: parsed.unit,
           purchaseUnit: parsed.purchaseUnit,
           purchaseUnitConversion: parsed.purchaseUnitConversion?.toString() ?? null,
+          prepUnit: parsed.prepUnit,
+          prepUnitConversion: parsed.prepUnitConversion?.toString() ?? null,
+          roundToWhole: parsed.roundToWhole,
           baseMinStock: parsed.baseMinStock.toString(),
           targetStock: parsed.targetStock?.toString() ?? null,
           replenishmentStrategy: parsed.replenishmentStrategy,
@@ -179,6 +185,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: error.issues }, { status: 400 });
     }
     console.error('Error updating item:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }

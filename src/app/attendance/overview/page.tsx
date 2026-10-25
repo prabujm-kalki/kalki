@@ -37,21 +37,26 @@ export default async function AttendanceOverviewPage({
     and(eq(employees.userId, session.user.id), eq(employees.organizationId, scope.organizationId))
   );
   const userEmployeeId = userEmpList[0]?.id;
-  const isManagerOnly = !context.isOwner; // If not owner, restrict to their direct reports
+  const activeOrgId = params.organizationId || scope.organizationId;
+  const activeLocId = params.locationId || scope.locationId;
+  const isBranchScoped = Boolean(activeLocId && activeLocId !== "ALL");
 
-  // Fetch today's punches (Live Data)
+  // Fetch today's punches (Live Data scoped to selected Branch/Location)
+  const punchWhereConditions = [
+    eq(rawBiometricPunches.organizationId, activeOrgId),
+    gte(rawBiometricPunches.punchTimestamp, startOfDay)
+  ];
+  if (isBranchScoped) {
+    punchWhereConditions.push(eq(rawBiometricPunches.locationId, activeLocId));
+  }
+
   const todayPunches = await db.select({
     employeeId: rawBiometricPunches.employeeId,
     punchTimestamp: rawBiometricPunches.punchTimestamp,
     punchType: rawBiometricPunches.punchType
   })
   .from(rawBiometricPunches)
-  .where(
-    and(
-      eq(rawBiometricPunches.organizationId, scope.organizationId),
-      gte(rawBiometricPunches.punchTimestamp, startOfDay)
-    )
-  );
+  .where(and(...punchWhereConditions));
 
   const presentEmployeeIds = new Set(todayPunches.map(p => p.employeeId));
   const presentCount = presentEmployeeIds.size;
@@ -108,40 +113,45 @@ export default async function AttendanceOverviewPage({
     }
   }
 
-  // Fetch absent from summaries
-  const absentLogs = await db.select().from(attendanceSummaries).where(
-    and(
-      eq(attendanceSummaries.attendanceDate, todayStr),
-      eq(attendanceSummaries.status, "ABSENT")
-    )
-  );
+  // Fetch absent from summaries (scoped to location)
+  const absentConditions = [
+    eq(attendanceSummaries.organizationId, activeOrgId),
+    eq(attendanceSummaries.attendanceDate, todayStr),
+    eq(attendanceSummaries.status, "ABSENT")
+  ];
+  if (isBranchScoped) {
+    absentConditions.push(eq(attendanceSummaries.locationId, activeLocId));
+  }
+  const absentLogs = await db.select().from(attendanceSummaries).where(and(...absentConditions));
 
-  // Fetch people on approved leave today
-  const leavesToday = await db.select().from(leaveRequests).where(
-    and(
-      eq(leaveRequests.status, "APPROVED"),
-      lte(leaveRequests.startDate, todayStr),
-      gte(leaveRequests.endDate, todayStr)
-    )
-  );
+  // Fetch people on approved leave today (scoped to location)
+  const leaveConditions = [
+    eq(leaveRequests.organizationId, activeOrgId),
+    eq(leaveRequests.status, "APPROVED"),
+    lte(leaveRequests.startDate, todayStr),
+    gte(leaveRequests.endDate, todayStr)
+  ];
+  if (isBranchScoped) {
+    leaveConditions.push(eq(leaveRequests.locationId, activeLocId));
+  }
+  const leavesToday = await db.select().from(leaveRequests).where(and(...leaveConditions));
 
-  // Fetch Recent Punches (Filtered by Manager)
+  // Fetch Recent Punches (Filtered by Location and Manager)
   const conditions = [
-    eq(rawBiometricPunches.organizationId, scope.organizationId),
+    eq(rawBiometricPunches.organizationId, activeOrgId),
     gte(rawBiometricPunches.punchTimestamp, startOfDay)
   ];
-  if (isManagerOnly && userEmployeeId) {
-    console.log("Filtering by reportingEmployeeId =", userEmployeeId);
-    conditions.push(eq(employees.reportingEmployeeId, userEmployeeId));
-  } else if (isManagerOnly && !userEmployeeId) {
-    console.log("Manager but no userEmployeeId. Blanking out query.");
-    // If they are not owner and have no employee profile, they see nothing
-    conditions.push(eq(rawBiometricPunches.organizationId, "00000000-0000-0000-0000-000000000000")); 
-  } else {
-    console.log("Owner mode. Fetching all for org =", scope.organizationId);
+  if (isBranchScoped) {
+    conditions.push(eq(rawBiometricPunches.locationId, activeLocId));
   }
 
-  console.log("startOfDay =", startOfDay);
+  const isManagerOnly = !context.isOwner;
+  if (isManagerOnly && userEmployeeId) {
+    conditions.push(eq(employees.reportingEmployeeId, userEmployeeId));
+  } else if (isManagerOnly && !userEmployeeId) {
+    // If they are not owner and have no employee profile, they see nothing
+    conditions.push(eq(rawBiometricPunches.organizationId, "00000000-0000-0000-0000-000000000000")); 
+  }
 
 
   const recentPunches = await db.select({

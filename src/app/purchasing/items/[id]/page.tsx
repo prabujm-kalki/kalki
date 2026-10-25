@@ -3,7 +3,7 @@
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { Save, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSessionView } from '@/components/AppShell';
 import { apiGet, apiPut } from '@/lib/api';
 import { KalkiInput } from "@/components/ui/KalkiInput";
@@ -16,6 +16,13 @@ import { KalkiActionBar } from "@/components/ui/KalkiActionBar";
 export default function EditItemPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const itemId = resolvedParams.id;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { selected } = useSessionView();
+
+  const orgId = searchParams.get('organizationId') || selected?.organizationId || '';
+  const locId = searchParams.get('locationId') || selected?.locationId || '';
+
   const [formData, setFormData] = useState({
     nameEn: '',
     nameTa: '',
@@ -34,6 +41,9 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     reorderQuantity: '',
     purchaseUnit: '',
     purchaseUnitConversion: '',
+    prepUnit: '',
+    prepUnitConversion: '',
+    roundToWhole: false,
     // Hidden fields with defaults for API requirements
     orderFrequency: { daily: true, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
     customIntervalDays: '',
@@ -68,23 +78,21 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     }
   };
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const { selected } = useSessionView();
   
   const [vendorList, setVendorList] = useState<{ id: string; name: string }[]>([]);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [subcategories, setSubcategories] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!orgId || !locId) return;
     const query = new URLSearchParams({
-      organizationId: selected.organizationId,
-      locationId: selected.locationId,
+      organizationId: orgId,
+      locationId: locId,
     });
     
     // Fetch Vendors
     apiGet<{ items: { id: string; name: string }[] }>(`/api/vendors?${query.toString()}`)
-      .then(payload => setVendorList(payload.items))
+      .then(payload => setVendorList(payload.items || []))
       .catch(console.error);
       
     // Fetch Item Data
@@ -108,10 +116,13 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           reorderQuantity: payload.item.reorderQuantity || '',
           purchaseUnit: payload.item.purchaseUnit || '',
           purchaseUnitConversion: payload.item.purchaseUnitConversion?.toString() || '',
+          prepUnit: payload.item.prepUnit || '',
+          prepUnitConversion: payload.item.prepUnitConversion?.toString() || '',
+          roundToWhole: Boolean(payload.item.roundToWhole),
           orderFrequency: payload.item.orderFrequency || { daily: true, mon: false, tue: false, wed: false, thu: false, fri: false, sat: false, sun: false },
           customIntervalDays: payload.item.orderFrequency?.customIntervalDays?.toString() || '',
-          fridaySurge: payload.item.fridaySurge || 25,
-          saturdaySurge: payload.item.saturdaySurge || 30,
+          fridaySurge: payload.item.fridaySurge !== null && payload.item.fridaySurge !== undefined ? Number(payload.item.fridaySurge) : 25,
+          saturdaySurge: payload.item.saturdaySurge !== null && payload.item.saturdaySurge !== undefined ? Number(payload.item.saturdaySurge) : 30,
           linkedVendors: payload.vendorIds || [],
         });
         setLoading(false);
@@ -120,16 +131,16 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         setError(err.message || "Failed to load item data.");
         setLoading(false);
       });
-  }, [selected, itemId]);
+  }, [orgId, locId, itemId]);
 
   useEffect(() => {
-    if (!selected) return;
+    if (!orgId) return;
     const catType = formData.itemType === 'MENU_ITEM' ? 'MENU' : 'PROCUREMENT';
-    fetch(`/api/item-categories?organizationId=${selected.organizationId}&categoryType=${catType}`)
+    fetch(`/api/item-categories?organizationId=${orgId}&categoryType=${catType}`)
       .then(res => res.json())
       .then(data => setCategories(Array.isArray(data) ? data : []))
       .catch(console.error);
-  }, [selected, formData.itemType]);
+  }, [orgId, formData.itemType]);
 
   useEffect(() => {
     if (formData.categoryId) {
@@ -145,7 +156,9 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
 
   const handleSave = async () => {
     setError(null);
-    if (!selected?.organizationId || !selected?.locationId) {
+    const activeOrgId = orgId || selected?.organizationId;
+    const activeLocId = locId || selected?.locationId;
+    if (!activeOrgId || !activeLocId) {
       setError("Please select an organization and location from the top navigation before saving.");
       return;
     }
@@ -157,8 +170,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
-          organizationId: selected?.organizationId,
-          locationId: selected?.locationId,
+          organizationId: activeOrgId,
+          locationId: activeLocId,
           currentPrice: Number(formData.currentPrice),
           maxPrice: Number(formData.maxPrice),
           baseMinStock: Number(formData.baseMinStock),
@@ -167,6 +180,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           reorderQuantity: formData.replenishmentStrategy === 'fixed' ? Number(formData.reorderQuantity) : undefined,
           purchaseUnit: formData.purchaseUnit || undefined,
           purchaseUnitConversion: formData.purchaseUnitConversion ? Number(formData.purchaseUnitConversion) : undefined,
+          prepUnit: formData.prepUnit || undefined,
+          prepUnitConversion: formData.prepUnitConversion ? Number(formData.prepUnitConversion) : undefined,
           orderFrequency: {
             ...formData.orderFrequency,
             customIntervalDays: formData.customIntervalDays ? Number(formData.customIntervalDays) : undefined
@@ -191,8 +206,8 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         throw new Error(data.error || 'Failed to save');
       }
       const nextQuery = new URLSearchParams({
-        organizationId: selected?.organizationId || '',
-        locationId: selected?.locationId || '',
+        organizationId: activeOrgId,
+        locationId: activeLocId,
       });
       router.push(`/purchasing/items?${nextQuery.toString()}`);
     } catch (err: any) {
@@ -475,21 +490,96 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
           </div>
         </KalkiSection>
 
+        <KalkiSection title="4.5 PREP / SECONDARY UNIT (OPTIONAL FOR MEATS & PRE-PREPPED ITEMS)" icon="🍗">
+          <p style={{ color: 'var(--kalki-text-secondary)', fontSize: '0.85rem', marginBottom: '1rem', marginTop: '-0.25rem' }}>
+            Configure only if kitchen pre-preps this item into standard portions (e.g., half-boiled chicken/mutton in Cups or Portions). 
+            Leave blank for grocery and vegetables.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <KalkiSelect
+              label="Kitchen Prep Unit (Optional)"
+              value={formData.prepUnit}
+              onChange={e => setFormData(p => ({ ...p, prepUnit: e.target.value }))}
+            >
+              <option value="">No Prep Unit (Base Unit only)</option>
+              <option value="Cup">Cup</option>
+              <option value="Portion">Portion</option>
+              <option value="Bowl">Bowl</option>
+              <option value="Plate">Plate</option>
+              <option value="Tub">Tub</option>
+              <option value="Piece">Piece</option>
+            </KalkiSelect>
+            <KalkiInput 
+              label={`Base ${formData.unit} per 1 ${formData.prepUnit || 'Prep Unit'}`}
+              type="number" 
+              step="any"
+              placeholder="e.g. 0.200 (for 200g per cup)"
+              value={formData.prepUnitConversion} 
+              onChange={e => setFormData(p => ({ ...p, prepUnitConversion: e.target.value }))} 
+            />
+          </div>
+
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px dashed var(--kalki-border)' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={formData.roundToWhole} 
+                onChange={e => setFormData(p => ({ ...p, roundToWhole: e.target.checked }))}
+                style={{ width: '18px', height: '18px', marginTop: '2px', cursor: 'pointer' }}
+              />
+              <div>
+                <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--kalki-foreground)' }}>
+                  Round order quantity up to next full {formData.unit || 'unit'} (No fractions in PO)
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--kalki-foreground-muted)', marginTop: '2px' }}>
+                  When calculated shortfall is fractional (e.g. 0.600 {formData.unit || 'Kg'}), round up to the next full number (1 {formData.unit || 'Kg'}) when generating Purchase Orders.
+                </div>
+              </div>
+            </label>
+          </div>
+        </KalkiSection>
+
         <KalkiSection title="5. DEMAND SURGE MULTIPLIERS (Overrides)" icon="📈">
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <div className="kalki-field">
-              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input type="checkbox" defaultChecked />
+              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={Number(formData.fridaySurge) > 0} 
+                  onChange={e => setFormData(p => ({ ...p, fridaySurge: e.target.checked ? 25 : 0 }))} 
+                />
                 Friday Night Order Surge (%)
               </label>
-              <input className="kalki-input" type="number" value={formData.fridaySurge} onChange={e => setFormData(p => ({ ...p, fridaySurge: Number(e.target.value) }))} />
+              <input 
+                className="kalki-input" 
+                type="number" 
+                min="0"
+                step="1"
+                disabled={Number(formData.fridaySurge) <= 0}
+                style={{ opacity: Number(formData.fridaySurge) <= 0 ? 0.6 : 1 }}
+                value={formData.fridaySurge} 
+                onChange={e => setFormData(p => ({ ...p, fridaySurge: Number(e.target.value) }))} 
+              />
             </div>
             <div className="kalki-field">
-              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <input type="checkbox" defaultChecked />
+              <label className="row" style={{ gap: '0.5rem', marginBottom: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={Number(formData.saturdaySurge) > 0} 
+                  onChange={e => setFormData(p => ({ ...p, saturdaySurge: e.target.checked ? 30 : 0 }))} 
+                />
                 Saturday Night Order Surge (%)
               </label>
-              <input className="kalki-input" type="number" value={formData.saturdaySurge} onChange={e => setFormData(p => ({ ...p, saturdaySurge: Number(e.target.value) }))} />
+              <input 
+                className="kalki-input" 
+                type="number" 
+                min="0"
+                step="1"
+                disabled={Number(formData.saturdaySurge) <= 0}
+                style={{ opacity: Number(formData.saturdaySurge) <= 0 ? 0.6 : 1 }}
+                value={formData.saturdaySurge} 
+                onChange={e => setFormData(p => ({ ...p, saturdaySurge: Number(e.target.value) }))} 
+              />
             </div>
           </div>
         </KalkiSection>

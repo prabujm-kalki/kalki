@@ -232,6 +232,11 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     reorderQuantity: items.reorderQuantity,
     purchaseUnit: items.purchaseUnit,
     purchaseUnitConversion: items.purchaseUnitConversion,
+    prepUnit: items.prepUnit,
+    prepUnitConversion: items.prepUnitConversion,
+    roundToWhole: items.roundToWhole,
+    fridaySurge: items.fridaySurge,
+    saturdaySurge: items.saturdaySurge,
   })
   .from(vendorItems)
   .innerJoin(items, eq(vendorItems.itemId, items.id))
@@ -252,6 +257,11 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     reorderQuantity: r.reorderQuantity,
     purchaseUnit: r.purchaseUnit,
     purchaseUnitConversion: r.purchaseUnitConversion,
+    prepUnit: r.prepUnit,
+    prepUnitConversion: r.prepUnitConversion,
+    roundToWhole: r.roundToWhole,
+    fridaySurge: r.fridaySurge,
+    saturdaySurge: r.saturdaySurge,
   }));
 }
 

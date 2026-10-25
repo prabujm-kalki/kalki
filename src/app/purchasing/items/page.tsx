@@ -11,6 +11,9 @@ type ItemView = {
   id: string;
   nameEn: string;
   unit: string;
+  prepUnit?: string | null;
+  prepUnitConversion?: string | number | null;
+  roundToWhole?: boolean;
   currentPrice: string;
   isActive: boolean;
   itemType?: 'RAW_MATERIAL' | 'EXPENSE' | 'MENU_ITEM';
@@ -378,19 +381,55 @@ export default function ItemsPage() {
                         </span>
                       </td>
                       <td>
-                        <span 
-                          style={{ 
-                            padding: "3px 8px", 
-                            backgroundColor: "#f8fafc", 
-                            border: "1px solid #e2e8f0",
-                            borderRadius: "4px", 
-                            fontSize: "12px", 
-                            fontWeight: 500,
-                            color: "var(--kalki-text-secondary)"
-                          }}
-                        >
-                          {item.unit}
-                        </span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                          <span 
+                            style={{ 
+                              padding: "3px 8px", 
+                              backgroundColor: "#f8fafc", 
+                              border: "1px solid #e2e8f0",
+                              borderRadius: "4px", 
+                              fontSize: "12px", 
+                              fontWeight: 500,
+                              color: "var(--kalki-text-secondary)",
+                              width: "fit-content"
+                            }}
+                          >
+                            {item.unit}
+                          </span>
+                          {item.prepUnit && (
+                            <span 
+                              style={{ 
+                                fontSize: "11px", 
+                                color: "#0369a1", 
+                                backgroundColor: "#f0f9ff", 
+                                padding: "1px 6px", 
+                                borderRadius: "4px", 
+                                border: "1px solid #bae6fd",
+                                width: "fit-content"
+                              }}
+                              title={`1 ${item.prepUnit} = ${item.prepUnitConversion} ${item.unit}`}
+                            >
+                              Prep: {item.prepUnit} ({item.prepUnitConversion} {item.unit})
+                            </span>
+                          )}
+                          {item.roundToWhole && (
+                            <span 
+                              style={{ 
+                                fontSize: "10px", 
+                                color: "#7c3aed", 
+                                backgroundColor: "#f5f3ff", 
+                                padding: "1px 6px", 
+                                borderRadius: "4px", 
+                                border: "1px solid #ddd6fe",
+                                width: "fit-content",
+                                fontWeight: 600
+                              }}
+                              title={`Order quantity rounds up to full ${item.unit}`}
+                            >
+                              ⚡ Whole {item.unit}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <span style={{ fontWeight: 600, color: "var(--kalki-text-primary)", fontSize: "13px" }}>
