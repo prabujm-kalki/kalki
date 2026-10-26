@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         name: authUsers.name,
         image: authUsers.image,
         phone: people.phone,
-        photoUrl: people.photoUrl,
+        photoUrl: sql<string | null>`COALESCE(${employees.photoUrl}, ${people.photoUrl})`,
         employeeCode: employees.employeeCode,
         locationId: employees.locationId,
         locationName: locations.name,
