@@ -50,6 +50,14 @@ function LoginForm() {
         return;
       }
 
+      // Trigger Native Push token registration immediately upon successful sign-in
+      try {
+        const { initializeNativeMobile } = await import("@/lib/mobileNative");
+        await initializeNativeMobile();
+      } catch (nativeErr) {
+        // Non-blocking for web
+      }
+
       setPending(false);
       
       const nextParam = searchParams.get("next");

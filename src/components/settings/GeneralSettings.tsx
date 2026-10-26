@@ -1307,13 +1307,31 @@ export function GeneralSettings() {
               </label>
 
               <div className="gs-tones-section" style={{ opacity: enableMobilePush ? 1 : 0.5, pointerEvents: enableMobilePush ? 'auto' : 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#334155' }}>
                     <BellRing size={16} color="#6366f1" /> Custom Notification Tones
                   </h3>
-                  <div style={{ fontSize: '0.8rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '1px solid #fcd34d', borderRadius: '50%', textAlign: 'center', lineHeight: '12px' }}>i</span>
-                    Supported format: MP3, WAV (Max 2 MB)
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch("/api/users/device-token/test", { method: "POST" });
+                          const json = await res.json();
+                          alert(json.message || (json.success ? "Test push sent! Check your phone." : "No registered phones found."));
+                        } catch (e: any) {
+                          alert("Failed to send test push: " + e.message);
+                        }
+                      }}
+                      className="gs-action-btn"
+                      style={{ color: '#047857', borderColor: '#a7f3d0', background: '#ecfdf5', fontWeight: 600, padding: '0.4rem 0.8rem' }}
+                    >
+                      📱 Send Test Push to Phone
+                    </button>
+                    <div style={{ fontSize: '0.8rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '1px solid #fcd34d', borderRadius: '50%', textAlign: 'center', lineHeight: '12px' }}>i</span>
+                      Supported format: MP3, WAV (Max 2 MB)
+                    </div>
                   </div>
                 </div>
                 
