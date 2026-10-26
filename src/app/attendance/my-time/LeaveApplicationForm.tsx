@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 type LeaveType = {
   id: string;
   name: string;
+  isPaid?: boolean;
+  allowZeroBalance?: boolean;
   isEncashable: boolean;
 };
 
@@ -50,12 +52,16 @@ export function LeaveApplicationForm({
     let totalDays = Math.ceil(Math.abs(end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (isHalfDay) totalDays = 0.5;
 
-    const balance = balances.find(b => b.leaveTypeId === leaveTypeId);
-    const closingBalance = balance ? parseFloat(balance.closingBalance) : 0;
+    const isUncapped = selectedLeaveType ? (selectedLeaveType.allowZeroBalance || selectedLeaveType.isPaid === false) : false;
 
-    if (totalDays > closingBalance) {
-      window.alert(`Insufficient balance. You only have ${closingBalance} days available.`);
-      return;
+    if (!isUncapped) {
+      const balance = balances.find(b => b.leaveTypeId === leaveTypeId);
+      const closingBalance = balance ? parseFloat(balance.closingBalance) : 0;
+
+      if (totalDays > closingBalance) {
+        window.alert(`Insufficient balance. You only have ${closingBalance} days available.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);

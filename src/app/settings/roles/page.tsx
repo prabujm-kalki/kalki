@@ -22,6 +22,7 @@ function RolesPageContent() {
   const [localRoles, setLocalRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<"global" | "local">("global");
 
   // Form State
   const [name, setName] = useState("");
@@ -54,6 +55,13 @@ function RolesPageContent() {
     }
   }, [locationParams, selected]);
 
+  const openCreateModal = (type: "global" | "local") => {
+    setModalType(type);
+    setName("");
+    setCode("");
+    setIsModalOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -64,7 +72,7 @@ function RolesPageContent() {
           name, 
           code, 
           organizationId: selected?.organizationId,
-          locationId: selected?.locationId 
+          locationId: modalType === "global" ? null : selected?.locationId 
         }),
       });
       if (res.ok) {
@@ -144,41 +152,76 @@ function RolesPageContent() {
             Back to Settings
           </Link>
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{ backgroundColor: 'var(--kalki-primary)', padding: '12px', borderRadius: 'var(--radius-lg)', color: 'white' }}>
-                <Shield size={28} strokeWidth={1.5} />
-              </div>
-              <div>
-                <h1 className="kalki-page-title">Application Roles</h1>
-                <p className="kalki-page-description">Manage authorization matrices and access boundaries.</p>
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ backgroundColor: 'var(--kalki-primary)', padding: '12px', borderRadius: 'var(--radius-lg)', color: 'white' }}>
+              <Shield size={28} strokeWidth={1.5} />
             </div>
-
-            <button 
-              onClick={() => setIsModalOpen(true)}
-              className="kalki-button kalki-button--primary"
-            >
-              <Plus size={16} style={{ marginRight: '8px' }} />
-              New Role
-            </button>
+            <div>
+              <h1 className="kalki-page-title">Application Roles</h1>
+              <p className="kalki-page-description">Manage authorization matrices and access boundaries.</p>
+            </div>
           </div>
         </div>
 
         <div className="kalki-roles-section">
-          <h2 className="kalki-roles-heading">Global Roles (Cross-Location)</h2>
+          {/* Global Roles Header & Table */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h2 className="kalki-roles-heading" style={{ margin: 0 }}>Global Roles (Cross-Location)</h2>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                Applies across all branches within this organization (e.g. Executive Director, General Auditor, Area Manager)
+              </span>
+            </div>
+            <button 
+              type="button"
+              onClick={() => openCreateModal("global")}
+              className="kalki-button kalki-button--primary"
+              style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
+            >
+              <Plus size={15} style={{ marginRight: '6px' }} />
+              New Global Role
+            </button>
+          </div>
           {renderTable(globalRoles, true)}
 
-          <h2 className="kalki-roles-heading">Local Roles ({selected?.locationName || "Selected Branch"})</h2>
+          {/* Local Roles Header & Table */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', marginTop: '2.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h2 className="kalki-roles-heading" style={{ margin: 0 }}>
+                Local Roles ({selected?.locationName || "Selected Branch"})
+              </h2>
+              <span style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                Specific strictly to this branch location (e.g. Counter Cashier, Head Chef, Floor Supervisor)
+              </span>
+            </div>
+            <button 
+              type="button"
+              onClick={() => openCreateModal("local")}
+              className="kalki-button kalki-button--secondary"
+              style={{ fontSize: '0.85rem', padding: '0.45rem 1rem' }}
+            >
+              <Plus size={15} style={{ marginRight: '6px' }} />
+              New Local Role
+            </button>
+          </div>
           {renderTable(localRoles, false)}
         </div>
 
         {/* Modal overlay */}
         {isModalOpen && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
-            <div className="kalki-section" style={{ width: '100%', maxWidth: '400px' }}>
+            <div className="kalki-section" style={{ width: '100%', maxWidth: '420px', margin: '1rem' }}>
               <div className="kalki-section-header">
-                <h2 className="kalki-section-title">Create Application Role</h2>
+                <div>
+                  <h2 className="kalki-section-title" style={{ margin: 0 }}>
+                    Create {modalType === "global" ? "Global Role" : "Local Role"}
+                  </h2>
+                  <div style={{ fontSize: '0.78rem', color: modalType === "global" ? '#047857' : '#2563eb', fontWeight: 600, marginTop: '2px' }}>
+                    {modalType === "global" 
+                      ? "🌐 Cross-Location Scope (All Branches)" 
+                      : `📍 Branch-Specific Scope (${selected?.locationName || "Current Location"})`}
+                  </div>
+                </div>
                 <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--kalki-text-secondary)' }}>
                   <X size={20} />
                 </button>
@@ -199,7 +242,7 @@ function RolesPageContent() {
                         }
                       }}
                       className="kalki-input"
-                      placeholder="e.g. Kitchen Manager"
+                      placeholder={modalType === "global" ? "e.g. Operations Director" : "e.g. Kitchen Supervisor"}
                     />
                   </div>
                   
@@ -212,7 +255,7 @@ function RolesPageContent() {
                       onChange={(e) => setCode(e.target.value)}
                       className="kalki-input"
                       style={{ fontFamily: 'monospace' }}
-                      placeholder="e.g. kitchen_manager"
+                      placeholder={modalType === "global" ? "e.g. operations_director" : "e.g. kitchen_supervisor"}
                     />
                     <div style={{ fontSize: '12px', color: 'var(--kalki-text-secondary)' }}>A unique technical identifier without spaces.</div>
                   </div>
@@ -229,7 +272,7 @@ function RolesPageContent() {
                       type="submit" 
                       className="kalki-button kalki-button--primary"
                     >
-                      Create Role
+                      Create {modalType === "global" ? "Global Role" : "Local Role"}
                     </button>
                   </div>
                 </form>

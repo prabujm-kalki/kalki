@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, X, Trash2, Pencil } from "lucide-react";
 
-// In a real app we'd get AppShell from the layout, but for standalone test we'll use a wrapper if it fails
-// Assuming AppShell is globally available or properly imported.
-import { AppShell } from "@/components/AppShell";
+import { useSessionView } from "@/components/AppShell";
 
 type TaskDefinition = {
   id: string;
@@ -23,6 +21,7 @@ type TaskDefinition = {
 };
 
 export default function TaskConfigurationPage() {
+  const { selected } = useSessionView();
   const [tasks, setTasks] = useState<TaskDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,8 +45,9 @@ export default function TaskConfigurationPage() {
   const [maxExtensionMins, setMaxExtensionMins] = useState("15");
 
   const loadTasks = () => {
+    if (!selected?.organizationId) return;
     setLoading(true);
-    fetch("/api/settings/tasks")
+    fetch(`/api/settings/tasks?organizationId=${selected.organizationId}`)
       .then((res) => res.json())
       .then((data) => {
         setTasks(Array.isArray(data) ? data : []);
@@ -61,16 +61,19 @@ export default function TaskConfigurationPage() {
   };
 
   const loadRoles = () => {
-    fetch("/api/settings/roles")
+    if (!selected?.organizationId) return;
+    fetch(`/api/settings/roles?organizationId=${selected.organizationId}`)
       .then((res) => res.json())
       .then((data) => setRoles(Array.isArray(data) ? data : []))
       .catch((err) => console.error(err));
   };
 
   useEffect(() => {
-    loadTasks();
-    loadRoles();
-  }, []);
+    if (selected?.organizationId) {
+      loadTasks();
+      loadRoles();
+    }
+  }, [selected?.organizationId]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this task rule?")) return;
@@ -99,6 +102,7 @@ export default function TaskConfigurationPage() {
         method: editingTaskId ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          organizationId: selected?.organizationId,
           title,
           module,
           triggerType: "event", // Defaulting to event as a pure policy

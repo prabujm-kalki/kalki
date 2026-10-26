@@ -48,15 +48,36 @@ export async function POST(request: Request) {
       }
     }
 
-    const [role] = await db.insert(businessRoles).values({
-      organizationId,
-      locationId: locationId || null, // null if empty string
-      identifier: finalIdentifier,
-      name,
-      purpose,
-      departmentId,
-      reportsToRoleId,
-    }).returning({ id: businessRoles.id });
+    const [role] = await db.transaction(async (tx) => {
+      const [insertedBR] = await tx.insert(businessRoles).values({
+        organizationId,
+        locationId: locationId || null, // null if empty string
+        identifier: finalIdentifier,
+        name,
+        purpose,
+        departmentId,
+        reportsToRoleId,
+      }).returning({ id: businessRoles.id });
+
+      // Keep authorization roles table in sync with the same ID
+      const { roles } = await import("@/db/schema");
+      await tx.insert(roles).values({
+        id: insertedBR.id,
+        name,
+        code: finalIdentifier.toLowerCase(),
+        organizationId,
+        locationId: locationId || null,
+      }).onConflictDoUpdate({
+        target: roles.id,
+        set: {
+          name,
+          code: finalIdentifier.toLowerCase(),
+          locationId: locationId || null,
+        }
+      });
+
+      return [insertedBR];
+    });
 
     return NextResponse.json({ role });
   } catch (error) { 

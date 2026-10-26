@@ -45,6 +45,7 @@ export const organizations = pgTable(
       applyRestockingFee: "None"
     }),
     whatsappConfig: jsonb("whatsapp_config").default({}),
+    logoUrl: text("logo_url"),
   },
   (table) => [
     unique("organizations_code_unique").on(table.code),
@@ -2396,6 +2397,7 @@ export const leaveTypes = pgTable("leave_types", {
   name: varchar("name", { length: 100 }).notNull(),
   description: text("description"),
   isPaid: boolean("is_paid").default(true).notNull(),
+  allowZeroBalance: boolean("allow_zero_balance").default(false).notNull(),
   allowHalfDay: boolean("allow_half_day").default(true).notNull(),
   requiresEvidence: boolean("requires_evidence").default(false).notNull(),
   minNoticeDays: integer("min_notice_days").default(0).notNull(),

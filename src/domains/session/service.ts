@@ -30,6 +30,7 @@ export async function getSessionContext(actor: Actor) {
       locationName: locations.name,
       organizationCode: organizations.code,
       locationCode: locations.code,
+      organizationLogoUrl: organizations.logoUrl,
     }).from(locations).innerJoin(
       organizations,
       eq(organizations.id, locations.organizationId),
@@ -46,6 +47,7 @@ export async function getSessionContext(actor: Actor) {
         locationName: locations.name,
         organizationCode: organizations.code,
         locationCode: locations.code,
+        organizationLogoUrl: organizations.logoUrl,
       }).from(locations).innerJoin(
         organizations,
         eq(organizations.id, locations.organizationId),
@@ -86,6 +88,7 @@ export async function getSessionContext(actor: Actor) {
       locationName: row.locationName,
       organizationCode: row.organizationCode,
       locationCode: row.locationCode,
+      organizationLogoUrl: row.organizationLogoUrl,
       permissions: Array.from(scopePermissions),
     }];
   });

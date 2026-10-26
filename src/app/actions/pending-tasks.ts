@@ -75,25 +75,11 @@ export async function fetchGlobalPendingTasks(params?: {
       return { success: true, tasks: [] };
     }
 
-    // 1. Load active role assignments for the current user
-    const [locRoles, orgRoles, empRoles] = await Promise.all([
-      db.select({ roleId: locationRoleAssignments.roleId })
-        .from(locationRoleAssignments)
-        .where(eq(locationRoleAssignments.userId, userId)),
-      db.select({ roleId: organizationRoleAssignments.roleId })
-        .from(organizationRoleAssignments)
-        .where(eq(organizationRoleAssignments.userId, userId)),
-      db.select({ roleId: employeeRoleAssignments.roleId })
-        .from(employeeRoleAssignments)
-        .innerJoin(employees, eq(employeeRoleAssignments.employeeId, employees.id))
-        .where(and(eq(employees.userId, userId), eq(employeeRoleAssignments.isActive, true)))
-    ]);
-
-    const userRoleIds: string[] = Array.from(new Set([
-      ...locRoles.map((r) => r.roleId),
-      ...orgRoles.map((r) => r.roleId),
-      ...empRoles.map((r) => r.roleId)
-    ]));
+    // 1. Load active direct role assignments & dynamic authority delegation (for subordinates on leave)
+    const { getEffectiveUserAuthority } = await import("@/domains/session/delegationAuthority");
+    const authority = await getEffectiveUserAuthority(userId, organizationId);
+    const userRoleIds: string[] = authority.effectiveRoleIds;
+    const delegatedRoleIdsSet = new Set(authority.delegatedRoleIds);
 
     const tenantQs = organizationId 
       ? `&organizationId=${organizationId}${locationId && locationId !== "ALL" ? `&locationId=${locationId}` : ""}`

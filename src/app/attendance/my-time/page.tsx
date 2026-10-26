@@ -13,15 +13,26 @@ import { RegularizationRequestForm } from "./RegularizationRequestForm";
 
 import { MyTimeTabs } from "./MyTimeTabs";
 
-export default async function MyTimePage() {
+export default async function MyTimePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ organizationId?: string; locationId?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) return redirect("/login");
 
   const context = await getSessionContext(session.user);
   if (!context.scopes.length) return redirect("/settings");
-  
-  // Assuming the user is operating in the first selected scope or pass scope info
-  const scope = context.scopes[0];
+
+  const params = await searchParams;
+  let scope = context.scopes.find(
+    (s) =>
+      (!params.organizationId || s.organizationId === params.organizationId) &&
+      (!params.locationId || s.locationId === params.locationId)
+  );
+  if (!scope) {
+    scope = context.scopes[0];
+  }
 
   // Get Employee ID from the user's mapping
   const empList = await db.select().from(employees).where(
@@ -48,6 +59,8 @@ export default async function MyTimePage() {
     carriedForward: employeeLeaveBalances.carriedForward,
     closingBalance: employeeLeaveBalances.closingBalance,
     leaveTypeName: leaveTypes.name,
+    isPaid: leaveTypes.isPaid,
+    allowZeroBalance: leaveTypes.allowZeroBalance,
   })
   .from(employeeLeaveBalances)
   .leftJoin(leaveTypes, eq(employeeLeaveBalances.leaveTypeId, leaveTypes.id))
@@ -97,6 +110,8 @@ export default async function MyTimePage() {
   const activeLeaveTypes = await db.select({
     id: leaveTypes.id,
     name: leaveTypes.name,
+    isPaid: leaveTypes.isPaid,
+    allowZeroBalance: leaveTypes.allowZeroBalance,
     isEncashable: leaveTypes.isEncashable,
   })
   .from(leaveTypes)

@@ -25,12 +25,12 @@ export default async function AttendanceOverviewPage({
     scope = context.scopes[0];
   }
 
-  const today = new Date();
-  const todayStr = today.toISOString().split("T")[0]; // YYYY-MM-DD
+  // Compute today's calendar date and midnight start in Asia/Kolkata (IST)
+  const istDateFormatter = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" });
+  const todayStr = istDateFormatter.format(new Date()); // "YYYY-MM-DD"
   
-  // Start of day for punch filtering
-  const startOfDay = new Date(today);
-  startOfDay.setHours(0, 0, 0, 0);
+  // Start of day in IST (00:00:00 IST = previous day 18:30:00 UTC)
+  const startOfDay = new Date(`${todayStr}T00:00:00+05:30`);
 
   // Determine user role and employee ID for RBAC
   const userEmpList = await db.select({ id: employees.id }).from(employees).where(
@@ -63,8 +63,10 @@ export default async function AttendanceOverviewPage({
 
   let lateCount = 0;
   if (presentCount > 0) {
+    // 1. Fetch employee shifts
     const allEmployees = await db.select({
       id: employees.id,
+      locationId: employees.locationId,
       shift: {
         startTime: shiftDefinitions.startTime,
         gracePeriodMinutes: shiftDefinitions.gracePeriodMinutes
@@ -74,39 +76,60 @@ export default async function AttendanceOverviewPage({
     .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id))
     .where(
       and(
-        eq(employees.organizationId, scope.organizationId),
+        eq(employees.organizationId, activeOrgId),
         inArray(employees.id, Array.from(presentEmployeeIds).filter(Boolean) as string[])
       )
     );
 
+    // 2. Fetch active default shifts per location for fallback if employee has no explicit defaultShiftId
+    const locationShifts = await db.select({
+      locationId: shiftDefinitions.locationId,
+      startTime: shiftDefinitions.startTime,
+      gracePeriodMinutes: shiftDefinitions.gracePeriodMinutes
+    })
+    .from(shiftDefinitions)
+    .where(
+      and(
+        eq(shiftDefinitions.organizationId, activeOrgId),
+        eq(shiftDefinitions.isActive, true)
+      )
+    );
+
+    const locationShiftMap = new Map(locationShifts.map(s => [s.locationId, s]));
     const employeeMap = new Map(allEmployees.map(e => [e.id, e]));
 
-    // Find first punch-in for each employee today
+    // 3. Find first punch of the day for each employee (prefer PUNCH_IN, fallback to earliest punch)
     const firstPunchMap = new Map<string, Date>();
     for (const p of todayPunches) {
       if (!p.employeeId) continue;
-      if (p.punchType === "PUNCH_IN") {
-        const existing = firstPunchMap.get(p.employeeId);
-        if (!existing || p.punchTimestamp < existing) {
-          firstPunchMap.set(p.employeeId, p.punchTimestamp);
-        }
+      const punchDate = new Date(p.punchTimestamp);
+      const existing = firstPunchMap.get(p.employeeId);
+      if (!existing || punchDate < existing) {
+        firstPunchMap.set(p.employeeId, punchDate);
       }
     }
 
-    // Calculate late count
+    // 4. Calculate late arrivals against shift start time + grace period
     for (const [empId, punchTime] of firstPunchMap.entries()) {
       const emp = employeeMap.get(empId);
-      if (emp && emp.shift && emp.shift.startTime) {
-        const [sh, sm, ss] = emp.shift.startTime.split(':').map(Number);
+      const shift = (emp?.shift && emp.shift.startTime)
+        ? emp.shift
+        : (emp?.locationId ? locationShiftMap.get(emp.locationId) : null);
+
+      if (shift && shift.startTime) {
+        const [sh, sm, ss] = shift.startTime.split(':');
+        const hh = String(sh).padStart(2, '0');
+        const mm = String(sm || '00').padStart(2, '0');
+        const sec = String(ss || '00').padStart(2, '0');
         
-        const expectedTime = new Date(startOfDay);
-        expectedTime.setHours(sh, sm, ss || 0, 0);
+        const expectedTime = new Date(`${todayStr}T${hh}:${mm}:${sec}+05:30`);
+        const grace = Number(shift.gracePeriodMinutes) || 0;
         
-        if (emp.shift.gracePeriodMinutes) {
-          expectedTime.setMinutes(expectedTime.getMinutes() + emp.shift.gracePeriodMinutes);
+        if (grace > 0) {
+          expectedTime.setMinutes(expectedTime.getMinutes() + grace);
         }
 
-        if (punchTime > expectedTime) {
+        if (punchTime.getTime() > expectedTime.getTime()) {
           lateCount++;
         }
       }
@@ -242,7 +265,7 @@ export default async function AttendanceOverviewPage({
                       </span>
                     </div>
                     <div style={{ fontSize: "0.75rem", color: "var(--att-text-muted)", marginTop: "0.25rem" }}>
-                      {new Date(punch.punchTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {punch.sourceType.replace("_", " ")}
+                      {new Date(punch.punchTimestamp).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: '2-digit', minute: '2-digit', hour12: true })} • {punch.sourceType.replace("_", " ")}
                     </div>
                   </div>
                 </li>

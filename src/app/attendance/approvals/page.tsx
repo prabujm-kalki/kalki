@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { leaveRequests, employees, leaveTypes, people, leaveEncashmentRequests, attendanceRegularizationRequests, employeeAdvanceRequests, advanceTypeDefinitions } from "@/db/schema";
-import { eq, and, or } from "drizzle-orm";
+import { eq, and, or, inArray } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { getSessionContext } from "@/domains/session/service";
@@ -42,8 +42,14 @@ export default async function ApprovalsPage() {
   let conditions = eq(leaveRequests.status, "PENDING");
   
   if (!canManage) {
-    // Regular manager can only see requests assigned to them
-    conditions = and(conditions, eq(leaveRequests.approverId, currentEmpId!)) as any;
+    const { getEffectiveUserAuthority } = await import("@/domains/session/delegationAuthority");
+    const authority = grants.scopes[0]?.organizationId 
+      ? await getEffectiveUserAuthority(session.user.id, grants.scopes[0].organizationId) 
+      : null;
+    const validApproverIds = [currentEmpId!, ...(authority?.delegatedEmployeeIds || [])];
+
+    // Regular manager can see requests assigned to them or to their subordinates on approved leave today
+    conditions = and(conditions, inArray(leaveRequests.approverId, validApproverIds)) as any;
   }
 
   const rawRequests = await db.select({

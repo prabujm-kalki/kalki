@@ -1,17 +1,34 @@
 import { LeaveConfigForm } from "./LeaveConfigForm";
 import { getLeaveConfigs } from "@/domains/attendance/actions";
 import { db } from "@/db";
-import { businessRoles } from "@/db/schema";
+import { businessRoles, departments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { getSessionContext } from "@/domains/session/service";
 
 export default async function SettingsPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string>>;
 }) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) return redirect("/login");
+
+  const context = await getSessionContext(session.user);
+  if (!context.scopes.length) return redirect("/settings");
+
   const params = await searchParams;
-  const organizationId = params.organizationId;
-  const locationId = params.locationId;
+  let scope = context.scopes.find(
+    s => s.organizationId === params.organizationId && s.locationId === params.locationId
+  );
+  if (!scope) {
+    scope = context.scopes[0];
+  }
+
+  const organizationId = params.organizationId || scope.organizationId;
+  const locationId = params.locationId || scope.locationId;
 
   if (!organizationId || !locationId) {
     return <div>Missing organization or location context.</div>;
@@ -19,19 +36,34 @@ export default async function SettingsPage({
 
   const configs = await getLeaveConfigs(organizationId, locationId);
   
-  // Fetch roles
-  const roles = await db
-    .select({
-      id: businessRoles.id,
-      name: businessRoles.name,
-    })
-    .from(businessRoles)
-    .where(
-      and(
-        eq(businessRoles.organizationId, organizationId),
-        eq(businessRoles.isActive, true)
+  // Fetch active business roles and departments in parallel
+  const [roles, depts] = await Promise.all([
+    db
+      .select({
+        id: businessRoles.id,
+        name: businessRoles.name,
+      })
+      .from(businessRoles)
+      .where(
+        and(
+          eq(businessRoles.organizationId, organizationId),
+          eq(businessRoles.isActive, true)
+        )
+      ),
+    db
+      .select({
+        id: departments.id,
+        name: departments.name,
+        code: departments.code,
+      })
+      .from(departments)
+      .where(
+        and(
+          eq(departments.organizationId, organizationId),
+          eq(departments.isActive, true)
+        )
       )
-    );
+  ]);
   
   // Serialize complex dates to pass to Client Component safely
   const serializedConfigs = configs.map(c => ({
@@ -48,7 +80,7 @@ export default async function SettingsPage({
       </header>
 
       <div>
-        <LeaveConfigForm initialConfigs={serializedConfigs} orgId={organizationId} locId={locationId} roles={roles} />
+        <LeaveConfigForm initialConfigs={serializedConfigs} orgId={organizationId} locId={locationId} roles={roles} initialDepartments={depts} />
       </div>
     </div>
   );

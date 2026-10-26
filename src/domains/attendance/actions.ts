@@ -231,9 +231,8 @@ export async function getLeaveConfigs(organizationId: string, locationId: string
     const session = await auth.api.getSession({ headers: await headers() });
     if (!session?.user?.id) throw new Error("Unauthorized");
     
-    // In actual implementation, we might import leaveTypes from schema
-    const { leaveTypes } = await import("@/db/schema");
-    const { eq, and, or, isNull } = await import("drizzle-orm");
+    const { leaveTypes, leaveRolePolicies, leaveDepartmentPolicies } = await import("@/db/schema");
+    const { eq, and, or, isNull, inArray } = await import("drizzle-orm");
 
     const records = await db
       .select()
@@ -247,7 +246,32 @@ export async function getLeaveConfigs(organizationId: string, locationId: string
           )
         )
       );
-    return records;
+
+    if (records.length === 0) return [];
+
+    const typeIds = records.map(r => r.id);
+
+    const [rolePolicies, deptPolicies] = await Promise.all([
+      db.select().from(leaveRolePolicies).where(inArray(leaveRolePolicies.leaveTypeId, typeIds)),
+      db.select().from(leaveDepartmentPolicies).where(inArray(leaveDepartmentPolicies.leaveTypeId, typeIds))
+    ]);
+
+    return records.map(r => ({
+      ...r,
+      rolePolicies: rolePolicies
+        .filter(rp => rp.leaveTypeId === r.id)
+        .map(rp => ({
+          businessRoleId: rp.businessRoleId,
+          customAccrualRate: rp.customAccrualRate || "",
+          maxConcurrentLeaves: rp.maxConcurrentLeaves !== null && rp.maxConcurrentLeaves !== undefined ? String(rp.maxConcurrentLeaves) : ""
+        })),
+      departmentPolicies: deptPolicies
+        .filter(dp => dp.leaveTypeId === r.id)
+        .map(dp => ({
+          departmentId: dp.departmentId,
+          maxConcurrentLeaves: dp.maxConcurrentLeaves !== null && dp.maxConcurrentLeaves !== undefined ? String(dp.maxConcurrentLeaves) : ""
+        }))
+    }));
   } catch (error) {
     console.error("Failed to fetch leave configs:", error);
     return [];
@@ -295,9 +319,11 @@ export async function upsertLeaveConfig(
             code: data.code,
             name: data.name,
             isPaid: data.isPaid,
+            allowZeroBalance: data.allowZeroBalance || !data.isPaid,
             annualAllocation: data.annualAllocation,
             accrualFrequency: data.accrualFrequency,
             accrualRate: data.accrualRate || null,
+            maxCarryForwardDays: data.maxCarryForwardDays,
             carryForwardExpiryMonths: data.carryForwardExpiryMonths || null,
             minTenureDays: data.minTenureDays,
             minNoticeDays: data.minNoticeDays,
@@ -325,9 +351,11 @@ export async function upsertLeaveConfig(
           code: data.code,
           name: data.name,
           isPaid: data.isPaid,
+          allowZeroBalance: data.allowZeroBalance || !data.isPaid,
           annualAllocation: data.annualAllocation,
           accrualFrequency: data.accrualFrequency,
           accrualRate: data.accrualRate || null,
+          maxCarryForwardDays: data.maxCarryForwardDays,
           carryForwardExpiryMonths: data.carryForwardExpiryMonths || null,
           minTenureDays: data.minTenureDays,
           minNoticeDays: data.minNoticeDays,
@@ -419,6 +447,32 @@ export async function submitLeaveRequest(
 
     if (requestedStart < today) {
       throw new Error("Cannot apply for leave in the past.");
+    }
+
+    // Check for existing overlapping or pending leave requests for this employee
+    const overlappingRequests = await db
+      .select({
+        id: leaveRequests.id,
+        startDate: leaveRequests.startDate,
+        endDate: leaveRequests.endDate,
+        status: leaveRequests.status,
+      })
+      .from(leaveRequests)
+      .where(
+        and(
+          eq(leaveRequests.employeeId, reqData.employeeId),
+          inArray(leaveRequests.status, ["PENDING", "APPROVED"]),
+          lte(leaveRequests.startDate, reqData.endDate),
+          gte(leaveRequests.endDate, reqData.startDate)
+        )
+      );
+
+    if (overlappingRequests.length > 0) {
+      const existing = overlappingRequests[0];
+      const statusText = existing.status === "PENDING" ? "under review" : "already approved";
+      throw new Error(
+        `You already have a leave request (${existing.startDate} to ${existing.endDate}) that is ${statusText} for this date range.`
+      );
     }
 
     if (leaveConfig.minNoticeDays > 0) {
@@ -534,8 +588,11 @@ export async function submitLeaveRequest(
     );
     const currentBalance = balanceRecords[0];
 
-    if (!currentBalance || Number(currentBalance.closingBalance) < totalDays) {
-      throw new Error(`Insufficient balance: You requested ${totalDays} days, but only have ${currentBalance ? currentBalance.closingBalance : 0} days available.`);
+    const isUncappedLeave = leaveConfig.allowZeroBalance || !leaveConfig.isPaid;
+    if (!isUncappedLeave) {
+      if (!currentBalance || Number(currentBalance.closingBalance) < totalDays) {
+        throw new Error(`Insufficient balance: You requested ${totalDays} days, but only have ${currentBalance ? currentBalance.closingBalance : 0} days available.`);
+      }
     }
 
     await db.insert(leaveRequests).values({
@@ -572,7 +629,7 @@ export async function actionLeaveRequest(
     const { getSessionContext } = await import("@/domains/session/service");
     const grants = await getSessionContext(session.user);
 
-    const { leaveRequests, employeeLeaveBalances, employees } = await import("@/db/schema");
+    const { leaveRequests, employeeLeaveBalances, employees, leaveTypes } = await import("@/db/schema");
     
     const requestList = await db.select().from(leaveRequests).where(eq(leaveRequests.id, requestId));
     const request = requestList[0];
@@ -607,6 +664,10 @@ export async function actionLeaveRequest(
 
       // 2. If APPROVED, deduct the balance
       if (status === "APPROVED") {
+        const typeList = await tx.select().from(leaveTypes).where(eq(leaveTypes.id, request.leaveTypeId));
+        const leaveType = typeList[0];
+        const isUncappedLeave = leaveType ? (leaveType.allowZeroBalance || !leaveType.isPaid) : false;
+
         const balanceList = await tx.select().from(employeeLeaveBalances).where(
           and(
             eq(employeeLeaveBalances.employeeId, request.employeeId),
@@ -615,24 +676,35 @@ export async function actionLeaveRequest(
         );
         const balance = balanceList[0];
 
-        if (!balance) {
+        if (balance) {
+          if (!isUncappedLeave && Number(balance.closingBalance) < Number(request.totalDays)) {
+            throw new Error("Employee does not have enough balance to approve this request.");
+          }
+
+          const newTaken = Number(balance.taken) + Number(request.totalDays);
+          const newClosing = isUncappedLeave ? 0 : Math.max(0, Number(balance.closingBalance) - Number(request.totalDays));
+
+          await tx.update(employeeLeaveBalances)
+            .set({
+              taken: newTaken.toFixed(2),
+              closingBalance: newClosing.toFixed(2),
+              updatedAt: new Date()
+            })
+            .where(eq(employeeLeaveBalances.id, balance.id));
+        } else if (isUncappedLeave) {
+          // If balance record didn't exist for LOP yet, insert it with taken days
+          await tx.insert(employeeLeaveBalances).values({
+            organizationId: request.organizationId,
+            locationId: request.locationId,
+            employeeId: request.employeeId,
+            leaveTypeId: request.leaveTypeId,
+            accrued: "0.00",
+            taken: Number(request.totalDays).toFixed(2),
+            closingBalance: "0.00",
+          });
+        } else {
           throw new Error("Employee leave balance record not found during approval.");
         }
-
-        if (Number(balance.closingBalance) < Number(request.totalDays)) {
-           throw new Error("Employee does not have enough balance to approve this request.");
-        }
-
-        const newTaken = Number(balance.taken) + Number(request.totalDays);
-        const newClosing = Number(balance.closingBalance) - Number(request.totalDays);
-
-        await tx.update(employeeLeaveBalances)
-          .set({
-            taken: newTaken.toFixed(2),
-            closingBalance: newClosing.toFixed(2),
-            updatedAt: new Date()
-          })
-          .where(eq(employeeLeaveBalances.id, balance.id));
       }
     });
 

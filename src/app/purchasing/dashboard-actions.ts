@@ -305,7 +305,7 @@ export async function fetchPurchaseDashboardData(params?: {
       .select({ count: count() })
       .from(purchaseOrders)
       .where(and(
-        inArray(purchaseOrders.status, ["pending_receipt", "ordered", "in_transit", "approved"]),
+        inArray(purchaseOrders.status, ["pending_receipt", "sent_to_vendor", "ordered", "in_transit", "approved"]),
         ...poTenantFilters
       ));
 
@@ -381,7 +381,7 @@ export async function fetchPurchaseDashboardData(params?: {
       .from(purchaseOrders)
       .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
       .where(and(
-        inArray(purchaseOrders.status, ["pending_receipt", "in_transit", "ordered", "approved"]),
+        inArray(purchaseOrders.status, ["pending_receipt", "sent_to_vendor", "in_transit", "ordered", "approved"]),
         ...poTenantFilters
       ))
       .orderBy(desc(purchaseOrders.createdAt))

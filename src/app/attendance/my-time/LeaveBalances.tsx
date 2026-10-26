@@ -10,6 +10,8 @@ type Balance = {
   taken: string;
   carriedForward: string;
   closingBalance: string;
+  isPaid?: boolean;
+  allowZeroBalance?: boolean;
 };
 
 export function LeaveBalances({ balances }: { balances: Balance[] }) {
@@ -24,6 +26,7 @@ export function LeaveBalances({ balances }: { balances: Balance[] }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "1.5rem", marginBottom: "2.5rem" }}>
       {balances.map((b) => {
+        const isUncapped = b.allowZeroBalance || b.isPaid === false;
         const allotted = parseFloat(b.accrued) + parseFloat(b.carriedForward);
         const consumed = parseFloat(b.taken);
         const available = parseFloat(b.closingBalance);
@@ -38,32 +41,57 @@ export function LeaveBalances({ balances }: { balances: Balance[] }) {
               <div style={{ 
                 width: "48px", height: "48px", 
                 borderRadius: "50%", 
-                background: "rgba(59, 130, 246, 0.1)", 
-                color: "var(--att-accent)",
+                background: isUncapped ? "rgba(100, 116, 139, 0.12)" : "rgba(59, 130, 246, 0.1)", 
+                color: isUncapped ? "#475569" : "var(--att-accent)",
                 display: "flex", alignItems: "center", justifyContent: "center"
               }}>
                 <Leaf size={24} />
               </div>
               <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600, color: "var(--att-primary)" }}>{b.leaveTypeName}</h3>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 600, color: "var(--att-primary)" }}>{b.leaveTypeName}</h3>
+                  {isUncapped && (
+                    <span style={{ fontSize: "0.65rem", padding: "1px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#475569", fontWeight: 600 }}>
+                      UNPAID / LOP
+                    </span>
+                  )}
+                </div>
                 <span style={{ fontSize: "0.85rem", color: "var(--att-text-muted)" }}>Balance overview</span>
               </div>
             </div>
 
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.5rem" }}>
-                <span style={{ fontWeight: 600, fontSize: "1.5rem", color: "var(--att-text)" }}>{available} <span style={{ fontSize: "0.9rem", color: "var(--att-text-muted)", fontWeight: 400 }}>days available</span></span>
+                {isUncapped ? (
+                  <span style={{ fontWeight: 600, fontSize: "1.35rem", color: "#0f172a" }}>
+                    {consumed} <span style={{ fontSize: "0.85rem", color: "var(--att-text-muted)", fontWeight: 400 }}>days availed (As Approved)</span>
+                  </span>
+                ) : (
+                  <span style={{ fontWeight: 600, fontSize: "1.5rem", color: "var(--att-text)" }}>
+                    {available} <span style={{ fontSize: "0.9rem", color: "var(--att-text-muted)", fontWeight: 400 }}>days available</span>
+                  </span>
+                )}
               </div>
               
               <div style={{ width: "100%", height: "6px", background: "var(--att-border)", borderRadius: "99px", overflow: "hidden" }}>
-                <div style={{ width: `${percentAvailable}%`, height: "100%", background: barColor, borderRadius: "99px", transition: "width 0.5s ease" }} />
+                <div 
+                  style={{ 
+                    width: isUncapped ? "100%" : `${percentAvailable}%`, 
+                    height: "100%", 
+                    background: isUncapped ? "#94a3b8" : barColor, 
+                    borderRadius: "99px", 
+                    transition: "width 0.5s ease" 
+                  }} 
+                />
               </div>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "0.25rem" }}>
               <div style={{ padding: "0.75rem", background: "var(--att-bg-hover)", borderRadius: "8px" }}>
                 <div style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: 600, color: "var(--att-text-muted)", marginBottom: "0.25rem" }}>Allotted</div>
-                <div style={{ fontSize: "1.1rem", fontWeight: 600 }}>{allotted}</div>
+                <div style={{ fontSize: "1.1rem", fontWeight: 600, color: isUncapped ? "#64748b" : "inherit" }}>
+                  {isUncapped ? "Uncapped" : allotted}
+                </div>
               </div>
               <div style={{ padding: "0.75rem", background: "var(--att-bg-hover)", borderRadius: "8px" }}>
                 <div style={{ fontSize: "0.75rem", textTransform: "uppercase", fontWeight: 600, color: "var(--att-text-muted)", marginBottom: "0.25rem" }}>Consumed</div>

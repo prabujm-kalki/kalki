@@ -61,12 +61,35 @@ export async function POST(request: Request) {
       orgId = activeOrgs[0].organizationId;
     }
 
-    const [newRole] = await db.insert(roles).values({
-      name,
-      code,
-      organizationId: orgId,
-      locationId: locationId || null,
-    }).returning();
+    const [newRole] = await db.transaction(async (tx) => {
+      const [insertedRole] = await tx.insert(roles).values({
+        name,
+        code,
+        organizationId: orgId,
+        locationId: locationId || null,
+      }).returning();
+
+      // Ensure businessRoles table is kept strictly in sync with the same ID
+      await tx.insert(businessRoles).values({
+        id: insertedRole.id,
+        name: insertedRole.name,
+        identifier: code.toUpperCase(),
+        purpose: "Application Role",
+        organizationId: orgId,
+        locationId: locationId || null,
+        isActive: true,
+      }).onConflictDoUpdate({
+        target: businessRoles.id,
+        set: {
+          name: insertedRole.name,
+          identifier: code.toUpperCase(),
+          locationId: locationId || null,
+          isActive: true,
+        }
+      });
+
+      return [insertedRole];
+    });
 
     return NextResponse.json(newRole);
   } catch (error) {

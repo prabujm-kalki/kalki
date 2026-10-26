@@ -9,12 +9,14 @@ export function LeaveConfigForm({
   initialConfigs, 
   orgId, 
   locId,
-  roles 
+  roles,
+  initialDepartments = []
 }: { 
   initialConfigs: any[], 
   orgId: string, 
   locId: string,
-  roles: {id: string, name: string}[] 
+  roles: {id: string, name: string}[],
+  initialDepartments?: {id: string, name: string, code?: string}[]
 }) {
   const [configs, setConfigs] = useState(initialConfigs);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -25,9 +27,11 @@ export function LeaveConfigForm({
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [isPaid, setIsPaid] = useState(true);
+  const [allowZeroBalance, setAllowZeroBalance] = useState(false);
   const [annualAllocation, setAnnualAllocation] = useState("0");
   const [accrualFrequency, setAccrualFrequency] = useState("YEARLY");
   const [accrualRate, setAccrualRate] = useState("");
+  const [maxCarryForwardDays, setMaxCarryForwardDays] = useState("0");
   const [carryForwardExpiryMonths, setCarryForwardExpiryMonths] = useState("");
   const [minTenureDays, setMinTenureDays] = useState("0");
   const [minNoticeDays, setMinNoticeDays] = useState("0");
@@ -41,24 +45,53 @@ export function LeaveConfigForm({
   const [rolePolicies, setRolePolicies] = useState<{ businessRoleId: string, customAccrualRate: string, maxConcurrentLeaves: string }[]>([]);
   const [departmentPolicies, setDepartmentPolicies] = useState<{ departmentId: string, maxConcurrentLeaves: string }[]>([]);
 
-  const [departments, setDepartments] = useState<{id: string, name: string}[]>([]);
+  const [departments, setDepartments] = useState<{id: string, name: string, code?: string}[]>(initialDepartments);
   useEffect(() => {
-    fetch(`/api/departments?organizationId=${orgId}`)
-      .then(res => res.json())
-      .then(data => setDepartments(data.departments || []))
-      .catch(console.error);
-  }, [orgId]);
+    if (initialDepartments.length === 0 && orgId) {
+      fetch(`/api/departments?organizationId=${orgId}`)
+        .then(res => res.json())
+        .then(data => setDepartments(data.departments || []))
+        .catch(console.error);
+    }
+  }, [orgId, initialDepartments.length]);
 
   const daysOfWeek = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const resetForm = () => {
+    setId("");
+    setCode("");
+    setName("");
+    setIsPaid(true);
+    setAllowZeroBalance(false);
+    setAnnualAllocation("0");
+    setAccrualFrequency("YEARLY");
+    setAccrualRate("");
+    setMaxCarryForwardDays("0");
+    setCarryForwardExpiryMonths("");
+    setMinTenureDays("0");
+    setMinNoticeDays("0");
+    setMaxConsecutiveDays("");
+    setIsEncashable(false);
+    setEncashmentMinTenureDays("365");
+    setEncashmentMinBalanceRetained("3");
+    setEncashmentOnlyAtYearEnd(true);
+    setRestrictedUsageDays([]);
+    setAllowedApplicationWindow([]);
+    setRolePolicies([]);
+    setDepartmentPolicies([]);
+    setError("");
+  };
 
   const handleEdit = (config: any) => {
     setId(config.id);
     setCode(config.code);
     setName(config.name);
     setIsPaid(config.isPaid);
+    setAllowZeroBalance(Boolean(config.allowZeroBalance || !config.isPaid));
     setAnnualAllocation(config.annualAllocation);
     setAccrualFrequency(config.accrualFrequency || "YEARLY");
     setAccrualRate(config.accrualRate || "");
+    setMaxCarryForwardDays(config.maxCarryForwardDays !== undefined && config.maxCarryForwardDays !== null ? String(config.maxCarryForwardDays) : "0");
     setCarryForwardExpiryMonths(config.carryForwardExpiryMonths || "");
     setMinTenureDays(config.minTenureDays?.toString() || "0");
     setMinNoticeDays(config.minNoticeDays?.toString() || "0");
@@ -69,7 +102,27 @@ export function LeaveConfigForm({
     setEncashmentOnlyAtYearEnd(config.encashmentOnlyAtYearEnd !== undefined ? config.encashmentOnlyAtYearEnd : true);
     setRestrictedUsageDays(config.restrictedUsageDays || []);
     setAllowedApplicationWindow(config.allowedApplicationWindow || []);
-    setRolePolicies([]); 
+    
+    // Populate role-based overrides if saved
+    if (config.rolePolicies && Array.isArray(config.rolePolicies)) {
+      setRolePolicies(config.rolePolicies.map((rp: any) => ({
+        businessRoleId: rp.businessRoleId || "",
+        customAccrualRate: rp.customAccrualRate !== null && rp.customAccrualRate !== undefined ? String(rp.customAccrualRate) : "",
+        maxConcurrentLeaves: rp.maxConcurrentLeaves !== null && rp.maxConcurrentLeaves !== undefined ? String(rp.maxConcurrentLeaves) : ""
+      })));
+    } else {
+      setRolePolicies([]);
+    }
+
+    // Populate department-based overrides if saved
+    if (config.departmentPolicies && Array.isArray(config.departmentPolicies)) {
+      setDepartmentPolicies(config.departmentPolicies.map((dp: any) => ({
+        departmentId: dp.departmentId || "",
+        maxConcurrentLeaves: dp.maxConcurrentLeaves !== null && dp.maxConcurrentLeaves !== undefined ? String(dp.maxConcurrentLeaves) : ""
+      })));
+    } else {
+      setDepartmentPolicies([]);
+    }
   };
 
   const toggleDay = (day: string, list: string[], setList: (val: string[]) => void) => {
@@ -114,33 +167,44 @@ export function LeaveConfigForm({
     setError("");
 
     try {
+      // Filter out any unselected/blank rows
+      const validRolePolicies = rolePolicies
+        .filter(p => p.businessRoleId && p.businessRoleId.trim() !== "")
+        .map(p => ({
+          businessRoleId: p.businessRoleId.trim(),
+          customAccrualRate: p.customAccrualRate && p.customAccrualRate.trim() !== "" ? p.customAccrualRate.trim() : undefined,
+          maxConcurrentLeaves: p.maxConcurrentLeaves && p.maxConcurrentLeaves.trim() !== "" ? Number(p.maxConcurrentLeaves) : undefined
+        }));
+
+      const validDepartmentPolicies = departmentPolicies
+        .filter(p => p.departmentId && p.departmentId.trim() !== "")
+        .map(p => ({
+          departmentId: p.departmentId.trim(),
+          maxConcurrentLeaves: p.maxConcurrentLeaves && p.maxConcurrentLeaves.trim() !== "" ? Number(p.maxConcurrentLeaves) : undefined
+        }));
+
       const payload = {
         ...(id ? { id } : {}),
         code,
         name,
         isPaid,
-        annualAllocation,
+        allowZeroBalance: allowZeroBalance || !isPaid,
+        annualAllocation: (!isPaid || allowZeroBalance) ? "0" : annualAllocation,
         accrualFrequency,
         accrualRate: accrualRate ? String(accrualRate) : undefined,
+        maxCarryForwardDays: maxCarryForwardDays || "0",
         carryForwardExpiryMonths: carryForwardExpiryMonths ? Number(carryForwardExpiryMonths) : undefined,
         minTenureDays: Number(minTenureDays),
         minNoticeDays: Number(minNoticeDays),
         maxConsecutiveDays: maxConsecutiveDays ? Number(maxConsecutiveDays) : undefined,
-        isEncashable,
+        isEncashable: isPaid ? isEncashable : false,
         encashmentMinTenureDays: Number(encashmentMinTenureDays),
         encashmentMinBalanceRetained: encashmentMinBalanceRetained,
         encashmentOnlyAtYearEnd,
         restrictedUsageDays,
         allowedApplicationWindow,
-        rolePolicies: rolePolicies.map(p => ({
-          businessRoleId: p.businessRoleId,
-          customAccrualRate: p.customAccrualRate || undefined,
-          maxConcurrentLeaves: p.maxConcurrentLeaves ? Number(p.maxConcurrentLeaves) : undefined
-        })),
-        departmentPolicies: departmentPolicies.map(p => ({
-          departmentId: p.departmentId,
-          maxConcurrentLeaves: p.maxConcurrentLeaves ? Number(p.maxConcurrentLeaves) : undefined
-        }))
+        rolePolicies: validRolePolicies,
+        departmentPolicies: validDepartmentPolicies
       };
 
       const res = await upsertLeaveConfig(payload, orgId, locId);
@@ -149,7 +213,7 @@ export function LeaveConfigForm({
         addToast({ type: "success", message: "Saved successfully!" });
         setTimeout(() => {
           window.location.reload();
-        }, 1000);
+        }, 600);
       } else {
         setError(res.error || "Failed to save");
       }
@@ -176,7 +240,7 @@ export function LeaveConfigForm({
               type="text" 
               value={code} 
               onChange={e => setCode(e.target.value)}
-              placeholder="e.g. SL, CL, PL"
+              placeholder="e.g. SL, CL, LOP"
               className="att-input-premium"
               required 
             />
@@ -188,30 +252,48 @@ export function LeaveConfigForm({
               type="text" 
               value={name} 
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Sick Leave"
+              placeholder="e.g. Loss Of Pay / Sick Leave"
               className="att-input-premium"
               required 
             />
           </label>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", margin: "1rem 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", margin: "1rem 0", flexWrap: "wrap" }}>
           <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 500 }}>
             <input 
               type="checkbox" 
               checked={isPaid} 
-              onChange={e => setIsPaid(e.target.checked)}
+              onChange={e => {
+                const checked = e.target.checked;
+                setIsPaid(checked);
+                if (!checked) {
+                  setAllowZeroBalance(true);
+                  setIsEncashable(false);
+                }
+              }}
             />
             Is Paid Leave?
           </label>
           <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 500 }}>
             <input 
               type="checkbox" 
-              checked={isEncashable} 
-              onChange={e => setIsEncashable(e.target.checked)}
+              checked={allowZeroBalance || !isPaid} 
+              disabled={!isPaid}
+              onChange={e => setAllowZeroBalance(e.target.checked)}
             />
-            Eligible for Encashment?
+            Allow Application with Zero Balance (Uncapped / LOP)
           </label>
+          {isPaid && (
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 500 }}>
+              <input 
+                type="checkbox" 
+                checked={isEncashable} 
+                onChange={e => setIsEncashable(e.target.checked)}
+              />
+              Eligible for Encashment?
+            </label>
+          )}
         </div>
         
         {isEncashable && (
@@ -271,13 +353,26 @@ export function LeaveConfigForm({
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
+            Max Carry Forward (Days)
+            <input 
+              type="number" 
+              value={maxCarryForwardDays} 
+              onChange={e => setMaxCarryForwardDays(e.target.value)}
+              min="0"
+              step="0.5"
+              placeholder="e.g. 12"
+              className="att-input-premium"
+            />
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
             Carry Forward Expiry (Months)
             <input 
               type="number" 
               value={carryForwardExpiryMonths} 
               onChange={e => setCarryForwardExpiryMonths(e.target.value)}
               min="0"
-              placeholder="e.g. 2"
+              placeholder="e.g. 36"
               className="att-input-premium"
             />
           </label>
@@ -467,9 +562,21 @@ export function LeaveConfigForm({
           )}
         </div>
 
-        <button type="submit" disabled={isSubmitting} className="att-button" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
-          <Save size={16} /> {id ? "Update Configuration" : "Save Configuration"}
-        </button>
+        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
+          <button type="submit" disabled={isSubmitting} className="att-button" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
+            <Save size={16} /> {id ? "Update Configuration" : "Save Configuration"}
+          </button>
+          {id && (
+            <button 
+              type="button" 
+              onClick={resetForm}
+              className="att-button" 
+              style={{ backgroundColor: "transparent", color: "var(--att-text-muted)", border: "1px solid var(--att-border)" }}
+            >
+              Cancel Edit
+            </button>
+          )}
+        </div>
       </form>
 
       <div className="att-card">
@@ -487,6 +594,7 @@ export function LeaveConfigForm({
                   <th>Allocation</th>
                   <th>Accrual Freq</th>
                   <th>Rate</th>
+                  <th>Max Carry Fwd</th>
                   <th>Min Tenure</th>
                   <th>Actions</th>
                 </tr>
@@ -500,6 +608,7 @@ export function LeaveConfigForm({
                     <td>{config.annualAllocation}</td>
                     <td>{config.accrualFrequency}</td>
                     <td>{config.accrualRate || "-"}</td>
+                    <td>{config.maxCarryForwardDays ? `${config.maxCarryForwardDays} days` : "0"}</td>
                     <td>{config.minTenureDays ? `${config.minTenureDays} days` : "-"}</td>
                     <td>
                       <button 

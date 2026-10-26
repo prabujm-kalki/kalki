@@ -19,7 +19,8 @@ export async function GET(request: Request) {
     const user = await requireAuthenticatedUser(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const orgId = await getOrganizationForUser(user.id);
+    const { searchParams } = new URL(request.url);
+    const orgId = searchParams.get("organizationId") || await getOrganizationForUser(user.id);
     if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 400 });
     
     const definitions = await db.select()
@@ -53,10 +54,10 @@ export async function POST(request: Request) {
     const user = await requireAuthenticatedUser(request);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const orgId = await getOrganizationForUser(user.id);
-    if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 400 });
-
     const body = await request.json();
+    const { searchParams } = new URL(request.url);
+    const orgId = body.organizationId || searchParams.get("organizationId") || await getOrganizationForUser(user.id);
+    if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 400 });
 
     const [newDef] = await db.insert(taskDefinitions).values({
       organizationId: orgId,

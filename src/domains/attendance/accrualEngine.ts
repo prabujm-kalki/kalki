@@ -190,6 +190,29 @@ export function calculateMonthsElapsed(employmentStartDate: Date, today: Date = 
   return monthsElapsed;
 }
 
+export function calculateEligibleCarryForward(
+  employmentStartDate: Date,
+  leaveType: { maxCarryForwardDays: string | null; annualAllocation: string | null },
+  today: Date = new Date()
+): number {
+  const maxCarry = Number(leaveType.maxCarryForwardDays || 0);
+  if (maxCarry <= 0) return 0;
+
+  // An employee is eligible for carry-forward into the current calendar year
+  // only if they were employed in a prior calendar year.
+  const empStartYear = employmentStartDate.getFullYear();
+  const currentYear = today.getFullYear();
+
+  if (empStartYear < currentYear) {
+    const annual = Number(leaveType.annualAllocation || 0);
+    // Prior year unconsumed balance rolls over capped at maxCarryForwardDays
+    const eligibleAmount = Math.min(annual > 0 ? annual : maxCarry, maxCarry);
+    return Math.max(0, eligibleAmount);
+  }
+
+  return 0;
+}
+
 export async function initializeEmployeeLeaves(
   tx: any, 
   employeeId: string, 
@@ -228,13 +251,18 @@ export async function initializeEmployeeLeaves(
       accruedAmount = Number(leaveType.annualAllocation);
     }
 
+    const carriedForwardAmount = calculateEligibleCarryForward(employmentStartDate, leaveType, today);
+    const closingBal = accruedAmount + carriedForwardAmount;
+
     await tx.insert(employeeLeaveBalances).values({
       organizationId,
       locationId,
       employeeId,
       leaveTypeId: leaveType.id,
       accrued: accruedAmount.toFixed(2),
-      closingBalance: accruedAmount.toFixed(2)
+      taken: "0.00",
+      carriedForward: carriedForwardAmount.toFixed(2),
+      closingBalance: closingBal.toFixed(2)
     });
   }
 }
@@ -288,6 +316,9 @@ export async function syncLeaveBalancesForOrganization(
         accruedAmount = Number(leaveType.annualAllocation);
       }
 
+      // Determine carried forward amount
+      const eligibleCarryForward = calculateEligibleCarryForward(empStartDate, leaveType, today);
+
       // Check if a balance record already exists
       const existingBalance = await tx.select()
         .from(employeeLeaveBalances)
@@ -299,23 +330,30 @@ export async function syncLeaveBalancesForOrganization(
 
       if (existingBalance.length > 0) {
         const balance = existingBalance[0];
-        const closingBal = accruedAmount + Number(balance.carriedForward) - Number(balance.taken);
+        // If carriedForward is 0 and employee is eligible for carry-forward from prior years, update it
+        const currentCarried = Number(balance.carriedForward || 0);
+        const carriedForwardToApply = currentCarried > 0 ? currentCarried : eligibleCarryForward;
+        const closingBal = accruedAmount + carriedForwardToApply - Number(balance.taken || 0);
 
         await tx.update(employeeLeaveBalances)
           .set({ 
             accrued: accruedAmount.toFixed(2),
+            carriedForward: carriedForwardToApply.toFixed(2),
             closingBalance: closingBal.toFixed(2),
             updatedAt: new Date()
           })
           .where(eq(employeeLeaveBalances.id, balance.id));
       } else {
+        const closingBal = accruedAmount + eligibleCarryForward;
         await tx.insert(employeeLeaveBalances).values({
           organizationId: emp.organizationId,
           locationId: emp.locationId,
           employeeId: emp.id,
           leaveTypeId: leaveType.id,
           accrued: accruedAmount.toFixed(2),
-          closingBalance: accruedAmount.toFixed(2)
+          taken: "0.00",
+          carriedForward: eligibleCarryForward.toFixed(2),
+          closingBalance: closingBal.toFixed(2)
         });
       }
     }

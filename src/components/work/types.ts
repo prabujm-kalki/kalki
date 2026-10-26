@@ -5,6 +5,7 @@ export type SessionScope = {
   locationName: string;
   organizationCode: string;
   locationCode: string;
+  organizationLogoUrl?: string | null;
   permissions: string[];
 };
 

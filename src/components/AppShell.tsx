@@ -122,12 +122,35 @@ function AppShellContent({ children }: { children: ReactNode }) {
           <aside className={`kalki-sidebar ${isMobileMenuOpen ? 'kalki-sidebar--mobile-open' : ''}`}>
             <div className="kalki-sidebar-header" style={{ justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#d4af37" stroke="none">
-                  <path d="M12 2C12 2 15 7 15 11C15 13 14 15 12 16C10 15 9 13 9 11C9 7 12 2 12 2ZM22 13C22 13 18 10 15 11.5C14 12 13 13.5 13 15C13 18 16 22 16 22C16 22 20 18 22 13ZM2 13C2 13 6 10 9 11.5C10 12 11 13.5 11 15C11 18 8 22 8 22C8 22 4 18 2 13Z" />
-                </svg>
+                {selected?.organizationLogoUrl ? (
+                  <img
+                    src={selected.organizationLogoUrl}
+                    alt={selected.organizationName || "Organization Logo"}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '6px',
+                      objectFit: 'contain',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      padding: '2px',
+                    }}
+                    onError={(e) => {
+                      // On error hide and let fallback show
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#d4af37" stroke="none">
+                    <path d="M12 2C12 2 15 7 15 11C15 13 14 15 12 16C10 15 9 13 9 11C9 7 12 2 12 2ZM22 13C22 13 18 10 15 11.5C14 12 13 13.5 13 15C13 18 16 22 16 22C16 22 20 18 22 13ZM2 13C2 13 6 10 9 11.5C10 12 11 13.5 11 15C11 18 8 22 8 22C8 22 4 18 2 13Z" />
+                  </svg>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-                  <span style={{ fontSize: '1.25rem' }}>Kalki BOS</span>
-                  <span style={{ fontSize: '0.55rem', letterSpacing: '0.05em', color: '#b7ae9f', marginTop: '4px', textTransform: 'uppercase', fontWeight: 500 }}>Business Operating System</span>
+                  <span style={{ fontSize: '1.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>
+                    {selected?.organizationName || "Kalki BOS"}
+                  </span>
+                  <span style={{ fontSize: '0.55rem', letterSpacing: '0.05em', color: '#b7ae9f', marginTop: '4px', textTransform: 'uppercase', fontWeight: 500 }}>
+                    {selected ? (selected.locationName || "Business Operating System") : "Business Operating System"}
+                  </span>
                 </div>
               </div>
               <button 
@@ -346,6 +369,30 @@ function AppShellContent({ children }: { children: ReactNode }) {
                           <SettingsIcon size={16} color="#64748b" />
                           <span>Account Settings</span>
                         </Link>
+
+                        {session.isOwner && (
+                          <Link
+                            href={selected ? `/settings/users?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : "/settings/users"}
+                            onClick={() => setIsProfileMenuOpen(false)}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '6px',
+                              textDecoration: 'none',
+                              color: '#334155',
+                              fontSize: '0.85rem',
+                              fontWeight: 500,
+                              transition: 'background-color 0.15s ease',
+                            }}
+                            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                          >
+                            <UserIcon size={16} color="#64748b" />
+                            <span>Users & Scope</span>
+                          </Link>
+                        )}
                       </div>
 
                       {/* Sign Out Action */}

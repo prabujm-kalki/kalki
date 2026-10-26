@@ -359,7 +359,7 @@ export default async function PurchaseReportsPage({
       conditions.push(inArray(purchaseOrders.status, ["completed", "received", "audited"]));
     } else if (filterType === "pending_receipts") {
       // Matches Pending Receipts metric on dashboard
-      conditions.push(inArray(purchaseOrders.status, ["pending_receipt", "ordered", "in_transit", "approved"]));
+      conditions.push(inArray(purchaseOrders.status, ["pending_receipt", "sent_to_vendor", "ordered", "in_transit", "approved"]));
     }
     
     if (vendorFilter) {

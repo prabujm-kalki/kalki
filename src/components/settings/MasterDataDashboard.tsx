@@ -5,11 +5,12 @@ import { useSessionView } from "@/components/AppShell";
 import { DepartmentsDashboard } from "./DepartmentsDashboard";
 import { ShiftDefinitionsDashboard } from "./ShiftDefinitionsDashboard";
 import { SalaryComponentsDashboard } from "./SalaryComponentsDashboard";
+import { LocationsDashboard } from "./LocationsDashboard";
 import { Database, MapPin, Users, Clock, Banknote } from "lucide-react";
 
 export function MasterDataDashboard() {
   const { selected } = useSessionView();
-  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "roles" | "shifts" | "salary">("departments");
+  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "shifts" | "salary">("departments");
 
   if (!selected) {
     return <div style={{ padding: "2rem", textAlign: "center" }}>Please select an organization.</div>;
@@ -29,75 +30,44 @@ export function MasterDataDashboard() {
           </div>
         </div>
 
-        {/* Custom Nav Tabs */}
-        <div style={{ display: "flex", gap: "1rem", borderBottom: "1px solid var(--kalki-border)", marginBottom: "2rem" }}>
-          <button 
-            onClick={() => setActiveTab("locations")}
-            style={{ 
-              padding: "1rem 0", 
-              background: "none", 
-              border: "none",
-              borderBottom: activeTab === "locations" ? "2px solid var(--kalki-primary)" : "2px solid transparent",
-              color: activeTab === "locations" ? "var(--kalki-primary)" : "var(--kalki-text-secondary)",
-              fontWeight: activeTab === "locations" ? 600 : 500,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "0.5rem"
-            }}
-          >
-            <MapPin size={16} /> Locations (Coming Soon)
-          </button>
-          <button 
-            onClick={() => setActiveTab("departments")}
-            style={{ 
-              padding: "1rem 0", 
-              background: "none", 
-              border: "none",
-              borderBottom: activeTab === "departments" ? "2px solid var(--kalki-primary)" : "2px solid transparent",
-              color: activeTab === "departments" ? "var(--kalki-primary)" : "var(--kalki-text-secondary)",
-              fontWeight: activeTab === "departments" ? 600 : 500,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "0.5rem"
-            }}
-          >
-            <Users size={16} /> Departments
-          </button>
-          <button 
-            onClick={() => setActiveTab("shifts")}
-            style={{ 
-              padding: "1rem 0", 
-              background: "none", 
-              border: "none",
-              borderBottom: activeTab === "shifts" ? "2px solid var(--kalki-primary)" : "2px solid transparent",
-              color: activeTab === "shifts" ? "var(--kalki-primary)" : "var(--kalki-text-secondary)",
-              fontWeight: activeTab === "shifts" ? 600 : 500,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "0.5rem"
-            }}
-          >
-            <Clock size={16} /> Shifts
-          </button>
-          <button 
-            onClick={() => setActiveTab("salary")}
-            style={{ 
-              padding: "1rem 0", 
-              background: "none", 
-              border: "none",
-              borderBottom: activeTab === "salary" ? "2px solid var(--kalki-primary)" : "2px solid transparent",
-              color: activeTab === "salary" ? "var(--kalki-primary)" : "var(--kalki-text-secondary)",
-              fontWeight: activeTab === "salary" ? 600 : 500,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: "0.5rem"
-            }}
-          >
-            <Banknote size={16} /> Salary Components
-          </button>
+        {/* Kalki Standard Sub-Navigation Tabs */}
+        <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid #e2e8f0", marginBottom: "1.75rem", paddingBottom: "2px" }}>
+          {[
+            { id: "departments", label: "Departments", icon: <Users size={16} /> },
+            { id: "shifts", label: "Shifts", icon: <Clock size={16} /> },
+            { id: "salary", label: "Salary Components", icon: <Banknote size={16} /> },
+          ].map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button 
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                style={{ 
+                  padding: "0.625rem 1.125rem", 
+                  background: isActive ? "#eff6ff" : "none", 
+                  border: "none",
+                  borderRadius: "8px 8px 0 0",
+                  borderBottom: isActive ? "2px solid var(--kalki-primary, #2563eb)" : "2px solid transparent",
+                  color: isActive ? "var(--kalki-primary, #2563eb)" : "#64748b",
+                  fontWeight: isActive ? 600 : 500,
+                  fontSize: "0.9rem",
+                  cursor: "pointer",
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "0.5rem",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         <div>
           {activeTab === "departments" && <DepartmentsDashboard />}
           {activeTab === "shifts" && <ShiftDefinitionsDashboard />}
           {activeTab === "salary" && <SalaryComponentsDashboard />}
-          {activeTab === "locations" && <div style={{ padding: "3rem", textAlign: "center", color: "var(--kalki-text-secondary)" }}>Locations management module under development.</div>}
         </div>
     </>
   );

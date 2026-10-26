@@ -96,15 +96,26 @@ export default function ApprovalList({ requests }: { requests: LeaveRequest[] })
               </p>
             )}
           </div>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
             <button
               onClick={() => handleAction(req.id, "APPROVED")}
               disabled={loadingId === req.id}
-              className="att-button"
               style={{
-                padding: "0.5rem 1rem",
-                background: "var(--att-success)",
-                color: "white"
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "6px 14px",
+                backgroundColor: "#10b981",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: loadingId === req.id ? "not-allowed" : "pointer",
+                opacity: loadingId === req.id ? 0.7 : 1,
+                boxShadow: "0 1px 2px rgba(16, 185, 129, 0.2)",
+                transition: "background-color 0.15s ease",
+                minWidth: "72px"
               }}
             >
               {loadingId === req.id ? "..." : "Approve"}
@@ -112,11 +123,22 @@ export default function ApprovalList({ requests }: { requests: LeaveRequest[] })
             <button
               onClick={() => handleAction(req.id, "REJECTED")}
               disabled={loadingId === req.id}
-              className="att-button"
               style={{
-                padding: "0.5rem 1rem",
-                background: "var(--att-destructive)",
-                color: "white"
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "6px 14px",
+                backgroundColor: "#ef4444",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: loadingId === req.id ? "not-allowed" : "pointer",
+                opacity: loadingId === req.id ? 0.7 : 1,
+                boxShadow: "0 1px 2px rgba(239, 68, 68, 0.2)",
+                transition: "background-color 0.15s ease",
+                minWidth: "72px"
               }}
             >
               {loadingId === req.id ? "..." : "Reject"}

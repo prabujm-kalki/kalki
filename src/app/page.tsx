@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { leaveRequests, employees, leaveTypes, people } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import ApprovalList from "@/components/attendance/ApprovalList";
 import { GlobalModulesGrid } from "@/components/GlobalModulesGrid";
 import { ActionRequiredBanner } from "@/components/ui/ActionRequiredBanner";
@@ -35,9 +35,13 @@ export default async function DashboardPage({
     const currentEmployee = await db.select().from(employees).where(eq(employees.userId, session.user.id)).limit(1);
     
     if (currentEmployee.length > 0) {
+      const { getEffectiveUserAuthority } = await import("@/domains/session/delegationAuthority");
+      const authority = organizationId ? await getEffectiveUserAuthority(session.user.id, organizationId) : null;
+      const validApproverIds = [currentEmployee[0].id, ...(authority?.delegatedEmployeeIds || [])];
+
       let conditions = and(
         eq(leaveRequests.status, "PENDING"),
-        eq(leaveRequests.approverId, currentEmployee[0].id)
+        inArray(leaveRequests.approverId, validApproverIds)
       );
 
       rawRequests = await db.select({
