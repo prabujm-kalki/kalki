@@ -20,9 +20,14 @@ export function NotificationPoller({ organizationId }: { organizationId: string 
 
         const toneMap: Record<string, number> = {
           "default": 1,
+          "level-1": 1,
           "chime": 2,
+          "level-2": 2,
           "alert": 3,
-          "urgent": 4
+          "level-3": 3,
+          "level-4": 4,
+          "urgent": 5,
+          "level-5": 5
         };
 
         for (const task of tasks) {

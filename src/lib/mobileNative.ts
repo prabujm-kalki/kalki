@@ -25,7 +25,7 @@ export async function initializeNativeMobile() {
   try {
     let permStatus = await PushNotifications.checkPermissions();
 
-    if (permStatus.receive === "prompt") {
+    if (permStatus.receive !== "granted") {
       permStatus = await PushNotifications.requestPermissions();
     }
 

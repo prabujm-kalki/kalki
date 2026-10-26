@@ -3,6 +3,8 @@ import { purchaseDebitNotes, vendors } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import DebitNotesClient from "./DebitNotesClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function DebitNotesPage() {
   const notes = await db.select({
     id: purchaseDebitNotes.id,
