@@ -23,7 +23,11 @@ export const auth = betterAuth({
   trustedOrigins: [
     "http://localhost:3001", 
     env.BETTER_AUTH_URL,
-    "http://192.168.31.96:3001"
+    "http://192.168.31.96:3001",
+    "http://140.245.253.187",
+    "https://140.245.253.187",
+    "http://140.245.253.187.nip.io",
+    "https://140.245.253.187.nip.io"
   ],
   emailAndPassword: { enabled: true },
   advanced: {
