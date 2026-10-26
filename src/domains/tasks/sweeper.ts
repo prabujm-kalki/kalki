@@ -164,6 +164,18 @@ export async function runEscalationSweeper() {
           timeoutMinutes: nextMatrix.timeoutMinutes
         }
       });
+
+      // Dispatch Native Push with matched sound for this escalation level
+      if (finalUserId) {
+        import("@/lib/pushNotificationSender").then(({ sendNativePushNotification }) => {
+          sendNativePushNotification(finalUserId, {
+            title: `⚠️ Task Escalated: Level ${nextLevel}`,
+            body: `A task has breached deadline and escalated to Level ${nextLevel}. Immediate attention required.`,
+            level: `level-${Math.min(nextLevel + 1, 5)}`,
+            data: { taskId: task.id },
+          }).catch(() => {});
+        });
+      }
     } else {
       // Max escalation reached or no matrix. We mark it as 'audit_pending' and escalate to reporting manager
       const ctx: any = task.contextData || {};

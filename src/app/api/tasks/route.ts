@@ -179,6 +179,22 @@ export async function POST(req: NextRequest) {
 
     await db.insert(taskCheckpoints).values(checkpointsToCreate);
 
+    // Dispatch Native Push Notification to assigned employee
+    const targetUserId = assignedUserId || session.user.id;
+    if (targetUserId) {
+      import("@/lib/pushNotificationSender").then(({ sendNativePushNotification }) => {
+        sendNativePushNotification(targetUserId, {
+          title: `New Task: ${title}`,
+          body: description || "You have a new task waiting in Kalki BOS.",
+          level: priority === "high" ? "level-4" : priority === "urgent" ? "level-5" : "level-1",
+          data: {
+            taskId: newTask.id,
+            actionUrl: `/work/${newTask.id}`,
+          },
+        }).catch((pushErr) => console.error("[TaskPush] Failed to send push:", pushErr));
+      });
+    }
+
     return NextResponse.json({ success: true, task: newTask });
   } catch (error: any) {
     console.error("POST tasks error:", error);

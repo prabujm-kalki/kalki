@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { userDeviceTokens } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
+import admin from "firebase-admin";
 
 export interface NativePushPayload {
   title: string;
@@ -10,9 +11,43 @@ export interface NativePushPayload {
   level?: "level-1" | "level-2" | "level-3" | "level-4" | "level-5" | number | string;
 }
 
+// Initialize Firebase Admin SDK (singleton)
+function getFirebaseAdmin() {
+  if (admin.apps.length > 0) {
+    return admin.app();
+  }
+
+  // 1. Try FIREBASE_SERVICE_ACCOUNT JSON string or file path
+  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (serviceAccountKey) {
+    try {
+      let parsed = typeof serviceAccountKey === "string" && serviceAccountKey.trim().startsWith("{")
+        ? JSON.parse(serviceAccountKey)
+        : require(serviceAccountKey);
+
+      return admin.initializeApp({
+        credential: admin.credential.cert(parsed),
+      });
+    } catch (e) {
+      console.error("[NativePush] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
+    }
+  }
+
+  // 2. Default application credentials
+  try {
+    return admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+    });
+  } catch (e) {
+    // Firebase not initialized
+    return null;
+  }
+}
+
 /**
  * Send native push notifications to all registered active devices of a user.
- * Dispatches to the matched Android Notification Channel so the target sound plays.
+ * Dispatches to the matched Android Notification Channel so the target sound plays,
+ * even when the device is locked.
  */
 export async function sendNativePushNotification(userId: string, payload: NativePushPayload) {
   try {
@@ -40,50 +75,50 @@ export async function sendNativePushNotification(userId: string, payload: Native
 
     const channelId = soundName === "default" ? "kalki_sound_default" : `kalki_sound_${soundName}`;
 
-    // If FCM Server Key or Google ADC is configured, dispatch FCM payload
-    const fcmServerKey = process.env.FCM_SERVER_KEY;
-    if (fcmServerKey) {
-      for (const token of tokens) {
-        try {
-          await fetch("https://fcm.googleapis.com/fcm/send", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `key=${fcmServerKey}`,
-            },
-            body: JSON.stringify({
-              to: token,
-              notification: {
-                title: payload.title,
-                body: payload.body,
-                sound: soundName,
-                android_channel_id: channelId,
-                badge: "1",
-              },
-              android: {
-                notification: {
-                  channel_id: channelId,
-                  sound: soundName,
-                },
-                priority: "high",
-              },
-              data: {
-                ...(payload.data || {}),
-                soundKey: soundName,
-                channelId: channelId,
-              },
-              priority: "high",
-            }),
-          });
-        } catch (fetchErr) {
-          console.error(`[NativePush] Error dispatching to token ${token}:`, fetchErr);
+    const app = getFirebaseAdmin();
+    if (app) {
+      const messaging = admin.messaging(app);
+
+      // Convert all data values to strings as required by FCM
+      const stringData: Record<string, string> = {
+        soundKey: soundName,
+        channelId: channelId,
+      };
+      if (payload.data) {
+        for (const [k, v] of Object.entries(payload.data)) {
+          stringData[k] = String(v ?? "");
         }
       }
-    } else {
-      console.log(`[NativePush] FCM_SERVER_KEY not set. Logged alert [Channel: ${channelId}] for user ${userId}:`, payload);
-    }
 
-    return { success: true, deviceCount: tokens.length };
+      for (const token of tokens) {
+        try {
+          await messaging.send({
+            token,
+            notification: {
+              title: payload.title,
+              body: payload.body,
+            },
+            android: {
+              priority: "high",
+              notification: {
+                channelId: channelId,
+                sound: soundName,
+                priority: "max",
+                visibility: "public",
+                defaultVibrateTimings: true,
+              },
+            },
+            data: stringData,
+          });
+        } catch (fetchErr: any) {
+          console.error(`[NativePush] Error dispatching to token ${token}:`, fetchErr?.message || fetchErr);
+        }
+      }
+      return { success: true, deviceCount: tokens.length };
+    } else {
+      console.log(`[NativePush] Firebase Admin not initialized. Logged alert [Channel: ${channelId}] for user ${userId}:`, payload);
+      return { success: false, reason: "Firebase Admin not configured" };
+    }
   } catch (err) {
     console.error("[NativePush] Failed to dispatch push notification:", err);
     return { success: false, error: err };
