@@ -51,12 +51,15 @@ function env(t: number, attack: number, decay: number): number {
   return Math.exp(-(t - attack) * decay);
 }
 
-const sounds: Record<string, { duration: number; gen: (t: number) => number }> = {
-  // 1. Classic Desk Bell (crystal clear resonant ding)
+// Target alert duration: 15 seconds
+const TARGET_ALERT_DURATION = 15.0;
+
+const sounds: Record<string, { interval: number; gen: (t: number) => number }> = {
+  // 1. Classic Desk Bell (crystal clear resonant ding repeating every 2.5 seconds)
   bell_classic: {
-    duration: 1.2,
+    interval: 2.5,
     gen: (t) => {
-      const e = Math.exp(-t * 4.5);
+      const e = Math.exp(-t * 3.5);
       return (
         e *
         (0.6 * Math.sin(2 * Math.PI * 1760 * t) +
@@ -66,40 +69,40 @@ const sounds: Record<string, { duration: number; gen: (t: number) => number }> =
     },
   },
 
-  // 2. Soft Chime (gentle ascending arpeggio)
+  // 2. Soft Chime (gentle ascending arpeggio repeating every 2.8 seconds)
   soft_chime: {
-    duration: 1.4,
+    interval: 2.8,
     gen: (t) => {
       let s = 0;
-      if (t >= 0) s += Math.exp(-(t - 0) * 5) * 0.4 * Math.sin(2 * Math.PI * 659.25 * t); // E5
-      if (t >= 0.15) s += Math.exp(-(t - 0.15) * 5) * 0.4 * Math.sin(2 * Math.PI * 880.0 * (t - 0.15)); // A5
-      if (t >= 0.3) s += Math.exp(-(t - 0.3) * 4) * 0.5 * Math.sin(2 * Math.PI * 1318.51 * (t - 0.3)); // E6
+      if (t >= 0) s += Math.exp(-(t - 0) * 4) * 0.4 * Math.sin(2 * Math.PI * 659.25 * t); // E5
+      if (t >= 0.18) s += Math.exp(-(t - 0.18) * 4) * 0.4 * Math.sin(2 * Math.PI * 880.0 * (t - 0.18)); // A5
+      if (t >= 0.36) s += Math.exp(-(t - 0.36) * 3) * 0.5 * Math.sin(2 * Math.PI * 1318.51 * (t - 0.36)); // E6
       return s;
     },
   },
 
-  // 3. Ding Dong (warm two-tone welcome chime)
+  // 3. Ding Dong (warm two-tone welcome chime repeating every 2.5 seconds)
   ding_dong: {
-    duration: 1.6,
+    interval: 2.5,
     gen: (t) => {
       let s = 0;
-      if (t >= 0 && t < 0.5) s += Math.exp(-t * 4) * 0.6 * Math.sin(2 * Math.PI * 784 * t); // G5
-      if (t >= 0.45) s += Math.exp(-(t - 0.45) * 3) * 0.6 * Math.sin(2 * Math.PI * 659.25 * (t - 0.45)); // E5
+      if (t >= 0 && t < 0.6) s += Math.exp(-t * 3) * 0.6 * Math.sin(2 * Math.PI * 784 * t); // G5
+      if (t >= 0.45) s += Math.exp(-(t - 0.45) * 2.5) * 0.6 * Math.sin(2 * Math.PI * 659.25 * (t - 0.45)); // E5
       return s;
     },
   },
 
-  // 4. Marimba (warm organic percussive strike)
+  // 4. Marimba (warm organic percussive strike repeating every 2.2 seconds)
   marimba: {
-    duration: 1.2,
+    interval: 2.2,
     gen: (t) => {
       let s = 0;
       const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
       notes.forEach((f, idx) => {
-        const offset = idx * 0.1;
+        const offset = idx * 0.12;
         if (t >= offset) {
           const dt = t - offset;
-          const e = Math.exp(-dt * 9);
+          const e = Math.exp(-dt * 7);
           s += e * 0.3 * Math.sin(2 * Math.PI * f * dt);
         }
       });
@@ -107,60 +110,58 @@ const sounds: Record<string, { duration: number; gen: (t: number) => number }> =
     },
   },
 
-  // 5. Digital Blip (clean crisp POS confirmation tone)
+  // 5. Digital Blip (clean crisp POS confirmation tone repeating every 1.8 seconds)
   digital_blip: {
-    duration: 0.5,
+    interval: 1.8,
     gen: (t) => {
       let s = 0;
-      if (t >= 0 && t < 0.12) s += Math.sin(2 * Math.PI * 1500 * t) * 0.5;
-      if (t >= 0.12 && t < 0.28) s += Math.sin(2 * Math.PI * 2200 * t) * 0.6;
-      return s * Math.exp(-t * 4);
+      if (t >= 0 && t < 0.15) s += Math.sin(2 * Math.PI * 1500 * t) * 0.5;
+      if (t >= 0.15 && t < 0.32) s += Math.sin(2 * Math.PI * 2200 * t) * 0.6;
+      return s * Math.exp(-t * 3.5);
     },
   },
 
-  // 6. Double Beep (distinct electronic task beep)
+  // 6. Double Beep (distinct electronic task beep repeating every 2.0 seconds)
   double_beep: {
-    duration: 0.6,
+    interval: 2.0,
     gen: (t) => {
       let s = 0;
-      if (t >= 0 && t < 0.12) s += Math.sin(2 * Math.PI * 1200 * t) * 0.5;
-      if (t >= 0.18 && t < 0.3) s += Math.sin(2 * Math.PI * 1400 * t) * 0.5;
+      if (t >= 0 && t < 0.14) s += Math.sin(2 * Math.PI * 1200 * t) * 0.5;
+      if (t >= 0.22 && t < 0.36) s += Math.sin(2 * Math.PI * 1400 * t) * 0.5;
       return s;
     },
   },
 
-  // 7. Cash Register (metallic cheerful checkout bell)
+  // 7. Cash Register (metallic cheerful checkout bell repeating every 2.5 seconds)
   cash_register: {
-    duration: 1.1,
+    interval: 2.5,
     gen: (t) => {
       let s = 0;
-      // Mechanical ratchet snap
-      if (t < 0.08) s += (Math.random() * 2 - 1) * 0.4 * Math.exp(-t * 20);
-      // High bright metallic bell
-      if (t >= 0.06) {
-        const dt = t - 0.06;
-        s += Math.exp(-dt * 5) * (0.5 * Math.sin(2 * Math.PI * 2637 * dt) + 0.3 * Math.sin(2 * Math.PI * 4186 * dt));
+      if (t < 0.1) s += (Math.random() * 2 - 1) * 0.4 * Math.exp(-t * 18);
+      if (t >= 0.08) {
+        const dt = t - 0.08;
+        s += Math.exp(-dt * 4) * (0.5 * Math.sin(2 * Math.PI * 2637 * dt) + 0.3 * Math.sin(2 * Math.PI * 4186 * dt));
       }
       return s;
     },
   },
 
-  // 8. Radar Pulse (subtle sonic sonar pulse)
+  // 8. Radar Pulse (subtle sonic sonar pulse repeating every 2.2 seconds)
   radar_pulse: {
-    duration: 0.9,
+    interval: 2.2,
     gen: (t) => {
+      if (t > 1.2) return 0;
       const f = 900 + 400 * Math.sin(2 * Math.PI * 4 * t);
-      const e = Math.sin(Math.PI * (t / 0.9));
+      const e = Math.sin(Math.PI * (t / 1.2));
       return Math.sin(2 * Math.PI * f * t) * e * 0.5;
     },
   },
 
-  // 9. Alert Horn (authoritative klaxon for high priority)
+  // 9. Alert Horn (authoritative klaxon for high priority repeating every 2.2 seconds)
   alarm_horn: {
-    duration: 1.3,
+    interval: 2.2,
     gen: (t) => {
       let s = 0;
-      // 2 bursts
       const burst1 = t >= 0 && t < 0.45;
       const burst2 = t >= 0.55 && t < 1.0;
       if (burst1 || burst2) {
@@ -172,21 +173,22 @@ const sounds: Record<string, { duration: number; gen: (t: number) => number }> =
     },
   },
 
-  // 10. Urgent Siren (critical rising-falling warning siren)
+  // 10. Urgent Siren (critical rising-falling warning siren continuous pattern)
   urgent_siren: {
-    duration: 1.8,
+    interval: 2.0,
     gen: (t) => {
-      const sweep = 700 + 600 * Math.sin(2 * Math.PI * 2 * t);
+      const sweep = 700 + 600 * Math.sin(2 * Math.PI * 1.0 * t);
       const saw = 2 * ((sweep * t) % 1) - 1; // sawtooth
-      return saw * 0.35 * (t < 1.6 ? 1 : Math.exp(-(t - 1.6) * 15));
+      return saw * 0.35;
     },
   },
 
-  // 11. Emergency Pulsar (rapid pulsing emergency dispatch alarm)
+  // 11. Emergency Pulsar (rapid pulsing emergency dispatch alarm repeating cadence)
   emergency_pulsar: {
-    duration: 1.6,
+    interval: 1.5,
     gen: (t) => {
-      const pulse = Math.sin(2 * Math.PI * 8 * t) > 0 ? 1 : 0;
+      if (t > 1.0) return 0;
+      const pulse = Math.sin(2 * Math.PI * 6 * t) > 0 ? 1 : 0;
       const tone = Math.sin(2 * Math.PI * 1800 * t);
       return pulse * tone * 0.45;
     },
@@ -200,7 +202,15 @@ fs.mkdirSync(webSoundsDir, { recursive: true });
 fs.mkdirSync(androidRawDir, { recursive: true });
 
 for (const [name, sound] of Object.entries(sounds)) {
-  const wavBuffer = createWav(sampleRate, sound.duration, sound.gen);
+  // Loop generator function across full 15 seconds
+  const loopingGenerator = (totalT: number) => {
+    const cycleT = totalT % sound.interval;
+    // Fade out smoothly in the last 0.5s of the 15-second duration
+    const fadeOut = totalT > TARGET_ALERT_DURATION - 0.5 ? Math.max(0, (TARGET_ALERT_DURATION - totalT) / 0.5) : 1;
+    return sound.gen(cycleT) * fadeOut;
+  };
+
+  const wavBuffer = createWav(sampleRate, TARGET_ALERT_DURATION, loopingGenerator);
 
   // Write to web public directory: public/sounds/<name>.wav
   const webPath = path.join(webSoundsDir, `${name}.wav`);
@@ -210,8 +220,8 @@ for (const [name, sound] of Object.entries(sounds)) {
   const androidPath = path.join(androidRawDir, `${name}.wav`);
   fs.writeFileSync(androidPath, wavBuffer);
 
-  console.log(`Generated: ${name}.wav (${wavBuffer.length} bytes)`);
+  console.log(`Generated 15s track: ${name}.wav (${wavBuffer.length} bytes)`);
 }
 
-console.log("Successfully generated all 11 soundpack files!");
+console.log("Successfully generated all 11 extended 15-second soundpack files!");
 process.exit(0);

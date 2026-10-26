@@ -14,6 +14,8 @@ export function GeneralSettings() {
   const [enableMobilePush, setEnableMobilePush] = useState(false);
   const [notificationTone, setNotificationTone] = useState("level-1");
   const [customTones, setCustomTones] = useState<Record<string, string>>({});
+  const [playingLevel, setPlayingLevel] = useState<string | null>(null);
+  const activeAudioRef = useRef<HTMLAudioElement | null>(null);
   
   // WhatsApp Cloud API Configuration State
   const [waPhoneNumberId, setWaPhoneNumberId] = useState("");
@@ -326,6 +328,24 @@ export function GeneralSettings() {
   };
 
   const playTonePreview = (levelId: string) => {
+    // If currently playing this level, stop it
+    if (playingLevel === levelId) {
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+        activeAudioRef.current.currentTime = 0;
+        activeAudioRef.current = null;
+      }
+      setPlayingLevel(null);
+      return;
+    }
+
+    // Stop any previously playing audio
+    if (activeAudioRef.current) {
+      activeAudioRef.current.pause();
+      activeAudioRef.current.currentTime = 0;
+      activeAudioRef.current = null;
+    }
+
     const levelConfig = toneLevels.find(l => l.id === levelId);
     const soundKey = customTones[`${levelId}_key`] || (customTones[levelId]?.includes('/sounds/') ? customTones[levelId].replace('/sounds/', '').replace('.wav', '') : levelConfig?.defaultSound);
     const soundUrl = customTones[levelId] || (soundKey ? `/sounds/${soundKey}.wav` : null);
@@ -333,12 +353,22 @@ export function GeneralSettings() {
     if (soundUrl && (soundUrl.startsWith("/") || soundUrl.startsWith("http"))) {
       try {
         const audio = new Audio(soundUrl);
+        activeAudioRef.current = audio;
+        setPlayingLevel(levelId);
+
+        audio.onended = () => {
+          setPlayingLevel(null);
+          activeAudioRef.current = null;
+        };
+
         audio.play().catch((err) => {
           console.warn("Audio file playback error, falling back to synthesizer:", err);
+          setPlayingLevel(null);
           synthesizeTone(levelId);
         });
         return;
       } catch (e) {
+        setPlayingLevel(null);
         synthesizeTone(levelId);
         return;
       }
@@ -1327,11 +1357,12 @@ export function GeneralSettings() {
 
                           <button 
                             type="button" 
-                            className="gs-action-btn gs-action-btn-play" 
+                            className={`gs-action-btn ${playingLevel === level.id ? 'gs-action-btn-stop' : 'gs-action-btn-play'}`} 
                             onClick={() => playTonePreview(level.id)}
-                            title={`Preview ${level.label}`}
+                            title={playingLevel === level.id ? "Stop audio preview" : `Preview ${level.label} (15 seconds)`}
+                            style={playingLevel === level.id ? { backgroundColor: '#fee2e2', borderColor: '#fca5a5', color: '#dc2626' } : {}}
                           >
-                            <span style={{ fontSize: '0.6rem' }}>▶</span> Play
+                            <span style={{ fontSize: '0.65rem' }}>{playingLevel === level.id ? '⏹' : '▶'}</span> {playingLevel === level.id ? 'Stop' : 'Play (15s)'}
                           </button>
                           <label title="Upload Custom Audio File (MP3/WAV)">
                             <input 
