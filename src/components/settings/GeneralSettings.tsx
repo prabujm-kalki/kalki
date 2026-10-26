@@ -288,7 +288,7 @@ export function GeneralSettings() {
 
   const handleFileUpload = async (level: string, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selected) return;
+    if (!file || !selected?.organizationId) return;
     
     try {
       const formData = new FormData();
@@ -296,26 +296,159 @@ export function GeneralSettings() {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       if (res.ok) {
         const data = await res.json();
-        setCustomTones(prev => ({ ...prev, [level]: data.url || file.name }));
-        setMessage({ type: 'success', text: `Tone for ${level} uploaded!` });
-        setTimeout(() => setMessage(null), 3000);
-      } else {
-        setCustomTones(prev => ({ ...prev, [level]: `custom_${file.name}` }));
+        // /api/upload returns { urls: { file: "/uploads/..." } }
+        const uploadedUrl = data?.urls?.file || data?.url || Object.values(data?.urls || {})[0] as string;
+        
+        if (uploadedUrl) {
+          const updatedTones = { ...customTones, [level]: uploadedUrl };
+          setCustomTones(updatedTones);
+          
+          // Auto-save immediately to database so user doesn't lose it
+          await fetch(`/api/organizations/${selected.organizationId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ customTones: updatedTones }),
+          });
+
+          setMessage({ type: 'success', text: `Tone for ${level} uploaded and saved successfully!` });
+          setTimeout(() => setMessage(null), 4000);
+          return;
+        }
+      }
+      setMessage({ type: 'error', text: 'Failed to upload audio file.' });
+    } catch (err: any) {
+      console.error("Upload error:", err);
+      setMessage({ type: 'error', text: err?.message || 'Error uploading file' });
+    } finally {
+      // Reset input value so same file can be re-selected if desired
+      e.target.value = '';
+    }
+  };
+
+  const playTonePreview = (levelId: string) => {
+    const levelConfig = toneLevels.find(l => l.id === levelId);
+    const soundKey = customTones[`${levelId}_key`] || (customTones[levelId]?.includes('/sounds/') ? customTones[levelId].replace('/sounds/', '').replace('.wav', '') : levelConfig?.defaultSound);
+    const soundUrl = customTones[levelId] || (soundKey ? `/sounds/${soundKey}.wav` : null);
+
+    if (soundUrl && (soundUrl.startsWith("/") || soundUrl.startsWith("http"))) {
+      try {
+        const audio = new Audio(soundUrl);
+        audio.play().catch((err) => {
+          console.warn("Audio file playback error, falling back to synthesizer:", err);
+          synthesizeTone(levelId);
+        });
+        return;
+      } catch (e) {
+        synthesizeTone(levelId);
+        return;
+      }
+    }
+    synthesizeTone(levelId);
+  };
+
+  const synthesizeTone = (levelId: string) => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      const playBeep = (freq: number, start: number, duration: number, type: OscillatorType = "sine") => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, start);
+        gain.gain.setValueAtTime(0.18, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + duration);
+      };
+
+      if (levelId === "level-1") {
+        // Soft single bell
+        playBeep(880, now, 0.4, "sine");
+      } else if (levelId === "level-2") {
+        // Two crisp beeps
+        playBeep(1046, now, 0.12, "triangle");
+        playBeep(1318, now + 0.16, 0.18, "triangle");
+      } else if (levelId === "level-3") {
+        // Melodic chime
+        playBeep(587.33, now, 0.25, "sine");
+        playBeep(880, now + 0.12, 0.35, "sine");
+        playBeep(1174.66, now + 0.25, 0.5, "sine");
+      } else if (levelId === "level-4") {
+        // Alert sound
+        playBeep(784, now, 0.18, "sawtooth");
+        playBeep(659, now + 0.2, 0.18, "sawtooth");
+        playBeep(784, now + 0.4, 0.3, "sawtooth");
+      } else if (levelId === "level-5") {
+        // Urgent rising siren
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.linearRampToValueAtTime(1400, now + 0.3);
+        osc.frequency.linearRampToValueAtTime(600, now + 0.6);
+        osc.frequency.linearRampToValueAtTime(1400, now + 0.9);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 1.0);
       }
     } catch (err) {
-       setCustomTones(prev => ({ ...prev, [level]: `custom_${file.name}` }));
+      console.error("Audio synthesis error:", err);
     }
   };
 
   if (!selected) return <div style={{ padding: '2rem' }}>Select an organization to view settings.</div>;
 
-  const toneLevels = [
-    { id: "level-1", label: "Level 1 - Default Bell" },
-    { id: "level-2", label: "Level 2 - Sharp Beep" },
-    { id: "level-3", label: "Level 3 - Soft Chime" },
-    { id: "level-4", label: "Level 4 - Long Alert" },
-    { id: "level-5", label: "Level 5 - Urgent Siren" }
+  const soundpackCatalog = [
+    { key: "bell_classic", label: "Classic Bell", defaultFor: "level-1" },
+    { key: "soft_chime", label: "Soft Chime", defaultFor: "level-3" },
+    { key: "ding_dong", label: "Ding Dong" },
+    { key: "marimba", label: "Marimba Strike" },
+    { key: "digital_blip", label: "Digital POS Blip" },
+    { key: "double_beep", label: "Double Beep", defaultFor: "level-2" },
+    { key: "cash_register", label: "Cash Register Bell" },
+    { key: "radar_pulse", label: "Radar Pulse" },
+    { key: "alarm_horn", label: "Alarm Horn", defaultFor: "level-4" },
+    { key: "urgent_siren", label: "Urgent Siren", defaultFor: "level-5" },
+    { key: "emergency_pulsar", label: "Emergency Pulsar" },
   ];
+
+  const toneLevels = [
+    { id: "level-1", label: "Level 1 - Priority Alert", defaultSound: "bell_classic" },
+    { id: "level-2", label: "Level 2 - Follow-up Notice", defaultSound: "double_beep" },
+    { id: "level-3", label: "Level 3 - Milestone Chime", defaultSound: "soft_chime" },
+    { id: "level-4", label: "Level 4 - Critical Escalation", defaultSound: "alarm_horn" },
+    { id: "level-5", label: "Level 5 - Emergency Siren", defaultSound: "urgent_siren" }
+  ];
+
+  const handleSelectSound = async (levelId: string, soundKey: string) => {
+    if (!selected?.organizationId) return;
+    const soundUrl = `/sounds/${soundKey}.wav`;
+    const updatedTones = { ...customTones, [levelId]: soundUrl, [`${levelId}_key`]: soundKey };
+    setCustomTones(updatedTones);
+
+    try {
+      await fetch(`/api/organizations/${selected.organizationId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customTones: updatedTones }),
+      });
+      // Play sound to immediately let user hear what they selected
+      const audio = new Audio(soundUrl);
+      audio.play().catch(() => {});
+      setMessage({ type: 'success', text: `Saved ${soundKey} for ${levelId}!` });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <>
@@ -1165,16 +1298,42 @@ export function GeneralSettings() {
                           </div>
                           <div>
                             <p style={{ margin: 0, fontWeight: 600, color: '#1e293b', fontSize: '0.9rem' }}>{level.label}</p>
-                            <p style={{ margin: 0, fontSize: '0.75rem', color: customTones[level.id] ? '#059669' : '#94a3b8', marginTop: '0.1rem' }}>
-                              {customTones[level.id] ? `Custom tone active` : "Using default system tone"}
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', marginTop: '0.1rem' }}>
+                              Sound: <strong style={{ color: '#059669' }}>{soundpackCatalog.find(s => s.key === (customTones[`${level.id}_key`] || (customTones[level.id]?.includes('/sounds/') ? customTones[level.id].replace('/sounds/', '').replace('.wav', '') : level.defaultSound)))?.label || (customTones[level.id] ? "Custom Audio File" : "Default Bell")}</strong>
                             </p>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="gs-action-btn gs-action-btn-play" onClick={() => alert("Preview playback not available in preview mode")}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <select
+                            value={customTones[`${level.id}_key`] || (customTones[level.id]?.includes('/sounds/') ? customTones[level.id].replace('/sounds/', '').replace('.wav', '') : level.defaultSound)}
+                            onChange={(e) => handleSelectSound(level.id, e.target.value)}
+                            style={{
+                              padding: '0.35rem 0.6rem',
+                              borderRadius: '6px',
+                              border: '1px solid #cbd5e1',
+                              fontSize: '0.8rem',
+                              backgroundColor: '#ffffff',
+                              color: '#1e293b',
+                              fontWeight: 500,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {soundpackCatalog.map((s) => (
+                              <option key={s.key} value={s.key}>
+                                {s.label}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button 
+                            type="button" 
+                            className="gs-action-btn gs-action-btn-play" 
+                            onClick={() => playTonePreview(level.id)}
+                            title={`Preview ${level.label}`}
+                          >
                             <span style={{ fontSize: '0.6rem' }}>▶</span> Play
                           </button>
-                          <label>
+                          <label title="Upload Custom Audio File (MP3/WAV)">
                             <input 
                               type="file" 
                               accept="audio/*" 

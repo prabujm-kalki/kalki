@@ -6,11 +6,13 @@ export interface NativePushPayload {
   title: string;
   body: string;
   data?: Record<string, any>;
+  soundKey?: string;
+  level?: "level-1" | "level-2" | "level-3" | "level-4" | "level-5" | number | string;
 }
 
 /**
  * Send native push notifications to all registered active devices of a user.
- * Supports task escalations, alerts, and system notices.
+ * Dispatches to the matched Android Notification Channel so the target sound plays.
  */
 export async function sendNativePushNotification(userId: string, payload: NativePushPayload) {
   try {
@@ -25,7 +27,20 @@ export async function sendNativePushNotification(userId: string, payload: Native
 
     const tokens = devices.map((d) => d.deviceToken);
 
-    // If FCM Server Key or Google ADC is configured, dispatch FCM HTTP v1 / Legacy payload
+    // Resolve channel & sound
+    let soundName = payload.soundKey || "default";
+    if (!payload.soundKey && payload.level) {
+      const lvlStr = String(payload.level).toLowerCase();
+      if (lvlStr.includes("5")) soundName = "urgent_siren";
+      else if (lvlStr.includes("4")) soundName = "alarm_horn";
+      else if (lvlStr.includes("3")) soundName = "soft_chime";
+      else if (lvlStr.includes("2")) soundName = "double_beep";
+      else soundName = "bell_classic";
+    }
+
+    const channelId = soundName === "default" ? "kalki_sound_default" : `kalki_sound_${soundName}`;
+
+    // If FCM Server Key or Google ADC is configured, dispatch FCM payload
     const fcmServerKey = process.env.FCM_SERVER_KEY;
     if (fcmServerKey) {
       for (const token of tokens) {
@@ -41,10 +56,22 @@ export async function sendNativePushNotification(userId: string, payload: Native
               notification: {
                 title: payload.title,
                 body: payload.body,
-                sound: "default",
+                sound: soundName,
+                android_channel_id: channelId,
                 badge: "1",
               },
-              data: payload.data || {},
+              android: {
+                notification: {
+                  channel_id: channelId,
+                  sound: soundName,
+                },
+                priority: "high",
+              },
+              data: {
+                ...(payload.data || {}),
+                soundKey: soundName,
+                channelId: channelId,
+              },
               priority: "high",
             }),
           });
@@ -53,7 +80,7 @@ export async function sendNativePushNotification(userId: string, payload: Native
         }
       }
     } else {
-      console.log(`[NativePush] FCM_SERVER_KEY not set. Logged escalation notification for user ${userId} (${tokens.length} devices):`, payload);
+      console.log(`[NativePush] FCM_SERVER_KEY not set. Logged alert [Channel: ${channelId}] for user ${userId}:`, payload);
     }
 
     return { success: true, deviceCount: tokens.length };
