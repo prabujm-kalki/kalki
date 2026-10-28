@@ -20,18 +20,34 @@ function getFirebaseAdmin() {
   }
 
   // 1. Try FIREBASE_SERVICE_ACCOUNT JSON string or file path
-  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT;
+  let serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const fs = require("fs");
+  const path = require("path");
+
+  // Fallback to local file in cwd if env var is missing or empty
+  if (!serviceAccountKey) {
+    const candidatePath = path.join(process.cwd(), "firebase-service-account.json");
+    if (fs.existsSync(candidatePath)) {
+      serviceAccountKey = candidatePath;
+    }
+  }
+
   if (serviceAccountKey) {
     try {
-      let parsed = typeof serviceAccountKey === "string" && serviceAccountKey.trim().startsWith("{")
-        ? JSON.parse(serviceAccountKey)
-        : require(serviceAccountKey);
+      let parsed: any;
+      if (typeof serviceAccountKey === "string" && serviceAccountKey.trim().startsWith("{")) {
+        parsed = JSON.parse(serviceAccountKey);
+      } else if (fs.existsSync(serviceAccountKey)) {
+        parsed = JSON.parse(fs.readFileSync(serviceAccountKey, "utf-8"));
+      } else {
+        parsed = require(serviceAccountKey);
+      }
 
       return admin.initializeApp({
         credential: admin.credential.cert(parsed),
       });
-    } catch (e) {
-      console.error("[NativePush] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e);
+    } catch (e: any) {
+      console.error("[NativePush] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e?.message || e);
     }
   }
 
