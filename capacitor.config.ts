@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Kalki BOS',
   webDir: 'out',
   server: {
+    url: 'https://140.245.253.187.nip.io',
     androidScheme: 'https',
     cleartext: true,
     allowNavigation: ['*'],

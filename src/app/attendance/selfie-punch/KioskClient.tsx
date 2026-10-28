@@ -68,6 +68,7 @@ export default function SelfiePunchKiosk() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const markerCanvasRef = useRef<HTMLCanvasElement>(null);
   const arucoIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const markerLatchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Digital clock
   useEffect(() => {
@@ -210,6 +211,11 @@ export default function SelfiePunchKiosk() {
       clearInterval(arucoIntervalRef.current);
       arucoIntervalRef.current = null;
     }
+    if (markerLatchTimerRef.current) {
+      clearTimeout(markerLatchTimerRef.current);
+      markerLatchTimerRef.current = null;
+    }
+    setIsMarkerDetected(false);
   };
 
   useEffect(() => {
@@ -218,7 +224,7 @@ export default function SelfiePunchKiosk() {
       setFailureCount(0);
       setFailureMessage("");
 
-      // Start periodic visual marker scan every 500ms
+      // Start periodic visual marker scan every 300ms for smooth real-time response
       let scanning = false;
       arucoIntervalRef.current = setInterval(async () => {
         if (scanning) return;
@@ -226,13 +232,30 @@ export default function SelfiePunchKiosk() {
           scanning = true;
           try {
             const scan = await scanForArucoStrict(videoRef.current, 0);
-            setIsMarkerDetected(scan.detected);
-            setMarkerConfidence(scan.confidence);
+            if (scan.detected) {
+              setIsMarkerDetected(true);
+              setMarkerConfidence(scan.confidence);
+              // Cancel pending un-latch timer
+              if (markerLatchTimerRef.current) {
+                clearTimeout(markerLatchTimerRef.current);
+                markerLatchTimerRef.current = null;
+              }
+            } else {
+              // Grace latch: keep marker status verified for 2.0s before clearing
+              // prevents momentary camera jitter or angle adjustment from immediately dropping out
+              if (!markerLatchTimerRef.current) {
+                markerLatchTimerRef.current = setTimeout(() => {
+                  setIsMarkerDetected(false);
+                  setMarkerConfidence(0);
+                  markerLatchTimerRef.current = null;
+                }, 2000);
+              }
+            }
           } finally {
             scanning = false;
           }
         }
-      }, 500);
+      }, 300);
     } else {
       stopCamera();
       if (modelsLoaded) setStatus("idle");

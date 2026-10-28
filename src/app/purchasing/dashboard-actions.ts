@@ -17,6 +17,10 @@ import {
   vendorItems,
   branchPurchasePolicies,
   businessRoles,
+  locationRoleAssignments,
+  organizationRoleAssignments,
+  employeeRoleAssignments,
+  taskDefinitions,
 } from "@/db/schema";
 import { eq, sum, count, desc, and, gte, sql, inArray, or, isNotNull } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -557,6 +561,7 @@ export async function fetchPurchaseDashboardData(params?: {
         totalAmount: purchaseOrders.totalAmount,
         billReviewRoleId: purchaseOrders.billReviewRoleId,
         status: purchaseOrders.status,
+        createdAt: purchaseOrders.createdAt,
       })
       .from(purchaseOrders)
       .where(and(
@@ -894,16 +899,33 @@ export async function fetchPurchaseDashboardData(params?: {
 
     // Load branch purchase policies & organization role assignments to properly enforce reviewer roles & SLAs
     const occupiedRoleIds = new Set<string>();
-    const [allLocAssignments, allOrgAssignments, allEmpAssignments, branchPolicies] = await Promise.all([
+    const orgRoleMap = new Map<string, string | null>(); // roleId -> reportsToRoleId
+    const [allLocAssignments, allOrgAssignments, allEmpAssignments, allOrgRoles, allTaskDefs, branchPolicies] = await Promise.all([
       db.select({ roleId: locationRoleAssignments.roleId }).from(locationRoleAssignments).where(eq(locationRoleAssignments.organizationId, organizationId)),
       db.select({ roleId: organizationRoleAssignments.roleId }).from(organizationRoleAssignments).where(eq(organizationRoleAssignments.organizationId, organizationId)),
       db.select({ roleId: employeeRoleAssignments.roleId }).from(employeeRoleAssignments).where(and(eq(employeeRoleAssignments.organizationId, organizationId), eq(employeeRoleAssignments.isActive, true))),
+      db.select({ id: businessRoles.id, reportsToRoleId: businessRoles.reportsToRoleId }).from(businessRoles).where(eq(businessRoles.organizationId, organizationId)),
+      db.select({
+        id: taskDefinitions.id,
+        module: taskDefinitions.module,
+        title: taskDefinitions.title,
+        completionTimeMins: taskDefinitions.completionTimeMins,
+      }).from(taskDefinitions).where(eq(taskDefinitions.organizationId, organizationId)),
       db.select().from(branchPurchasePolicies).where(eq(branchPurchasePolicies.organizationId, organizationId))
     ]);
 
     allLocAssignments.forEach(r => occupiedRoleIds.add(r.roleId));
     allOrgAssignments.forEach(r => occupiedRoleIds.add(r.roleId));
     allEmpAssignments.forEach(r => occupiedRoleIds.add(r.roleId));
+    allOrgRoles.forEach(r => orgRoleMap.set(r.id, r.reportsToRoleId));
+
+    // Dynamic SLA lookup from Task Engine configurations
+    const cashierDef = allTaskDefs.find(d => 
+      d.module === "finance" || 
+      d.title.toLowerCase().includes("cashier") || 
+      d.title.toLowerCase().includes("bill")
+    );
+    const cashierSlaHours = cashierDef?.completionTimeMins ? (Number(cashierDef.completionTimeMins) / 60) : 4; // default 4 hrs
 
     const policyMap = new Map<string, typeof branchPolicies[0]>();
     branchPolicies.forEach(p => policyMap.set(p.locationId, p));
@@ -941,16 +963,40 @@ export async function fetchPurchaseDashboardData(params?: {
     }
 
     for (const po of pendingCashierAudits) {
-      const isRoleAssigned = po.billReviewRoleId ? userRoleIds.includes(po.billReviewRoleId) : true;
-      const isAssigned = isRoleAssigned || isOwner;
+      // 1. Check if user holds the primary billReviewRoleId
+      const isRoleAssigned = po.billReviewRoleId ? userRoleIds.includes(po.billReviewRoleId) : false;
+
+      // 2. Check if the designated role is vacant across the organization
+      const isRoleVacant = po.billReviewRoleId ? !occupiedRoleIds.has(po.billReviewRoleId) : true;
+
+      // 3. Check if current user holds a supervisory/reporting role over the billReviewRole
+      let isSupervisor = false;
+      if (po.billReviewRoleId && orgRoleMap.has(po.billReviewRoleId)) {
+        const directSupervisorRoleId = orgRoleMap.get(po.billReviewRoleId);
+        if (directSupervisorRoleId && userRoleIds.includes(directSupervisorRoleId)) {
+          isSupervisor = true;
+        }
+      }
+
+      // Check if SLA timeout has been breached using the dynamically configured SLA window
+      const hoursSinceReceived = po.createdAt ? (Date.now() - new Date(po.createdAt).getTime()) / (1000 * 60 * 60) : 0;
+      const isSlaBreached = hoursSinceReceived > cashierSlaHours;
+
+      // Hierarchical Escalation Gate:
+      // a) Primary Cashier/Reviewer gets it immediately.
+      // b) Supervisor gets it only after the Cashier breaches the SLA window.
+      // c) Owner gets it only if the role is completely vacant across the org OR severely overdue (> 24 hours).
+      const isAssigned = isRoleAssigned || (isSupervisor && isSlaBreached) || (isOwner && (isRoleVacant || hoursSinceReceived > 24));
 
       if (isAssigned) {
         pendingTasks.push({
           id: `cashier-audit-${po.id}`,
-          title: `Cashier Review: ${po.poNumber || po.id.slice(0, 8)}`,
-          description: `Supplier goods received. Awaiting physical bill verification and audit payment approval.`,
+          title: `Cashier Review: ${po.poNumber || po.id.slice(0, 8)}${isSlaBreached ? " (Overdue)" : ""}`,
+          description: isSlaBreached
+            ? `Escalated: Cashier review exceeded configured SLA (${Math.round(hoursSinceReceived)}h elapsed vs ${cashierSlaHours}h limit). Awaiting physical bill verification.`
+            : `Supplier goods received. Awaiting physical bill verification and audit payment approval (SLA: ${cashierSlaHours}h).`,
           type: "AUDIT",
-          priority: "HIGH",
+          priority: isSlaBreached ? "HIGH" : "NORMAL",
           actionUrl: `/finance/purchases-payables/audit-queue${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
           actionLabel: "Audit Bill",
           poId: po.id,
