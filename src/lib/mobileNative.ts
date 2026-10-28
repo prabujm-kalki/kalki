@@ -209,9 +209,16 @@ export async function initializeNativeMobile() {
         await reportPushDiag("PushNotifications.register() call rejected", "ERROR", err?.message);
       });
 
-      // Foreground notification listener
-      await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+      // Foreground notification listener (play audio explicitly when app is open on screen)
+      await PushNotifications.addListener("pushNotificationReceived", async (notification) => {
         console.log("[Native Push] Notification received in foreground:", notification);
+        try {
+          const { playNotificationTone } = await import("@/lib/audio");
+          const soundKey = notification.data?.soundKey || "urgent_siren";
+          playNotificationTone(soundKey);
+        } catch (audioErr) {
+          console.warn("[Native Push] Failed to play foreground tone:", audioErr);
+        }
       });
 
       // Action listener
