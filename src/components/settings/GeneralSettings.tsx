@@ -1378,6 +1378,46 @@ export function GeneralSettings() {
                     </button>
                     <button
                       type="button"
+                      onClick={async () => {
+                        try {
+                          const { runPushDiagnostics } = await import("@/lib/mobileNative");
+                          const res = await runPushDiagnostics();
+                          alert(
+                            res.error
+                              ? `⚠️ Diagnostic Alert:\n\n${res.error}\n\nPlatform: ${res.platform}\nNative: ${res.isNative}`
+                              : `✅ Diagnostics Passed!\n\nPlatform: ${res.platform}\nToken: ${res.token}\nSync Status: ${res.serverSync?.status}`
+                          );
+                          fetchRegisteredDevices();
+                        } catch (diagErr: any) {
+                          alert("Diagnostic tool error: " + diagErr.message);
+                        }
+                      }}
+                      className="gs-action-btn"
+                      style={{ color: '#2563eb', borderColor: '#bfdbfe', background: '#eff6ff', fontWeight: 600, padding: '0.4rem 0.8rem' }}
+                      title="Run live push registration check on this device"
+                    >
+                      🔍 Check Device Registration
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch("/api/users/device-token/diag");
+                          const json = await res.json();
+                          const latest = (json.logs || []).slice(0, 10).map((l: any) => `[${l.status}] ${l.step}: ${JSON.stringify(l.details || "")}`).join("\n\n");
+                          alert(latest.length > 0 ? `📋 Server-Side Diag Logs (Last 10):\n\n${latest}` : "No diagnostic logs received by server yet.");
+                        } catch (e: any) {
+                          alert("Failed to retrieve server logs: " + e.message);
+                        }
+                      }}
+                      className="gs-action-btn"
+                      style={{ color: '#475569', borderColor: '#cbd5e1', background: '#f8fafc', fontWeight: 500, padding: '0.4rem 0.8rem' }}
+                      title="View all checkpoints received by the server"
+                    >
+                      📜 View Checkpoint Logs
+                    </button>
+                    <button
+                      type="button"
                       onClick={fetchRegisteredDevices}
                       title="Refresh registered device list"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.8rem', padding: '0.2rem' }}
