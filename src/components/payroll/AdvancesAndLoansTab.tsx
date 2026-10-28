@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
-import AdvancesSettingsPage from "@/app/payroll/advances-settings/page";
-import AdvancesDashboardPage from "@/app/payroll/advances/page";
+import React, { useState, Suspense } from "react";
+import { AdvancesSettingsContent } from "@/app/payroll/advances-settings/page";
+import { AdvancesDashboardContent } from "@/app/payroll/advances/page";
 
 export function AdvancesAndLoansTab() {
   const [subTab, setSubTab] = useState<"requests" | "settings">("requests");
@@ -43,8 +43,10 @@ export function AdvancesAndLoansTab() {
       </div>
 
       <div>
-        {subTab === "requests" && <AdvancesDashboardPage />}
-        {subTab === "settings" && <AdvancesSettingsPage />}
+        <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center', color: 'var(--kalki-text-secondary)' }}>Loading...</div>}>
+          {subTab === "requests" && <AdvancesDashboardContent hideHeader={true} />}
+          {subTab === "settings" && <AdvancesSettingsContent hideHeader={true} />}
+        </Suspense>
       </div>
     </div>
   );

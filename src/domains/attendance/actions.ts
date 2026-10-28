@@ -8,7 +8,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
-export async function getKioskEmployees(organizationId: string, locationId: string) {
+export async function getSelfiePunchRoster(organizationId: string, locationId: string) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user?.id) throw new Error("Unauthorized");
 
@@ -21,28 +21,115 @@ export async function getKioskEmployees(organizationId: string, locationId: stri
     throw new Error("Forbidden: Missing kiosk execution permissions");
   }
 
-  const data = await db.select({
-    id: employees.id,
-    employeeCode: employees.employeeCode,
-    firstName: people.firstName,
-    lastName: people.lastName,
-    displayName: people.displayName,
-    photoUrl: employees.photoUrl,
-  })
-  .from(employees)
-  .innerJoin(people, eq(people.id, employees.personId))
-  .where(and(eq(employees.organizationId, organizationId), eq(employees.locationId, locationId)));
+  // Find the logged-in user's employee record if any
+  const loggedInEmp = await db
+    .select({
+      id: employees.id,
+    })
+    .from(employees)
+    .where(
+      and(
+        eq(employees.userId, session.user.id),
+        eq(employees.organizationId, organizationId)
+      )
+    )
+    .limit(1);
 
-  return data.map((row) => ({
+  const currentEmployeeId = loggedInEmp[0]?.id || null;
+
+  // Retrieve all active employees in this location
+  const rawList = await db
+    .select({
+      id: employees.id,
+      employeeCode: employees.employeeCode,
+      jobTitle: employees.jobTitle,
+      reportingEmployeeId: employees.reportingEmployeeId,
+      firstName: people.firstName,
+      lastName: people.lastName,
+      displayName: people.displayName,
+      photoUrl: employees.photoUrl,
+    })
+    .from(employees)
+    .innerJoin(people, eq(people.id, employees.personId))
+    .where(
+      and(
+        eq(employees.organizationId, organizationId),
+        eq(employees.locationId, locationId),
+        eq(employees.status, "ACTIVE")
+      )
+    );
+
+  // Fetch all employees in this organization to compute full hierarchy tree
+  const allOrgEmployees = await db
+    .select({
+      id: employees.id,
+      reportingEmployeeId: employees.reportingEmployeeId,
+    })
+    .from(employees)
+    .where(eq(employees.organizationId, organizationId));
+
+  // Build recursive set of all report IDs (direct + indirect)
+  const reportIdSet = new Set<string>();
+  if (currentEmployeeId) {
+    const queue = [currentEmployeeId];
+    while (queue.length > 0) {
+      const parentId = queue.shift()!;
+      for (const e of allOrgEmployees) {
+        if (e.reportingEmployeeId === parentId && !reportIdSet.has(e.id)) {
+          reportIdSet.add(e.id);
+          queue.push(e.id);
+        }
+      }
+    }
+  }
+
+  // Group:
+  // 1. Logged-in employee (self)
+  // 2. Direct/indirect reports (subordinates in reporting tree)
+  // 3. Other peers / team members in location
+  const selfList: typeof rawList = [];
+  const directReports: typeof rawList = [];
+  const others: typeof rawList = [];
+
+  for (const emp of rawList) {
+    if (currentEmployeeId && emp.id === currentEmployeeId) {
+      selfList.push(emp);
+    } else if (currentEmployeeId && reportIdSet.has(emp.id)) {
+      directReports.push(emp);
+    } else {
+      others.push(emp);
+    }
+  }
+
+  // Sort groups alphabetically by display name
+  const nameSort = (a: (typeof rawList)[0], b: (typeof rawList)[0]) => {
+    const nameA = (a.displayName || `${a.firstName} ${a.lastName || ""}`).trim().toLowerCase();
+    const nameB = (b.displayName || `${b.firstName} ${b.lastName || ""}`).trim().toLowerCase();
+    return nameA.localeCompare(nameB);
+  };
+
+  directReports.sort(nameSort);
+  others.sort(nameSort);
+
+  const sortedList = [...selfList, ...directReports, ...others];
+
+  return sortedList.map((row) => ({
     id: row.id,
     employeeCode: row.employeeCode,
+    jobTitle: row.jobTitle,
+    isSelf: currentEmployeeId ? row.id === currentEmployeeId : false,
+    isDirectReport: currentEmployeeId ? reportIdSet.has(row.id) : false,
     person: {
       firstName: row.firstName,
       lastName: row.lastName,
-      displayName: row.displayName,
+      displayName: row.displayName || `${row.firstName} ${row.lastName || ""}`.trim(),
       photoUrl: row.photoUrl,
     }
   }));
+}
+
+export async function getKioskEmployees(organizationId: string, locationId: string) {
+  return getSelfiePunchRoster(organizationId, locationId);
 }
 
 export async function processBiometricUpload(
@@ -334,6 +421,7 @@ export async function upsertLeaveConfig(
             encashmentOnlyAtYearEnd: data.encashmentOnlyAtYearEnd,
             restrictedUsageDays: data.restrictedUsageDays,
             allowedApplicationWindow: data.allowedApplicationWindow,
+            policyEffectiveDate: data.policyEffectiveDate || null,
             updatedAt: new Date(),
           })
           .where(
@@ -366,6 +454,7 @@ export async function upsertLeaveConfig(
           encashmentOnlyAtYearEnd: data.encashmentOnlyAtYearEnd,
           restrictedUsageDays: data.restrictedUsageDays,
           allowedApplicationWindow: data.allowedApplicationWindow,
+          policyEffectiveDate: data.policyEffectiveDate || null,
         }).returning({ id: leaveTypes.id });
         leaveTypeId = inserted.id;
       }
@@ -893,6 +982,8 @@ export async function recordSelfiePunch(payload: {
   snapshotBase64?: string;
   organizationId: string;
   locationId: string;
+  markerVerified?: boolean;
+  confidence?: number;
 }) {
   try {
     const session = await auth.api.getSession({ headers: await headers() });

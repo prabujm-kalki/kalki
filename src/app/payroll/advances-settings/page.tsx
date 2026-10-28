@@ -13,7 +13,7 @@ import { useSearchParams } from "next/navigation";
 
 import { Suspense } from "react";
 
-function AdvancesSettingsContent() {
+export function AdvancesSettingsContent({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const [types, setTypes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -147,11 +147,19 @@ function AdvancesSettingsContent() {
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={styles.container} style={hideHeader ? { padding: 0 } : undefined}>
+      <div className={styles.header} style={hideHeader ? { marginBottom: '16px' } : undefined}>
         <div>
-          <h1 className={styles.title}>Advances & Loans Settings</h1>
-          <p className={styles.subtitle}>Configure dynamic rules and policies for employee advances.</p>
+          {!hideHeader ? (
+            <>
+              <h1 className={styles.title}>Advances & Loans Settings</h1>
+              <p className={styles.subtitle}>Configure dynamic rules and policies for employee advances.</p>
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--kalki-text-secondary)' }}>
+              Configure policies, repayment frequency rules, and maximum request caps.
+            </p>
+          )}
         </div>
         {!isEditing && (
           <button className={styles.btn} onClick={handleAddNew}>

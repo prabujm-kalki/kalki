@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useState, useEffect, type FormEvent } from "react";
 import { StatusMessage } from "@/components/StatusMessage";
 import { authClient } from "@/lib/auth-client";
 import { User, Lock, Eye, EyeOff, ArrowRight, Leaf, Users, TrendingUp, ShieldCheck, HeartHandshake, Utensils, ShoppingCart, Apple, Coffee, ConciergeBell } from "lucide-react";
@@ -16,6 +16,13 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Initialize native mobile push on mount
+  useEffect(() => {
+    import("@/lib/mobileNative").then(({ initializeNativeMobile }) => {
+      initializeNativeMobile();
+    });
+  }, []);
 
   async function submit(event: FormEvent) {
     event.preventDefault();

@@ -8,7 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { AppShell, useSessionView } from "@/components/AppShell";
 import { Suspense } from "react";
 
-function AdvancesDashboardContent() {
+export function AdvancesDashboardContent({ hideHeader = false }: { hideHeader?: boolean } = {}) {
   const { selected } = useSessionView();
   const searchParams = useSearchParams();
   const orgId = searchParams.get("organizationId") || selected?.organizationId;
@@ -127,11 +127,19 @@ function AdvancesDashboardContent() {
   };
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={styles.container} style={hideHeader ? { padding: 0 } : undefined}>
+      <div className={styles.header} style={hideHeader ? { marginBottom: '16px' } : undefined}>
         <div>
-          <h1 className={styles.title}>Employee Advances & Loans</h1>
-          <p className={styles.subtitle}>Review and manage advance requests</p>
+          {!hideHeader ? (
+            <>
+              <h1 className={styles.title}>Employee Advances & Loans</h1>
+              <p className={styles.subtitle}>Review and manage advance requests</p>
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: '14px', color: 'var(--kalki-text-secondary)' }}>
+              Review, approve, and track employee salary advances and loans.
+            </p>
+          )}
         </div>
         <button className={styles.btn} onClick={() => {
           setReqForm({ employeeId: "", advanceTypeId: "", requestedAmount: "", repaymentMonths: "1" });

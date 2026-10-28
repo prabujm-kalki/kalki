@@ -32,6 +32,7 @@ export const LeaveConfigSchema = z.object({
   encashmentOnlyAtYearEnd: z.boolean().default(true),
   restrictedUsageDays: z.array(z.string()).default([]),
   allowedApplicationWindow: z.array(z.string()).default([]),
+  policyEffectiveDate: z.string().optional().nullable(),
   rolePolicies: z.array(z.object({
     businessRoleId: z.string().uuid(),
     customAccrualRate: z.union([z.string(), z.number()]).transform(String).optional(),

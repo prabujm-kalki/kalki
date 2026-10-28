@@ -30,44 +30,34 @@ export async function initializeNativeMobile() {
     }
 
     if (permStatus.receive === "granted") {
-      // Create a promise to wait for token registration so that page navigation does not cancel it
-      const registerPromise = new Promise<void>((resolve) => {
-        PushNotifications.addListener("registration", async (token) => {
-          console.log("[Native Push] Registered with token:", token.value);
-          try {
-            await fetch("/api/users/device-token", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                token: token.value,
-                deviceType: Capacitor.getPlatform(),
-                deviceName: navigator.userAgent.slice(0, 100),
-              }),
-            });
-            console.log("[Native Push] Token successfully sent to server.");
-          } catch (syncErr) {
-            console.error("[Native Push] Failed to sync token with backend:", syncErr);
-          } finally {
-            resolve();
-          }
-        });
-
-        PushNotifications.addListener("registrationError", (err) => {
-          console.error("[Native Push] Registration error:", err.error);
-          resolve();
-        });
-
-        // Trigger native registration
-        PushNotifications.register().catch((err) => {
-          console.error("[Native Push] register() failed:", err);
-          resolve();
-        });
-
-        // Timeout fallback after 4 seconds
-        setTimeout(resolve, 4000);
+      // Listen for registration events (store last token in localStorage to avoid redundant network calls if needed)
+      await PushNotifications.addListener("registration", async (token) => {
+        console.log("[Native Push] Received FCM token:", token.value);
+        try {
+          const res = await fetch("/api/users/device-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              token: token.value,
+              deviceType: Capacitor.getPlatform(),
+              deviceName: navigator.userAgent.slice(0, 100),
+            }),
+          });
+          const json = await res.json();
+          console.log("[Native Push] Token sync response:", json);
+        } catch (syncErr) {
+          console.error("[Native Push] Failed to sync token with backend:", syncErr);
+        }
       });
 
-      await registerPromise;
+      await PushNotifications.addListener("registrationError", (err) => {
+        console.error("[Native Push] Registration error:", err.error);
+      });
+
+      // Trigger native registration
+      await PushNotifications.register().catch((err) => {
+        console.error("[Native Push] register() failed:", err);
+      });
 
       // When push notification is received while app is open
       await PushNotifications.addListener("pushNotificationReceived", (notification) => {

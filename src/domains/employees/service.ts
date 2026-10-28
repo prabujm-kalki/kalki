@@ -580,7 +580,7 @@ export async function getEmployee(actor: Actor, employeeId: string) {
     locationName: locations.name,
     effectiveFrom: employeeHistoryBranch.effectiveFrom,
     recordedBy: employeeHistoryBranch.recordedBy,
-    createdAt: employeeHistoryBranch.createdAt,
+    recordedAt: employeeHistoryBranch.recordedAt,
   }).from(employeeHistoryBranch)
     .leftJoin(locations, eq(employeeHistoryBranch.locationId, locations.id))
     .where(eq(employeeHistoryBranch.employeeId, employee.id))

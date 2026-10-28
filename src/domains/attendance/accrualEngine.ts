@@ -162,15 +162,27 @@ export async function runLeaveAccruals() {
   return { success: true, results };
 }
 
-export function calculateMonthsElapsed(employmentStartDate: Date, today: Date = new Date()) {
+export function calculateMonthsElapsed(
+  employmentStartDate: Date, 
+  today: Date = new Date(),
+  policyEffectiveDate?: Date | null
+) {
+  // If a policy effective date exists and the employee joined before it,
+  // calculation begins from the policy effective date (e.g. 2026-11-01),
+  // ensuring zero unearned historical accumulation.
+  let effectiveStartDate = employmentStartDate;
+  if (policyEffectiveDate && employmentStartDate < policyEffectiveDate) {
+    effectiveStartDate = policyEffectiveDate;
+  }
+
   let monthsElapsed = 0;
-  if (employmentStartDate <= today) {
-    let startYear = employmentStartDate.getFullYear();
-    let startMonth = employmentStartDate.getMonth();
+  if (effectiveStartDate <= today) {
+    let startYear = effectiveStartDate.getFullYear();
+    let startMonth = effectiveStartDate.getMonth();
     const currentYear = today.getFullYear();
     const currentMonth = today.getMonth();
 
-    if (employmentStartDate.getDate() > 1) {
+    if (effectiveStartDate.getDate() > 1) {
       startMonth += 1;
       if (startMonth > 11) {
         startMonth = 0;
@@ -183,8 +195,11 @@ export function calculateMonthsElapsed(employmentStartDate: Date, today: Date = 
       startMonth = 0;
     }
 
-    if (startYear === currentYear && startMonth < currentMonth) {
-      monthsElapsed = currentMonth - startMonth;
+    if (startYear === currentYear && startMonth <= currentMonth) {
+      // E.g. If policy effective date is 2026-10-01 and today is 2026-10-28,
+      // (10 - 10 + 1) = 1 month of opening entitlement is allocated immediately
+      // so their dashboard is not blank.
+      monthsElapsed = (currentMonth - startMonth) + 1;
     }
   }
   return monthsElapsed;
@@ -192,11 +207,20 @@ export function calculateMonthsElapsed(employmentStartDate: Date, today: Date = 
 
 export function calculateEligibleCarryForward(
   employmentStartDate: Date,
-  leaveType: { maxCarryForwardDays: string | null; annualAllocation: string | null },
+  leaveType: { maxCarryForwardDays: string | null; annualAllocation: string | null; policyEffectiveDate?: string | null },
   today: Date = new Date()
 ): number {
   const maxCarry = Number(leaveType.maxCarryForwardDays || 0);
   if (maxCarry <= 0) return 0;
+
+  // If policy was introduced in the current year, there is NO historical carry-forward from prior years
+  if (leaveType.policyEffectiveDate) {
+    const policyYear = new Date(leaveType.policyEffectiveDate).getFullYear();
+    const currentYear = today.getFullYear();
+    if (policyYear >= currentYear) {
+      return 0; // Brand new policy rollout has zero prior year carry-forward
+    }
+  }
 
   // An employee is eligible for carry-forward into the current calendar year
   // only if they were employed in a prior calendar year.
@@ -205,8 +229,29 @@ export function calculateEligibleCarryForward(
 
   if (empStartYear < currentYear) {
     const annual = Number(leaveType.annualAllocation || 0);
-    // Prior year unconsumed balance rolls over capped at maxCarryForwardDays
-    const eligibleAmount = Math.min(annual > 0 ? annual : maxCarry, maxCarry);
+    const policyStartDate = leaveType.policyEffectiveDate 
+      ? new Date(leaveType.policyEffectiveDate) 
+      : employmentStartDate;
+    const effectiveStartDate = employmentStartDate > policyStartDate ? employmentStartDate : policyStartDate;
+
+    // Calculate months in prior years (from effectiveStartDate up to Dec 31 of prior year)
+    let priorMonths = 0;
+    const priorYearEnd = new Date(currentYear - 1, 11, 31);
+    if (effectiveStartDate <= priorYearEnd) {
+      let sy = effectiveStartDate.getFullYear();
+      let sm = effectiveStartDate.getMonth();
+      if (effectiveStartDate.getDate() > 1) {
+        sm += 1;
+        if (sm > 11) { sm = 0; sy += 1; }
+      }
+      if (sy < currentYear) {
+        priorMonths = ((currentYear - 1) - sy) * 12 + (12 - sm);
+      }
+    }
+
+    const monthlyRate = Number(leaveType.accrualRate || (annual / 12));
+    const totalPotentialCarry = Number((priorMonths * monthlyRate).toFixed(2));
+    const eligibleAmount = Math.min(totalPotentialCarry > 0 ? totalPotentialCarry : maxCarry, maxCarry);
     return Math.max(0, eligibleAmount);
   }
 
@@ -232,11 +277,9 @@ export async function initializeEmployeeLeaves(
 
   const today = new Date();
   
-  // Calculate eligible months in the current year.
-  // Policy: Employees only earn leaves for fully completed calendar months.
-  const monthsElapsed = calculateMonthsElapsed(employmentStartDate, today);
-
   for (const leaveType of activeLeaves) {
+    const policyDate = leaveType.policyEffectiveDate ? new Date(leaveType.policyEffectiveDate) : null;
+    const monthsElapsed = calculateMonthsElapsed(employmentStartDate, today, policyDate);
     let accruedAmount = 0;
     
     if (leaveType.accrualFrequency === "YEARLY") {
@@ -299,9 +342,10 @@ export async function syncLeaveBalancesForOrganization(
   for (const emp of activeEmployees) {
     if (!emp.employmentStartDate) continue;
     const empStartDate = new Date(emp.employmentStartDate);
-    const monthsElapsed = calculateMonthsElapsed(empStartDate, today);
 
     for (const leaveType of activeLeaves) {
+      const policyDate = leaveType.policyEffectiveDate ? new Date(leaveType.policyEffectiveDate) : null;
+      const monthsElapsed = calculateMonthsElapsed(empStartDate, today, policyDate);
       let accruedAmount = 0;
       
       if (leaveType.accrualFrequency === "YEARLY") {
@@ -330,9 +374,9 @@ export async function syncLeaveBalancesForOrganization(
 
       if (existingBalance.length > 0) {
         const balance = existingBalance[0];
-        // If carriedForward is 0 and employee is eligible for carry-forward from prior years, update it
+        // Update carried forward if newly calculated eligible carry-forward reflects policy changes
         const currentCarried = Number(balance.carriedForward || 0);
-        const carriedForwardToApply = currentCarried > 0 ? currentCarried : eligibleCarryForward;
+        const carriedForwardToApply = eligibleCarryForward > 0 ? eligibleCarryForward : currentCarried;
         const closingBal = accruedAmount + carriedForwardToApply - Number(balance.taken || 0);
 
         await tx.update(employeeLeaveBalances)

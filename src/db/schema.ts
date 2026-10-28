@@ -2405,15 +2405,15 @@ export const leaveTypes = pgTable("leave_types", {
   sandwichRuleEnabled: boolean("sandwich_rule_enabled")
     .default(false)
     .notNull(),
-  annualAllocation: decimal("annual_allocation", { precision: 5, scale: 2 })
+  annualAllocation: decimal("annual_allocation", { precision: 7, scale: 2 })
     .default("0.00")
     .notNull(),
   accrualFrequency: varchar("accrual_frequency", { length: 20 }).default(
     "YEARLY",
   ),
-  accrualRate: decimal("accrual_rate", { precision: 5, scale: 2 }),
+  accrualRate: decimal("accrual_rate", { precision: 7, scale: 2 }),
   maxCarryForwardDays: decimal("max_carry_forward_days", {
-    precision: 5,
+    precision: 7,
     scale: 2,
   })
     .default("0.00")
@@ -2424,7 +2424,7 @@ export const leaveTypes = pgTable("leave_types", {
     .default(365)
     .notNull(),
   encashmentMinBalanceRetained: decimal("encashment_min_balance_retained", {
-    precision: 5,
+    precision: 7,
     scale: 2,
   })
     .default("3.00")
@@ -2437,6 +2437,7 @@ export const leaveTypes = pgTable("leave_types", {
   allowedApplicationWindow: jsonb("allowed_application_window")
     .default([])
     .notNull(),
+  policyEffectiveDate: date("policy_effective_date"),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
@@ -2562,16 +2563,16 @@ export const employeeLeaveBalances = pgTable(
     leaveTypeId: uuid("leave_type_id")
       .notNull()
       .references(() => leaveTypes.id, { onDelete: "cascade" }),
-    accrued: decimal("accrued", { precision: 5, scale: 2 })
+    accrued: decimal("accrued", { precision: 7, scale: 2 })
       .default("0.00")
       .notNull(),
-    taken: decimal("taken", { precision: 5, scale: 2 })
+    taken: decimal("taken", { precision: 7, scale: 2 })
       .default("0.00")
       .notNull(),
-    carriedForward: decimal("carried_forward", { precision: 5, scale: 2 })
+    carriedForward: decimal("carried_forward", { precision: 7, scale: 2 })
       .default("0.00")
       .notNull(),
-    closingBalance: decimal("closing_balance", { precision: 5, scale: 2 })
+    closingBalance: decimal("closing_balance", { precision: 7, scale: 2 })
       .default("0.00")
       .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })

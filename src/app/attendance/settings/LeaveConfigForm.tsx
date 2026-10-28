@@ -42,6 +42,7 @@ export function LeaveConfigForm({
   const [encashmentOnlyAtYearEnd, setEncashmentOnlyAtYearEnd] = useState(true);
   const [restrictedUsageDays, setRestrictedUsageDays] = useState<string[]>([]);
   const [allowedApplicationWindow, setAllowedApplicationWindow] = useState<string[]>([]);
+  const [policyEffectiveDate, setPolicyEffectiveDate] = useState("");
   const [rolePolicies, setRolePolicies] = useState<{ businessRoleId: string, customAccrualRate: string, maxConcurrentLeaves: string }[]>([]);
   const [departmentPolicies, setDepartmentPolicies] = useState<{ departmentId: string, maxConcurrentLeaves: string }[]>([]);
 
@@ -77,6 +78,7 @@ export function LeaveConfigForm({
     setEncashmentOnlyAtYearEnd(true);
     setRestrictedUsageDays([]);
     setAllowedApplicationWindow([]);
+    setPolicyEffectiveDate("");
     setRolePolicies([]);
     setDepartmentPolicies([]);
     setError("");
@@ -102,6 +104,7 @@ export function LeaveConfigForm({
     setEncashmentOnlyAtYearEnd(config.encashmentOnlyAtYearEnd !== undefined ? config.encashmentOnlyAtYearEnd : true);
     setRestrictedUsageDays(config.restrictedUsageDays || []);
     setAllowedApplicationWindow(config.allowedApplicationWindow || []);
+    setPolicyEffectiveDate(config.policyEffectiveDate ? String(config.policyEffectiveDate).split("T")[0] : "");
     
     // Populate role-based overrides if saved
     if (config.rolePolicies && Array.isArray(config.rolePolicies)) {
@@ -203,6 +206,7 @@ export function LeaveConfigForm({
         encashmentOnlyAtYearEnd,
         restrictedUsageDays,
         allowedApplicationWindow,
+        policyEffectiveDate: policyEffectiveDate ? policyEffectiveDate : null,
         rolePolicies: validRolePolicies,
         departmentPolicies: validDepartmentPolicies
       };
@@ -353,28 +357,47 @@ export function LeaveConfigForm({
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
-            Max Carry Forward (Days)
+            Policy Go-Live Effective Date
+            <input 
+              type="date" 
+              value={policyEffectiveDate} 
+              onChange={e => setPolicyEffectiveDate(e.target.value)}
+              className="att-input-premium"
+            />
+            <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400 }}>
+              Cutoff date for accruals (e.g. 2026-10-01). Seniority/DOJ is preserved, and leave balance starts immediately from this date.
+            </span>
+          </label>
+
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
+            Annual Rollover Cap (Days)
             <input 
               type="number" 
               value={maxCarryForwardDays} 
               onChange={e => setMaxCarryForwardDays(e.target.value)}
               min="0"
               step="0.5"
-              placeholder="e.g. 12"
+              placeholder="e.g. 10"
               className="att-input-premium"
             />
+            <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400 }}>
+              Max unused days allowed to roll over to next year. Excess days will lapse on Dec 31.
+            </span>
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
-            Carry Forward Expiry (Months)
+            Rollover Grace Period (Months) [Optional]
             <input 
               type="number" 
               value={carryForwardExpiryMonths} 
               onChange={e => setCarryForwardExpiryMonths(e.target.value)}
               min="0"
-              placeholder="e.g. 36"
+              placeholder="Leave empty for no expiry"
               className="att-input-premium"
             />
+            <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 400 }}>
+              Months before carried days lapse (e.g. 3 = expires March 31). Leave blank if rolled-over leaves never expire.
+            </span>
           </label>
 
           <label style={{ display: "flex", flexDirection: "column", gap: "0.5rem", fontWeight: 500 }}>
@@ -594,7 +617,7 @@ export function LeaveConfigForm({
                   <th>Allocation</th>
                   <th>Accrual Freq</th>
                   <th>Rate</th>
-                  <th>Max Carry Fwd</th>
+                  <th>Rollover Cap</th>
                   <th>Min Tenure</th>
                   <th>Actions</th>
                 </tr>
