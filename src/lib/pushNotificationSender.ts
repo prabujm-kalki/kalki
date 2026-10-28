@@ -3,6 +3,8 @@ import { userDeviceTokens } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import admin from "firebase-admin";
 import { getMessaging } from "firebase-admin/messaging";
+import fs from "fs";
+import path from "path";
 
 export interface NativePushPayload {
   title: string;
@@ -21,11 +23,9 @@ function getFirebaseAdmin() {
 
   // 1. Try FIREBASE_SERVICE_ACCOUNT JSON string or file path
   let serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT;
-  const fs = require("fs");
-  const path = require("path");
 
   // Fallback to local file in cwd if env var is missing or empty
-  if (!serviceAccountKey) {
+  if (!serviceAccountKey || !serviceAccountKey.trim()) {
     const candidatePath = path.join(process.cwd(), "firebase-service-account.json");
     if (fs.existsSync(candidatePath)) {
       serviceAccountKey = candidatePath;
@@ -39,13 +39,13 @@ function getFirebaseAdmin() {
         parsed = JSON.parse(serviceAccountKey);
       } else if (fs.existsSync(serviceAccountKey)) {
         parsed = JSON.parse(fs.readFileSync(serviceAccountKey, "utf-8"));
-      } else {
-        parsed = require(serviceAccountKey);
       }
 
-      return admin.initializeApp({
-        credential: admin.credential.cert(parsed),
-      });
+      if (parsed) {
+        return admin.initializeApp({
+          credential: admin.credential.cert(parsed),
+        });
+      }
     } catch (e: any) {
       console.error("[NativePush] Failed to parse FIREBASE_SERVICE_ACCOUNT:", e?.message || e);
     }
