@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { userDeviceTokens } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
-import admin from "firebase-admin";
+import { initializeApp, cert, getApps, applicationDefault } from "firebase-admin/app";
 import { getMessaging } from "firebase-admin/messaging";
 import fs from "fs";
 import path from "path";
@@ -16,7 +16,7 @@ export interface NativePushPayload {
 
 // Initialize Firebase Admin SDK (singleton)
 function getFirebaseAdmin() {
-  const existingApps = admin.getApps ? admin.getApps() : (admin.apps || []);
+  const existingApps = getApps();
   if (existingApps.length > 0) {
     return existingApps[0];
   }
@@ -42,8 +42,8 @@ function getFirebaseAdmin() {
       }
 
       if (parsed) {
-        return admin.initializeApp({
-          credential: admin.credential.cert(parsed),
+        return initializeApp({
+          credential: cert(parsed),
         });
       }
     } catch (e: any) {
@@ -53,8 +53,8 @@ function getFirebaseAdmin() {
 
   // 2. Default application credentials
   try {
-    return admin.initializeApp({
-      credential: admin.credential.applicationDefault(),
+    return initializeApp({
+      credential: applicationDefault(),
     });
   } catch (e) {
     // Firebase not initialized
