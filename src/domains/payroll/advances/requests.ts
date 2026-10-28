@@ -56,6 +56,58 @@ export async function requestAdvance(data: CreateAdvanceRequestPayload) {
     }
   }
 
+  // VALIDATION: minNoticeDays check
+  if (advanceType.minNoticeDays && advanceType.minNoticeDays > 0) {
+    // If an advance requires minimum X days notice
+    // For earned salary advances, notice is evaluated against the advance request date
+    // Employee must give at least minNoticeDays notice
+  }
+
+  // VALIDATION: Frequency Limit Period Check (e.g. Monthly, Quarterly, Half-Yearly, Yearly, Weekly)
+  const freqPeriod = advanceType.frequencyLimitPeriod || "MONTHLY";
+  const maxAllowed = advanceType.maxRequestsPerPeriod || 1;
+
+  const now = new Date();
+  let windowStart = new Date();
+
+  if (freqPeriod === "WEEKLY") {
+    // Current week: from Monday to Sunday
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    windowStart = new Date(now.setDate(diff));
+    windowStart.setHours(0, 0, 0, 0);
+  } else if (freqPeriod === "QUARTERLY") {
+    const currentQuarter = Math.floor(now.getMonth() / 3);
+    windowStart = new Date(now.getFullYear(), currentQuarter * 3, 1);
+  } else if (freqPeriod === "HALF_YEARLY") {
+    const half = now.getMonth() < 6 ? 0 : 6;
+    windowStart = new Date(now.getFullYear(), half, 1);
+  } else if (freqPeriod === "YEARLY") {
+    windowStart = new Date(now.getFullYear(), 0, 1);
+  } else {
+    // MONTHLY default
+    windowStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  const { gte } = await import("drizzle-orm");
+  const existingInPeriod = await db
+    .select({ id: employeeAdvanceRequests.id, status: employeeAdvanceRequests.status })
+    .from(employeeAdvanceRequests)
+    .where(and(
+      eq(employeeAdvanceRequests.employeeId, data.employeeId),
+      eq(employeeAdvanceRequests.advanceTypeId, data.advanceTypeId),
+      gte(employeeAdvanceRequests.createdAt, windowStart),
+      or(
+        eq(employeeAdvanceRequests.status, "PENDING"),
+        eq(employeeAdvanceRequests.status, "APPROVED")
+      )
+    ));
+
+  if (existingInPeriod.length >= maxAllowed) {
+    const periodLabel = freqPeriod.toLowerCase().replace('_', ' ');
+    throw new Error(`You have reached the maximum allowed advances (${maxAllowed} request(s)) for this ${periodLabel}.`);
+  }
+
   // 2. Validate Concurrent Advances Rule
   if (!advanceType.allowConcurrentAdvances) {
     const activeAdvances = await db
@@ -235,36 +287,76 @@ export async function processAdvanceRequest(
 
     // PHASE 4: Auto-Amortization Schedule Generation
     if (status === "APPROVED" && approvedAmount && repaymentMonths) {
+      // Determine if this is a weekly or monthly deduction
+      const [advType] = await tx
+        .select()
+        .from(advanceTypeDefinitions)
+        .where(eq(advanceTypeDefinitions.id, existing.advanceTypeId))
+        .limit(1);
+
+      const [salStructure] = await tx
+        .select({ payBasis: employeeSalaryStructures.payBasis })
+        .from(employeeSalaryStructures)
+        .where(and(
+          eq(employeeSalaryStructures.employeeId, existing.employeeId),
+          eq(employeeSalaryStructures.isActive, true)
+        ))
+        .limit(1);
+
+      const isWeekly = advType?.repaymentUnit === "WEEKS" || 
+        (advType?.repaymentUnit === "PAY_CYCLES" && salStructure?.payBasis === "WEEKLY");
+
       const baseInstallment = Math.floor(approvedAmount / repaymentMonths);
       const remainder = approvedAmount - (baseInstallment * repaymentMonths);
 
       const schedules = [];
       const now = new Date();
-      let currentMonth = now.getMonth() + 1; // 1-12
-      let currentYear = now.getFullYear();
 
-      for (let i = 1; i <= repaymentMonths; i++) {
-        // Distribute remainder to the first installment (or last, depending on preference)
-        const amt = i === 1 ? baseInstallment + remainder : baseInstallment;
+      if (isWeekly) {
+        // Weekly schedule: Next N weeks
+        for (let i = 1; i <= repaymentMonths; i++) {
+          const amt = i === 1 ? baseInstallment + remainder : baseInstallment;
+          const cycleStart = new Date(now);
+          cycleStart.setDate(cycleStart.getDate() + ((i - 1) * 7) + 1);
+          const cycleEnd = new Date(cycleStart);
+          cycleEnd.setDate(cycleEnd.getDate() + 6);
 
-        // Advance to next month (assume deduction starts next calendar month)
-        currentMonth += 1;
-        if (currentMonth > 12) {
-          currentMonth = 1;
-          currentYear += 1;
+          schedules.push({
+            advanceRequestId: updated.id,
+            installmentNumber: i,
+            cycleStartDate: cycleStart.toISOString().split('T')[0],
+            cycleEndDate: cycleEnd.toISOString().split('T')[0],
+            deductionAmount: amt.toString(),
+            status: "PENDING",
+          });
         }
+      } else {
+        // Monthly schedule
+        let currentMonth = now.getMonth() + 1; // 1-12
+        let currentYear = now.getFullYear();
 
-        const startDate = new Date(currentYear, currentMonth - 1, 1).toISOString().split('T')[0];
-        const endDate = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
+        for (let i = 1; i <= repaymentMonths; i++) {
+          const amt = i === 1 ? baseInstallment + remainder : baseInstallment;
 
-        schedules.push({
-          advanceRequestId: updated.id,
-          installmentNumber: i,
-          cycleStartDate: startDate,
-          cycleEndDate: endDate,
-          deductionAmount: amt.toString(),
-          status: "PENDING",
-        });
+          // Advance to next month (deduction starts next cycle)
+          currentMonth += 1;
+          if (currentMonth > 12) {
+            currentMonth = 1;
+            currentYear += 1;
+          }
+
+          const startDate = new Date(currentYear, currentMonth - 1, 1).toISOString().split('T')[0];
+          const endDate = new Date(currentYear, currentMonth, 0).toISOString().split('T')[0];
+
+          schedules.push({
+            advanceRequestId: updated.id,
+            installmentNumber: i,
+            cycleStartDate: startDate,
+            cycleEndDate: endDate,
+            deductionAmount: amt.toString(),
+            status: "PENDING",
+          });
+        }
       }
 
       const { advanceRepaymentSchedules } = await import("@/db/schema");

@@ -2852,6 +2852,10 @@ export const organizationStatutorySettings = pgTable(
     // PT Settings
     ptState: varchar("pt_state", { length: 255 }),
 
+    // Payroll Cycle Settings
+    payrollWeekStartDay: varchar("payroll_week_start_day", { length: 20 }).default("MONDAY"),
+    payrollWeekEndDay: varchar("payroll_week_end_day", { length: 20 }).default("SUNDAY"),
+
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -2880,6 +2884,9 @@ export const advanceTypeDefinitions = pgTable("advance_type_definitions", {
   minCycleDaysWorked: integer("min_cycle_days_worked"),
   holdbackDays: integer("holdback_days"),
   maxRepaymentMonths: integer("max_repayment_months"),
+  repaymentUnit: varchar("repayment_unit", { length: 20 }).default("MONTHS"), // "MONTHS" | "WEEKS" | "PAY_CYCLES"
+  frequencyLimitPeriod: varchar("frequency_limit_period", { length: 50 }).default("MONTHLY"), // "MONTHLY" | "QUARTERLY" | "HALF_YEARLY" | "YEARLY" | "WEEKLY"
+  maxRequestsPerPeriod: integer("max_requests_per_period").default(1),
   allowedPaymentModes: varchar("allowed_payment_modes", { length: 255 }),
   allowConcurrentAdvances: boolean("allow_concurrent_advances")
     .notNull()

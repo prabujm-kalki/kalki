@@ -548,7 +548,7 @@ const createPOSchema = scopeSchema.extend({
   scheduleId: z.string().uuid().optional(),
   lines: z.array(z.object({
     itemId: z.string().uuid(),
-    orderedQuantity: z.number().positive(),
+    orderedQuantity: z.number().nonnegative(),
     unitRate: z.number().nonnegative()
   })),
 }).strict();
@@ -682,17 +682,17 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
         )
       );
 
-      // Complete or route to audit depending on priority (Task Engine Standard)
+      // Complete active routine purchasing tasks for this schedule
       for (const t of activeInstances) {
-        let nextStatus: "completed" | "audit_pending" = "completed";
-        if (t.priority === "medium" || t.priority === "high" || t.priority === "very_high") {
-          nextStatus = "audit_pending";
-        }
-        
         await tx.update(taskInstances).set({
-          status: nextStatus,
+          status: "completed",
           completedAt: new Date(),
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          completionData: {
+            submittedBy: actor.id,
+            poId: po?.id || null,
+            reason: po ? "PO created" : "Stock assessment completed without PO",
+          }
         }).where(eq(taskInstances.id, t.id));
       }
     }

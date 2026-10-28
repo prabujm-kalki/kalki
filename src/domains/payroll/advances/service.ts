@@ -17,6 +17,9 @@ export interface AdvanceTypePayload {
   minCycleDaysWorked?: number;
   holdbackDays?: number;
   maxRepaymentMonths?: number;
+  repaymentUnit?: string;
+  frequencyLimitPeriod?: string;
+  maxRequestsPerPeriod?: number;
   allowedPaymentModes?: string;
   allowConcurrentAdvances?: boolean;
   isActive?: boolean;
@@ -38,6 +41,9 @@ export async function createAdvanceType(data: AdvanceTypePayload) {
     minCycleDaysWorked: data.minCycleDaysWorked,
     holdbackDays: data.holdbackDays,
     maxRepaymentMonths: data.maxRepaymentMonths,
+    repaymentUnit: data.repaymentUnit || "MONTHS",
+    frequencyLimitPeriod: data.frequencyLimitPeriod || "MONTHLY",
+    maxRequestsPerPeriod: data.maxRequestsPerPeriod || 1,
     allowedPaymentModes: data.allowedPaymentModes,
     allowConcurrentAdvances: data.allowConcurrentAdvances || false,
     isActive: data.isActive !== undefined ? data.isActive : true,

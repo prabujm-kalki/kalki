@@ -29,6 +29,7 @@ const optionalMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMes
 const requiredMobileSchema = z.string().regex(mobileNumberRegex, mobileNumberMessage);
 
 const formSchema = z.object({
+  locationId: z.string().uuid("Branch / Location is required").optional(),
   jobTitle: z.string().trim().optional(),
   employmentStartDate: z.string().min(1, "Start date is required"),
   category: z.string().optional(),
@@ -76,6 +77,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
   const [isDirty, setIsDirty] = useState(false);
 
   const [formData, setFormData] = useState({
+    locationId: initialData?.locationId || locationId,
     jobTitle: initialData?.jobTitle || "",
     employmentStartDate: initialData?.employmentStartDate || new Date().toISOString().split("T")[0],
     firstName: initialData?.person?.firstName || "",
@@ -123,7 +125,11 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
   const [provisionPassword, setProvisionPassword] = useState("");
   const [roleIds, setRoleIds] = useState<string[]>([]);
   
-  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>(initialData?.locationMemberships?.map((m: any) => m.locationId) || [locationId]);
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>(
+    initialData?.locationMemberships && initialData.locationMemberships.length > 0
+      ? initialData.locationMemberships.map((m: any) => m.locationId)
+      : [initialData?.locationId || locationId]
+  );
   const [locationsData, setLocationsData] = useState<{ locations: any[] } | null>(null);
 
   useEffect(() => {
@@ -135,10 +141,12 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
   const [shiftsData, setShiftsData] = useState<any[]>([]);
   useEffect(() => {
-    getShifts(organizationId, locationId)
+    const loc = formData.locationId || locationId;
+    if (!organizationId || !loc) return;
+    getShifts(organizationId, loc)
       .then(data => setShiftsData(data))
       .catch(console.error);
-  }, [organizationId, locationId]);
+  }, [organizationId, formData.locationId, locationId]);
 
   const [departmentsData, setDepartmentsData] = useState<{ departments: any[] } | null>(null);
   useEffect(() => {
@@ -378,6 +386,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
       };
 
       const commonFields = {
+        locationId: formData.locationId || undefined,
         employmentStartDate: formData.employmentStartDate,
         jobTitle: formData.jobTitle || undefined,
         category: formData.category || undefined,
@@ -415,7 +424,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         }
       } else {
         await apiSend("/api/employees", "POST", {
-          organizationId, locationId, familyContacts: payloadContacts, ...commonFields, 
+          organizationId, locationId: formData.locationId || locationId, familyContacts: payloadContacts, ...commonFields, 
           ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds, locationIds: selectedLocationIds } } : {})
         });
       }
@@ -551,6 +560,12 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
 
           <KalkiSection title="Employment Information" icon="💼">
             <div className="kalki-grid-2-col">
+              <KalkiSelect label="Branch / Location" required error={fieldErrors.locationId} value={formData.locationId} onChange={e => handleChange("locationId", e.target.value)} disabled={pending}>
+                <option value="">Select Branch...</option>
+                {locationsData?.locations?.map((l: any) => (
+                  <option key={l.id} value={l.id}>{l.name} ({l.code})</option>
+                ))}
+              </KalkiSelect>
               <KalkiSelect label="Category" error={fieldErrors.category} value={formData.category} onChange={e => handleChange("category", e.target.value)} disabled={pending}>
                 <option value="">Select...</option><option value="Permanent">Permanent</option><option value="Temporary">Temporary</option><option value="Part-time">Part-time</option>
               </KalkiSelect>
@@ -645,10 +660,13 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
               </>
             )}
 
-            {(provisionAccess || initialData?.id) && (
+            {(provisionAccess || initialData?.userId) && (
               <div className="kalki-field">
-                <label className="kalki-label">Assign Locations *</label>
-                <select multiple size={5} value={selectedLocationIds} onChange={e => {
+                <label className="kalki-label">System Access Locations</label>
+                <span style={{ fontSize: "11px", color: "var(--kalki-text-secondary)", display: "block", marginBottom: "4px" }}>
+                  Select the branches this user is allowed to access upon login (hold Ctrl/Cmd to select multiple):
+                </span>
+                <select multiple size={4} value={selectedLocationIds} onChange={e => {
                     const selectedOptions = Array.from(e.target.selectedOptions).map(opt => opt.value);
                     setSelectedLocationIds(selectedOptions);
                     setIsDirty(true);
@@ -658,6 +676,11 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
                   ))}
                 </select>
               </div>
+            )}
+            {!provisionAccess && !initialData?.userId && (
+              <p style={{ fontSize: '13px', color: 'var(--kalki-text-secondary)', margin: 0, fontStyle: 'italic' }}>
+                This employee does not have system login credentials. Check &ldquo;Generate System Login Credentials&rdquo; under Personal Information if they need to log in to Kalki BOS.
+              </p>
             )}
           </KalkiSection>
         </div>

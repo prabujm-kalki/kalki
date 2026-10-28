@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getPayrollHistory, disbursePayrollRun, getPayrollRunDetails, deletePayrollRun } from "@/app/payroll/processing/actions";
-import { approvePayrollRun } from "@/domains/payroll/actions";
+import { getPayrollHistory, disbursePayrollRun, getPayrollRunDetails, deletePayrollRun, approvePayrollRun } from "@/app/payroll/processing/actions";
 import { Calendar, ReceiptText, CheckCircle2, Clock, Upload, X, Eye, Download, Trash2, CheckCircle } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
 

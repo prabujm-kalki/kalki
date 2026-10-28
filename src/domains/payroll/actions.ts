@@ -8,7 +8,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { processAccountingEvent } from "@/domains/finance/event-engine";
 
-export const upsertSalaryStructureSchema = z.object({
+const upsertSalaryStructureSchema = z.object({
   organizationId: z.string().uuid(),
   employeeId: z.string().uuid(),
   effectiveFrom: z.string().date(),

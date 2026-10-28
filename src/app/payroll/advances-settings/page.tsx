@@ -32,7 +32,11 @@ function AdvancesSettingsContent() {
     maxCapPercentage: "",
     maxCeilingAmount: "",
     maxRepaymentMonths: "",
+    repaymentUnit: "MONTHS",
     minTenureDays: "",
+    minNoticeDays: "",
+    frequencyLimitPeriod: "MONTHLY",
+    maxRequestsPerPeriod: "1",
     allowConcurrentAdvances: false,
     isActive: true,
   });
@@ -61,7 +65,11 @@ function AdvancesSettingsContent() {
       maxCapPercentage: "",
       maxCeilingAmount: "",
       maxRepaymentMonths: "",
+      repaymentUnit: "MONTHS",
       minTenureDays: "",
+      minNoticeDays: "",
+      frequencyLimitPeriod: "MONTHLY",
+      maxRequestsPerPeriod: "1",
       allowConcurrentAdvances: false,
       isActive: true,
     });
@@ -78,7 +86,11 @@ function AdvancesSettingsContent() {
       maxCapPercentage: t.maxCapPercentage?.toString() || "",
       maxCeilingAmount: t.maxCeilingAmount?.toString() || "",
       maxRepaymentMonths: t.maxRepaymentMonths?.toString() || "",
+      repaymentUnit: t.repaymentUnit || "MONTHS",
       minTenureDays: t.minTenureDays?.toString() || "",
+      minNoticeDays: t.minNoticeDays?.toString() || "",
+      frequencyLimitPeriod: t.frequencyLimitPeriod || "MONTHLY",
+      maxRequestsPerPeriod: t.maxRequestsPerPeriod?.toString() || "1",
       allowConcurrentAdvances: t.allowConcurrentAdvances ?? false,
       isActive: t.isActive ?? true,
     });
@@ -110,7 +122,11 @@ function AdvancesSettingsContent() {
       maxCapPercentage: formData.maxCapPercentage ? parseInt(formData.maxCapPercentage) : undefined,
       maxCeilingAmount: formData.maxCeilingAmount ? formData.maxCeilingAmount : undefined,
       maxRepaymentMonths: formData.maxRepaymentMonths ? parseInt(formData.maxRepaymentMonths) : undefined,
+      repaymentUnit: formData.repaymentUnit,
       minTenureDays: formData.minTenureDays ? parseInt(formData.minTenureDays) : undefined,
+      minNoticeDays: formData.minNoticeDays ? parseInt(formData.minNoticeDays) : undefined,
+      frequencyLimitPeriod: formData.frequencyLimitPeriod,
+      maxRequestsPerPeriod: formData.maxRequestsPerPeriod ? parseInt(formData.maxRequestsPerPeriod) : 1,
       allowConcurrentAdvances: formData.allowConcurrentAdvances,
       isActive: formData.isActive,
     };
@@ -210,17 +226,66 @@ function AdvancesSettingsContent() {
               />
             </div>
             <div className={styles.formGroup}>
-              <label className={styles.label}>Max Repayment Months</label>
+              <label className={styles.label}>Repayment Duration Unit</label>
+              <select 
+                className={styles.select}
+                value={formData.repaymentUnit}
+                onChange={e => setFormData({...formData, repaymentUnit: e.target.value})}
+              >
+                <option value="MONTHS">Months (Calendar Months)</option>
+                <option value="WEEKS">Weeks (Weekly Cycles)</option>
+                <option value="PAY_CYCLES">Auto (Matches Employee's Pay Basis)</option>
+              </select>
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>
+                Max Repayment {formData.repaymentUnit === "WEEKS" ? "Weeks" : formData.repaymentUnit === "PAY_CYCLES" ? "Cycles" : "Months"}
+              </label>
               <input 
                 className={styles.input} 
                 type="number"
                 value={formData.maxRepaymentMonths} 
                 onChange={e => setFormData({...formData, maxRepaymentMonths: e.target.value})} 
-                placeholder="e.g. 6"
+                placeholder={formData.repaymentUnit === "WEEKS" ? "e.g. 2" : "e.g. 6"}
               />
             </div>
             <div className={styles.formGroup}>
-              <label className={styles.label}>Min Tenure Days Required</label>
+              <label className={styles.label}>Frequency Window (How often can employees apply?)</label>
+              <select 
+                className={styles.select}
+                value={formData.frequencyLimitPeriod}
+                onChange={e => setFormData({...formData, frequencyLimitPeriod: e.target.value})}
+              >
+                <option value="MONTHLY">Monthly</option>
+                <option value="QUARTERLY">Quarterly (Every 3 Months)</option>
+                <option value="HALF_YEARLY">Half-Yearly (Every 6 Months)</option>
+                <option value="YEARLY">Yearly (Every 12 Months)</option>
+                <option value="WEEKLY">Weekly</option>
+              </select>
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Max Requests Allowed Per Period</label>
+              <input 
+                className={styles.input} 
+                type="number"
+                min="1"
+                value={formData.maxRequestsPerPeriod} 
+                onChange={e => setFormData({...formData, maxRequestsPerPeriod: e.target.value})} 
+                placeholder="e.g. 1"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Min Notice Days Required (Days prior to apply)</label>
+              <input 
+                className={styles.input} 
+                type="number"
+                value={formData.minNoticeDays} 
+                onChange={e => setFormData({...formData, minNoticeDays: e.target.value})} 
+                placeholder="e.g. 2"
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label className={styles.label}>Min Tenure Days Required (From Joining Date)</label>
               <input 
                 className={styles.input} 
                 type="number"
@@ -278,7 +343,9 @@ function AdvancesSettingsContent() {
                     <th>Basis</th>
                     <th>Max Cap</th>
                     <th>Ceiling (₹)</th>
-                    <th>Max Months</th>
+                    <th>Repayment Period</th>
+                    <th>Frequency Limit</th>
+                    <th>Notice</th>
                     <th>Status</th>
                     <th>Actions</th>
                   </tr>
@@ -291,7 +358,17 @@ function AdvancesSettingsContent() {
                       <td>{t.calculationBasis}</td>
                       <td>{t.maxCapPercentage ? `${t.maxCapPercentage}%` : 'None'}</td>
                       <td>{t.maxCeilingAmount ? `₹${t.maxCeilingAmount}` : 'None'}</td>
-                      <td>{t.maxRepaymentMonths || 'None'}</td>
+                      <td>
+                        {t.maxRepaymentMonths 
+                          ? `${t.maxRepaymentMonths} ${t.repaymentUnit === "WEEKS" ? "Wk(s)" : t.repaymentUnit === "PAY_CYCLES" ? "Cycle(s)" : "Mo(s)"}` 
+                          : 'None'}
+                      </td>
+                      <td>
+                        {t.frequencyLimitPeriod 
+                          ? `${t.maxRequestsPerPeriod || 1}x / ${t.frequencyLimitPeriod.toLowerCase().replace('_', '-')}` 
+                          : '1x / month'}
+                      </td>
+                      <td>{t.minNoticeDays ? `${t.minNoticeDays} day(s)` : 'None'}</td>
                       <td>
                         <span style={{ 
                           padding: '4px 8px', 

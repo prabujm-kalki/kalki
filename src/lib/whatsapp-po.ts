@@ -39,6 +39,7 @@ export function buildPoWhatsappMessage(params: PoWhatsappParams): {
 
   const itemsList = (params.lines && params.lines.length > 0)
     ? params.lines
+        .filter(l => Number(l.orderedQuantity || 0) > 0)
         .map(l => `${l.itemName || "Item"} - ${l.orderedQuantity || 0} ${l.unitOfMeasure || ""}`.trim())
         .join("\n")
     : "";

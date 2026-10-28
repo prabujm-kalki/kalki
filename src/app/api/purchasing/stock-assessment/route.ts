@@ -65,8 +65,8 @@ export async function POST(req: NextRequest) {
       // Critical fix: If vendor last rate is missing, fallback to master item's currentPrice
       const lastRate = Number(config.lastRate || masterItem.currentPrice || 0);
 
+      let orderQuantity = 0;
       if (currentStock <= minStock) {
-        let orderQuantity = 0;
         if (masterItem.replenishmentStrategy === 'fixed') {
           // Fixed Bulk: order the fixed reorder quantity boosted by surge multiplier
           const baseReorder = Number(masterItem.reorderQuantity || 1);
@@ -79,20 +79,37 @@ export async function POST(req: NextRequest) {
         if (masterItem.roundToWhole && orderQuantity > 0) {
           orderQuantity = Math.ceil(orderQuantity);
         }
-
-        if (orderQuantity > 0) {
-          itemsToOrder.push({
-            itemId: input.itemId,
-            orderedQuantity: orderQuantity.toString(),
-            unitRate: lastRate.toString(),
-          });
-          totalAmount += orderQuantity * lastRate;
-        }
       }
+
+      // Always include all assessed vendor items in the PO for review, even if orderQuantity is 0
+      itemsToOrder.push({
+        itemId: input.itemId,
+        orderedQuantity: orderQuantity.toString(),
+        unitRate: lastRate.toString(),
+      });
+      totalAmount += orderQuantity * lastRate;
     }
 
     if (itemsToOrder.length === 0) {
-      return NextResponse.json({ message: "No items reached reorder level", created: false });
+      if (taskId) {
+        await db.update(taskInstances)
+          .set({
+            status: 'completed',
+            completedAt: new Date(),
+            updatedAt: new Date(),
+            completionData: {
+              submittedBy: session.user.id,
+              reason: "Stock assessment completed. All items above reorder level.",
+              poCreated: false
+            }
+          })
+          .where(eq(taskInstances.id, taskId));
+      }
+
+      return NextResponse.json({
+        message: "Stock assessment completed. All items are currently above reorder levels, so no purchase order was required.",
+        created: false
+      });
     }
 
     // 1. Get vendor details for the PO number and communication

@@ -19,7 +19,7 @@ export function SettingsNav() {
     { name: "Access & Roles", href: `/settings/roles`, icon: <Shield size={16} /> },
     { name: "Users", href: `/settings/users`, icon: <Users size={16} /> },
     { name: "Approval Limits", href: `/settings/approval-limits`, icon: <CheckSquare size={16} /> },
-    { name: "Statutory Settings", href: `/settings/statutory`, icon: <Database size={16} /> },
+    { name: "Payroll", href: `/settings/statutory`, icon: <Database size={16} /> },
     { name: "Quick Purchasing", href: `/settings/purchasing`, icon: <CheckSquare size={16} /> },
     { name: "Events & Catering", href: `/settings/events`, icon: <BookOpen size={16} /> },
   ];

@@ -30,30 +30,44 @@ export async function initializeNativeMobile() {
     }
 
     if (permStatus.receive === "granted") {
-      await PushNotifications.register();
+      // Create a promise to wait for token registration so that page navigation does not cancel it
+      const registerPromise = new Promise<void>((resolve) => {
+        PushNotifications.addListener("registration", async (token) => {
+          console.log("[Native Push] Registered with token:", token.value);
+          try {
+            await fetch("/api/users/device-token", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                token: token.value,
+                deviceType: Capacitor.getPlatform(),
+                deviceName: navigator.userAgent.slice(0, 100),
+              }),
+            });
+            console.log("[Native Push] Token successfully sent to server.");
+          } catch (syncErr) {
+            console.error("[Native Push] Failed to sync token with backend:", syncErr);
+          } finally {
+            resolve();
+          }
+        });
 
-      // On successful registration, send device token to server
-      await PushNotifications.addListener("registration", async (token) => {
-        console.log("[Native Push] Registered with token:", token.value);
-        try {
-          await fetch("/api/users/device-token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              token: token.value,
-              deviceType: Capacitor.getPlatform(),
-              deviceName: navigator.userAgent.slice(0, 100),
-            }),
-          });
-        } catch (syncErr) {
-          console.error("[Native Push] Failed to sync token with backend:", syncErr);
-        }
+        PushNotifications.addListener("registrationError", (err) => {
+          console.error("[Native Push] Registration error:", err.error);
+          resolve();
+        });
+
+        // Trigger native registration
+        PushNotifications.register().catch((err) => {
+          console.error("[Native Push] register() failed:", err);
+          resolve();
+        });
+
+        // Timeout fallback after 4 seconds
+        setTimeout(resolve, 4000);
       });
 
-      // On registration error
-      await PushNotifications.addListener("registrationError", (err) => {
-        console.error("[Native Push] Registration error:", err.error);
-      });
+      await registerPromise;
 
       // When push notification is received while app is open
       await PushNotifications.addListener("pushNotificationReceived", (notification) => {

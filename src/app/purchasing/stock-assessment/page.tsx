@@ -252,6 +252,7 @@ export default function StockAssessmentPage() {
           router.push(getDashboardUrl());
         }
       } else {
+        alert(result.message || "Stock assessment completed. All items are currently above reorder levels, so no purchase order was required.");
         router.push(getDashboardUrl());
       }
     } catch (err: any) {

@@ -28,6 +28,10 @@ type EmployeeView = {
   maritalStatus: string | null;
   residentialAddress: string | null;
   bloodGroup: string | null;
+  locationId?: string;
+  locationName?: string | null;
+  secondaryMobile?: string | null;
+  locationMemberships?: Array<{ locationId: string }>;
   reportingEmployeeId: string | null;
   departmentName?: string | null;
   familyContacts: any[];
@@ -498,6 +502,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                 <InfoItem label="Blood Group" value={emp.bloodGroup} />
                 <InfoItem label="Marital Status" value={emp.maritalStatus} />
                 <InfoItem label="Phone" value={emp.person.phone} />
+                <InfoItem label="Secondary Mobile" value={emp.secondaryMobile} />
                 <InfoItem label="Email" value={emp.person.email} />
                 
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginBottom: "16px" }}>
@@ -549,6 +554,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                   } 
                 />
                 <InfoItem label="Category" value={emp.category} />
+                <InfoItem label="Branch / Location" value={emp.locationName || "Not Assigned"} strong />
                 <InfoItem label="Date of Joining" value={new Date(emp.employmentStartDate).toLocaleDateString('en-GB').replace(/\//g, '-')} />
                 <InfoItem label="Department" value={emp.departmentName} />
                 <InfoItem label="Shift" value={emp.shiftName || "Not Assigned"} />
@@ -623,12 +629,24 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
                 <h2 className="kalki-section-title">Employment History</h2>
               </div>
               <div className="kalki-section-content">
-                {(!emp.history || (emp.history.status?.length === 0 && emp.history.category?.length === 0 && emp.history.salary?.length === 0)) ? (
+                {(!emp.history || (emp.history.status?.length === 0 && emp.history.branch?.length === 0 && emp.history.category?.length === 0 && emp.history.salary?.length === 0)) ? (
                   <div style={{ color: "var(--kalki-text-secondary)", fontSize: "14px", fontStyle: "italic" }}>
                     No employment changes recorded yet.
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {emp.history.branch?.length > 0 && (
+                      <div>
+                        <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Branch / Location Changes</h4>
+                        <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "14px" }}>
+                          {emp.history.branch.map((h: any) => (
+                            <li key={h.id} style={{ marginBottom: "4px" }}>
+                              <strong>{h.locationName || h.locationId}</strong> &mdash; Effective {new Date(h.effectiveFrom).toLocaleDateString('en-GB').replace(/\//g, '-')}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                     {emp.history.status?.length > 0 && (
                       <div>
                         <h4 style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--kalki-text-secondary)" }}>Status Changes</h4>

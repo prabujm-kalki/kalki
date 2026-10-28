@@ -149,7 +149,7 @@ export default function CreatePOPage() {
 
     try {
       const linesToSubmit = isRoutineMode ? 
-        vendorItems.filter(item => Number(item.calculatedQty) > 0)
+        vendorItems
         : vendorItems.filter(item => Number(item.orderedQuantity) > 0);
 
       const lines = linesToSubmit.map(item => {
@@ -158,13 +158,13 @@ export default function CreatePOPage() {
         }
         return {
           itemId: item.itemId,
-          orderedQuantity: isRoutineMode ? Number(item.calculatedQty) : Number(item.orderedQuantity),
+          orderedQuantity: isRoutineMode ? Number(item.calculatedQty || 0) : Number(item.orderedQuantity),
           unitRate: Number(item.unitRate)
         };
       });
 
-      if (lines.length === 0 && !isRoutineMode) {
-        throw new Error("You must order at least 1 item.");
+      if (lines.length === 0) {
+        throw new Error("You must have at least 1 item in the purchase order.");
       }
 
       const payload: any = {
@@ -225,6 +225,8 @@ export default function CreatePOPage() {
         alert(
           `Purchase Order #${createdPo.poNumber || createdPo.id.slice(0, 8).toUpperCase()} created successfully!\n\nIt has been submitted for approval and will be available to dispatch once approved by the reporting manager.`
         );
+      } else if (!createdPo) {
+        alert("Stock assessment completed. All items are currently above reorder levels, so no purchase order was required.");
       } else {
         alert("Purchase Order created successfully!");
       }

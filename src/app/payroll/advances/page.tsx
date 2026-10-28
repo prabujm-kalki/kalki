@@ -1,22 +1,23 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Plus, CheckCircle, XCircle, X } from "lucide-react";
+import { Plus, CheckCircle, XCircle, X, RefreshCw } from "lucide-react";
 import styles from "./page.module.css";
 import { fetchAdvancesDashboardData, submitAdvanceRequestAction, approveOrRejectAdvanceAction } from "./actions";
 import { useSearchParams } from "next/navigation";
-
+import { AppShell, useSessionView } from "@/components/AppShell";
 import { Suspense } from "react";
 
 function AdvancesDashboardContent() {
+  const { selected } = useSessionView();
+  const searchParams = useSearchParams();
+  const orgId = searchParams.get("organizationId") || selected?.organizationId;
+
   const [requests, setRequests] = useState<any[]>([]);
   const [types, setTypes] = useState<any[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const searchParams = useSearchParams();
-  const orgId = searchParams.get("organizationId");
 
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
@@ -39,15 +40,21 @@ function AdvancesDashboardContent() {
 
   const loadData = async () => {
     setIsLoading(true);
-    const res = await fetchAdvancesDashboardData(orgId || undefined);
-    if (res.success && res.data) {
-      setRequests(res.data.requests || []);
-      setTypes(res.data.types || []);
-      setEmployees(res.data.employees || []);
-    } else {
-      setError(res.error || "Failed to load dashboard data");
+    setError("");
+    try {
+      const res = await fetchAdvancesDashboardData(orgId || undefined);
+      if (res.success && res.data) {
+        setRequests(res.data.requests || []);
+        setTypes(res.data.types || []);
+        setEmployees(res.data.employees || []);
+      } else {
+        setError(res.error || "Failed to load advance requests");
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to load dashboard data");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -226,8 +233,23 @@ function AdvancesDashboardContent() {
             </div>
             
             <div className={styles.formGroup}>
-              <label className={styles.label}>Requested Repayment Months</label>
-              <input type="number" min="1" className={styles.input} value={reqForm.repaymentMonths} onChange={e => setReqForm({...reqForm, repaymentMonths: e.target.value})} />
+              {(() => {
+                const selType = types.find(t => t.id === reqForm.advanceTypeId);
+                const unitLabel = selType?.repaymentUnit === "WEEKS" ? "Weeks" : selType?.repaymentUnit === "PAY_CYCLES" ? "Cycles" : "Months";
+                return (
+                  <>
+                    <label className={styles.label}>Requested Repayment {unitLabel}</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      className={styles.input} 
+                      value={reqForm.repaymentMonths} 
+                      onChange={e => setReqForm({...reqForm, repaymentMonths: e.target.value})} 
+                      placeholder={`Number of ${unitLabel.toLowerCase()}`}
+                    />
+                  </>
+                );
+              })()}
             </div>
 
             <div className={styles.modalFooter}>
@@ -262,8 +284,23 @@ function AdvancesDashboardContent() {
             </div>
             
             <div className={styles.formGroup}>
-              <label className={styles.label}>Approved Repayment Months</label>
-              <input type="number" min="1" className={styles.input} value={approveForm.repaymentMonths} onChange={e => setApproveForm({...approveForm, repaymentMonths: e.target.value})} />
+              {(() => {
+                const reqType = types.find(t => t.id === selectedRequest.advanceTypeId || t.name === selectedRequest.advanceTypeName);
+                const unitLabel = reqType?.repaymentUnit === "WEEKS" ? "Weeks" : reqType?.repaymentUnit === "PAY_CYCLES" ? "Cycles" : "Months";
+                return (
+                  <>
+                    <label className={styles.label}>Approved Repayment {unitLabel}</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      className={styles.input} 
+                      value={approveForm.repaymentMonths} 
+                      onChange={e => setApproveForm({...approveForm, repaymentMonths: e.target.value})} 
+                      placeholder={`Number of ${unitLabel.toLowerCase()}`}
+                    />
+                  </>
+                );
+              })()}
             </div>
 
             <div className={styles.modalFooter}>
@@ -280,8 +317,10 @@ function AdvancesDashboardContent() {
 
 export default function AdvancesDashboardPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <AdvancesDashboardContent />
-    </Suspense>
+    <AppShell>
+      <Suspense fallback={<div>Loading...</div>}>
+        <AdvancesDashboardContent />
+      </Suspense>
+    </AppShell>
   );
 }

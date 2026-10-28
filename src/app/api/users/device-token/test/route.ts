@@ -1,10 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { userDeviceTokens } from "@/db/schema";
+import { userDeviceTokens, authUsers } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { eq } from "drizzle-orm";
 import { sendNativePushNotification } from "@/lib/pushNotificationSender";
+
+export async function GET(req: NextRequest) {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // List all registered active devices with user info for admin inspection
+    const { users } = await import("@/db/schema");
+    const devices = await db
+      .select({
+        id: userDeviceTokens.id,
+        userId: userDeviceTokens.userId,
+        userName: authUsers.name,
+        userEmail: authUsers.email,
+        deviceType: userDeviceTokens.deviceType,
+        deviceName: userDeviceTokens.deviceName,
+        isActive: userDeviceTokens.isActive,
+        lastActiveAt: userDeviceTokens.lastActiveAt,
+        createdAt: userDeviceTokens.createdAt,
+      })
+      .from(userDeviceTokens)
+      .leftJoin(authUsers, eq(userDeviceTokens.userId, authUsers.id));
+
+    return NextResponse.json({ success: true, devices });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,20 +49,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    let targetUserId = session.user.id;
+    try {
+      const body = await req.json();
+      if (body?.userId) {
+        targetUserId = body.userId;
+      }
+    } catch {
+      // no body, defaults to session user
+    }
+
     const devices = await db
       .select()
       .from(userDeviceTokens)
-      .where(eq(userDeviceTokens.userId, userId));
+      .where(eq(userDeviceTokens.userId, targetUserId));
 
     if (devices.length === 0) {
       return NextResponse.json({
         success: false,
-        message: "No registered mobile phone found for your account. Please log in on the mobile app first.",
+        message: "No registered mobile phone found for this account. Please log in on the mobile app first.",
       });
     }
 
-    const result = await sendNativePushNotification(userId, {
+    const result = await sendNativePushNotification(targetUserId, {
       title: "🚨 Kalki BOS Alert Test",
       body: "High-priority push received! Alarm sound is working on locked screen.",
       level: "level-5",

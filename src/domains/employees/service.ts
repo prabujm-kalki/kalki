@@ -70,6 +70,7 @@ const employeeInputSchema = z.object({
 const employeeUpdateSchema = z
   .object({
     jobTitle: z.string().trim().max(200).nullable().optional(),
+    locationId: z.string().uuid().optional(),
     employmentStartDate: z.preprocess((val) => val === '' ? undefined : val, z.string().date().optional()),
     employmentEndDate: z.preprocess((val) => val === '' ? undefined : val, z.string().date().nullable().optional()),
     aadhaarNumber: z.string().trim().max(20).nullable().optional(),
@@ -110,9 +111,7 @@ const employeeUpdateSchema = z
   })
   .strict();
 
-export const proposeEmployeeChangeSchema = employeeUpdateSchema.extend({
-  locationId: z.string().uuid().optional()
-});
+export const proposeEmployeeChangeSchema = employeeUpdateSchema;
 export type ProposeEmployeeChangeInput = z.infer<typeof proposeEmployeeChangeSchema>;
 
 export type CreateEmployeeInput = z.infer<typeof employeeInputSchema>;
@@ -222,6 +221,7 @@ async function selectEmployee(
       userId: employees.userId,
       organizationId: employees.organizationId,
       locationId: employees.locationId,
+      locationName: locations.name,
       employeeCode: employees.employeeCode,
       jobTitle: employees.jobTitle,
       employmentStartDate: employees.employmentStartDate,
@@ -236,6 +236,7 @@ async function selectEmployee(
       biometricId: employees.biometricId,
       posId: employees.posId,
       reportingEmployeeId: employees.reportingEmployeeId,
+      secondaryMobile: employees.secondaryMobile,
       departmentId: employees.departmentId,
       defaultShiftId: employees.defaultShiftId,
       departmentName: departments.name,
@@ -257,6 +258,7 @@ async function selectEmployee(
     })
     .from(employees)
     .innerJoin(people, eq(people.id, employees.personId))
+    .leftJoin(locations, eq(employees.locationId, locations.id))
     .leftJoin(departments, eq(employees.departmentId, departments.id))
       .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id))
     .where(eq(employees.id, employeeId));
@@ -570,11 +572,29 @@ export async function getEmployee(actor: Actor, employeeId: string) {
 // REMOVED
   
   const statusHistory = await db.select().from(employeeHistoryStatus).where(eq(employeeHistoryStatus.employeeId, employee.id)).orderBy(employeeHistoryStatus.effectiveFrom);
-  const branchHistory = await db.select().from(employeeHistoryBranch).where(eq(employeeHistoryBranch.employeeId, employee.id)).orderBy(employeeHistoryBranch.effectiveFrom);
+  const branchHistory = await db.select({
+    id: employeeHistoryBranch.id,
+    organizationId: employeeHistoryBranch.organizationId,
+    employeeId: employeeHistoryBranch.employeeId,
+    locationId: employeeHistoryBranch.locationId,
+    locationName: locations.name,
+    effectiveFrom: employeeHistoryBranch.effectiveFrom,
+    recordedBy: employeeHistoryBranch.recordedBy,
+    createdAt: employeeHistoryBranch.createdAt,
+  }).from(employeeHistoryBranch)
+    .leftJoin(locations, eq(employeeHistoryBranch.locationId, locations.id))
+    .where(eq(employeeHistoryBranch.employeeId, employee.id))
+    .orderBy(employeeHistoryBranch.effectiveFrom);
   const roleHistory = await db.select().from(employeeHistoryRole).where(eq(employeeHistoryRole.employeeId, employee.id)).orderBy(employeeHistoryRole.effectiveFrom);
 // REMOVED
   const reportingHistory = await db.select().from(employeeHistoryReporting).where(eq(employeeHistoryReporting.employeeId, employee.id)).orderBy(employeeHistoryReporting.effectiveFrom);
   const categoryHistory = await db.select().from(employeeHistoryCategory).where(eq(employeeHistoryCategory.employeeId, employee.id)).orderBy(employeeHistoryCategory.effectiveFrom);
+
+  const locationMembershipRows = employee.userId
+    ? await db.select({ locationId: locationMemberships.locationId })
+        .from(locationMemberships)
+        .where(and(eq(locationMemberships.userId, employee.userId), eq(locationMemberships.isActive, true)))
+    : [];
 
   const fieldAuditHistory = await db.select({
     id: auditEvents.id,
@@ -592,6 +612,7 @@ export async function getEmployee(actor: Actor, employeeId: string) {
   return {
     ...employee,
     familyContacts,
+    locationMemberships: locationMembershipRows,
 // REMOVED
     history: {
       status: statusHistory,
@@ -636,6 +657,14 @@ export async function updateEmployee(
       current.locationId,
       employeePermissions.update,
     );
+    if (parsed.data.locationId && parsed.data.locationId !== current.locationId) {
+      await requireEmployeeAccess(
+        actor,
+        current.organizationId,
+        parsed.data.locationId,
+        employeePermissions.update,
+      );
+    }
   } catch (error) {
     if (error instanceof EmployeeServiceError && error.code === "ACCESS_DENIED") {
       throw new EmployeeServiceError("Employee not found", "EMPLOYEE_NOT_FOUND");
@@ -753,6 +782,7 @@ export async function updateEmployee(
     }
     const employeeChanges = {
       ...(parsed.data.jobTitle !== undefined && { jobTitle: parsed.data.jobTitle }),
+      ...(parsed.data.locationId !== undefined && { locationId: parsed.data.locationId }),
       ...(parsed.data.employmentStartDate !== undefined && { employmentStartDate: parsed.data.employmentStartDate }),
       ...(parsed.data.employmentEndDate !== undefined && { employmentEndDate: parsed.data.employmentEndDate }),
       ...(parsed.data.aadhaarNumber !== undefined && { aadhaarNumber: parsed.data.aadhaarNumber }),
@@ -764,6 +794,7 @@ export async function updateEmployee(
       ...(parsed.data.biometricId !== undefined && { biometricId: parsed.data.biometricId }),
       ...(parsed.data.posId !== undefined && { posId: parsed.data.posId }),
       ...(parsed.data.reportingEmployeeId !== undefined && { reportingEmployeeId: parsed.data.reportingEmployeeId }),
+      ...(parsed.data.secondaryMobile !== undefined && { secondaryMobile: parsed.data.secondaryMobile }),
       ...(parsed.data.category !== undefined && { category: parsed.data.category }),
       ...(parsed.data.gender !== undefined && { gender: parsed.data.gender }),
       ...(parsed.data.maritalStatus !== undefined && { maritalStatus: parsed.data.maritalStatus }),
@@ -782,9 +813,10 @@ export async function updateEmployee(
     const actorRole = actorRoleQuery[0]?.roleId === "admin" ? "System Owner" : "Admin";
 
     const fieldLabels: Record<string, string> = {
-      jobTitle: "Job Title", employmentStartDate: "Date of Joining", employmentEndDate: "Date of Exit",
+      jobTitle: "Job Title", locationId: "Branch / Location", employmentStartDate: "Date of Joining", employmentEndDate: "Date of Exit",
       category: "Category", gender: "Gender", maritalStatus: "Marital Status", residentialAddress: "Residential Address",
-      bloodGroup: "Blood Group", departmentId: "Department", defaultShiftId: "Default Shift", reportingEmployeeId: "Reporting Manager"
+      bloodGroup: "Blood Group", departmentId: "Department", defaultShiftId: "Default Shift", reportingEmployeeId: "Reporting Manager",
+      secondaryMobile: "Secondary Mobile"
     };
 
     for (const [key, newValue] of Object.entries(employeeChanges)) {
@@ -864,6 +896,26 @@ export async function updateEmployee(
     }
 
 
+
+    if (parsed.data.locationId !== undefined && parsed.data.locationId !== current.locationId) {
+      await tx.insert(employeeHistoryBranch).values({
+        organizationId: current.organizationId,
+        employeeId: current.id,
+        locationId: parsed.data.locationId,
+        effectiveFrom: new Date(),
+        recordedBy: recordedByEmployeeId,
+      });
+      await recordAuditEvent({
+        organizationId: current.organizationId,
+        locationId: parsed.data.locationId,
+        actorUserId: actor.id,
+        eventType: "EMPLOYEE_BRANCH_CHANGED",
+        action: "UPDATE",
+        entityType: "employee",
+        entityId: current.id,
+        metadata: { oldLocationId: current.locationId, newLocationId: parsed.data.locationId }
+      }, tx);
+    }
 
     if (parsed.data.reportingEmployeeId !== undefined && parsed.data.reportingEmployeeId !== current.reportingEmployeeId) {
       await tx.insert(employeeHistoryReporting).values({

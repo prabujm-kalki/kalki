@@ -1,14 +1,78 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Calendar, PlayCircle, AlertCircle } from "lucide-react";
 import { DraftPayslip } from "@/domains/payroll/calculator";
 import { generateDraftPayroll } from "@/app/payroll/processing/actions";
 import { useSessionView } from "@/components/AppShell";
+import { apiGet } from "@/lib/api";
+
+const DAY_NAME_TO_INDEX: Record<string, number> = {
+  SUNDAY: 0,
+  MONDAY: 1,
+  TUESDAY: 2,
+  WEDNESDAY: 3,
+  THURSDAY: 4,
+  FRIDAY: 5,
+  SATURDAY: 6,
+};
+
+const DAY_INDEX_TO_SHORT: Record<number, string> = {
+  0: "Sun",
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+};
+
+function formatDate(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDisplayDate(d: Date): string {
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+function toYMD(val: any): string {
+  if (!val) return "";
+  if (typeof val === "string") {
+    return val.split("T")[0];
+  }
+  if (val instanceof Date) {
+    return formatDate(val);
+  }
+  return String(val);
+}
 
 export function PayrollProcessingTab() {
   const { selected } = useSessionView();
+  const organizationId = selected?.organizationId;
   const [frequency, setFrequency] = useState("MONTHLY");
+  
+  // Settings
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    if (organizationId) {
+      apiGet<any>(`/api/settings/statutory?organizationId=${organizationId}`)
+        .then((res) => {
+          if (res?.settings) {
+            setSettings(res.settings);
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not load statutory settings:", err);
+        });
+    }
+  }, [organizationId]);
   
   // Date states for Hourly/Daily
   const [fromDate, setFromDate] = useState("");
@@ -20,6 +84,137 @@ export function PayrollProcessingTab() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<DraftPayslip[] | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
+
+  // Existing runs state to filter out already-completed cycles
+  const [existingRuns, setExistingRuns] = useState<any[]>([]);
+  const [showAllCycles, setShowAllCycles] = useState(false);
+
+  const fetchExistingRuns = () => {
+    if (organizationId && selected?.locationId) {
+      import("@/app/payroll/processing/actions")
+        .then(m => m.getPayrollHistory(organizationId, selected.locationId))
+        .then(res => {
+          if (res.success && res.data) {
+            setExistingRuns(res.data);
+          }
+        })
+        .catch(console.error);
+    }
+  };
+
+  useEffect(() => {
+    fetchExistingRuns();
+  }, [organizationId, selected?.locationId]);
+
+  // Dynamically compute completed weeks based on configured week cut-off day
+  const weeklyOptions = useMemo(() => {
+    const endDayName = settings?.payrollWeekEndDay || "SUNDAY";
+    const targetEndDayIndex = DAY_NAME_TO_INDEX[endDayName] ?? 0; // Default Sunday = 0
+    
+    // We only include strictly COMPLETED cycles (past the end day)
+    const allOptions: { value: string; label: string; isProcessed: boolean; runStatus?: string }[] = [];
+    const now = new Date();
+    
+    // Step backwards day by day from today until we find the most recent completed week end day
+    let curr = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    curr.setDate(curr.getDate() - 1);
+    while (curr.getDay() !== targetEndDayIndex) {
+      curr.setDate(curr.getDate() - 1);
+    }
+
+    // Generate completed weeks (12 weeks historical window)
+    for (let i = 0; i < 12; i++) {
+      const cycleEnd = new Date(curr);
+      const cycleStart = new Date(curr);
+      cycleStart.setDate(cycleStart.getDate() - 6);
+
+      const startDateStr = formatDate(cycleStart);
+      const endDateStr = formatDate(cycleEnd);
+      const val = `${startDateStr}_${endDateStr}`;
+      const startDayShort = DAY_INDEX_TO_SHORT[cycleStart.getDay()];
+      const endDayShort = DAY_INDEX_TO_SHORT[cycleEnd.getDay()];
+      
+      // Check if this cycle is already in existingRuns with robust date matching
+      const existing = existingRuns.find(r => {
+        const rStart = toYMD(r.periodStart);
+        const rEnd = toYMD(r.periodEnd);
+        return rStart === startDateStr && rEnd === endDateStr;
+      });
+
+      const isProcessed = Boolean(existing);
+      const statusLabel = existing?.status ? ` [${existing.status.replace(/_/g, ' ')}]` : '';
+      const label = `${formatDisplayDate(cycleStart)} to ${formatDisplayDate(cycleEnd)} (${startDayShort}-${endDayShort})${statusLabel}`;
+
+      allOptions.push({ value: val, label, isProcessed, runStatus: existing?.status });
+      curr.setDate(curr.getDate() - 7);
+    }
+
+    if (showAllCycles) {
+      return allOptions;
+    }
+
+    // When "Show completed" is unchecked:
+    // 1. Filter out already processed runs
+    const pendingOnly = allOptions.filter(opt => !opt.isProcessed);
+    // 2. If runs exist in system, show only pending ones. If no runs have been processed yet (fresh install/empty history),
+    // show the most recent completed weeks (up to 4) instead of dumping all 12 weeks so the user sees a concise actionable list.
+    if (existingRuns.length > 0) {
+      return pendingOnly;
+    }
+    return pendingOnly.slice(0, 4);
+  }, [settings?.payrollWeekEndDay, existingRuns, showAllCycles]);
+
+  // Dynamically compute past months
+  const monthlyOptions = useMemo(() => {
+    const allOptions: { value: string; label: string; isProcessed: boolean; runStatus?: string }[] = [];
+    const now = new Date();
+    
+    // Previous completed months (6 months)
+    for (let i = 1; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const val = `${year}-${month}`;
+      const lastDay = new Date(year, parseInt(month), 0).getDate();
+      const startStr = `${year}-${month}-01`;
+      const endStr = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+      
+      const existing = existingRuns.find(r => {
+        const rStart = toYMD(r.periodStart);
+        const rEnd = toYMD(r.periodEnd);
+        return rStart === startStr && rEnd === endStr;
+      });
+      const isProcessed = Boolean(existing);
+      const statusLabel = existing?.status ? ` [${existing.status.replace(/_/g, ' ')}]` : '';
+      const label = `${d.toLocaleDateString("en-IN", { month: "long", year: "numeric" })}${statusLabel}`;
+
+      allOptions.push({ value: val, label, isProcessed, runStatus: existing?.status });
+    }
+
+    if (showAllCycles) {
+      return allOptions;
+    }
+
+    const pendingOnly = allOptions.filter(opt => !opt.isProcessed);
+    if (existingRuns.length > 0) {
+      return pendingOnly;
+    }
+    return pendingOnly.slice(0, 3);
+  }, [existingRuns, showAllCycles]);
+
+  // Auto-select latest completed/unprocessed week or month
+  useEffect(() => {
+    if (frequency === "WEEKLY" && weeklyOptions.length > 0) {
+      if (!selectedPeriod || !weeklyOptions.some(o => o.value === selectedPeriod)) {
+        setSelectedPeriod(weeklyOptions[0].value);
+      }
+    } else if (frequency === "MONTHLY" && monthlyOptions.length > 0) {
+      if (!selectedPeriod || !monthlyOptions.some(o => o.value === selectedPeriod)) {
+        setSelectedPeriod(monthlyOptions[0].value);
+      }
+    }
+  }, [frequency, weeklyOptions, monthlyOptions, selectedPeriod]);
 
   // Validation
   let validationError = "";
@@ -143,31 +338,58 @@ export function PayrollProcessingTab() {
 
           {frequency === "MONTHLY" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: "2", minWidth: "250px" }}>
-              <label style={{ fontSize: "0.9rem", fontWeight: 500 }}>Select Month</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ fontSize: "0.9rem", fontWeight: 500 }}>Select Month</label>
+                <label style={{ fontSize: "0.8rem", color: "var(--kalki-text-secondary)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={showAllCycles} 
+                    onChange={e => setShowAllCycles(e.target.checked)} 
+                    style={{ cursor: "pointer" }}
+                  />
+                  Show completed
+                </label>
+              </div>
               <select 
                 className="kalki-input" 
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
               >
                 <option value="">-- Select Month --</option>
-                <option value="2026-09">September 2026</option>
-                <option value="2026-08">August 2026</option>
-                <option value="2026-07">July 2026</option>
+                {monthlyOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
           )}
 
           {frequency === "WEEKLY" && (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: "2", minWidth: "250px" }}>
-              <label style={{ fontSize: "0.9rem", fontWeight: 500 }}>Select Week</label>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <label style={{ fontSize: "0.9rem", fontWeight: 500 }}>Select Week</label>
+                <label style={{ fontSize: "0.8rem", color: "var(--kalki-text-secondary)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={showAllCycles} 
+                    onChange={e => setShowAllCycles(e.target.checked)} 
+                    style={{ cursor: "pointer" }}
+                  />
+                  Show completed
+                </label>
+              </div>
               <select 
                 className="kalki-input" 
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
               >
                 <option value="">-- Select Week --</option>
-                <option value="2026-09-21_2026-09-27">21-09-2026 to 27-09-2026 (Mon-Sun)</option>
-                <option value="2026-09-14_2026-09-20">14-09-2026 to 20-09-2026 (Mon-Sun)</option>
+                {weeklyOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </div>
           )}
@@ -227,6 +449,7 @@ export function PayrollProcessingTab() {
                     setFromDate("");
                     setToDate("");
                     setSelectedPeriod("");
+                    fetchExistingRuns();
                   } else {
                     alert("Failed to process payroll: " + (('error' in res) ? res.error : "Unknown error"));
                   }

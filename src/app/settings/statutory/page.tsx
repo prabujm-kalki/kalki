@@ -55,7 +55,7 @@ export default function StatutorySettingsPage() {
       <div className="kalki-card-header">
         <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <ShieldCheck size={20} />
-          Statutory Compliances Configuration
+          Payroll & Statutory Compliances Configuration
         </h2>
       </div>
       <div className="kalki-card-body">
@@ -86,7 +86,7 @@ export default function StatutorySettingsPage() {
         </div>
 
         {/* ESI Section */}
-        <div>
+        <div style={{ marginBottom: '2rem' }}>
           <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--kalki-primary)', borderBottom: '1px solid var(--kalki-border)', paddingBottom: '0.5rem' }}>
             Employee State Insurance (ESI)
           </h3>
@@ -106,6 +106,60 @@ export default function StatutorySettingsPage() {
             <div className="kalki-form-group" style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '1.8rem' }}>
               <input type="checkbox" id="esi-ctc" checked={settings?.esiIncludeEmployerContributionInCTC} onChange={e => setSettings({...settings, esiIncludeEmployerContributionInCTC: e.target.checked})} />
               <label htmlFor="esi-ctc" style={{ marginBottom: 0 }}>Include Employer ESI in CTC</label>
+            </div>
+          </div>
+        </div>
+
+        {/* Weekly Payroll Cycle Configuration */}
+        <div>
+          <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', color: 'var(--kalki-primary)', borderBottom: '1px solid var(--kalki-border)', paddingBottom: '0.5rem' }}>
+            Weekly Payroll Cycle
+          </h3>
+          <p style={{ fontSize: '0.85rem', color: 'var(--kalki-text-secondary)', marginBottom: '1.25rem' }}>
+            Configure the end day of your weekly payroll calculation period. Once the cycle day ends, the completed week will automatically be available for draft generation.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+            <div className="kalki-form-group">
+              <label>Week End Day (Cut-off)</label>
+              <select 
+                className="kalki-input" 
+                value={settings?.payrollWeekEndDay || "SUNDAY"} 
+                onChange={e => {
+                  const endDay = e.target.value;
+                  const cycleMap: Record<string, string> = {
+                    "SUNDAY": "MONDAY",
+                    "SATURDAY": "SUNDAY",
+                    "FRIDAY": "SATURDAY",
+                    "THURSDAY": "FRIDAY",
+                    "WEDNESDAY": "THURSDAY",
+                    "TUESDAY": "WEDNESDAY",
+                    "MONDAY": "TUESDAY"
+                  };
+                  setSettings({
+                    ...settings, 
+                    payrollWeekEndDay: endDay,
+                    payrollWeekStartDay: cycleMap[endDay] || "MONDAY"
+                  });
+                }}
+              >
+                <option value="SUNDAY">Sunday (Mon – Sun cycle)</option>
+                <option value="SATURDAY">Saturday (Sun – Sat cycle)</option>
+                <option value="FRIDAY">Friday (Sat – Fri cycle)</option>
+                <option value="THURSDAY">Thursday (Fri – Thu cycle)</option>
+                <option value="WEDNESDAY">Wednesday (Thu – Wed cycle)</option>
+                <option value="TUESDAY">Tuesday (Wed – Tue cycle)</option>
+                <option value="MONDAY">Monday (Tue – Mon cycle)</option>
+              </select>
+            </div>
+            <div className="kalki-form-group">
+              <label>Week Start Day</label>
+              <input 
+                type="text" 
+                className="kalki-input" 
+                value={settings?.payrollWeekStartDay || "MONDAY"} 
+                disabled 
+                style={{ opacity: 0.7, background: 'var(--kalki-bg)' }}
+              />
             </div>
           </div>
         </div>

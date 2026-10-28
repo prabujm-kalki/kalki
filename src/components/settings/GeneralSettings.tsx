@@ -280,6 +280,33 @@ export function GeneralSettings() {
     }
   }, [selected?.organizationId]);
 
+  // Registered Mobile Devices State
+  const [registeredDevices, setRegisteredDevices] = useState<any[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [selectedTargetUserId, setSelectedTargetUserId] = useState<string>("");
+
+  const fetchRegisteredDevices = async () => {
+    setLoadingDevices(true);
+    try {
+      const res = await fetch("/api/users/device-token/test");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.devices)) {
+        setRegisteredDevices(data.devices);
+        if (data.devices.length > 0 && !selectedTargetUserId) {
+          setSelectedTargetUserId(data.devices[0].userId);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load registered devices", e);
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRegisteredDevices();
+  }, []);
+
   const [webhookCallbackUrl, setWebhookCallbackUrl] = useState("https://detached-manned-shining.ngrok-free.dev/api/webhooks/whatsapp");
 
   useEffect(() => {
@@ -1311,14 +1338,35 @@ export function GeneralSettings() {
                   <h3 style={{ fontSize: '1rem', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#334155' }}>
                     <BellRing size={16} color="#6366f1" /> Custom Notification Tones
                   </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {registeredDevices.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#475569' }}>Target User:</span>
+                        <select
+                          className="kalki-input"
+                          value={selectedTargetUserId}
+                          onChange={(e) => setSelectedTargetUserId(e.target.value)}
+                          style={{ padding: '0.3rem 0.6rem', fontSize: '0.85rem', width: 'auto' }}
+                        >
+                          {registeredDevices.map((dev) => (
+                            <option key={dev.id} value={dev.userId}>
+                              {dev.userName || dev.userEmail} ({dev.deviceType})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={async () => {
                         try {
-                          const res = await fetch("/api/users/device-token/test", { method: "POST" });
+                          const res = await fetch("/api/users/device-token/test", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ userId: selectedTargetUserId || undefined }),
+                          });
                           const json = await res.json();
-                          alert(json.message || (json.success ? "Test push sent! Check your phone." : "No registered phones found."));
+                          alert(json.message || (json.success ? "Test push sent! Check the target phone." : "No registered phones found."));
                         } catch (e: any) {
                           alert("Failed to send test push: " + e.message);
                         }
@@ -1327,6 +1375,14 @@ export function GeneralSettings() {
                       style={{ color: '#047857', borderColor: '#a7f3d0', background: '#ecfdf5', fontWeight: 600, padding: '0.4rem 0.8rem' }}
                     >
                       📱 Send Test Push to Phone
+                    </button>
+                    <button
+                      type="button"
+                      onClick={fetchRegisteredDevices}
+                      title="Refresh registered device list"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', fontSize: '0.8rem', padding: '0.2rem' }}
+                    >
+                      🔄 ({registeredDevices.length} registered)
                     </button>
                     <div style={{ fontSize: '0.8rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '1px solid #fcd34d', borderRadius: '50%', textAlign: 'center', lineHeight: '12px' }}>i</span>
