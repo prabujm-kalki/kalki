@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { userDeviceTokens } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import admin from "firebase-admin";
+import { getMessaging } from "firebase-admin/messaging";
 
 export interface NativePushPayload {
   title: string;
@@ -13,8 +14,9 @@ export interface NativePushPayload {
 
 // Initialize Firebase Admin SDK (singleton)
 function getFirebaseAdmin() {
-  if (admin.apps.length > 0) {
-    return admin.app();
+  const existingApps = admin.getApps ? admin.getApps() : (admin.apps || []);
+  if (existingApps.length > 0) {
+    return existingApps[0];
   }
 
   // 1. Try FIREBASE_SERVICE_ACCOUNT JSON string or file path
@@ -77,7 +79,7 @@ export async function sendNativePushNotification(userId: string, payload: Native
 
     const app = getFirebaseAdmin();
     if (app) {
-      const messaging = admin.messaging(app);
+      const messaging = getMessaging(app);
 
       // Convert all data values to strings as required by FCM
       const stringData: Record<string, string> = {
