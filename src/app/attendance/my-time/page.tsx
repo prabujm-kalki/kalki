@@ -51,6 +51,26 @@ export default async function MyTimePage({
     );
   }
 
+  // Auto-initialize / sync balances on demand so new leave types immediately show up
+  const activeLeaveTypesCount = await db
+    .select({ id: leaveTypes.id })
+    .from(leaveTypes)
+    .where(and(eq(leaveTypes.organizationId, scope.organizationId), eq(leaveTypes.isActive, true)));
+
+  if (activeLeaveTypesCount.length > 0) {
+    const existingCount = await db
+      .select({ id: employeeLeaveBalances.id })
+      .from(employeeLeaveBalances)
+      .where(eq(employeeLeaveBalances.employeeId, employee.id));
+
+    if (existingCount.length < activeLeaveTypesCount.length) {
+      const { syncLeaveBalancesForOrganization } = await import("@/domains/attendance/accrualEngine");
+      await db.transaction(async (tx) => {
+        await syncLeaveBalancesForOrganization(tx, scope.organizationId, scope.locationId);
+      });
+    }
+  }
+
   const balancesData = await db.select({
     id: employeeLeaveBalances.id,
     leaveTypeId: employeeLeaveBalances.leaveTypeId,
@@ -61,6 +81,8 @@ export default async function MyTimePage({
     leaveTypeName: leaveTypes.name,
     isPaid: leaveTypes.isPaid,
     allowZeroBalance: leaveTypes.allowZeroBalance,
+    annualAllocation: leaveTypes.annualAllocation,
+    carryForwardExpiryMonths: leaveTypes.carryForwardExpiryMonths,
   })
   .from(employeeLeaveBalances)
   .leftJoin(leaveTypes, eq(employeeLeaveBalances.leaveTypeId, leaveTypes.id))

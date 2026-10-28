@@ -24,7 +24,7 @@ import {
   getSelfiePunchRoster,
   getDailyPunchState
 } from "@/domains/attendance/actions";
-import { scanForAruco, drawArucoMarker } from "@/lib/aruco";
+import { scanForArucoStrict, drawArucoMarker } from "@/lib/aruco";
 import { useSessionView } from "@/components/AppShell";
 import "../attendance.css";
 
@@ -218,14 +218,21 @@ export default function SelfiePunchKiosk() {
       setFailureCount(0);
       setFailureMessage("");
 
-      // Start periodic visual marker scan every 600ms
-      arucoIntervalRef.current = setInterval(() => {
+      // Start periodic visual marker scan every 500ms
+      let scanning = false;
+      arucoIntervalRef.current = setInterval(async () => {
+        if (scanning) return;
         if (videoRef.current && videoRef.current.readyState >= 2) {
-          const scan = scanForAruco(videoRef.current, 0);
-          setIsMarkerDetected(scan.detected);
-          setMarkerConfidence(scan.confidence);
+          scanning = true;
+          try {
+            const scan = await scanForArucoStrict(videoRef.current, 0);
+            setIsMarkerDetected(scan.detected);
+            setMarkerConfidence(scan.confidence);
+          } finally {
+            scanning = false;
+          }
         }
-      }, 600);
+      }, 500);
     } else {
       stopCamera();
       if (modelsLoaded) setStatus("idle");
@@ -256,8 +263,12 @@ export default function SelfiePunchKiosk() {
       ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
       const snapshotBase64 = canvas.toDataURL("image/jpeg", 0.75);
 
-      // Aruco marker state check
-      const markerScan = scanForAruco(canvas, 0);
+      // Strict Physical Wall Marker Gate: Anti-Spoofing Verification
+      const markerScan = await scanForArucoStrict(canvas, 0);
+      if (!markerScan.detected) {
+        handleFailure("Wall Marker Not Detected. Please stand in front of the official entrance marker to punch.");
+        return;
+      }
 
       // Face detection in current frame
       const detections = await faceapi
@@ -889,20 +900,23 @@ export default function SelfiePunchKiosk() {
                   {availableOptions.includes("PUNCH_IN") && (
                     <button
                       onClick={() => captureAndVerify("PUNCH_IN")}
-                      disabled={status === "verifying"}
+                      disabled={status === "verifying" || !isMarkerDetected}
+                      title={!isMarkerDetected ? "Align camera with physical wall marker to punch" : ""}
                       style={{
                         padding: "0.85rem",
                         borderRadius: "8px",
-                        background: "#10b981",
+                        background: !isMarkerDetected ? "#cbd5e1" : "#10b981",
                         color: "#ffffff",
                         fontWeight: 700,
                         fontSize: "0.95rem",
                         border: "none",
-                        cursor: "pointer",
+                        cursor: !isMarkerDetected ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: "0.5rem"
+                        gap: "0.5rem",
+                        opacity: !isMarkerDetected ? 0.7 : 1,
+                        transition: "all 0.2s ease"
                       }}
                     >
                       <UserCheck size={18} />
@@ -912,20 +926,23 @@ export default function SelfiePunchKiosk() {
                   {availableOptions.includes("PUNCH_OUT") && (
                     <button
                       onClick={() => captureAndVerify("PUNCH_OUT")}
-                      disabled={status === "verifying"}
+                      disabled={status === "verifying" || !isMarkerDetected}
+                      title={!isMarkerDetected ? "Align camera with physical wall marker to punch" : ""}
                       style={{
                         padding: "0.85rem",
                         borderRadius: "8px",
-                        background: "#ef4444",
+                        background: !isMarkerDetected ? "#cbd5e1" : "#ef4444",
                         color: "#ffffff",
                         fontWeight: 700,
                         fontSize: "0.95rem",
                         border: "none",
-                        cursor: "pointer",
+                        cursor: !isMarkerDetected ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: "0.5rem"
+                        gap: "0.5rem",
+                        opacity: !isMarkerDetected ? 0.7 : 1,
+                        transition: "all 0.2s ease"
                       }}
                     >
                       <UserCheck size={18} />
