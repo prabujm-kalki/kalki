@@ -373,11 +373,9 @@ export async function syncLeaveBalancesForOrganization(
         .limit(1);
 
       if (existingBalance.length > 0) {
-        const balance = existingBalance[0];
-        // Update carried forward if newly calculated eligible carry-forward reflects policy changes
-        const currentCarried = Number(balance.carriedForward || 0);
-        const carriedForwardToApply = eligibleCarryForward > 0 ? eligibleCarryForward : currentCarried;
-        const closingBal = accruedAmount + carriedForwardToApply - Number(balance.taken || 0);
+        // Update carried forward to the policy's calculated eligible carry-forward
+        const carriedForwardToApply = eligibleCarryForward;
+        const closingBal = Math.max(0, accruedAmount + carriedForwardToApply - Number(balance.taken || 0));
 
         await tx.update(employeeLeaveBalances)
           .set({ 
