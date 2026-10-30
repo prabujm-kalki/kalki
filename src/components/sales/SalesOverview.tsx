@@ -193,13 +193,14 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
           </div>
         </div>
 
-        {/* Card 3 */}
+        {/* Card 3: Receivables */}
         <div 
           className="card" 
           style={{ padding: "1rem", borderRadius: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", transition: "all 0.2s" }}
-          onClick={() => selected && router.push(`/finance/sales-receivables/summary?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
+          onClick={() => selected && router.push(`/finance/sales-receivables/customer-balances?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
           onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          title="View Customer Receivables & Balances"
         >
           <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#ffedd5", display: "flex", alignItems: "center", justifyContent: "center", color: "#ea580c" }}>
             <Users size={18} />
@@ -213,13 +214,14 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
           </div>
         </div>
 
-        {/* Card 4 */}
+        {/* Card 4: Overdue */}
         <div 
           className="card" 
           style={{ padding: "1rem", borderRadius: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", transition: "all 0.2s" }}
-          onClick={() => selected && router.push(`/finance/sales-receivables/summary?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
+          onClick={() => selected && router.push(`/finance/sales-receivables/ageing?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
           onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+          title="View Overdue & Receivables Ageing"
         >
           <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
             <Clock size={18} />

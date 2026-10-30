@@ -131,15 +131,53 @@ export default function SelfiePunchKiosk() {
   useEffect(() => {
     async function fetchRosterAndSettings() {
       if (!organizationId || !locationId) return;
+
+      // 1. Fetch attendance settings (fail-safe)
       try {
-        const [roster, settings] = await Promise.all([
-          getSelfiePunchRoster(organizationId, locationId),
-          getAttendanceSettings(organizationId, locationId)
-        ]);
-        setEmployees(roster);
+        const settings = await getAttendanceSettings(organizationId, locationId);
         setRequireWallMarker(settings?.requireWallMarker ?? false);
       } catch (err) {
-        console.error("Failed to fetch roster or settings:", err);
+        console.warn("Failed to fetch location attendance settings, defaulting to direct selfie:", err);
+        setRequireWallMarker(false);
+      }
+
+      // 2. Fetch roster with automatic fallback to /api/employees
+      try {
+        const roster = await getSelfiePunchRoster(organizationId, locationId);
+        if (roster && roster.length > 0) {
+          setEmployees(roster);
+          return;
+        }
+      } catch (err) {
+        console.warn("getSelfiePunchRoster failed, falling back to location employee directory:", err);
+      }
+
+      // Fallback: load employees from standard active directory for this location
+      try {
+        const res = await fetch(`/api/employees?organizationId=${organizationId}&locationId=${locationId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.employees)) {
+            const mapped: RosterEmployee[] = data.employees
+              .filter((emp: any) => emp.status === "ACTIVE")
+              .map((emp: any) => ({
+                id: emp.id,
+                employeeCode: emp.employeeCode,
+                jobTitle: emp.jobTitle,
+                isSelf: false,
+                isDirectReport: false,
+                person: {
+                  firstName: emp.person?.firstName || "",
+                  lastName: emp.person?.lastName || null,
+                  displayName: emp.person?.displayName || `${emp.person?.firstName || ""} ${emp.person?.lastName || ""}`.trim() || emp.employeeCode,
+                  photoUrl: emp.photoUrl || null,
+                }
+              }));
+            setEmployees(mapped);
+          }
+        }
+      } catch (fallbackErr) {
+        console.error("Failed to load employees via directory fallback:", fallbackErr);
       }
     }
     fetchRosterAndSettings();
