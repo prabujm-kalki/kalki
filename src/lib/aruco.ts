@@ -90,6 +90,7 @@ let arModulePromise: Promise<any> | null = null;
 async function getARModule() {
   if (typeof window === 'undefined') return null;
   if (!arModulePromise) {
+    // @ts-ignore
     arModulePromise = import('js-aruco').then(mod => {
       // @ts-ignore
       const ar = mod.AR || mod.default?.AR || mod;

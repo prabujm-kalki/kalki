@@ -14,8 +14,62 @@ export interface PoWhatsappParams {
     unitOfMeasure?: string | null;
   }> | null;
   vendorPhone?: string | null;
-  poWhatsappPreference?: string | null; // "TEXT_ONLY" | "PDF_LINK_ONLY" | "TEXT_AND_PDF_LINK"
+  poWhatsappPreference?: string | null; // Vendor override: "TEXT_ONLY" | "PDF_LINK_ONLY" | "TEXT_AND_PDF_LINK"
   whatsappPoTemplate?: string | null;
+  orgWhatsappDispatchMode?: string | null; // "NO_WHATSAPP" | "API_AUTOMATED" | "WEB_LINK_POPUP"
+  orgWhatsappContentFormat?: string | null; // "TEXT_AND_PDF_LINK" | "TEXT_ONLY" | "PDF_LINK_ONLY"
+}
+
+export type EffectiveWhatsappDispatchMode = "NO_WHATSAPP" | "API_AUTOMATED" | "WEB_LINK_POPUP";
+export type EffectiveWhatsappContentFormat = "TEXT_AND_PDF_LINK" | "TEXT_ONLY" | "PDF_LINK_ONLY";
+
+/**
+ * Resolves the effective dispatch mode and content format based on:
+ * 1. Org Dispatch Mode: if NO_WHATSAPP, WhatsApp is completely disabled.
+ * 2. Vendor Override: if vendor specifies a content preference, it takes precedence over org default format.
+ */
+export function resolveWhatsappPreferences(params: {
+  orgDispatchMode?: string | null;
+  orgContentFormat?: string | null;
+  vendorPreference?: string | null;
+  vendorDeliveryMethod?: string | null;
+}): {
+  dispatchMode: EffectiveWhatsappDispatchMode;
+  contentFormat: EffectiveWhatsappContentFormat;
+  isGloballyDisabled: boolean;
+} {
+  const orgMode = (params.orgDispatchMode || "WEB_LINK_POPUP") as EffectiveWhatsappDispatchMode;
+  
+  // If Organization set to NO_WHATSAPP, it acts as a global master mute
+  if (orgMode === "NO_WHATSAPP") {
+    return {
+      dispatchMode: "NO_WHATSAPP",
+      contentFormat: "TEXT_AND_PDF_LINK",
+      isGloballyDisabled: true,
+    };
+  }
+
+  // If vendor specifically chooses non-whatsapp delivery method (e.g. EMAIL, MANUAL)
+  if (params.vendorDeliveryMethod && params.vendorDeliveryMethod !== "WHATSAPP") {
+    return {
+      dispatchMode: "NO_WHATSAPP",
+      contentFormat: "TEXT_AND_PDF_LINK",
+      isGloballyDisabled: true,
+    };
+  }
+
+  // Vendor format override takes precedence over org format default
+  const effectiveFormat = (
+    params.vendorPreference ||
+    params.orgContentFormat ||
+    "TEXT_AND_PDF_LINK"
+  ) as EffectiveWhatsappContentFormat;
+
+  return {
+    dispatchMode: orgMode,
+    contentFormat: effectiveFormat,
+    isGloballyDisabled: false,
+  };
 }
 
 export function formatIndianCurrency(val: number | string | null | undefined): string {
@@ -46,15 +100,17 @@ export function buildPoWhatsappMessage(params: PoWhatsappParams): {
 
   let text = "";
 
+  const effectiveFormat = params.poWhatsappPreference || params.orgWhatsappContentFormat || "TEXT_AND_PDF_LINK";
+
   if (params.whatsappPoTemplate) {
     text = params.whatsappPoTemplate
       .replace(/{poId}/g, poNum)
       .replace(/{amount}/g, amountFormatted)
       .replace(/{items?}/g, itemsList)
       .replace(/{link}/g, publicUrl);
-  } else if (params.poWhatsappPreference === "TEXT_ONLY") {
+  } else if (effectiveFormat === "TEXT_ONLY") {
     text = `Hello, please find Purchase Order #${poNum} for ${amountFormatted}.${itemsList ? `\n\nItems:\n${itemsList}` : ""}`;
-  } else if (params.poWhatsappPreference === "PDF_LINK_ONLY") {
+  } else if (effectiveFormat === "PDF_LINK_ONLY") {
     text = `Hello, view and download Purchase Order #${poNum} here: ${publicUrl}`;
   } else {
     // TEXT_AND_PDF_LINK (default)

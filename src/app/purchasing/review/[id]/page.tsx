@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, X, Check, MessageCircle } from "lucide-react";
-import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
 
 interface POLineItem {
   id: string;
@@ -122,31 +122,55 @@ export default function POReviewPage() {
         const vendorPhoneRaw = currentVendor?.contactDetails?.phone || currentVendor?.contactDetails?.whatsapp || currentVendor?.contactDetails?.mobile || "";
         const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
 
-        const shouldSendWhatsApp = (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && approvedPo?.publicToken;
-
-        if (shouldSendWhatsApp) {
-          const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
-
-          const { whatsappUrl } = buildPoWhatsappMessage({
-            poNumber,
-            totalAmount: approvedPo.totalAmount,
-            publicToken: approvedPo.publicToken,
-            lines: resData.lines || lines,
-            vendorPhone: phoneDigits,
-            poWhatsappPreference: currentVendor?.poWhatsappPreference,
-            whatsappPoTemplate: resData.whatsappPoTemplate || null,
+        if (approvedPo?.publicToken) {
+          const resolvedPolicy = resolveWhatsappPreferences({
+            orgDispatchMode: resData.whatsappDispatchMode,
+            orgContentFormat: resData.whatsappContentFormat,
+            vendorPreference: currentVendor?.poWhatsappPreference,
+            vendorDeliveryMethod: currentVendor?.poDeliveryMethod,
           });
 
-          setSuccessMsg("Purchase Order Approved successfully!");
-          setWhatsAppModal({
-            poNumber,
-            totalAmount: approvedPo.totalAmount,
-            vendorName: currentVendor?.name || vendorName || "the vendor",
-            vendorPhone: vendorPhoneRaw || "Vendor",
-            whatsappUrl,
-            poId: approvedPo.id,
-          });
-          return;
+          if (!resolvedPolicy.isGloballyDisabled && phoneDigits) {
+            const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
+
+            if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+              // Direct Background Meta API dispatch
+              fetch(`/api/purchase-orders/${approvedPo.id}/send-whatsapp`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              })
+                .then(r => r.json())
+                .then(apiRes => {
+                  if (apiRes.success) {
+                    console.log(`[WhatsApp Automation] Dispatched PO #${poNumber} via Meta API`);
+                  } else {
+                    console.warn(`[WhatsApp Automation] API dispatch issue:`, apiRes.error);
+                  }
+                })
+                .catch(err => console.error("[WhatsApp Automation] Network error:", err));
+            } else if (resolvedPolicy.dispatchMode === "WEB_LINK_POPUP") {
+              const { whatsappUrl } = buildPoWhatsappMessage({
+                poNumber,
+                totalAmount: approvedPo.totalAmount,
+                publicToken: approvedPo.publicToken,
+                lines: resData.lines || lines,
+                vendorPhone: phoneDigits,
+                poWhatsappPreference: resolvedPolicy.contentFormat,
+                whatsappPoTemplate: resData.whatsappPoTemplate || null,
+              });
+
+              setSuccessMsg("Purchase Order Approved successfully!");
+              setWhatsAppModal({
+                poNumber,
+                totalAmount: approvedPo.totalAmount,
+                vendorName: currentVendor?.name || vendorName || "the vendor",
+                vendorPhone: vendorPhoneRaw || "Vendor",
+                whatsappUrl,
+                poId: approvedPo.id,
+              });
+              return;
+            }
+          }
         }
 
         setSuccessMsg("Purchase Order Approved successfully!");

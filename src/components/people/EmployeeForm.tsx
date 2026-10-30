@@ -424,7 +424,7 @@ export function EmployeeForm({ organizationId, locationId, initialData, isPropos
         }
       } else {
         await apiSend("/api/employees", "POST", {
-          organizationId, locationId: formData.locationId || locationId, familyContacts: payloadContacts, ...commonFields, 
+          organizationId, familyContacts: payloadContacts, ...commonFields, 
           ...(provisionAccess ? { provisionAccess: { phone: formData.phone, password: provisionPassword, roleIds, locationIds: selectedLocationIds } } : {})
         });
       }

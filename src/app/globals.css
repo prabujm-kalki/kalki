@@ -1003,3 +1003,35 @@ table.desktop-only {
     box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
   }
 }
+
+/* Print Styles: Hide all navigation, sidebars, headers, banners and ensure clean document printing */
+@media print {
+  .no-print,
+  .kalki-sidebar,
+  .kalki-topbar,
+  .kalki-module-topbar,
+  .kalki-sidebar-overlay {
+    display: none !important;
+  }
+
+  .kalki-app-shell,
+  .kalki-main-wrapper,
+  .kalki-main-content,
+  .kalki-module-layout,
+  .kalki-module-content {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}

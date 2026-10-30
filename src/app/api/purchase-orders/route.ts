@@ -32,6 +32,8 @@ export async function GET(request: Request) {
         poDeliveryMethod: vendors.poDeliveryMethod,
         poWhatsappPreference: vendors.poWhatsappPreference,
         whatsappPoTemplate: organizations.whatsappPoTemplate,
+        whatsappDispatchMode: organizations.whatsappDispatchMode,
+        whatsappContentFormat: organizations.whatsappContentFormat,
       })
       .from(purchaseOrders)
       .leftJoin(vendors, eq(purchaseOrders.vendorId, vendors.id))
@@ -59,17 +61,30 @@ export async function POST(request: Request) {
     const body = await request.json();
     const po = await createPurchaseOrder(actor, body);
 
-    // Fetch org template for WhatsApp messaging
+    // Fetch org settings for WhatsApp messaging
     let whatsappPoTemplate: string | null = null;
+    let whatsappDispatchMode: string | null = "WEB_LINK_POPUP";
+    let whatsappContentFormat: string | null = "TEXT_AND_PDF_LINK";
     if (body.organizationId) {
       const [org] = await db
-        .select({ whatsappPoTemplate: organizations.whatsappPoTemplate })
+        .select({
+          whatsappPoTemplate: organizations.whatsappPoTemplate,
+          whatsappDispatchMode: organizations.whatsappDispatchMode,
+          whatsappContentFormat: organizations.whatsappContentFormat,
+        })
         .from(organizations)
         .where(eq(organizations.id, body.organizationId));
       whatsappPoTemplate = org?.whatsappPoTemplate || null;
+      whatsappDispatchMode = org?.whatsappDispatchMode || "WEB_LINK_POPUP";
+      whatsappContentFormat = org?.whatsappContentFormat || "TEXT_AND_PDF_LINK";
     }
 
-    return NextResponse.json({ purchaseOrder: po, whatsappPoTemplate }, { status: 201 });
+    return NextResponse.json({
+      purchaseOrder: po,
+      whatsappPoTemplate,
+      whatsappDispatchMode,
+      whatsappContentFormat,
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof InventoryServiceError) {
       return NextResponse.json({ error: error.message, code: error.code }, { status: 400 });

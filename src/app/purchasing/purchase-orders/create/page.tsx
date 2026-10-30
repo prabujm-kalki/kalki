@@ -12,7 +12,7 @@ import { KalkiButton } from "@/components/ui/KalkiButton";
 import { KalkiSelect } from "@/components/ui/KalkiSelect";
 import { KalkiInput } from "@/components/ui/KalkiInput";
 import { KalkiSection } from "@/components/ui/KalkiSection";
-import { buildPoWhatsappMessage, openWhatsAppUrl } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
 
 export default function CreatePOPage() {
   const { session, selected } = useSessionView();
@@ -188,38 +188,54 @@ export default function CreatePOPage() {
       const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
 
       const isApprovedOrSent = createdPo?.status === "approved" || createdPo?.status === "sent_to_vendor";
-      const shouldSendWhatsApp = isApprovedOrSent && (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && createdPo?.publicToken;
+      const resolvedPolicy = resolveWhatsappPreferences({
+        orgDispatchMode: createdRes?.whatsappDispatchMode,
+        orgContentFormat: createdRes?.whatsappContentFormat,
+        vendorPreference: currentVendor?.poWhatsappPreference,
+        vendorDeliveryMethod: currentVendor?.poDeliveryMethod,
+      });
 
-      if (shouldSendWhatsApp) {
-        const confirmSend = window.confirm(
-          `Purchase Order created successfully!\n\nWould you like to send this PO via WhatsApp to ${currentVendor.name} (${vendorPhoneRaw || "Vendor"}) now?`
-        );
+      if (isApprovedOrSent && !resolvedPolicy.isGloballyDisabled && phoneDigits && createdPo?.publicToken) {
+        const poNumber = createdPo.poNumber || `PO-${createdPo.id.slice(0, 8).toUpperCase()}`;
 
-        if (confirmSend) {
-          const poNumber = createdPo.poNumber || `PO-${createdPo.id.slice(0, 8).toUpperCase()}`;
-          const poLinesForMsg = linesToSubmit.map(item => ({
-            itemName: item.itemName,
-            orderedQuantity: isRoutineMode ? item.calculatedQty : item.orderedQuantity,
-            unitOfMeasure: item.purchaseUnit || item.unitOfMeasure || ""
-          }));
-
-          const { whatsappUrl } = buildPoWhatsappMessage({
-            poNumber,
-            totalAmount: createdPo.totalAmount,
-            publicToken: createdPo.publicToken,
-            lines: poLinesForMsg,
-            vendorPhone: phoneDigits,
-            poWhatsappPreference: currentVendor.poWhatsappPreference,
-            whatsappPoTemplate: createdRes?.whatsappPoTemplate || null
-          });
-
+        if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
           try {
-            await apiSend(`/api/purchase-orders/${createdPo.id}/mark-sent`, "POST", {});
+            await apiSend(`/api/purchase-orders/${createdPo.id}/send-whatsapp`, "POST", {});
+            alert(`Purchase Order #${poNumber} created and dispatched automatically to ${currentVendor.name} via WhatsApp API.`);
           } catch (e) {
-            console.error("Failed to mark as sent", e);
+            console.error("Failed to auto-send PO via WhatsApp API", e);
+            alert(`Purchase Order #${poNumber} created successfully.`);
           }
+        } else if (resolvedPolicy.dispatchMode === "WEB_LINK_POPUP") {
+          const confirmSend = window.confirm(
+            `Purchase Order created successfully!\n\nWould you like to send this PO via WhatsApp to ${currentVendor.name} (${vendorPhoneRaw || "Vendor"}) now?`
+          );
 
-          openWhatsAppUrl(whatsappUrl);
+          if (confirmSend) {
+            const poLinesForMsg = linesToSubmit.map(item => ({
+              itemName: item.itemName,
+              orderedQuantity: isRoutineMode ? item.calculatedQty : item.orderedQuantity,
+              unitOfMeasure: item.purchaseUnit || item.unitOfMeasure || ""
+            }));
+
+            const { whatsappUrl } = buildPoWhatsappMessage({
+              poNumber,
+              totalAmount: createdPo.totalAmount,
+              publicToken: createdPo.publicToken,
+              lines: poLinesForMsg,
+              vendorPhone: phoneDigits,
+              poWhatsappPreference: resolvedPolicy.contentFormat,
+              whatsappPoTemplate: createdRes?.whatsappPoTemplate || null
+            });
+
+            try {
+              await apiSend(`/api/purchase-orders/${createdPo.id}/mark-sent`, "POST", {});
+            } catch (e) {
+              console.error("Failed to mark as sent", e);
+            }
+
+            openWhatsAppUrl(whatsappUrl);
+          }
         }
       } else if (createdPo?.status === "pending_approval") {
         alert(
@@ -600,10 +616,33 @@ export default function CreatePOPage() {
                         </td>
                         <td style={{ textAlign: "right" }}>
                           <div style={{ display: "inline-flex", gap: "6px", justifyContent: "flex-end", flexWrap: "wrap" }}>
-                            {(po.status === 'approved' || po.status === 'sent_to_vendor') && po.poDeliveryMethod === 'WHATSAPP' && (
+                            {(po.status === 'approved' || po.status === 'sent_to_vendor') && (
                               <button 
                                 type="button"
                                 onClick={async () => {
+                                  const resolvedPolicy = resolveWhatsappPreferences({
+                                    orgDispatchMode: po.whatsappDispatchMode,
+                                    orgContentFormat: po.whatsappContentFormat,
+                                    vendorPreference: po.poWhatsappPreference,
+                                    vendorDeliveryMethod: po.poDeliveryMethod,
+                                  });
+
+                                  if (resolvedPolicy.isGloballyDisabled || resolvedPolicy.dispatchMode === "NO_WHATSAPP") {
+                                    alert("WhatsApp dispatch is currently disabled for this organization/vendor.");
+                                    return;
+                                  }
+
+                                  if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+                                    try {
+                                      await apiSend(`/api/purchase-orders/${po.id}/send-whatsapp`, "POST", {});
+                                      alert(`PO #${po.poNumber || po.id.slice(0, 8).toUpperCase()} dispatched successfully via WhatsApp API.`);
+                                      fetchRecentPOs();
+                                    } catch (err: any) {
+                                      alert(err?.message || "Failed to dispatch via WhatsApp API.");
+                                    }
+                                    return;
+                                  }
+
                                   let fetchedLines = null;
                                   try {
                                     if (po.publicToken) {
@@ -623,7 +662,7 @@ export default function CreatePOPage() {
                                     publicToken: po.publicToken,
                                     lines: fetchedLines,
                                     vendorPhone: po.vendorPhone?.phone || "",
-                                    poWhatsappPreference: po.poWhatsappPreference,
+                                    poWhatsappPreference: resolvedPolicy.contentFormat,
                                     whatsappPoTemplate: po.whatsappPoTemplate
                                   });
                                   

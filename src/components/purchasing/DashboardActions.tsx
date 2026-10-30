@@ -6,6 +6,7 @@ import { QuickPurchaseModal } from "./QuickPurchaseModal";
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { openWhatsAppUrl, resolveWhatsappPreferences, buildPoWhatsappMessage } from "@/lib/whatsapp-po";
 
 interface PendingApproval {
   id: string;
@@ -17,6 +18,8 @@ interface PendingApproval {
   poDeliveryMethod?: string | null;
   poWhatsappPreference?: string | null;
   whatsappPoTemplate?: string | null;
+  whatsappDispatchMode?: string | null;
+  whatsappContentFormat?: string | null;
   status?: string;
   cashierBillAmount?: string | number | null;
   cashierAttachments?: any;
@@ -140,31 +143,44 @@ export function DashboardActions({
       });
       if (res.ok) {
         setReviewingApproval(null);
-        // Only send WhatsApp if it's the first stage approval
-        if (poDeliveryMethod === 'WHATSAPP' && approval.status !== 'audited' && action === 'accept') {
-          if (window.confirm('Do you want to send the list through WhatsApp?')) {
-            const publicUrl = window.location.origin + '/public/po/' + publicToken;
-            
-            // Recalculate amount dynamically if lines were edited
-            const newTotal = apiLines.reduce((acc, l) => acc + (Number(l.orderedQuantity) * Number(l.unitRate)), 0);
-            const itemsList = apiLines.map(l => `${l.itemName} - ${l.orderedQuantity}`).join('\n');
-            
-            const template = whatsappPoTemplate || 'Hello, please find Purchase Order #{poId} for {amount}.\n\n{items}\n\nView and download the PDF here: {link}';
-            
-            const text = template
-              .replace('{poId}', id)
-              .replace('{amount}', formatCurrency(newTotal || approval.amount))
-              .replace(/{items?}/g, itemsList)
-              .replace('{link}', publicUrl);
-            const phoneObj = vendorPhone as any;
-            const phone = phoneObj?.phone?.replace(/\D/g, '') || '';
-            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
-            
-            try {
-              await fetch(`/api/purchase-orders/${realId}/mark-sent`, { method: "POST" });
-              window.open(waUrl, '_blank');
-            } catch (e) {
-              console.error(e);
+        // Only handle WhatsApp if it's the first stage approval
+        if (approval.status !== 'audited' && action === 'accept') {
+          const resJson = await res.json().catch(() => ({}));
+          const resolvedPolicy = resolveWhatsappPreferences({
+            orgDispatchMode: resJson.whatsappDispatchMode || approval.whatsappDispatchMode,
+            orgContentFormat: resJson.whatsappContentFormat || approval.whatsappContentFormat,
+            vendorPreference: approval.poWhatsappPreference,
+            vendorDeliveryMethod: poDeliveryMethod,
+          });
+
+          if (!resolvedPolicy.isGloballyDisabled && resolvedPolicy.dispatchMode !== "NO_WHATSAPP") {
+            if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+              fetch(`/api/purchase-orders/${realId}/send-whatsapp`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              }).catch(e => console.error(e));
+            } else if (resolvedPolicy.dispatchMode === "WEB_LINK_POPUP") {
+              if (window.confirm('Do you want to send the list through WhatsApp?')) {
+                const phoneObj = vendorPhone as any;
+                const phone = phoneObj?.phone?.replace(/\D/g, '') || '';
+                const { whatsappUrl } = buildPoWhatsappMessage({
+                  poNumber: id,
+                  totalAmount: approval.amount,
+                  publicToken: publicToken,
+                  lines: apiLines,
+                  vendorPhone: phone,
+                  poWhatsappPreference: resolvedPolicy.contentFormat,
+                  whatsappPoTemplate: resJson.whatsappPoTemplate || whatsappPoTemplate,
+                });
+                
+                try {
+                  await fetch(`/api/purchase-orders/${realId}/mark-sent`, { method: "POST" });
+                  openWhatsAppUrl(whatsappUrl);
+                } catch (e) {
+                  console.error(e);
+                  openWhatsAppUrl(whatsappUrl);
+                }
+              }
             }
           }
         }

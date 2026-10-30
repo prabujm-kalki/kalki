@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { TaskTimelineModal } from "./TaskTimelineModal";
 import { POTimelineModal } from "./POTimelineModal";
+import { openWhatsAppUrl, resolveWhatsappPreferences, buildPoWhatsappMessage } from "@/lib/whatsapp-po";
 
 export interface Activity {
   id: string;
@@ -20,6 +21,8 @@ export interface Activity {
   poDeliveryMethod?: string | null;
   poWhatsappPreference?: string | null;
   whatsappPoTemplate?: string | null;
+  whatsappDispatchMode?: string | null;
+  whatsappContentFormat?: string | null;
   actionUrl?: string | null;
 }
 
@@ -251,44 +254,74 @@ export function RecentActivityFeed({ activities }: RecentActivityFeedProps) {
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
                   {activity.type === 'Purchase Order' && activity.realId ? (
                     <>
-                      {(activity.status === 'Approved' || activity.status === 'Sent_to_vendor') && activity.poDeliveryMethod === 'WHATSAPP' && (
+                      {(activity.status === 'Approved' || activity.status === 'Sent_to_vendor') && (
                         <button 
                           onClick={async () => {
-                            const publicUrl = window.location.origin + '/public/po/' + activity.publicToken;
-                            let text = '';
-                            
+                            const resolvedPolicy = resolveWhatsappPreferences({
+                              orgDispatchMode: activity.whatsappDispatchMode,
+                              orgContentFormat: activity.whatsappContentFormat,
+                              vendorPreference: activity.poWhatsappPreference,
+                              vendorDeliveryMethod: activity.poDeliveryMethod,
+                            });
+
+                            if (resolvedPolicy.isGloballyDisabled || resolvedPolicy.dispatchMode === "NO_WHATSAPP") {
+                              alert("WhatsApp dispatch is currently disabled for this organization/vendor.");
+                              return;
+                            }
+
+                            if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+                              try {
+                                const res = await fetch(`/api/purchase-orders/${activity.realId}/send-whatsapp`, {
+                                  method: "POST",
+                                  headers: { "Content-Type": "application/json" },
+                                });
+                                const data = await res.json();
+                                if (data.success) {
+                                  alert(`PO #${activity.id} dispatched successfully via WhatsApp API.`);
+                                  window.location.reload();
+                                } else {
+                                  alert(data.error || "Failed to dispatch via WhatsApp API.");
+                                }
+                              } catch (err: any) {
+                                alert(err?.message || "Failed to dispatch via WhatsApp API.");
+                              }
+                              return;
+                            }
+
+                            let fetchedLines: any[] | null = null;
                             try {
-                              const poRes = await fetch('/api/public/po?token=' + activity.publicToken);
-                              let itemsList = '';
-                              if (poRes.ok) {
-                                const poData = await poRes.json();
-                                if (poData.lines && poData.lines.length > 0) {
-                                  itemsList = poData.lines.map((l: any) => `${l.itemName} - ${l.orderedQuantity}`).join('\n');
+                              if (activity.publicToken) {
+                                const poRes = await fetch('/api/public/po?token=' + activity.publicToken);
+                                if (poRes.ok) {
+                                  const poData = await poRes.json();
+                                  if (poData.lines && poData.lines.length > 0) {
+                                    fetchedLines = poData.lines;
+                                  }
                                 }
                               }
-                              
-                              const template = activity.whatsappPoTemplate || 'Hello, please find Purchase Order #{poId} for {amount}.\n\n{items}\n\nView and download the PDF here: {link}';
-                              
-                              text = template
-                                .replace('{poId}', activity.id)
-                                .replace('{amount}', formatCurrency(activity.value))
-                                .replace(/{items?}/g, itemsList)
-                                .replace('{link}', publicUrl);
-                                
                             } catch (e) {
                               console.error("Failed to fetch PO lines for WhatsApp message");
-                              text = `Hello, please find Purchase Order #${activity.id} for ${formatCurrency(activity.value)}.\n\nView and download the PDF here: ${publicUrl}`;
                             }
+
                             const phoneObj = activity.vendorPhone as any;
-                            const phone = phoneObj?.phone?.replace(/\\D/g, '') || '';
-                            const waUrl = `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
+                            const phone = phoneObj?.phone?.replace(/\D/g, '') || '';
+                            const { whatsappUrl } = buildPoWhatsappMessage({
+                              poNumber: activity.id,
+                              totalAmount: activity.value,
+                              publicToken: activity.publicToken,
+                              lines: fetchedLines,
+                              vendorPhone: phone,
+                              poWhatsappPreference: resolvedPolicy.contentFormat,
+                              whatsappPoTemplate: activity.whatsappPoTemplate,
+                            });
                             
                             try {
                               await fetch(`/api/purchase-orders/${activity.realId}/mark-sent`, { method: "POST" });
-                              window.open(waUrl, '_blank');
+                              openWhatsAppUrl(whatsappUrl);
                               window.location.reload();
                             } catch (e) {
                               console.error(e);
+                              openWhatsAppUrl(whatsappUrl);
                             }
                           }}
                           style={{ padding: '0.3rem 0.6rem', backgroundColor: activity.status === 'Sent_to_vendor' ? '#94a3b8' : '#4ade80', color: 'white', border: 'none', borderRadius: '0.25rem', fontSize: '0.65rem', cursor: 'pointer', fontWeight: 'bold' }}

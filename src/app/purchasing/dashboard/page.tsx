@@ -43,7 +43,7 @@ import {
   MonthlyTrendItem,
   CategoryBreakdownItem
 } from "../dashboard-actions";
-import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
 
 export default function PurchaseDashboardPage() {
   const [loading, setLoading] = useState<boolean>(true);
@@ -184,27 +184,52 @@ export default function PurchaseDashboardPage() {
 
         setReviewingPo(null);
 
-        if (action === "accept" && (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && approvedPo?.publicToken) {
-          const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
-
-          const { whatsappUrl } = buildPoWhatsappMessage({
-            poNumber,
-            totalAmount: approvedPo.totalAmount,
-            publicToken: approvedPo.publicToken,
-            lines: resData.lines || reviewLines,
-            vendorPhone: phoneDigits,
-            poWhatsappPreference: currentVendor?.poWhatsappPreference,
-            whatsappPoTemplate: resData.whatsappPoTemplate || null,
+        if (action === "accept" && approvedPo?.publicToken) {
+          const resolvedPolicy = resolveWhatsappPreferences({
+            orgDispatchMode: resData.whatsappDispatchMode,
+            orgContentFormat: resData.whatsappContentFormat,
+            vendorPreference: currentVendor?.poWhatsappPreference,
+            vendorDeliveryMethod: currentVendor?.poDeliveryMethod,
           });
 
-          setWhatsAppModal({
-            poNumber,
-            totalAmount: approvedPo.totalAmount,
-            vendorName: currentVendor?.name || reviewingPo.vendorName || "the vendor",
-            vendorPhone: vendorPhoneRaw || "Vendor",
-            whatsappUrl,
-            poId: approvedPo.id,
-          });
+          if (!resolvedPolicy.isGloballyDisabled && phoneDigits) {
+            const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
+
+            if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+              fetch(`/api/purchase-orders/${approvedPo.id}/send-whatsapp`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              })
+                .then(r => r.json())
+                .then(apiRes => {
+                  if (apiRes.success) {
+                    console.log(`[WhatsApp Automation] Dispatched PO #${poNumber} via Meta API`);
+                  } else {
+                    console.warn(`[WhatsApp Automation] API dispatch issue:`, apiRes.error);
+                  }
+                })
+                .catch(err => console.error("[WhatsApp Automation] Network error:", err));
+            } else if (resolvedPolicy.dispatchMode === "WEB_LINK_POPUP") {
+              const { whatsappUrl } = buildPoWhatsappMessage({
+                poNumber,
+                totalAmount: approvedPo.totalAmount,
+                publicToken: approvedPo.publicToken,
+                lines: resData.lines || reviewLines,
+                vendorPhone: phoneDigits,
+                poWhatsappPreference: resolvedPolicy.contentFormat,
+                whatsappPoTemplate: resData.whatsappPoTemplate || null,
+              });
+
+              setWhatsAppModal({
+                poNumber,
+                totalAmount: approvedPo.totalAmount,
+                vendorName: currentVendor?.name || reviewingPo.vendorName || "the vendor",
+                vendorPhone: vendorPhoneRaw || "Vendor",
+                whatsappUrl,
+                poId: approvedPo.id,
+              });
+            }
+          }
         }
 
         // Refresh dashboard data quietly without disrupting modal display
@@ -783,6 +808,37 @@ export default function PurchaseDashboardPage() {
   }, [monthlyTrends]);
 
   const handleSendWhatsApp = async (po: RecentPurchaseItem) => {
+    const resolvedPolicy = resolveWhatsappPreferences({
+      orgDispatchMode: po.whatsappDispatchMode,
+      orgContentFormat: po.whatsappContentFormat,
+      vendorPreference: po.poWhatsappPreference,
+      vendorDeliveryMethod: po.poDeliveryMethod,
+    });
+
+    if (resolvedPolicy.isGloballyDisabled || resolvedPolicy.dispatchMode === "NO_WHATSAPP") {
+      alert("WhatsApp dispatch is currently disabled for this organization/vendor.");
+      return;
+    }
+
+    if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+      try {
+        const sendRes = await fetch(`/api/purchase-orders/${po.id}/send-whatsapp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const d = await sendRes.json();
+        if (d.success) {
+          alert(`PO #${po.poNumber} sent successfully via WhatsApp API.`);
+          loadData();
+        } else {
+          alert(d.error || "Failed to dispatch via WhatsApp API.");
+        }
+      } catch (err: any) {
+        alert(err?.message || "Failed to dispatch via WhatsApp API.");
+      }
+      return;
+    }
+
     let lines: any[] | null = null;
     try {
       if (po.publicToken) {
@@ -804,7 +860,7 @@ export default function PurchaseDashboardPage() {
       publicToken: po.publicToken || po.id,
       lines: lines,
       vendorPhone: po.vendorPhone,
-      poWhatsappPreference: po.poWhatsappPreference,
+      poWhatsappPreference: resolvedPolicy.contentFormat,
       whatsappPoTemplate: po.whatsappPoTemplate
     });
 

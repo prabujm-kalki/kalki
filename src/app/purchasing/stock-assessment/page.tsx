@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSessionView } from "@/components/AppShell";
-import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
 import { MessageSquare, Check, X } from "lucide-react";
 
 interface VendorItem {
@@ -224,30 +224,56 @@ export default function StockAssessmentPage() {
         const phoneDigits = vendorPhoneRaw.replace(/\D/g, "");
 
         const isApprovedOrSent = createdPo.status === "approved" || createdPo.status === "sent_to_vendor";
-        const shouldSendWhatsApp = isApprovedOrSent && (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && createdPo?.publicToken;
+        const resolvedPolicy = resolveWhatsappPreferences({
+          orgDispatchMode: result.whatsappDispatchMode,
+          orgContentFormat: result.whatsappContentFormat,
+          vendorPreference: currentVendor?.poWhatsappPreference,
+          vendorDeliveryMethod: currentVendor?.poDeliveryMethod,
+        });
 
-        if (shouldSendWhatsApp) {
+        if (isApprovedOrSent && !resolvedPolicy.isGloballyDisabled && phoneDigits && createdPo?.publicToken) {
           const poNumber = createdPo.poNumber || `PO-${createdPo.id.slice(0, 8).toUpperCase()}`;
 
-          const { whatsappUrl } = buildPoWhatsappMessage({
-            poNumber,
-            totalAmount: createdPo.totalAmount,
-            publicToken: createdPo.publicToken,
-            lines: result.lines || null,
-            vendorPhone: phoneDigits,
-            poWhatsappPreference: currentVendor?.poWhatsappPreference,
-            whatsappPoTemplate: result.whatsappPoTemplate || null
-          });
+          if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+            // Direct Background Meta API dispatch
+            fetch(`/api/purchase-orders/${createdPo.id}/send-whatsapp`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            })
+              .then(r => r.json())
+              .then(apiRes => {
+                if (apiRes.success) {
+                  console.log(`[WhatsApp Automation] Dispatched PO #${poNumber} via Meta API`);
+                } else {
+                  console.warn(`[WhatsApp Automation] API dispatch issue:`, apiRes.error);
+                }
+              })
+              .catch(err => console.error("[WhatsApp Automation] Network error:", err));
 
-          // Show Kalki BOS styled modal instead of browser window.confirm
-          setWhatsAppModal({
-            poNumber,
-            totalAmount: createdPo.totalAmount,
-            vendorName: currentVendor?.name || "the vendor",
-            vendorPhone: vendorPhoneRaw || "Vendor",
-            whatsappUrl,
-            poId: createdPo.id,
-          });
+            router.push(getDashboardUrl());
+          } else if (resolvedPolicy.dispatchMode === "WEB_LINK_POPUP") {
+            const { whatsappUrl } = buildPoWhatsappMessage({
+              poNumber,
+              totalAmount: createdPo.totalAmount,
+              publicToken: createdPo.publicToken,
+              lines: result.lines || null,
+              vendorPhone: phoneDigits,
+              poWhatsappPreference: resolvedPolicy.contentFormat,
+              whatsappPoTemplate: result.whatsappPoTemplate || null
+            });
+
+            // Show Kalki BOS styled modal instead of browser window.confirm
+            setWhatsAppModal({
+              poNumber,
+              totalAmount: createdPo.totalAmount,
+              vendorName: currentVendor?.name || "the vendor",
+              vendorPhone: vendorPhoneRaw || "Vendor",
+              whatsappUrl,
+              poId: createdPo.id,
+            });
+          } else {
+            router.push(getDashboardUrl());
+          }
         } else {
           router.push(getDashboardUrl());
         }

@@ -1097,3 +1097,88 @@ export async function getDailyPunchState(employeeId: string, organizationId: str
   return punchTypes;
 }
 
+export async function getAttendanceSettings(organizationId: string, locationId: string) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const { attendanceSettings } = await import("@/db/schema");
+  const { or, isNull } = await import("drizzle-orm");
+
+  // Fetch location-specific setting, or fallback to organization-wide setting (locationId IS NULL)
+  const rows = await db
+    .select()
+    .from(attendanceSettings)
+    .where(
+      and(
+        eq(attendanceSettings.organizationId, organizationId),
+        or(
+          eq(attendanceSettings.locationId, locationId),
+          isNull(attendanceSettings.locationId)
+        )
+      )
+    );
+
+  // Exact location match takes precedence over org default
+  const locationSetting = rows.find(r => r.locationId === locationId);
+  const orgSetting = rows.find(r => !r.locationId);
+
+  const effectiveSetting = locationSetting || orgSetting;
+
+  return {
+    requireWallMarker: effectiveSetting ? effectiveSetting.requireWallMarker : false,
+    isLocationSpecific: !!locationSetting,
+  };
+}
+
+export async function updateAttendanceSettings(
+  organizationId: string,
+  locationId: string,
+  settings: { requireWallMarker: boolean }
+) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session?.user?.id) throw new Error("Unauthorized");
+
+  const { getSessionContext } = await import("@/domains/session/service");
+  const context = await getSessionContext(session.user);
+
+  const scope = context.scopes.find(
+    s => s.organizationId === organizationId && s.locationId === locationId
+  );
+  if (!scope) throw new Error("Forbidden: Invalid location scope");
+
+  if (!context.isOwner && !scope.permissions.includes("attendance.configuration:update")) {
+    throw new Error("Forbidden: Missing attendance.configuration:update permission");
+  }
+
+  const { attendanceSettings } = await import("@/db/schema");
+
+  // Check if location-specific setting already exists
+  const existing = await db
+    .select()
+    .from(attendanceSettings)
+    .where(
+      and(
+        eq(attendanceSettings.organizationId, organizationId),
+        eq(attendanceSettings.locationId, locationId)
+      )
+    );
+
+  if (existing.length > 0) {
+    await db
+      .update(attendanceSettings)
+      .set({
+        requireWallMarker: settings.requireWallMarker,
+        updatedAt: new Date(),
+      })
+      .where(eq(attendanceSettings.id, existing[0].id));
+  } else {
+    await db.insert(attendanceSettings).values({
+      organizationId,
+      locationId,
+      requireWallMarker: settings.requireWallMarker,
+    });
+  }
+
+  return { success: true, requireWallMarker: settings.requireWallMarker };
+}
+

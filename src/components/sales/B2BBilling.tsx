@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Plus, Trash2, Save, Calculator, FileText, UserPlus, CheckCircle, Search, Hash } from "lucide-react";
 import { fetchItems, fetchCustomers, createB2BInvoice, addCustomer } from "@/app/sales/actions";
 import { useSessionView } from "@/components/AppShell";
+import { CustomerSearchSelect, CustomerItem } from "@/components/sales/CustomerSearchSelect";
 
 export function B2BBilling() {
   const { selected: scope } = useSessionView();
@@ -214,18 +215,27 @@ export function B2BBilling() {
               <h2 style={{ fontSize: "0.75rem", fontWeight: "bold", color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "1rem", marginTop: 0 }}>Customer Details</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
                 <div>
-                  <label style={{ display: "flex", justifyContent: "space-between", fontSize: "0.875rem", fontWeight: 500, color: "#334155", marginBottom: "0.25rem" }}>
+                  <label style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.875rem", fontWeight: 500, color: "#334155", marginBottom: "0.25rem" }}>
                     Select Customer *
-                    <button type="button" onClick={() => setIsAddingCustomer(true)} style={{ background: "none", border: "none", color: "#d97706", fontSize: "0.75rem", cursor: "pointer", padding: 0 }}>+ Add New</button>
+                    <button type="button" onClick={() => setIsAddingCustomer(true)} style={{ background: "none", border: "none", color: "#d97706", fontSize: "0.75rem", cursor: "pointer", padding: 0, fontWeight: "600" }}>+ Add New</button>
                   </label>
-                  <select 
-                    value={customer.id} 
-                    onChange={e => handleCustomerChange(e)}
-                    style={{ width: "100%", backgroundColor: "#f8fafc", border: "1px solid #cbd5e1", color: "#0f172a", fontSize: "0.875rem", borderRadius: "0.5rem", padding: "0.625rem", outline: "none", boxSizing: "border-box" }}
-                  >
-                    <option value="">-- Search Customer --</option>
-                    {dbCustomers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
-                  </select>
+                  <CustomerSearchSelect
+                    organizationId={scope?.organizationId || ""}
+                    selectedCustomerId={customer.id}
+                    onSelectCustomer={(cust) => {
+                      if (cust) {
+                        setCustomer({
+                          id: cust.id,
+                          name: cust.name,
+                          gstin: cust.taxId || "",
+                          address: cust.address || "",
+                        });
+                      } else {
+                        setCustomer({ id: "", name: "", gstin: "", address: "" });
+                      }
+                    }}
+                    onAddNewCustomerClick={() => setIsAddingCustomer(true)}
+                  />
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, color: "#334155", marginBottom: "0.25rem" }}>GSTIN</label>

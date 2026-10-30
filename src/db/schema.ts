@@ -45,6 +45,30 @@ export const organizations = pgTable(
       applyRestockingFee: "None"
     }),
     whatsappConfig: jsonb("whatsapp_config").default({}),
+    whatsappDispatchMode: text("whatsapp_dispatch_mode").notNull().default("WEB_LINK_POPUP"), // 'NO_WHATSAPP' | 'API_AUTOMATED' | 'WEB_LINK_POPUP'
+    whatsappContentFormat: text("whatsapp_content_format").notNull().default("TEXT_AND_PDF_LINK"), // 'TEXT_AND_PDF_LINK' | 'TEXT_ONLY' | 'PDF_LINK_ONLY'
+    quotationSettings: jsonb("quotation_settings").default({
+      defaultValidityDays: 15,
+      defaultPaymentTerms: "Payment within 15 days of invoice",
+      defaultNotes: "Thank you for your business inquiry!",
+      defaultTermsAndConditions: "1. Goods once sold will be accepted under warranty policy.\n2. Rates quoted are valid until the validity date specified.\n3. Taxes as applicable at time of invoicing.",
+    }),
+    invoiceSettings: jsonb("invoice_settings").default({
+      defaultTemplate: "CLASSIC_CORPORATE",
+      primaryColor: "#0f172a",
+      showLogo: true,
+      showHsn: true,
+      showUom: true,
+      showDiscount: true,
+      showTaxBreakup: true,
+      bankName: "",
+      accountNumber: "",
+      ifscCode: "",
+      accountHolder: "",
+      upiId: "",
+      authorizedSignatory: "Authorized Signatory",
+      defaultTerms: "1. Payment is due within agreed credit terms.\n2. Interest @ 18% p.a. charged on overdue invoices.\n3. Goods once sold will not be accepted back unless authorized.",
+    }),
     logoUrl: text("logo_url"),
   },
   (table) => [
@@ -2644,6 +2668,35 @@ export const shiftDefinitions = pgTable("shift_definitions", {
     .notNull(),
 });
 
+export const attendanceSettings = pgTable(
+  "attendance_settings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id),
+    locationId: uuid("location_id")
+      .references(() => locations.id),
+    requireWallMarker: boolean("require_wall_marker").default(false).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    unique("attendance_settings_org_loc_unique").on(
+      table.organizationId,
+      table.locationId,
+    ),
+    index("attendance_settings_org_loc_idx").on(
+      table.organizationId,
+      table.locationId,
+    ),
+  ],
+);
+
 // ==========================================
 // PAYROLL MODULE
 // ==========================================
@@ -3373,6 +3426,76 @@ export const salesInvoicePayments = pgTable("sales_invoice_payments", {
   referenceNumber: varchar("reference_number", { length: 100 }), 
   processedAt: timestamp("processed_at").defaultNow().notNull(),
 });
+
+export const salesQuotations = pgTable(
+  "sales_quotations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id").notNull().references(() => organizations.id),
+    locationId: uuid("location_id").notNull().references(() => locations.id),
+    quotationNumber: varchar("quotation_number", { length: 64 }).notNull().unique(),
+    docType: varchar("doc_type", { length: 30 }).default("QUOTATION").notNull(), // 'QUOTATION' | 'PROFORMA'
+    version: integer("version").default(1).notNull(),
+    customerId: uuid("customer_id").notNull().references(() => customers.id),
+    customerName: text("customer_name").notNull(),
+    customerPhone: varchar("customer_phone", { length: 50 }),
+    customerGstin: text("customer_gstin"),
+    billingAddress: text("billing_address"),
+    status: varchar("status", { length: 30 }).default("DRAFT").notNull(), // 'DRAFT', 'SENT', 'ACCEPTED', 'CONVERTED', 'DECLINED', 'EXPIRED'
+    issueDate: timestamp("issue_date", { withTimezone: true }).defaultNow().notNull(),
+    validUntil: timestamp("valid_until", { withTimezone: true }),
+    paymentTerms: text("payment_terms"),
+    notes: text("notes"),
+    termsAndConditions: text("terms_and_conditions"),
+    subtotalAmount: decimal("subtotal_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    taxableAmount: decimal("taxable_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    cgstAmount: decimal("cgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    sgstAmount: decimal("sgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    igstAmount: decimal("igst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    roundOffAmount: decimal("round_off_amount", { precision: 6, scale: 2 }).default("0.00").notNull(),
+    grandTotal: decimal("grand_total", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    publicToken: text("public_token").unique(),
+    isSentToCustomer: boolean("is_sent_to_customer").default(false).notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    convertedInvoiceId: uuid("converted_invoice_id").references(() => salesInvoices.id),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    createdByUserId: text("created_by_user_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("sales_quotations_org_loc_idx").on(table.organizationId, table.locationId),
+    index("sales_quotations_customer_idx").on(table.customerId),
+    index("sales_quotations_public_token_idx").on(table.publicToken),
+  ]
+);
+
+export const salesQuotationLines = pgTable(
+  "sales_quotation_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    quotationId: uuid("quotation_id").references(() => salesQuotations.id, { onDelete: "cascade" }).notNull(),
+    itemId: uuid("item_id").references(() => items.id).notNull(),
+    itemName: text("item_name").notNull(),
+    hsnCode: text("hsn_code"),
+    uom: text("uom").notNull(),
+    quantity: decimal("quantity", { precision: 12, scale: 3 }).notNull(),
+    unitRate: decimal("unit_rate", { precision: 12, scale: 2 }).notNull(),
+    discountPercent: decimal("discount_percent", { precision: 5, scale: 2 }).default("0.00").notNull(),
+    discountAmount: decimal("discount_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    taxableAmount: decimal("taxable_amount", { precision: 12, scale: 2 }).notNull(),
+    gstRate: decimal("gst_rate", { precision: 5, scale: 2 }).default("0.00").notNull(),
+    cgstAmount: decimal("cgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    sgstAmount: decimal("sgst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    igstAmount: decimal("igst_amount", { precision: 12, scale: 2 }).default("0.00").notNull(),
+    lineTotal: decimal("line_total", { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("sales_quotation_lines_quotation_idx").on(table.quotationId),
+  ]
+);
 
 export const salesReceipts = pgTable("sales_receipts", {
   id: uuid("id").primaryKey().defaultRandom(),

@@ -66,6 +66,8 @@ export interface RecentPurchaseItem {
   poDeliveryMethod?: string | null;
   poWhatsappPreference?: string | null;
   whatsappPoTemplate?: string | null;
+  whatsappDispatchMode?: string | null;
+  whatsappContentFormat?: string | null;
   vendorPhone?: string | null;
   receivedByUserId?: string | null;
   cashierBillAmount?: string | null;
@@ -359,6 +361,8 @@ export async function fetchPurchaseDashboardData(params?: {
         poDeliveryMethod: vendors.poDeliveryMethod,
         poWhatsappPreference: vendors.poWhatsappPreference,
         whatsappPoTemplate: organizations.whatsappPoTemplate,
+        whatsappDispatchMode: organizations.whatsappDispatchMode,
+        whatsappContentFormat: organizations.whatsappContentFormat,
         contactDetails: vendors.contactDetails,
         receivedByUserId: purchaseOrders.receivedByUserId,
         cashierBillAmount: purchaseOrders.cashierBillAmount,
@@ -780,6 +784,8 @@ export async function fetchPurchaseDashboardData(params?: {
         poDeliveryMethod: po.poDeliveryMethod || "WHATSAPP",
         poWhatsappPreference: po.poWhatsappPreference || "TEXT_AND_PDF_LINK",
         whatsappPoTemplate: po.whatsappPoTemplate || null,
+        whatsappDispatchMode: po.whatsappDispatchMode || "WEB_LINK_POPUP",
+        whatsappContentFormat: po.whatsappContentFormat || "TEXT_AND_PDF_LINK",
         vendorPhone: vendorPhone || null,
         receivedByUserId: po.receivedByUserId || null,
         cashierBillAmount: po.cashierBillAmount ? String(po.cashierBillAmount) : null,

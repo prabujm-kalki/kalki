@@ -1,5 +1,6 @@
 import { LeaveConfigForm } from "./LeaveConfigForm";
-import { getLeaveConfigs } from "@/domains/attendance/actions";
+import { AttendanceKioskConfig } from "./AttendanceKioskConfig";
+import { getLeaveConfigs, getAttendanceSettings } from "@/domains/attendance/actions";
 import { db } from "@/db";
 import { businessRoles, departments } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -34,7 +35,10 @@ export default async function SettingsPage({
     return <div>Missing organization or location context.</div>;
   }
 
-  const configs = await getLeaveConfigs(organizationId, locationId);
+  const [configs, kioskSettings] = await Promise.all([
+    getLeaveConfigs(organizationId, locationId),
+    getAttendanceSettings(organizationId, locationId),
+  ]);
   
   // Fetch active business roles and departments in parallel
   const [roles, depts] = await Promise.all([
@@ -78,6 +82,12 @@ export default async function SettingsPage({
         <h1 className="att-title">Configuration</h1>
         <p className="att-subtitle">Define shift policies and dynamic leave types.</p>
       </header>
+
+      <AttendanceKioskConfig
+        organizationId={organizationId}
+        locationId={locationId}
+        initialRequireWallMarker={kioskSettings.requireWallMarker}
+      />
 
       <div>
         <LeaveConfigForm initialConfigs={serializedConfigs} orgId={organizationId} locId={locationId} roles={roles} initialDepartments={depts} />

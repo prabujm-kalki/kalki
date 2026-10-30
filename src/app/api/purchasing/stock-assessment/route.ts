@@ -241,10 +241,14 @@ export async function POST(req: NextRequest) {
         .where(eq(taskInstances.id, taskId));
     }
 
-    // Fetch organization whatsappPoTemplate
+    // Fetch organization whatsapp settings
     const { organizations } = await import('@/db/schema');
     const [orgRec] = await db
-      .select({ whatsappPoTemplate: organizations.whatsappPoTemplate })
+      .select({ 
+        whatsappPoTemplate: organizations.whatsappPoTemplate,
+        whatsappDispatchMode: organizations.whatsappDispatchMode,
+        whatsappContentFormat: organizations.whatsappContentFormat,
+      })
       .from(organizations)
       .where(eq(organizations.id, organizationId));
 
@@ -264,6 +268,8 @@ export async function POST(req: NextRequest) {
         };
       }),
       whatsappPoTemplate: orgRec?.whatsappPoTemplate || null,
+      whatsappDispatchMode: orgRec?.whatsappDispatchMode || "WEB_LINK_POPUP",
+      whatsappContentFormat: orgRec?.whatsappContentFormat || "TEXT_AND_PDF_LINK",
       vendor: vendorRec ? {
         name: vendorRec.name,
         contactDetails: vendorRec.contactDetails,

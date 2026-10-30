@@ -176,7 +176,11 @@ export async function POST(
       .where(eq(vendors.id, currentPo.vendorId));
 
     const [orgRec] = await db
-      .select({ whatsappPoTemplate: organizations.whatsappPoTemplate })
+      .select({ 
+        whatsappPoTemplate: organizations.whatsappPoTemplate,
+        whatsappDispatchMode: organizations.whatsappDispatchMode,
+        whatsappContentFormat: organizations.whatsappContentFormat,
+      })
       .from(organizations)
       .where(eq(organizations.id, currentPo.organizationId));
 
@@ -197,6 +201,8 @@ export async function POST(
       po: updatedPo,
       vendor: vendorRec || null,
       whatsappPoTemplate: orgRec?.whatsappPoTemplate || null,
+      whatsappDispatchMode: orgRec?.whatsappDispatchMode || "WEB_LINK_POPUP",
+      whatsappContentFormat: orgRec?.whatsappContentFormat || "TEXT_AND_PDF_LINK",
       lines: finalLines || []
     });
   } catch (error) {

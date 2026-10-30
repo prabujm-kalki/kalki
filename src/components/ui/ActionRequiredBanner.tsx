@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Bell, ChevronRight, Check, X, RefreshCw, AlertCircle, FileCheck, AlertTriangle, MessageCircle } from "lucide-react";
 import type { GlobalPendingTaskItem } from "@/app/actions/pending-tasks";
 import { auditSpotPurchase } from "@/app/purchasing/actions";
-import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl } from "@/lib/whatsapp-po";
+import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
 
 interface ActionRequiredBannerProps {
   initialTasks?: GlobalPendingTaskItem[];
@@ -121,27 +121,55 @@ export function ActionRequiredBanner({
           onTaskResolved(`po-approval-${finishedPoId}`);
         }
 
-        if (action === "accept" && (currentVendor?.poDeliveryMethod === "WHATSAPP" || phoneDigits) && approvedPo?.publicToken) {
-          const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
-
-          const { whatsappUrl } = buildPoWhatsappMessage({
-            poNumber,
-            totalAmount: approvedPo.totalAmount,
-            publicToken: approvedPo.publicToken,
-            lines: resData.lines || reviewLines,
-            vendorPhone: phoneDigits,
-            poWhatsappPreference: currentVendor?.poWhatsappPreference,
-            whatsappPoTemplate: resData.whatsappPoTemplate || null,
+        if (action === "accept" && approvedPo?.publicToken) {
+          const resolvedPolicy = resolveWhatsappPreferences({
+            orgDispatchMode: resData.whatsappDispatchMode,
+            orgContentFormat: resData.whatsappContentFormat,
+            vendorPreference: currentVendor?.poWhatsappPreference,
+            vendorDeliveryMethod: currentVendor?.poDeliveryMethod,
           });
 
-          setWhatsAppModal({
-            poNumber,
-            totalAmount: approvedPo.totalAmount,
-            vendorName: currentVendor?.name || reviewingPo.vendorName || "the vendor",
-            vendorPhone: vendorPhoneRaw || "Vendor",
-            whatsappUrl,
-            poId: approvedPo.id,
-          });
+          // If master muted or vendor excluded, suppress WhatsApp popups completely
+          if (!resolvedPolicy.isGloballyDisabled && phoneDigits) {
+            const poNumber = approvedPo.poNumber || `PO-${approvedPo.id.slice(0, 8).toUpperCase()}`;
+
+            if (resolvedPolicy.dispatchMode === "API_AUTOMATED") {
+              // Direct Automated API Dispatch in background
+              fetch(`/api/purchase-orders/${approvedPo.id}/send-whatsapp`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+              })
+                .then(r => r.json())
+                .then(apiRes => {
+                  if (apiRes.success) {
+                    console.log(`[WhatsApp Automation] Dispatched PO #${poNumber} via Meta API`);
+                  } else {
+                    console.warn(`[WhatsApp Automation] API dispatch issue:`, apiRes.error);
+                  }
+                })
+                .catch(err => console.error("[WhatsApp Automation] Network error:", err));
+            } else if (resolvedPolicy.dispatchMode === "WEB_LINK_POPUP") {
+              // Interactive modal trigger
+              const { whatsappUrl } = buildPoWhatsappMessage({
+                poNumber,
+                totalAmount: approvedPo.totalAmount,
+                publicToken: approvedPo.publicToken,
+                lines: resData.lines || reviewLines,
+                vendorPhone: phoneDigits,
+                poWhatsappPreference: resolvedPolicy.contentFormat,
+                whatsappPoTemplate: resData.whatsappPoTemplate || null,
+              });
+
+              setWhatsAppModal({
+                poNumber,
+                totalAmount: approvedPo.totalAmount,
+                vendorName: currentVendor?.name || reviewingPo.vendorName || "the vendor",
+                vendorPhone: vendorPhoneRaw || "Vendor",
+                whatsappUrl,
+                poId: approvedPo.id,
+              });
+            }
+          }
         }
       } else {
         const errData = await res.json().catch(() => ({}));

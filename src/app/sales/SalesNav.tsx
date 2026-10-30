@@ -11,6 +11,7 @@ export function SalesNav() {
 
   const allLinks = [
     { href: "/sales/overview", label: "Overview", perm: "sales:read" },
+    { href: "/sales/quotations", label: "Quotations & Proforma", perm: "sales:read" },
     { href: "/sales/orders", label: "Orders", perm: "sales:read" },
     { href: "/sales/invoices", label: "Invoices", perm: "sales:read" },
     { href: "/sales/returns", label: "Returns & Credit Notes", perm: "sales:read" },
@@ -22,7 +23,7 @@ export function SalesNav() {
   const visibleLinks = allLinks;
 
   return (
-    <nav className="kalki-module-topbar">
+    <nav className="kalki-module-topbar no-print">
       {visibleLinks.map((link) => {
         const isActive = pathname === link.href || (link.href !== "/sales" && pathname.startsWith(link.href));
         return (

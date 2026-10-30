@@ -22,7 +22,8 @@ import * as faceapi from "@vladmandic/face-api";
 import {
   recordSelfiePunch,
   getSelfiePunchRoster,
-  getDailyPunchState
+  getDailyPunchState,
+  getAttendanceSettings
 } from "@/domains/attendance/actions";
 import { scanForArucoStrict, drawArucoMarker } from "@/lib/aruco";
 import { useSessionView } from "@/components/AppShell";
@@ -60,6 +61,7 @@ export default function SelfiePunchKiosk() {
   const [failureCount, setFailureCount] = useState(0);
   const [failureMessage, setFailureMessage] = useState("");
   const [availableOptions, setAvailableOptions] = useState<string[]>(["PUNCH_IN"]);
+  const [requireWallMarker, setRequireWallMarker] = useState(false);
   const [isMarkerDetected, setIsMarkerDetected] = useState(false);
   const [markerConfidence, setMarkerConfidence] = useState(0);
   const [showMarkerDialog, setShowMarkerDialog] = useState(false);
@@ -125,18 +127,22 @@ export default function SelfiePunchKiosk() {
     };
   }, []);
 
-  // 2. Fetch hierarchy-aware roster
+  // 2. Fetch hierarchy-aware roster & location attendance settings
   useEffect(() => {
-    async function fetchRoster() {
+    async function fetchRosterAndSettings() {
       if (!organizationId || !locationId) return;
       try {
-        const roster = await getSelfiePunchRoster(organizationId, locationId);
+        const [roster, settings] = await Promise.all([
+          getSelfiePunchRoster(organizationId, locationId),
+          getAttendanceSettings(organizationId, locationId)
+        ]);
         setEmployees(roster);
+        setRequireWallMarker(settings?.requireWallMarker ?? false);
       } catch (err) {
-        console.error("Failed to fetch roster:", err);
+        console.error("Failed to fetch roster or settings:", err);
       }
     }
-    fetchRoster();
+    fetchRosterAndSettings();
   }, [organizationId, locationId]);
 
   // 3. Check daily punch state when employee is selected
@@ -224,6 +230,13 @@ export default function SelfiePunchKiosk() {
       setFailureCount(0);
       setFailureMessage("");
 
+      // If wall marker verification is disabled for this location, skip interval scanner
+      if (!requireWallMarker) {
+        setIsMarkerDetected(true);
+        setMarkerConfidence(1);
+        return;
+      }
+
       // Start periodic visual marker scan every 300ms for smooth real-time response
       let scanning = false;
       arucoIntervalRef.current = setInterval(async () => {
@@ -261,7 +274,7 @@ export default function SelfiePunchKiosk() {
       if (modelsLoaded) setStatus("idle");
     }
     return () => stopCamera();
-  }, [selectedEmployee, modelsLoaded]);
+  }, [selectedEmployee, modelsLoaded, requireWallMarker]);
 
   // Render Marker preview on modal
   useEffect(() => {
@@ -286,11 +299,17 @@ export default function SelfiePunchKiosk() {
       ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
       const snapshotBase64 = canvas.toDataURL("image/jpeg", 0.75);
 
-      // Strict Physical Wall Marker Gate: Anti-Spoofing Verification
-      const markerScan = await scanForArucoStrict(canvas, 0);
-      if (!markerScan.detected) {
-        handleFailure("Wall Marker Not Detected. Please stand in front of the official entrance marker to punch.");
-        return;
+      // Strict Physical Wall Marker Gate: Anti-Spoofing Verification (if configured)
+      let markerDetected = true;
+      let markerConfidenceScore = 1;
+      if (requireWallMarker) {
+        const markerScan = await scanForArucoStrict(canvas, 0);
+        markerDetected = markerScan.detected;
+        markerConfidenceScore = markerScan.confidence;
+        if (!markerScan.detected) {
+          handleFailure("Wall Marker Not Detected. Please stand in front of the official entrance marker to punch.");
+          return;
+        }
       }
 
       // Face detection in current frame
@@ -340,8 +359,8 @@ export default function SelfiePunchKiosk() {
         snapshotBase64,
         organizationId: organizationId!,
         locationId: locationId!,
-        markerVerified: markerScan.detected,
-        confidence: markerScan.confidence
+        markerVerified: markerDetected,
+        confidence: markerConfidenceScore
       });
 
       if (result.success) {
@@ -446,31 +465,33 @@ export default function SelfiePunchKiosk() {
               </span>
             </div>
             <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
-              Visual Marker Verification • Fast Hierarchy Roster
+              {requireWallMarker ? "Visual Marker Verification • Fast Hierarchy Roster" : "Direct Selfie Verification • Fast Hierarchy Roster"}
             </div>
           </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
-          <button
-            onClick={() => setShowMarkerDialog(true)}
-            style={{
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.15)",
-              color: "#e2e8f0",
-              padding: "0.45rem 0.9rem",
-              borderRadius: "6px",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              fontSize: "0.85rem",
-              fontWeight: 500
-            }}
-          >
-            <QrCode size={16} />
-            Show Anti-Spoof Marker
-          </button>
+          {requireWallMarker && (
+            <button
+              onClick={() => setShowMarkerDialog(true)}
+              style={{
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: "#e2e8f0",
+                padding: "0.45rem 0.9rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                fontSize: "0.85rem",
+                fontWeight: 500
+              }}
+            >
+              <QrCode size={16} />
+              Show Anti-Spoof Marker
+            </button>
+          )}
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.95rem", fontWeight: 600, color: "#38bdf8" }}>
             <Clock size={18} />
@@ -782,31 +803,33 @@ export default function SelfiePunchKiosk() {
                 </div>
               </div>
 
-              {/* Visual Marker Status Indicator */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.4rem",
-                padding: "0.35rem 0.75rem",
-                borderRadius: "20px",
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                background: isMarkerDetected ? "#ecfdf5" : "#fffbeb",
-                color: isMarkerDetected ? "#047857" : "#b45309",
-                border: `1px solid ${isMarkerDetected ? "#a7f3d0" : "#fde68a"}`
-              }}>
-                {isMarkerDetected ? (
-                  <>
-                    <ShieldCheck size={14} />
-                    <span>Marker Verified</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldAlert size={14} />
-                    <span>Align with Wall Marker</span>
-                  </>
-                )}
-              </div>
+              {/* Visual Marker Status Indicator (Only if required) */}
+              {requireWallMarker && (
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: "20px",
+                  fontSize: "0.75rem",
+                  fontWeight: 600,
+                  background: isMarkerDetected ? "#ecfdf5" : "#fffbeb",
+                  color: isMarkerDetected ? "#047857" : "#b45309",
+                  border: `1px solid ${isMarkerDetected ? "#a7f3d0" : "#fde68a"}`
+                }}>
+                  {isMarkerDetected ? (
+                    <>
+                      <ShieldCheck size={14} />
+                      <span>Marker Verified</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert size={14} />
+                      <span>Align with Wall Marker</span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Video Viewport with Alignment Oval */}
@@ -841,7 +864,7 @@ export default function SelfiePunchKiosk() {
                 width: "70%",
                 height: "65%",
                 borderRadius: "50%",
-                border: status === "verifying" ? "3px solid #3b82f6" : isMarkerDetected ? "3px dashed #10b981" : "3px dashed rgba(255,255,255,0.7)",
+                border: status === "verifying" ? "3px solid #3b82f6" : (!requireWallMarker || isMarkerDetected) ? "3px dashed #10b981" : "3px dashed rgba(255,255,255,0.7)",
                 boxShadow: "0 0 0 9999px rgba(0, 0, 0, 0.4)",
                 pointerEvents: "none",
                 display: "flex",
@@ -923,22 +946,22 @@ export default function SelfiePunchKiosk() {
                   {availableOptions.includes("PUNCH_IN") && (
                     <button
                       onClick={() => captureAndVerify("PUNCH_IN")}
-                      disabled={status === "verifying" || !isMarkerDetected}
-                      title={!isMarkerDetected ? "Align camera with physical wall marker to punch" : ""}
+                      disabled={status === "verifying" || (requireWallMarker && !isMarkerDetected)}
+                      title={requireWallMarker && !isMarkerDetected ? "Align camera with physical wall marker to punch" : ""}
                       style={{
                         padding: "0.85rem",
                         borderRadius: "8px",
-                        background: !isMarkerDetected ? "#cbd5e1" : "#10b981",
+                        background: (requireWallMarker && !isMarkerDetected) ? "#cbd5e1" : "#10b981",
                         color: "#ffffff",
                         fontWeight: 700,
                         fontSize: "0.95rem",
                         border: "none",
-                        cursor: !isMarkerDetected ? "not-allowed" : "pointer",
+                        cursor: (requireWallMarker && !isMarkerDetected) ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         gap: "0.5rem",
-                        opacity: !isMarkerDetected ? 0.7 : 1,
+                        opacity: (requireWallMarker && !isMarkerDetected) ? 0.7 : 1,
                         transition: "all 0.2s ease"
                       }}
                     >
@@ -949,22 +972,22 @@ export default function SelfiePunchKiosk() {
                   {availableOptions.includes("PUNCH_OUT") && (
                     <button
                       onClick={() => captureAndVerify("PUNCH_OUT")}
-                      disabled={status === "verifying" || !isMarkerDetected}
-                      title={!isMarkerDetected ? "Align camera with physical wall marker to punch" : ""}
+                      disabled={status === "verifying" || (requireWallMarker && !isMarkerDetected)}
+                      title={requireWallMarker && !isMarkerDetected ? "Align camera with physical wall marker to punch" : ""}
                       style={{
                         padding: "0.85rem",
                         borderRadius: "8px",
-                        background: !isMarkerDetected ? "#cbd5e1" : "#ef4444",
+                        background: (requireWallMarker && !isMarkerDetected) ? "#cbd5e1" : "#ef4444",
                         color: "#ffffff",
                         fontWeight: 700,
                         fontSize: "0.95rem",
                         border: "none",
-                        cursor: !isMarkerDetected ? "not-allowed" : "pointer",
+                        cursor: (requireWallMarker && !isMarkerDetected) ? "not-allowed" : "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         gap: "0.5rem",
-                        opacity: !isMarkerDetected ? 0.7 : 1,
+                        opacity: (requireWallMarker && !isMarkerDetected) ? 0.7 : 1,
                         transition: "all 0.2s ease"
                       }}
                     >

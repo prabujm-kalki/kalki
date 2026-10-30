@@ -11,6 +11,8 @@ import { KalkiButton } from "@/components/ui/KalkiButton";
 export function GeneralSettings() {
   const { selected } = useSessionView();
   const [template, setTemplate] = useState("");
+  const [whatsappDispatchMode, setWhatsappDispatchMode] = useState<"NO_WHATSAPP" | "API_AUTOMATED" | "WEB_LINK_POPUP">("WEB_LINK_POPUP");
+  const [whatsappContentFormat, setWhatsappContentFormat] = useState<"TEXT_AND_PDF_LINK" | "TEXT_ONLY" | "PDF_LINK_ONLY">("TEXT_AND_PDF_LINK");
   const [enableMobilePush, setEnableMobilePush] = useState(false);
   const [notificationTone, setNotificationTone] = useState("level-1");
   const [customTones, setCustomTones] = useState<Record<string, string>>({});
@@ -41,6 +43,8 @@ export function GeneralSettings() {
       .then(data => {
         if (data.organization) {
           setTemplate(data.organization.whatsappPoTemplate || "");
+          setWhatsappDispatchMode(data.organization.whatsappDispatchMode || "WEB_LINK_POPUP");
+          setWhatsappContentFormat(data.organization.whatsappContentFormat || "TEXT_AND_PDF_LINK");
           setEnableMobilePush(data.organization.enableMobilePushNotifications || false);
           setNotificationTone(data.organization.notificationTone || "level-1");
           setCustomTones(data.organization.customTones || {});
@@ -70,6 +74,8 @@ export function GeneralSettings() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           whatsappPoTemplate: template,
+          whatsappDispatchMode: whatsappDispatchMode,
+          whatsappContentFormat: whatsappContentFormat,
           enableMobilePushNotifications: enableMobilePush,
           notificationTone: notificationTone,
           customTones: customTones,
@@ -1277,6 +1283,117 @@ export function GeneralSettings() {
                   </div>
                 )}
               </div>
+
+            </div>
+          </div>
+
+          <div className="gs-card">
+            <h2 className="gs-card-header">
+              <div className="gs-icon-wrapper gs-icon-green"><MessageSquare size={18} /></div>
+              WhatsApp Dispatch Channel & Automation Policy
+            </h2>
+            <p className="gs-card-desc">
+              Control how WhatsApp messages and documents (Purchase Orders, Quotations, Invoices) are dispatched across the entire organization.
+            </p>
+            <div className="gs-card-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* Channel Mode Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.5rem' }}>
+                  Organization WhatsApp Dispatch Channel
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                  {[
+                    {
+                      id: "NO_WHATSAPP",
+                      title: "No WhatsApp Message",
+                      desc: "Disable WhatsApp popups and prompts completely across all modules (silent mode).",
+                    },
+                    {
+                      id: "API_AUTOMATED",
+                      title: "Cloud API (Automated)",
+                      desc: "Dispatches automatically in background via official Meta WhatsApp Business API.",
+                    },
+                    {
+                      id: "WEB_LINK_POPUP",
+                      title: "WhatsApp Pop-up / Link",
+                      desc: "Opens interactive WhatsApp web/app pop-up prompt with pre-filled content.",
+                    },
+                  ].map((mode) => (
+                    <div
+                      key={mode.id}
+                      onClick={() => setWhatsappDispatchMode(mode.id as any)}
+                      style={{
+                        padding: '1rem',
+                        borderRadius: '0.75rem',
+                        border: whatsappDispatchMode === mode.id ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                        background: whatsappDispatchMode === mode.id ? '#f0fdf4' : '#ffffff',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                        <input
+                          type="radio"
+                          name="whatsappDispatchMode"
+                          checked={whatsappDispatchMode === mode.id}
+                          onChange={() => setWhatsappDispatchMode(mode.id as any)}
+                          style={{ accentColor: '#16a34a' }}
+                        />
+                        <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{mode.title}</strong>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', lineHeight: 1.4 }}>
+                        {mode.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format Configuration (Only if WhatsApp is active) */}
+              {whatsappDispatchMode !== "NO_WHATSAPP" && (
+                <div style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                    Default Message Content Format
+                  </label>
+                  <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.8rem', color: '#64748b' }}>
+                    Choose the format sent when creating POs or documents. Individual vendor settings will override this default.
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
+                    {[
+                      { id: "TEXT_AND_PDF_LINK", label: "Text Details + PDF Link", note: "Includes items list preview and secure PDF link." },
+                      { id: "TEXT_ONLY", label: "Text Details Only", note: "Pure text message without PDF download link." },
+                      { id: "PDF_LINK_ONLY", label: "PDF Link Only", note: "Direct link to download the document PDF." },
+                    ].map((fmt) => (
+                      <label
+                        key={fmt.id}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem',
+                          padding: '0.75rem 1rem',
+                          background: whatsappContentFormat === fmt.id ? '#ffffff' : 'transparent',
+                          border: whatsappContentFormat === fmt.id ? '1px solid #16a34a' : '1px solid #cbd5e1',
+                          borderRadius: '0.5rem',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <input
+                            type="radio"
+                            name="whatsappContentFormat"
+                            checked={whatsappContentFormat === fmt.id}
+                            onChange={() => setWhatsappContentFormat(fmt.id as any)}
+                            style={{ accentColor: '#16a34a' }}
+                          />
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#1e293b' }}>{fmt.label}</span>
+                        </div>
+                        <span style={{ fontSize: '0.75rem', color: '#64748b', paddingLeft: '1.4rem' }}>{fmt.note}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>

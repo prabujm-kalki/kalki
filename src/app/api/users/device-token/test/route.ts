@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
     }
 
     // List all registered active devices with user info for admin inspection
-    const { users } = await import("@/db/schema");
     const devices = await db
       .select({
         id: userDeviceTokens.id,

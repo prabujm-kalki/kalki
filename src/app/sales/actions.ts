@@ -16,13 +16,27 @@ export async function fetchItems(organizationId: string, locationId: string, sea
   );
 }
 
-export async function fetchCustomers(organizationId: string, search: string = "") {
-  return await db.select().from(customers).where(
-    and(
+export async function fetchCustomers(organizationId: string, search: string = "", limit: number = 30) {
+  const trimmed = search.trim();
+  let condition = eq(customers.organizationId, organizationId);
+
+  if (trimmed) {
+    condition = and(
       eq(customers.organizationId, organizationId),
-      ilike(customers.name, `%${search}%`)
-    )
-  );
+      or(
+        ilike(customers.name, `%${trimmed}%`),
+        ilike(customers.phone, `%${trimmed}%`),
+        ilike(customers.taxId, `%${trimmed}%`)
+      )
+    ) as any;
+  }
+
+  return await db
+    .select()
+    .from(customers)
+    .where(condition)
+    .orderBy(desc(customers.updatedAt))
+    .limit(limit);
 }
 
 export async function addCustomer(organizationId: string, data: any) {
@@ -290,13 +304,22 @@ export async function fetchInvoiceDetails(invoiceId: string, enforcePolicy: bool
       return {
         itemId: line.itemId,
         description: line.itemDescription,
+        hsnCode: line.hsnCode,
+        uom: line.uom,
         qty: enforcePolicy ? remainingQty : originalQty,
         originalQty: originalQty,
         remainingQty: remainingQty,
         rate: parseFloat(line.unitRate as any),
+        unitRate: parseFloat(line.unitRate as any),
+        discountPercent: parseFloat((line.discountPercent as any) || 0),
+        discountAmount: parseFloat((line.discountAmount as any) || 0),
         taxableAmount: parseFloat(line.taxableAmount as any),
         gstRate: parseFloat(line.gstRate as any),
-        total: parseFloat(line.lineTotal as any)
+        cgstAmount: parseFloat((line.cgstAmount as any) || 0),
+        sgstAmount: parseFloat((line.sgstAmount as any) || 0),
+        igstAmount: parseFloat((line.igstAmount as any) || 0),
+        total: parseFloat(line.lineTotal as any),
+        totalAmount: parseFloat(line.lineTotal as any)
       };
     }).filter(item => enforcePolicy ? item.remainingQty > 0 : true)
   };

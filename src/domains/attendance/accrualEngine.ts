@@ -207,7 +207,7 @@ export function calculateMonthsElapsed(
 
 export function calculateEligibleCarryForward(
   employmentStartDate: Date,
-  leaveType: { maxCarryForwardDays: string | null; annualAllocation: string | null; policyEffectiveDate?: string | null },
+  leaveType: { maxCarryForwardDays: string | null; annualAllocation: string | null; accrualRate?: string | null; policyEffectiveDate?: string | null },
   today: Date = new Date()
 ): number {
   const maxCarry = Number(leaveType.maxCarryForwardDays || 0);
