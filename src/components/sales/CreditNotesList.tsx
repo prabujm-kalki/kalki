@@ -64,20 +64,11 @@ export default function CreditNotesList({ locationId, organizationId }: CreditNo
       
       const q = searchParams.get('q') || undefined;
       const page = parseInt(searchParams.get('page') || '1', 10);
-      const startDate = searchParams.get('startDate') || undefined;
-      const endDate = searchParams.get('endDate') || undefined;
+      const startDate = searchParams.get('from') || searchParams.get('startDate') || undefined;
+      const endDate = searchParams.get('to') || searchParams.get('endDate') || undefined;
+      const status = searchParams.get('status') || undefined;
 
-      let finalStartDate = startDate;
-      let finalEndDate = endDate;
-      if (!finalStartDate || !finalEndDate) {
-        const dEnd = new Date();
-        const dStart = new Date();
-        dStart.setDate(dEnd.getDate() - 15);
-        finalStartDate = finalStartDate || dStart.toISOString().split('T')[0];
-        finalEndDate = finalEndDate || dEnd.toISOString().split('T')[0];
-      }
-
-      const res = await fetchCreditNotesByLocation(locationId, organizationId, q, page, 10, finalStartDate, finalEndDate);
+      const res = await fetchCreditNotesByLocation(locationId, organizationId, q, page, 10, startDate, endDate, status);
       if (res.success) {
         setCreditNotes(res.data);
         setTotal(res.total || 0);

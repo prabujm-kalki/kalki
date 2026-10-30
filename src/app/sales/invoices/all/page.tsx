@@ -157,7 +157,11 @@ function InvoiceHubContent() {
     setIsDeleting(true);
     setActionError(null);
     try {
-      await deleteSalesInvoice(invoiceToDelete.id);
+      const res = await deleteSalesInvoice(invoiceToDelete.id);
+      if (!res.success) {
+        setActionError(res.error || "Failed to delete invoice");
+        return;
+      }
       setActionSuccess(`Invoice #${invoiceToDelete.invoiceNumber} deleted successfully.`);
       setTimeout(() => setActionSuccess(null), 4000);
       setInvoiceToDelete(null);

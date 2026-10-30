@@ -143,6 +143,8 @@ export default function QuotationDetailsPage({
   const isSent = Boolean(quotation.isSentToCustomer);
   const isConverted = quotation.status === "CONVERTED";
   const isProforma = quotation.docType === "PROFORMA";
+  const isDummy = quotation.docType === "DUMMY";
+  const docTitle = isDummy ? "" : isProforma ? "PROFORMA INVOICE" : "SALES QUOTATION";
 
   return (
     <div style={{ maxWidth: "950px", margin: "0 auto", paddingBottom: "60px" }}>
@@ -317,10 +319,10 @@ export default function QuotationDetailsPage({
         </div>
       </div>
 
-      {/* Printable Quotation / Proforma Invoice Sheet using Kalki Invoice Renderer */}
+      {/* Printable Quotation / Proforma / Dummy Bill Sheet using Kalki Invoice Renderer */}
       <div id="quotation-print-sheet" style={{ maxWidth: "850px", margin: "0 auto" }}>
         <InvoiceRenderer
-          documentTitle={isProforma ? "PROFORMA INVOICE" : "SALES QUOTATION"}
+          documentTitle={docTitle}
           invoice={{
             invoiceNumber: quotation.quotationNumber,
             invoiceDate: quotation.issueDate,

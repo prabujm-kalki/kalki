@@ -218,10 +218,10 @@ export function SalesOverview({ onNavigate }: { onNavigate?: (tab: 'dashboard' |
         <div 
           className="card" 
           style={{ padding: "1rem", borderRadius: "0.5rem", display: "flex", alignItems: "center", gap: "0.75rem", cursor: "pointer", transition: "all 0.2s" }}
-          onClick={() => selected && router.push(`/finance/sales-receivables/ageing?organizationId=${selected.organizationId}&locationId=${selected.locationId}`)}
+          onClick={() => selected && router.push(`/finance/sales-receivables/invoices?organizationId=${selected.organizationId}&locationId=${selected.locationId}&filter=overdue`)}
           onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
           onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
-          title="View Overdue & Receivables Ageing"
+          title="View Overdue Invoices List"
         >
           <div style={{ width: "36px", height: "36px", borderRadius: "8px", backgroundColor: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
             <Clock size={18} />

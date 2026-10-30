@@ -21,6 +21,7 @@ import {
 import { createQuotation } from "../actions";
 import { fetchCustomers, fetchItems, addCustomer } from "@/app/sales/actions";
 import { getQuotationSettings } from "@/app/sales/settings/quotations/actions";
+import { getPricingTierSettings } from "@/app/settings/master-data/pricing-actions";
 import {
   buildQuotationWhatsappMessage,
   formatIndianCurrency,
@@ -50,10 +51,13 @@ export default function NewQuotationPage() {
   // Master Data
   const [customerList, setCustomerList] = useState<any[]>([]);
   const [itemList, setItemList] = useState<any[]>([]);
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<"PRODUCT" | "RAW_MATERIAL" | "ALL">("PRODUCT");
+  const [pricingConfig, setPricingConfig] = useState<any>(null);
+  const [selectedPricingTier, setSelectedPricingTier] = useState<string>("tier1");
   const [loadingMasters, setLoadingMasters] = useState(true);
 
   // Form State
-  const [docType, setDocType] = useState<"QUOTATION" | "PROFORMA">("QUOTATION");
+  const [docType, setDocType] = useState<"QUOTATION" | "PROFORMA" | "DUMMY">("QUOTATION");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
   const [customerName, setCustomerName] = useState<string>("");
   const [customerPhone, setCustomerPhone] = useState<string>("");
@@ -115,13 +119,21 @@ export default function NewQuotationPage() {
     async function loadMasters() {
       if (!orgId) return;
       try {
-        const [cList, iList, orgSettings] = await Promise.all([
+        const [cList, iList, orgSettings, pConfig] = await Promise.all([
           fetchCustomers(orgId),
-          locId ? fetchItems(orgId, locId) : Promise.resolve([]),
+          locId ? fetchItems(orgId, locId, "", itemCategoryFilter) : Promise.resolve([]),
           getQuotationSettings(orgId),
+          getPricingTierSettings(orgId),
         ]);
         setCustomerList(cList || []);
         setItemList(iList || []);
+
+        if (pConfig) {
+          setPricingConfig(pConfig);
+          if (pConfig.defaultPricingTier) {
+            setSelectedPricingTier(pConfig.defaultPricingTier);
+          }
+        }
 
         if (orgSettings) {
           if (orgSettings.defaultPaymentTerms) setPaymentTerms(orgSettings.defaultPaymentTerms);
@@ -142,7 +154,7 @@ export default function NewQuotationPage() {
       }
     }
     loadMasters();
-  }, [orgId, locId]);
+  }, [orgId, locId, itemCategoryFilter]);
 
   // Customer selection change
   const handleCustomerChange = (cId: string) => {
@@ -228,6 +240,36 @@ export default function NewQuotationPage() {
     setLines(lines.filter((_, i) => i !== idx));
   };
 
+  // Helper: Get item rate based on tier
+  const getItemRateForTier = (item: any, tier: string) => {
+    if (!item) return 0;
+    const tiers = item.tierPrices || {};
+    if (tiers[tier] !== undefined && tiers[tier] !== "" && Number(tiers[tier]) > 0) {
+      return Number(tiers[tier]);
+    }
+    // Fallbacks
+    if (tiers.tier1 && Number(tiers.tier1) > 0) return Number(tiers.tier1);
+    return Number(item.sellingPrice || item.currentPrice || item.costPrice || 0);
+  };
+
+  // Change tier for the entire bill
+  const handleBillTierChange = (newTier: string) => {
+    setSelectedPricingTier(newTier);
+    // Recalculate all lines with items using this new tier
+    const updated = lines.map((l) => {
+      if (!l.itemId) return l;
+      const matched = itemList.find((item) => item.id === l.itemId);
+      if (matched) {
+        return {
+          ...l,
+          unitRate: getItemRateForTier(matched, newTier),
+        };
+      }
+      return l;
+    });
+    setLines(updated);
+  };
+
   // Line item change
   const handleLineChange = (idx: number, field: keyof FormLine, value: any) => {
     const updated = [...lines];
@@ -240,7 +282,7 @@ export default function NewQuotationPage() {
         line.itemName = selectedItem.nameEn || selectedItem.nameTa || "";
         line.hsnCode = selectedItem.hsnCode || "";
         line.uom = selectedItem.uom || selectedItem.unit || "Unit";
-        line.unitRate = Number(selectedItem.sellingPrice || selectedItem.currentPrice || selectedItem.costPrice || 0);
+        line.unitRate = getItemRateForTier(selectedItem, selectedPricingTier);
         line.gstRate = Number(selectedItem.gstRate || 5);
       }
     }
@@ -373,10 +415,10 @@ export default function NewQuotationPage() {
           </Link>
           <div>
             <h1 style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a", margin: 0 }}>
-              Create New {docType === "PROFORMA" ? "Proforma Invoice" : "Quotation"}
+              Create New {docType === "PROFORMA" ? "Proforma Invoice" : docType === "DUMMY" ? "Dummy Bill" : "Quotation"}
             </h1>
             <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "#64748b" }}>
-              Commercial estimate with rate editing and instant WhatsApp dispatch
+              {docType === "DUMMY" ? "Dummy estimate / credit tempi bill with exact same details & template" : "Commercial estimate with rate editing and instant WhatsApp dispatch"}
             </p>
           </div>
         </div>
@@ -416,6 +458,23 @@ export default function NewQuotationPage() {
             }}
           >
             Proforma Invoice
+          </button>
+          <button
+            type="button"
+            onClick={() => setDocType("DUMMY")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: "none",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              cursor: "pointer",
+              backgroundColor: docType === "DUMMY" ? "#ffffff" : "transparent",
+              color: docType === "DUMMY" ? "#0f172a" : "#64748b",
+              boxShadow: docType === "DUMMY" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
+            }}
+          >
+            Dummy Bill
           </button>
         </div>
       </div>
@@ -609,33 +668,117 @@ export default function NewQuotationPage() {
             marginBottom: "20px",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
             <div>
               <h2 style={{ fontSize: "15px", fontWeight: "700", color: "#0f172a", margin: 0 }}>
-                Quotation Line Items & Rates
+                {docType === "DUMMY" ? "Dummy Bill Items & Rates" : "Quotation Line Items & Rates"}
               </h2>
               <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "#64748b" }}>
                 Select products, edit negotiated rates, apply discounts and GST
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleAddLine}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                padding: "6px 12px",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: "#f8fafc",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              <Plus size={14} /> Add Line Item
-            </button>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              {/* Item Category Toggle */}
+              <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", border: "1px solid #cbd5e1", gap: "2px" }}>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("PRODUCT")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "PRODUCT" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "PRODUCT" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "PRODUCT" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "PRODUCT" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  🛍️ Products & Services
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("RAW_MATERIAL")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "RAW_MATERIAL" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "RAW_MATERIAL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "RAW_MATERIAL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "RAW_MATERIAL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  🌾 Raw Materials
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("ALL")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "ALL" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "ALL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "ALL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "ALL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  📦 All Items
+                </button>
+              </div>
+
+              {/* Entire Bill Pricing Tier Selector */}
+              {(pricingConfig?.multiPricingEnabled ?? true) && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#f8fafc", padding: "4px 8px", borderRadius: "6px", border: "1px solid #cbd5e1" }}>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>Bill Pricing Tier:</span>
+                  <select
+                    value={selectedPricingTier}
+                    onChange={(e) => handleBillTierChange(e.target.value)}
+                    style={{
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      border: "1px solid #94a3b8",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      backgroundColor: "#ffffff",
+                      color: "#0f172a",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="tier1">{pricingConfig?.pricingTiers?.tier1 || "Retail / Customer"} (Tier 1)</option>
+                    <option value="tier2">{pricingConfig?.pricingTiers?.tier2 || "Wholesale Supplies"} (Tier 2)</option>
+                    <option value="tier3">{pricingConfig?.pricingTiers?.tier3 || "Dealers"} (Tier 3)</option>
+                    <option value="tier4">{pricingConfig?.pricingTiers?.tier4 || "Special / Tier 4"} (Tier 4)</option>
+                  </select>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleAddLine}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#f8fafc",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Plus size={14} /> Add Line Item
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: "auto" }}>

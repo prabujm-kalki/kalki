@@ -721,7 +721,10 @@ export async function getSpotPurchaseItems(organizationId: string, locationId: s
         eq(items.organizationId, organizationId),
         eq(items.locationId, locationId),
         eq(items.isActive, true),
-        ne(items.itemType, 'MENU_ITEM')
+        and(
+          ne(items.itemType, 'MENU_ITEM'),
+          ne(items.itemType, 'PRODUCT')
+        )
       )
     )
     .orderBy(items.nameEn);

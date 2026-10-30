@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Save, Check, Loader2, RefreshCw } from "lucide-react";
 import { QuotationSettingsConfig, updateQuotationSettings } from "./actions";
 
@@ -39,6 +40,14 @@ export function QuotationSettingsClient({ orgId, initialSettings }: Props) {
       defaultNotes: "Thank you for your business inquiry!",
       defaultTermsAndConditions:
         "1. Goods once sold will be accepted under warranty policy.\n2. Rates quoted are valid until the validity date specified.\n3. Taxes as applicable at time of invoicing.",
+      multiPricingEnabled: true,
+      pricingTiers: {
+        tier1: "Customer / Retail",
+        tier2: "Wholesale Supplies",
+        tier3: "Dealers",
+        tier4: "Special / Institutional",
+      },
+      defaultPricingTier: "tier1",
     });
   };
 
@@ -249,6 +258,35 @@ export function QuotationSettingsClient({ orgId, initialSettings }: Props) {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* Master Multi-Tier Pricing Note & Link */}
+        <div style={{ paddingTop: "20px", borderTop: "1px solid #f1f5f9" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#f8fafc", padding: "14px 18px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+            <div>
+              <div style={{ fontSize: "13.5px", fontWeight: "700", color: "#0f172a" }}>
+                Multi-Tier Trade Pricing (Wholesale / Dealers / Retail)
+              </div>
+              <p style={{ margin: "2px 0 0 0", fontSize: "12px", color: "#64748b" }}>
+                Pricing tiers, custom labels, and default activation are centrally configured under Master Data.
+              </p>
+            </div>
+            <Link
+              href={`/settings/master-data?organizationId=${orgId}`}
+              style={{
+                fontSize: "12.5px",
+                fontWeight: 600,
+                color: "#2563eb",
+                textDecoration: "none",
+                padding: "6px 12px",
+                backgroundColor: "#eff6ff",
+                borderRadius: "6px",
+                border: "1px solid #bfdbfe",
+              }}
+            >
+              Configure in Master Data &rarr;
+            </Link>
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { Plus, Trash2, Save, Calculator, FileText, UserPlus, CheckCircle, Search
 import { fetchItems, fetchCustomers, createB2BInvoice, addCustomer } from "@/app/sales/actions";
 import { useSessionView } from "@/components/AppShell";
 import { CustomerSearchSelect, CustomerItem } from "@/components/sales/CustomerSearchSelect";
+import { getPricingTierSettings, PricingTierSettingsConfig } from "@/app/settings/master-data/pricing-actions";
 
 export function B2BBilling() {
   const { selected: scope } = useSessionView();
@@ -18,29 +19,40 @@ export function B2BBilling() {
   const [overallDiscount, setOverallDiscount] = useState<number>(0);
   const [advancePaid, setAdvancePaid] = useState<number>(0);
   
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<"PRODUCT" | "RAW_MATERIAL" | "ALL">("PRODUCT");
+  const [pricingConfig, setPricingConfig] = useState<PricingTierSettingsConfig | null>(null);
+  const [selectedPricingTier, setSelectedPricingTier] = useState<string>("tier1");
   const [dbItems, setDbItems] = useState<any[]>([]);
   const [dbCustomers, setDbCustomers] = useState<any[]>([]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [invoiceSuccess, setInvoiceSuccess] = useState("");
-    const [invoiceError, setInvoiceError] = useState("");
-    const [customerError, setCustomerError] = useState("");
-    const [customerSuccess, setCustomerSuccess] = useState("");
+  const [invoiceError, setInvoiceError] = useState("");
+  const [customerError, setCustomerError] = useState("");
+  const [customerSuccess, setCustomerSuccess] = useState("");
   
   // Add Customer State
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [newCustomer, setNewCustomer] = useState({ name: "", gstin: "", address: "", email: "", phone: "" });
 
-  const loadData = () => {
+  const loadData = (itemType: string = itemCategoryFilter) => {
     if (scope?.organizationId && scope?.locationId) {
-      fetchItems(scope.organizationId, scope.locationId).then(data => setDbItems(data || []));
+      fetchItems(scope.organizationId, scope.locationId, "", itemType).then(data => setDbItems(data || []));
       fetchCustomers(scope.organizationId).then(data => setDbCustomers(data || []));
+      getPricingTierSettings(scope.organizationId).then(cfg => {
+        if (cfg) {
+          setPricingConfig(cfg);
+          if (cfg.defaultPricingTier) {
+            setSelectedPricingTier(cfg.defaultPricingTier);
+          }
+        }
+      }).catch(console.error);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, [scope]);
+    loadData(itemCategoryFilter);
+  }, [scope, itemCategoryFilter]);
 
   const handleCreateCustomer = async () => {
     setCustomerError("");
@@ -72,6 +84,35 @@ export function B2BBilling() {
     }
   };
 
+  const getItemRateForTier = (item: any, tier: string) => {
+    if (!item) return 0;
+    const tiers = item.tierPrices || {};
+    if (tiers[tier] !== undefined && tiers[tier] !== "" && Number(tiers[tier]) > 0) {
+      return Number(tiers[tier]);
+    }
+    if (tiers.tier1 && Number(tiers.tier1) > 0) return Number(tiers.tier1);
+    return Number(item.sellingPrice || item.currentPrice || item.costPrice || 0);
+  };
+
+  const handleBillTierChange = (newTier: string) => {
+    setSelectedPricingTier(newTier);
+    setItemsList(itemsList.map(item => {
+      if (!item.id) return item;
+      const dbI = dbItems.find(d => d.id === item.id);
+      if (dbI) {
+        const rate = getItemRateForTier(dbI, newTier);
+        const gross = (item.qty || 0) * rate;
+        const discountAmt = gross * ((item.discountPercent || 0) / 100);
+        return {
+          ...item,
+          rate,
+          amount: gross - discountAmt
+        };
+      }
+      return item;
+    }));
+  };
+
   const addItemLine = () => {
     const newUid = Date.now();
     setItemsList([...itemsList, { uid: newUid, id: "", name: "", hsn: "", qty: 1, rate: 0, discountPercent: 0, taxRate: 18, amount: 0, unit: "PCS" }]);
@@ -95,7 +136,7 @@ export function B2BBilling() {
           const selectedDbItem = dbItems.find(dbI => dbI.id === value);
           if (selectedDbItem) {
             updated.name = selectedDbItem.nameEn;
-            updated.rate = parseFloat(selectedDbItem.currentPrice || "0");
+            updated.rate = getItemRateForTier(selectedDbItem, selectedPricingTier);
             updated.unit = selectedDbItem.unit;
           }
         }
@@ -293,6 +334,97 @@ export function B2BBilling() {
 
         {/* Middle Row: Full Width Itemized Table */}
         <div style={{ backgroundColor: "#ffffff", borderRadius: "0.75rem", boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)", border: "1px solid #e2e8f0", overflow: "hidden" }}>
+          {/* Item Category Toggle & Multi-Tier Pricing */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.75rem 1.25rem", borderBottom: "1px solid #e2e8f0", backgroundColor: "#fafbfc", flexWrap: "wrap", gap: "10px" }}>
+            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "#475569" }}>Line Items</span>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+              {/* Category Filter Toggle */}
+              <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", border: "1px solid #e2e8f0", gap: "2px" }}>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("PRODUCT")}
+                  style={{
+                    padding: "4px 12px",
+                    fontSize: "0.75rem",
+                    fontWeight: itemCategoryFilter === "PRODUCT" ? 600 : 500,
+                    borderRadius: "6px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "PRODUCT" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "PRODUCT" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "PRODUCT" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  🛍️ Products & Services
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("RAW_MATERIAL")}
+                  style={{
+                    padding: "4px 12px",
+                    fontSize: "0.75rem",
+                    fontWeight: itemCategoryFilter === "RAW_MATERIAL" ? 600 : 500,
+                    borderRadius: "6px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "RAW_MATERIAL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "RAW_MATERIAL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "RAW_MATERIAL" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  🌾 Raw Materials
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("ALL")}
+                  style={{
+                    padding: "4px 12px",
+                    fontSize: "0.75rem",
+                    fontWeight: itemCategoryFilter === "ALL" ? 600 : 500,
+                    borderRadius: "6px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "ALL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "ALL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "ALL" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  📦 All Items
+                </button>
+              </div>
+
+              {/* Entire Bill Pricing Tier Selector */}
+              {(pricingConfig?.multiPricingEnabled ?? true) && (
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", backgroundColor: "#f8fafc", padding: "3px 8px", borderRadius: "6px", border: "1px solid #cbd5e1" }}>
+                  <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "#475569" }}>Bill Pricing Tier:</span>
+                  <select
+                    value={selectedPricingTier}
+                    onChange={(e) => handleBillTierChange(e.target.value)}
+                    style={{
+                      padding: "3px 8px",
+                      borderRadius: "4px",
+                      border: "1px solid #94a3b8",
+                      fontSize: "0.75rem",
+                      fontWeight: 600,
+                      backgroundColor: "#ffffff",
+                      color: "#0f172a",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="tier1">{pricingConfig?.pricingTiers?.tier1 || "Retail / Customer"} (Tier 1)</option>
+                    <option value="tier2">{pricingConfig?.pricingTiers?.tier2 || "Wholesale Supplies"} (Tier 2)</option>
+                    <option value="tier3">{pricingConfig?.pricingTiers?.tier3 || "Dealers"} (Tier 3)</option>
+                    <option value="tier4">{pricingConfig?.pricingTiers?.tier4 || "Special / Tier 4"} (Tier 4)</option>
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+
           <table style={{ width: "100%", fontSize: "0.875rem", textAlign: "left", color: "#475569", borderCollapse: "collapse" }}>
             <thead style={{ fontSize: "0.75rem", color: "#64748b", textTransform: "uppercase", backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
               <tr>

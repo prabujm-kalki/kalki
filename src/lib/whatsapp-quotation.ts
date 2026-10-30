@@ -37,7 +37,8 @@ export function buildQuotationWhatsappMessage(params: QuotationWhatsappParams): 
 } {
   const origin = typeof window !== "undefined" ? window.location.origin : "";
   const publicUrl = params.publicUrl || (params.publicToken ? `${origin}/public/quotation/${params.publicToken}` : "");
-  const docTitle = params.docType === "PROFORMA" ? "Proforma Invoice" : "Quotation";
+  const docTitle =
+    params.docType === "DUMMY" ? "Dummy Bill" : params.docType === "PROFORMA" ? "Proforma Invoice" : "Quotation";
   const quoteNum = params.quotationNumber;
   const amountFormatted = formatIndianCurrency(params.totalAmount);
 

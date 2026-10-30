@@ -47,6 +47,16 @@ export const organizations = pgTable(
     whatsappConfig: jsonb("whatsapp_config").default({}),
     whatsappDispatchMode: text("whatsapp_dispatch_mode").notNull().default("WEB_LINK_POPUP"), // 'NO_WHATSAPP' | 'API_AUTOMATED' | 'WEB_LINK_POPUP'
     whatsappContentFormat: text("whatsapp_content_format").notNull().default("TEXT_AND_PDF_LINK"), // 'TEXT_AND_PDF_LINK' | 'TEXT_ONLY' | 'PDF_LINK_ONLY'
+    pricingTierSettings: jsonb("pricing_tier_settings").default({
+      multiPricingEnabled: true,
+      defaultPricingTier: "tier1",
+      pricingTiers: {
+        tier1: "Customer / Retail",
+        tier2: "Wholesale Supplies",
+        tier3: "Dealers",
+        tier4: "Special / Institutional",
+      },
+    }),
     quotationSettings: jsonb("quotation_settings").default({
       defaultValidityDays: 15,
       defaultPaymentTerms: "Payment within 15 days of invoice",
@@ -1385,6 +1395,7 @@ export const items = pgTable(
     isInventoryTracked: boolean("is_inventory_tracked").notNull().default(true),
     itemType: text("item_type").notNull().default("RAW_MATERIAL"),
     isActive: boolean("is_active").notNull().default(true),
+    tierPrices: jsonb("tier_prices").default({}),
     categoryId: uuid("category_id").references(() => itemCategories.id),
     subcategoryId: uuid("subcategory_id").references(() => itemSubcategories.id),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -3434,7 +3445,7 @@ export const salesQuotations = pgTable(
     organizationId: uuid("organization_id").notNull().references(() => organizations.id),
     locationId: uuid("location_id").notNull().references(() => locations.id),
     quotationNumber: varchar("quotation_number", { length: 64 }).notNull().unique(),
-    docType: varchar("doc_type", { length: 30 }).default("QUOTATION").notNull(), // 'QUOTATION' | 'PROFORMA'
+    docType: varchar("doc_type", { length: 30 }).default("QUOTATION").notNull(), // 'QUOTATION' | 'PROFORMA' | 'DUMMY'
     version: integer("version").default(1).notNull(),
     customerId: uuid("customer_id").notNull().references(() => customers.id),
     customerName: text("customer_name").notNull(),

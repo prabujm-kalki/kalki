@@ -237,6 +237,9 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     roundToWhole: items.roundToWhole,
     fridaySurge: items.fridaySurge,
     saturdaySurge: items.saturdaySurge,
+    tierPrices: items.tierPrices,
+    currentPrice: items.currentPrice,
+    itemType: items.itemType,
   })
   .from(vendorItems)
   .innerJoin(items, eq(vendorItems.itemId, items.id))
@@ -262,6 +265,9 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     roundToWhole: r.roundToWhole,
     fridaySurge: r.fridaySurge,
     saturdaySurge: r.saturdaySurge,
+    tierPrices: r.tierPrices,
+    currentPrice: r.currentPrice,
+    itemType: r.itemType,
   }));
 }
 
@@ -549,7 +555,13 @@ const createPOSchema = scopeSchema.extend({
   lines: z.array(z.object({
     itemId: z.string().uuid(),
     orderedQuantity: z.number().nonnegative(),
-    unitRate: z.number().nonnegative()
+    unitRate: z.number().nonnegative(),
+    tierPrices: z.object({
+      tier1: z.number().optional(),
+      tier2: z.number().optional(),
+      tier3: z.number().optional(),
+      tier4: z.number().optional(),
+    }).optional()
   })),
 }).strict();
 
@@ -666,6 +678,19 @@ export async function createPurchaseOrder(actor: Actor, input: CreatePOInput) {
       }));
 
       await tx.insert(purchaseOrderLines).values(poLines);
+
+      // Update tier pricing on master catalog items if provided during purchase entry
+      for (const line of lines) {
+        if (line.tierPrices && Object.keys(line.tierPrices).length > 0) {
+          await tx
+            .update(items)
+            .set({
+              tierPrices: line.tierPrices,
+              updatedAt: new Date(),
+            })
+            .where(eq(items.id, line.itemId));
+        }
+      }
     }
     
     if (scheduleId) {

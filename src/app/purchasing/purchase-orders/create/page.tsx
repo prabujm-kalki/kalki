@@ -13,6 +13,7 @@ import { KalkiSelect } from "@/components/ui/KalkiSelect";
 import { KalkiInput } from "@/components/ui/KalkiInput";
 import { KalkiSection } from "@/components/ui/KalkiSection";
 import { buildPoWhatsappMessage, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
+import { getPricingTierSettings, PricingTierSettingsConfig } from "@/app/settings/master-data/pricing-actions";
 
 export default function CreatePOPage() {
   const { session, selected } = useSessionView();
@@ -29,10 +30,12 @@ export default function CreatePOPage() {
   
   const [vendors, setVendors] = useState<any[]>([]);
   const [vendorItems, setVendorItems] = useState<any[]>([]);
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<"RAW_MATERIAL" | "PRODUCT" | "ALL">("RAW_MATERIAL");
   
   const [selectedVendorId, setSelectedVendorId] = useState(queryVendorId || "");
   const [paymentMethod, setPaymentMethod] = useState("credit");
   
+  const [pricingConfig, setPricingConfig] = useState<PricingTierSettingsConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recentPOs, setRecentPOs] = useState<any[]>([]);
 
@@ -64,6 +67,10 @@ export default function CreatePOPage() {
     }).catch(err => {
       console.error(err);
     });
+
+    getPricingTierSettings(selected.organizationId).then(settings => {
+      setPricingConfig(settings);
+    }).catch(console.error);
   }, [selected, canCreatePO]);
 
   useEffect(() => {
@@ -77,14 +84,21 @@ export default function CreatePOPage() {
       vendorId: selectedVendorId
     });
     apiGet<{ items: any[] }>(`/api/vendor-items?${query.toString()}`).then(res => {
-      setVendorItems(res.items.map(i => ({ 
-        ...i, 
-        orderedQuantity: 0, 
-        availableStock: '', // Used for routine mode (raw)
-        availablePrepStock: '', // Used for routine mode (prep/half-boiled)
-        calculatedQty: '', // Used for manual override
-        unitRate: i.lastRate || 0 
-      })));
+      setVendorItems(res.items.map(i => {
+        const itemTiers = i.tierPrices || {};
+        return { 
+          ...i, 
+          orderedQuantity: 0, 
+          availableStock: '', // Used for routine mode (raw)
+          availablePrepStock: '', // Used for routine mode (prep/half-boiled)
+          calculatedQty: '', // Used for manual override
+          unitRate: i.lastRate || 0,
+          tier1Price: itemTiers.tier1 !== undefined ? itemTiers.tier1 : (i.currentPrice || ""),
+          tier2Price: itemTiers.tier2 !== undefined ? itemTiers.tier2 : "",
+          tier3Price: itemTiers.tier3 !== undefined ? itemTiers.tier3 : "",
+          tier4Price: itemTiers.tier4 !== undefined ? itemTiers.tier4 : "",
+        };
+      }));
     }).catch(console.error);
   }, [selected, selectedVendorId]);
 
@@ -156,10 +170,11 @@ export default function CreatePOPage() {
         if (!item.itemId) {
           throw new Error(`Item "${item.itemName}" must be mapped to a master catalog item before it can be purchased.`);
         }
+
         return {
           itemId: item.itemId,
           orderedQuantity: isRoutineMode ? Number(item.calculatedQty || 0) : Number(item.orderedQuantity),
-          unitRate: Number(item.unitRate)
+          unitRate: Number(item.unitRate || 0),
         };
       });
 
@@ -383,26 +398,90 @@ export default function CreatePOPage() {
           <KalkiSection 
             title={isRoutineMode ? "Assess Inventory Shortfall" : "Items to Order"} 
             icon={<Package size={16} />}
+            headerAction={
+              <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", border: "1px solid #cbd5e1", gap: "2px" }}>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("RAW_MATERIAL")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "RAW_MATERIAL" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "RAW_MATERIAL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "RAW_MATERIAL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "RAW_MATERIAL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  🌾 Raw Materials
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("PRODUCT")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "PRODUCT" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "PRODUCT" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "PRODUCT" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "PRODUCT" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  🛍️ Products & Services
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("ALL")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "ALL" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "ALL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "ALL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "ALL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  📦 All
+                </button>
+              </div>
+            }
           >
             <div className="kalki-table-container">
               <table className="kalki-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "35%" }}>Item</th>
-                    <th style={{ width: "15%" }}>UoM</th>
+                    <th style={{ width: "24%" }}>Item</th>
+                    <th style={{ width: "8%" }}>UoM</th>
                     {isRoutineMode ? (
                       <>
-                        <th style={{ width: "20%" }}>Inventory Targets</th>
-                        <th style={{ width: "15%" }}>Available Stock</th>
-                        <th style={{ width: "15%" }}>Calculated Order</th>
+                        <th style={{ width: "16%" }}>Inventory Targets</th>
+                        <th style={{ width: "12%" }}>Available Stock</th>
+                        <th style={{ width: "12%" }}>Calculated Order</th>
                       </>
                     ) : (
-                      <th style={{ width: "20%" }}>Order Quantity</th>
+                      <th style={{ width: "12%" }}>Order Qty</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {vendorItems.map((item, index) => {
+                  {vendorItems
+                    .filter(item => {
+                      if (itemCategoryFilter === "ALL") return true;
+                      const type = item.itemType || "RAW_MATERIAL";
+                      if (itemCategoryFilter === "PRODUCT") {
+                        return type === "PRODUCT" || type === "MENU_ITEM";
+                      }
+                      return type === itemCategoryFilter;
+                    })
+                    .map((item, index) => {
                     const purchaseUnitDisplay = item.purchaseUnit ? ` ${item.purchaseUnit}` : '';
                     const dayOfWeek = new Date().getDay();
                     const activeSurgePct = dayOfWeek === 5 ? Number(item.fridaySurge || 0) : dayOfWeek === 6 ? Number(item.saturdaySurge || 0) : 0;

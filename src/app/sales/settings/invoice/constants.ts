@@ -3,6 +3,11 @@ export type InvoiceTemplateKey = "CLASSIC_CORPORATE" | "MODERN_MINIMAL" | "THERM
 export interface InvoiceSettingsConfig {
   defaultTemplate: InvoiceTemplateKey;
   primaryColor: string;
+  // Company / Header Details
+  companyName?: string;
+  companyAddress?: string;
+  companyPhone?: string;
+  companyGstin?: string;
   showLogo: boolean;
   showHsn: boolean;
   showUom: boolean;
@@ -20,6 +25,10 @@ export interface InvoiceSettingsConfig {
 export const DEFAULT_INVOICE_CONFIG: InvoiceSettingsConfig = {
   defaultTemplate: "CLASSIC_CORPORATE",
   primaryColor: "#0f172a",
+  companyName: "",
+  companyAddress: "",
+  companyPhone: "",
+  companyGstin: "",
   showLogo: true,
   showHsn: true,
   showUom: true,

@@ -59,7 +59,8 @@ export default function PublicQuotationPage({
 
   const { quotation, lines, organization, location } = data;
   const isProforma = quotation.docType === "PROFORMA";
-  const docTitle = isProforma ? "PROFORMA INVOICE" : "QUOTATION";
+  const isDummy = quotation.docType === "DUMMY";
+  const docTitle = isDummy ? "" : isProforma ? "PROFORMA INVOICE" : "QUOTATION";
 
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc", padding: "24px 16px", fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -152,9 +153,11 @@ export default function PublicQuotationPage({
           </div>
 
           <div style={{ textAlign: "right" }}>
-            <h2 style={{ fontSize: "20px", fontWeight: "800", color: "#2563eb", margin: "0 0 6px 0", letterSpacing: "0.05em" }}>
-              {docTitle}
-            </h2>
+            {docTitle ? (
+              <h2 style={{ fontSize: "20px", fontWeight: "800", color: "#2563eb", margin: "0 0 6px 0", letterSpacing: "0.05em" }}>
+                {docTitle}
+              </h2>
+            ) : null}
             <p style={{ margin: "2px 0", fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>
               #{quotation.quotationNumber}
             </p>
@@ -199,7 +202,7 @@ export default function PublicQuotationPage({
             <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>Terms & Validity</span>
             <div style={{ marginTop: "6px", fontSize: "12px", color: "#334155", display: "flex", flexDirection: "column", gap: "4px" }}>
               <div><strong>Terms:</strong> {quotation.paymentTerms || "Standard Net 30"}</div>
-              <div><strong>Document Type:</strong> {isProforma ? "Proforma" : "Sales Estimate"}</div>
+              <div><strong>Document Type:</strong> {isDummy ? "Bill" : isProforma ? "Proforma" : "Sales Estimate"}</div>
               {quotation.convertedInvoiceId && (
                 <div style={{ color: "#16a34a", fontWeight: "600" }}>
                   <CheckCircle size={13} style={{ display: "inline", marginRight: "4px" }} />

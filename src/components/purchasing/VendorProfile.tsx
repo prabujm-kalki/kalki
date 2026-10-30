@@ -122,7 +122,7 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
       setItems({ requestKey, list: itemsPayload.items });
       setSchedules({ requestKey, list: schedulesPayload.items });
       setRoles({ requestKey, list: rolesPayload.roles });
-      setMasterItems((itemsMasterPayload.items || []).filter((item: any) => item.itemType !== 'MENU_ITEM'));
+      setMasterItems((itemsMasterPayload.items || []).filter((item: any) => item.itemType !== 'MENU_ITEM' && item.itemType !== 'PRODUCT'));
     }).catch((caught) => {
       if (!cancelled) setError({ requestKey, message: caught instanceof Error ? caught.message : "Unable to load vendor profile" });
     });

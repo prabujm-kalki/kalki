@@ -149,10 +149,10 @@ export default function QuotationsListPage() {
       >
         <div>
           <h1 style={{ fontSize: "22px", fontWeight: "700", color: "#0f172a", margin: "0 0 4px 0" }}>
-            Quotations & Proforma Invoices
+            Quotations, Proforma & Dummy Bills
           </h1>
           <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
-            Manage commercial estimates, send via WhatsApp, and convert into invoices
+            Manage commercial estimates & dummy bills, send via WhatsApp, and convert into invoices
           </p>
         </div>
 
@@ -271,6 +271,7 @@ export default function QuotationsListPage() {
             <option value="ALL">All Types</option>
             <option value="QUOTATION">Quotations</option>
             <option value="PROFORMA">Proforma Invoices</option>
+            <option value="DUMMY">Dummy Bills</option>
           </select>
 
           <select
@@ -393,11 +394,25 @@ export default function QuotationsListPage() {
                             borderRadius: "4px",
                             fontSize: "11px",
                             fontWeight: "600",
-                            backgroundColor: quote.docType === "PROFORMA" ? "#fef3c7" : "#e0e7ff",
-                            color: quote.docType === "PROFORMA" ? "#b45309" : "#4338ca",
+                            backgroundColor:
+                              quote.docType === "DUMMY"
+                                ? "#f1f5f9"
+                                : quote.docType === "PROFORMA"
+                                ? "#fef3c7"
+                                : "#e0e7ff",
+                            color:
+                              quote.docType === "DUMMY"
+                                ? "#475569"
+                                : quote.docType === "PROFORMA"
+                                ? "#b45309"
+                                : "#4338ca",
                           }}
                         >
-                          {quote.docType === "PROFORMA" ? "Proforma" : "Quotation"}
+                          {quote.docType === "DUMMY"
+                            ? "Dummy Bill"
+                            : quote.docType === "PROFORMA"
+                            ? "Proforma"
+                            : "Quotation"}
                         </span>
                       </td>
                       <td style={{ padding: "12px 16px" }}>

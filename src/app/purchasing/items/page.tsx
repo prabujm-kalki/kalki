@@ -16,7 +16,7 @@ type ItemView = {
   roundToWhole?: boolean;
   currentPrice: string;
   isActive: boolean;
-  itemType?: 'RAW_MATERIAL' | 'EXPENSE' | 'MENU_ITEM';
+  itemType?: 'RAW_MATERIAL' | 'EXPENSE' | 'MENU_ITEM' | 'PRODUCT';
   categoryId?: string | null;
   categoryName?: string | null;
   subcategoryName?: string | null;
@@ -28,7 +28,7 @@ export default function ItemsPage() {
   const [itemsList, setItemsList] = useState<ItemView[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<"ALL" | "RAW_MATERIAL" | "MENU_ITEM" | "EXPENSE">("ALL");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "RAW_MATERIAL" | "PRODUCT" | "EXPENSE">("ALL");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
 
@@ -63,7 +63,7 @@ export default function ItemsPage() {
 
   // Counts by itemType
   const rawMaterialCount = useMemo(() => itemsList.filter(i => (i.itemType || 'RAW_MATERIAL') === 'RAW_MATERIAL').length, [itemsList]);
-  const menuItemCount = useMemo(() => itemsList.filter(i => i.itemType === 'MENU_ITEM').length, [itemsList]);
+  const productCount = useMemo(() => itemsList.filter(i => i.itemType === 'PRODUCT' || i.itemType === 'MENU_ITEM').length, [itemsList]);
   const expenseCount = useMemo(() => itemsList.filter(i => i.itemType === 'EXPENSE').length, [itemsList]);
   const activeCount = useMemo(() => itemsList.filter((i) => i.isActive).length, [itemsList]);
 
@@ -75,6 +75,8 @@ export default function ItemsPage() {
       const matchesType =
         typeFilter === "ALL"
           ? true
+          : typeFilter === "PRODUCT"
+          ? (item.itemType === "PRODUCT" || item.itemType === "MENU_ITEM")
           : (item.itemType || 'RAW_MATERIAL') === typeFilter;
 
       const matchesCategory =
@@ -104,7 +106,7 @@ export default function ItemsPage() {
                 Item Master
               </h1>
               <span style={{ fontSize: "12px", color: "var(--kalki-text-secondary)", backgroundColor: "#f1f5f9", padding: "2px 8px", borderRadius: "999px", fontWeight: 600 }}>
-                {itemsList.length} Total ({rawMaterialCount} Raw/Cost, {menuItemCount} Menu, {activeCount} Active)
+                {itemsList.length} Total ({rawMaterialCount} Raw/Cost, {productCount} Menu/Product, {activeCount} Active)
               </span>
             </div>
             <p className="kalki-page-description" style={{ marginTop: "4px" }}>
@@ -159,20 +161,20 @@ export default function ItemsPage() {
         </button>
         <button
           type="button"
-          onClick={() => { setTypeFilter("MENU_ITEM"); setSelectedCategory("ALL"); }}
+          onClick={() => { setTypeFilter("PRODUCT"); setSelectedCategory("ALL"); }}
           style={{
             padding: "8px 16px",
             borderRadius: "6px",
             border: "1px solid",
-            borderColor: typeFilter === "MENU_ITEM" ? "#8b5cf6" : "var(--kalki-border)",
-            backgroundColor: typeFilter === "MENU_ITEM" ? "#f5f3ff" : "#fff",
-            color: typeFilter === "MENU_ITEM" ? "#8b5cf6" : "var(--kalki-text-secondary)",
+            borderColor: typeFilter === "PRODUCT" ? "#8b5cf6" : "var(--kalki-border)",
+            backgroundColor: typeFilter === "PRODUCT" ? "#f5f3ff" : "#fff",
+            color: typeFilter === "PRODUCT" ? "#8b5cf6" : "var(--kalki-text-secondary)",
             fontSize: "13px",
             fontWeight: 600,
             cursor: "pointer"
           }}
         >
-          Menu Items ({menuItemCount})
+          Products & Services ({productCount})
         </button>
         {expenseCount > 0 && (
           <button

@@ -5,9 +5,12 @@ import { Plus, Search, Filter, X, Save, CheckCircle, FileText, ChevronDown, Refr
 import { fetchInvoices, fetchInvoiceDetails, createSalesReturn, fetchSalesReturns, fetchSalesReturnDetails, approveSalesReturn, rejectSalesReturn } from "@/app/sales/actions";
 import { Eye, MoreVertical } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
+import { KalkiStandardFilterBar } from "@/components/sales/KalkiStandardFilterBar";
+import { useSearchParams } from "next/navigation";
 
 export function SalesReturns() {
   const { session, selected } = useSessionView();
+  const searchParams = useSearchParams();
   const [showNewReturnModal, setShowNewReturnModal] = useState(false);
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [returnReason, setReturnReason] = useState("Damaged Item");
@@ -54,13 +57,18 @@ export function SalesReturns() {
 
   const loadReturns = () => {
     if (selected) {
-      fetchSalesReturns(selected.organizationId, selected.locationId).then(setRealReturnsList);
+      const q = searchParams.get('q') || undefined;
+      const startDate = searchParams.get('from') || searchParams.get('startDate') || undefined;
+      const endDate = searchParams.get('to') || searchParams.get('endDate') || undefined;
+      const status = searchParams.get('status') || undefined;
+
+      fetchSalesReturns(selected.organizationId, selected.locationId, q, startDate, endDate, status).then(setRealReturnsList);
     }
   };
 
   useEffect(() => {
     loadReturns();
-  }, [selected]);
+  }, [selected, searchParams]);
   
   const handleViewReturn = async (id: string) => {
     const details = await fetchSalesReturnDetails(id);
@@ -203,35 +211,38 @@ export function SalesReturns() {
 
   return (
     <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
-      {/* Top Action Bar */}
-      <div className="card" style={{ padding: "1rem", borderRadius: "0.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          <div style={{ position: "relative" }}>
-            <Search style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "#9ca3af" }} size={18} />
-            <input 
-              type="text" 
-              placeholder="Search Returns..." 
-              style={{ padding: "0.5rem 1rem 0.5rem 2.5rem", border: "1px solid #e5e7eb", borderRadius: "0.375rem", fontSize: "0.875rem", width: "250px", outline: "none", boxShadow: "0 1px 2px 0 rgba(0,0,0,0.05)" }}
-            />
-          </div>
-          
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            <button style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", border: "1px solid #e5e7eb", borderRadius: "0.375rem", fontSize: "0.875rem", color: "#4b5563", backgroundColor: "white", cursor: "pointer" }}>
-              <Filter size={16} /> Date Range <ChevronDown size={14} />
-            </button>
-            <button style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.5rem 0.75rem", border: "1px solid #e5e7eb", borderRadius: "0.375rem", fontSize: "0.875rem", color: "#4b5563", backgroundColor: "white", cursor: "pointer" }}>
-              Status <ChevronDown size={14} />
-            </button>
-          </div>
-        </div>
-
-        <button 
-          onClick={() => setShowNewReturnModal(true)}
-          style={{ display: "flex", alignItems: "center", gap: "0.5rem", backgroundColor: "#2563eb", color: "white", padding: "0.5rem 1rem", borderRadius: "0.375rem", fontSize: "0.875rem", fontWeight: "500", cursor: "pointer", border: "none" }}
-        >
-          <Plus size={18} /> New Sales Return
-        </button>
-      </div>
+      {/* Top Standard Filter Bar */}
+      <KalkiStandardFilterBar
+        searchPlaceholder="Search returns by #, invoice, customer..."
+        showRangeFilter={true}
+        showStatusFilter={true}
+        statusOptions={[
+          { label: "Approved", value: "APPROVED" },
+          { label: "Pending Approval", value: "DRAFT" },
+          { label: "Rejected", value: "REJECTED" },
+        ]}
+        actionButton={
+          <button 
+            onClick={() => setShowNewReturnModal(true)}
+            style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              gap: "0.5rem", 
+              backgroundColor: "#2563eb", 
+              color: "white", 
+              padding: "9px 16px", 
+              borderRadius: "8px", 
+              fontSize: "13.5px", 
+              fontWeight: "600", 
+              cursor: "pointer", 
+              border: "none",
+              boxShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)"
+            }}
+          >
+            <Plus size={18} /> New Sales Return
+          </button>
+        }
+      />
 
       {/* Data Table */}
       <div className="card" style={{ padding: "1.25rem", borderRadius: "0.5rem", overflowX: "auto" }}>

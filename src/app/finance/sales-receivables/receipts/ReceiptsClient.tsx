@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useSessionView } from "@/components/AppShell";
-import { processReceipt, fetchReceipts, fetchOpenInvoices } from "@/app/finance/receivables-actions";
+import { processReceipt, fetchReceipts, fetchOpenInvoices, fetchInvoiceById } from "@/app/finance/receivables-actions";
 import { Plus, Search, FileText } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import SearchFilterBar from "@/components/sales/SearchFilterBar";
@@ -69,6 +69,31 @@ export function ReceiptsClient() {
   useEffect(() => {
     loadReceipts();
   }, [selected, searchParams]);
+
+  // Auto-open receipt modal if invoiceId or action=new is present in query
+  useEffect(() => {
+    const invoiceId = searchParams.get("invoiceId");
+    const action = searchParams.get("action");
+
+    if (invoiceId) {
+      fetchInvoiceById(invoiceId).then((res) => {
+        if (res.success && res.data) {
+          const inv = res.data;
+          setSelectedCustomerId(inv.customerId);
+          setNewReceipt((prev) => ({
+            ...prev,
+            amount: inv.balanceDue > 0 ? String(inv.balanceDue) : ""
+          }));
+          setAllocations({
+            [inv.id]: inv.balanceDue > 0 ? inv.balanceDue : 0
+          });
+          setShowModal(true);
+        }
+      });
+    } else if (action === "new") {
+      setShowModal(true);
+    }
+  }, [searchParams]);
 
   // When customer changes, fetch open invoices
   useEffect(() => {

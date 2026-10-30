@@ -2,18 +2,31 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { eq, and, or, ilike, sql, desc, inArray, gte, lte } from "drizzle-orm";
-import { items, customers, salesInvoices, salesInvoiceLines, salesReturns, salesReturnLines, organizations, creditNotes, creditNoteApplications, salesReceiptAllocations, refunds, salesInvoicePayments, eventFinancials, campaignAudiences, salesReceipts, salesCreditNotes, tmbillOrders } from "@/db/schema";
+import { items, customers, salesInvoices, salesInvoiceLines, salesReturns, salesReturnLines, organizations, creditNotes, creditNoteApplications, salesReceiptAllocations, refunds, salesInvoicePayments, eventFinancials, campaignAudiences, salesReceipts, salesCreditNotes, tmbillOrders, salesQuotations } from "@/db/schema";
 import crypto from "crypto";
 import { headers } from "next/headers";
 import { requireAuthenticatedUser, authorizeEmployeeOperation } from "@/lib/authorization";
 
-export async function fetchItems(organizationId: string, locationId: string, search: string = "") {
-  return await db.select().from(items).where(
-    and(
-      eq(items.organizationId, organizationId),
-      ilike(items.nameEn, `%${search}%`)
-    )
-  );
+export async function fetchItems(
+  organizationId: string, 
+  locationId: string, 
+  search: string = "", 
+  itemType?: string
+) {
+  const conditions = [
+    eq(items.organizationId, organizationId),
+    ilike(items.nameEn, `%${search}%`)
+  ];
+
+  if (itemType && itemType !== "ALL") {
+    if (itemType === "PRODUCT") {
+      conditions.push(or(eq(items.itemType, "PRODUCT"), eq(items.itemType, "MENU_ITEM")) as any);
+    } else {
+      conditions.push(eq(items.itemType, itemType));
+    }
+  }
+
+  return await db.select().from(items).where(and(...conditions));
 }
 
 export async function fetchCustomers(organizationId: string, search: string = "", limit: number = 30) {
@@ -489,8 +502,45 @@ export async function rejectSalesReturn(returnId: string) {
   return { success: true };
 }
 
-export async function fetchSalesReturns(organizationId: string, locationId: string) {
+export async function fetchSalesReturns(
+  organizationId: string, 
+  locationId: string, 
+  searchQuery?: string, 
+  startDate?: string, 
+  endDate?: string, 
+  status?: string
+) {
   if (!organizationId || !locationId) return [];
+
+  let startObj: Date | undefined = undefined;
+  if (startDate) {
+    startObj = new Date(startDate);
+    startObj.setUTCHours(0, 0, 0, 0);
+  }
+
+  let endObj: Date | undefined = undefined;
+  if (endDate) {
+    endObj = new Date(endDate);
+    endObj.setUTCHours(23, 59, 59, 999);
+  }
+
+  const whereConditions = [
+    eq(salesReturns.organizationId, organizationId),
+    eq(salesReturns.locationId, locationId),
+  ];
+
+  if (startObj) whereConditions.push(gte(salesReturns.returnDate, startObj));
+  if (endObj) whereConditions.push(lte(salesReturns.returnDate, endObj));
+  if (status && status !== "ALL" && status !== "all") whereConditions.push(eq(salesReturns.status, status as any));
+  if (searchQuery) {
+    whereConditions.push(
+      or(
+        ilike(salesReturns.returnNumber, `%${searchQuery}%`),
+        ilike(salesInvoices.customerName, `%${searchQuery}%`),
+        ilike(salesInvoices.invoiceNumber, `%${searchQuery}%`)
+      ) as any
+    );
+  }
   
   const returns = await db.select({
     id: salesReturns.id,
@@ -505,7 +555,7 @@ export async function fetchSalesReturns(organizationId: string, locationId: stri
   }).from(salesReturns)
     .leftJoin(salesInvoices, eq(salesReturns.invoiceId, salesInvoices.id))
     .leftJoin(salesReturnLines, eq(salesReturns.id, salesReturnLines.returnId))
-    .where(and(eq(salesReturns.organizationId, organizationId), eq(salesReturns.locationId, locationId)))
+    .where(and(...whereConditions))
     .groupBy(
       salesReturns.id,
       salesReturns.returnNumber,
@@ -654,7 +704,16 @@ export async function applyCreditNote(input: {
   }
 }
 
-export async function fetchCreditNotesByLocation(locationId: string, organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10, startDate?: string, endDate?: string) {
+export async function fetchCreditNotesByLocation(
+  locationId: string, 
+  organizationId: string, 
+  searchQuery?: string, 
+  page: number = 1, 
+  limit: number = 10, 
+  startDate?: string, 
+  endDate?: string,
+  status?: string
+) {
   try {
     const offset = (page - 1) * limit;
     
@@ -670,15 +729,17 @@ export async function fetchCreditNotesByLocation(locationId: string, organizatio
       endObj.setUTCHours(23, 59, 59, 999);
     }
 
-    const whereClause = and(
+    const whereConditions = [
       eq(creditNotes.organizationId, organizationId),
       eq(creditNotes.locationId, locationId),
-      ...(startObj ? [gte(creditNotes.issueDate, startObj)] : []),
-      ...(endObj ? [lte(creditNotes.issueDate, endObj)] : []),
-      ...(searchQuery
-        ? [ilike(creditNotes.creditNoteNumber, `%${searchQuery}%`)]
-        : [])
-    );
+    ];
+
+    if (startObj) whereConditions.push(gte(creditNotes.issueDate, startObj));
+    if (endObj) whereConditions.push(lte(creditNotes.issueDate, endObj));
+    if (status && status !== "ALL") whereConditions.push(eq(creditNotes.status, status as any));
+    if (searchQuery) whereConditions.push(ilike(creditNotes.creditNoteNumber, `%${searchQuery}%`));
+
+    const whereClause = and(...whereConditions);
 
     const notes = await db
       .select()
@@ -776,8 +837,44 @@ export async function refundCreditNote(payload: { creditNoteId: string, refundAm
   }
 }
 
-export async function fetchRefundsByLocation(organizationId: string, locationId: string) {
+export async function fetchRefundsByLocation(
+  organizationId: string, 
+  locationId: string, 
+  searchQuery?: string, 
+  startDate?: string, 
+  endDate?: string
+) {
   try {
+    let startObj: Date | undefined = undefined;
+    if (startDate) {
+      startObj = new Date(startDate);
+      startObj.setUTCHours(0, 0, 0, 0);
+    }
+
+    let endObj: Date | undefined = undefined;
+    if (endDate) {
+      endObj = new Date(endDate);
+      endObj.setUTCHours(23, 59, 59, 999);
+    }
+
+    const whereConditions = [
+      eq(refunds.organizationId, organizationId),
+      eq(refunds.locationId, locationId),
+    ];
+
+    if (startObj) whereConditions.push(gte(refunds.refundDate, startObj));
+    if (endObj) whereConditions.push(lte(refunds.refundDate, endObj));
+    if (searchQuery) {
+      whereConditions.push(
+        or(
+          ilike(creditNotes.creditNoteNumber, `%${searchQuery}%`),
+          ilike(customers.name, `%${searchQuery}%`),
+          ilike(refunds.paymentMethod, `%${searchQuery}%`),
+          ilike(refunds.referenceNumber, `%${searchQuery}%`)
+        ) as any
+      );
+    }
+
     const data = await db
       .select({
         id: refunds.id,
@@ -792,12 +889,7 @@ export async function fetchRefundsByLocation(organizationId: string, locationId:
       .from(refunds)
       .innerJoin(customers, eq(refunds.customerId, customers.id))
       .innerJoin(creditNotes, eq(refunds.creditNoteId, creditNotes.id))
-      .where(
-        and(
-          eq(refunds.organizationId, organizationId),
-          eq(refunds.locationId, locationId)
-        )
-      )
+      .where(and(...whereConditions))
       .orderBy(desc(refunds.refundDate));
 
     return { success: true, data };
@@ -1030,91 +1122,121 @@ export async function fetchAllOrders(organizationId: string, locationId: string,
 }
 
 export async function deleteSalesInvoice(invoiceId: string) {
-  if (!invoiceId) throw new Error("Invoice ID is required");
+  if (!invoiceId) return { success: false, error: "Invoice ID is required" };
 
-  // Authentication check
-  const user = await requireAuthenticatedUser(await headers());
-  if (!user) throw new Error("Unauthorized");
+  try {
+    // Authentication check
+    const user = await requireAuthenticatedUser(await headers());
+    if (!user) return { success: false, error: "Unauthorized" };
 
-  // Fetch invoice details first to verify existence and check dependencies
-  const [invoice] = await db.select().from(salesInvoices).where(eq(salesInvoices.id, invoiceId));
-  if (!invoice) throw new Error("Invoice not found");
+    // Fetch invoice details first to verify existence and check dependencies
+    const [invoice] = await db.select().from(salesInvoices).where(eq(salesInvoices.id, invoiceId));
+    if (!invoice) return { success: false, error: "Invoice not found" };
 
-  // Check if there are associated sales returns
-  const returns = await db.select({ id: salesReturns.id }).from(salesReturns).where(eq(salesReturns.invoiceId, invoiceId));
-  if (returns.length > 0) {
-    throw new Error("Cannot delete invoice: associated sales returns exist. Please remove or resolve returns first.");
-  }
+    // Check if there are associated sales returns
+    const returns = await db.select({ id: salesReturns.id, returnNumber: salesReturns.returnNumber })
+      .from(salesReturns)
+      .where(eq(salesReturns.invoiceId, invoiceId));
+    if (returns.length > 0) {
+      const returnNums = returns.map(r => r.returnNumber).filter(Boolean).join(", ");
+      return {
+        success: false,
+        error: `Cannot delete invoice: associated sales return (${returnNums || returns.length}) exists. Please cancel or resolve the return first.`,
+      };
+    }
 
-  // Check for credit note applications
-  const cnApps = await db.select({ id: creditNoteApplications.id }).from(creditNoteApplications).where(eq(creditNoteApplications.appliedToInvoiceId, invoiceId));
-  if (cnApps.length > 0) {
-    throw new Error("Cannot delete invoice: credit notes are applied to this invoice.");
-  }
+    // Check for credit note applications
+    const cnApps = await db.select({ 
+      id: creditNoteApplications.id,
+      creditNoteNumber: creditNotes.creditNoteNumber,
+      appliedAmount: creditNoteApplications.appliedAmount,
+    })
+      .from(creditNoteApplications)
+      .leftJoin(creditNotes, eq(creditNoteApplications.creditNoteId, creditNotes.id))
+      .where(eq(creditNoteApplications.appliedToInvoiceId, invoiceId));
+    if (cnApps.length > 0) {
+      const cnNums = cnApps.map(c => c.creditNoteNumber ? `#${c.creditNoteNumber}` : "Credit Note").join(", ");
+      return {
+        success: false,
+        error: `Cannot delete invoice: ${cnNums} is applied to this invoice. Please remove the credit note application under Returns & Credit Notes first.`,
+      };
+    }
 
-  // Safe deletion transaction
-  await db.transaction(async (tx) => {
-    // 1. Unlink marketing audience references if any
-    await tx.update(campaignAudiences)
-      .set({ convertedInvoiceId: null, isConverted: false })
-      .where(eq(campaignAudiences.convertedInvoiceId, invoiceId));
+    // Safe deletion transaction
+    await db.transaction(async (tx) => {
+      // 1. Unlink marketing audience references if any
+      await tx.update(campaignAudiences)
+        .set({ convertedInvoiceId: null, isConverted: false })
+        .where(eq(campaignAudiences.convertedInvoiceId, invoiceId));
 
-    // 2. Unlink event financials if any
-    await tx.update(eventFinancials)
-      .set({ invoiceId: null })
-      .where(eq(eventFinancials.invoiceId, invoiceId));
+      // 2. Unlink event financials if any
+      await tx.update(eventFinancials)
+        .set({ invoiceId: null })
+        .where(eq(eventFinancials.invoiceId, invoiceId));
 
-    // 3. Unlink tmbill raw orders if any
-    await tx.update(tmbillOrders)
-      .set({ financeSalesInvoiceId: null })
-      .where(eq(tmbillOrders.financeSalesInvoiceId, invoiceId));
+      // 3. Unlink tmbill raw orders if any
+      await tx.update(tmbillOrders)
+        .set({ financeSalesInvoiceId: null })
+        .where(eq(tmbillOrders.financeSalesInvoiceId, invoiceId));
 
-    // 4. Handle receipt allocations and clean up associated receipts created for this invoice
-    const allocations = await tx.select({ 
-      id: salesReceiptAllocations.id, 
-      receiptId: salesReceiptAllocations.receiptId 
-    }).from(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, invoiceId));
-    
-    if (allocations.length > 0) {
-      const receiptIds = allocations.map(a => a.receiptId);
-      // Delete allocations for this invoice
-      await tx.delete(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, invoiceId));
+      // 4. Unlink converted sales quotation if any
+      await tx.update(salesQuotations)
+        .set({ convertedInvoiceId: null, status: "APPROVED" })
+        .where(eq(salesQuotations.convertedInvoiceId, invoiceId));
 
-      // If any of these receipts have NO remaining allocations to other invoices, clean them up too
-      for (const rId of receiptIds) {
-        const remaining = await tx.select({ id: salesReceiptAllocations.id })
-          .from(salesReceiptAllocations)
-          .where(eq(salesReceiptAllocations.receiptId, rId));
-        if (remaining.length === 0) {
-          await tx.delete(salesReceipts).where(eq(salesReceipts.id, rId));
+      // 5. Handle receipt allocations and clean up associated receipts created for this invoice
+      const allocations = await tx.select({ 
+        id: salesReceiptAllocations.id, 
+        receiptId: salesReceiptAllocations.receiptId 
+      }).from(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, invoiceId));
+      
+      if (allocations.length > 0) {
+        const receiptIds = allocations.map(a => a.receiptId);
+        // Delete allocations for this invoice
+        await tx.delete(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, invoiceId));
+
+        // If any of these receipts have NO remaining allocations to other invoices, clean them up too
+        for (const rId of receiptIds) {
+          const remaining = await tx.select({ id: salesReceiptAllocations.id })
+            .from(salesReceiptAllocations)
+            .where(eq(salesReceiptAllocations.receiptId, rId));
+          if (remaining.length === 0) {
+            await tx.delete(salesReceipts).where(eq(salesReceipts.id, rId));
+          }
         }
       }
-    }
 
-    // 5. Also delete any receipt directly created with referenceNumber equal to this invoiceNumber
-    if (invoice.invoiceNumber) {
-      await tx.delete(salesReceipts).where(and(
-        eq(salesReceipts.organizationId, invoice.organizationId),
-        eq(salesReceipts.referenceNumber, invoice.invoiceNumber)
-      ));
-    }
+      // 6. Also delete any receipt directly created with referenceNumber equal to this invoiceNumber
+      if (invoice.invoiceNumber) {
+        await tx.delete(salesReceipts).where(and(
+          eq(salesReceipts.organizationId, invoice.organizationId),
+          eq(salesReceipts.referenceNumber, invoice.invoiceNumber)
+        ));
+      }
 
-    // 6. Delete invoice credit notes created directly for this invoice
-    await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.invoiceId, invoiceId));
+      // 7. Delete invoice credit notes created directly for this invoice
+      await tx.delete(salesCreditNotes).where(eq(salesCreditNotes.invoiceId, invoiceId));
 
-    // 7. Delete invoice payments
-    await tx.delete(salesInvoicePayments).where(eq(salesInvoicePayments.invoiceId, invoiceId));
+      // 8. Delete invoice payments
+      await tx.delete(salesInvoicePayments).where(eq(salesInvoicePayments.invoiceId, invoiceId));
 
-    // 8. Delete invoice line items
-    await tx.delete(salesInvoiceLines).where(eq(salesInvoiceLines.invoiceId, invoiceId));
+      // 9. Delete invoice line items
+      await tx.delete(salesInvoiceLines).where(eq(salesInvoiceLines.invoiceId, invoiceId));
 
-    // 9. Finally delete invoice
-    await tx.delete(salesInvoices).where(eq(salesInvoices.id, invoiceId));
-  });
+      // 10. Finally delete invoice
+      await tx.delete(salesInvoices).where(eq(salesInvoices.id, invoiceId));
+    });
 
-  revalidatePath("/sales/invoices");
-  revalidatePath("/sales/invoices/all");
-  return { success: true };
+    revalidatePath("/sales/invoices");
+    revalidatePath("/sales/invoices/all");
+    return { success: true };
+  } catch (error: any) {
+    console.error("deleteSalesInvoice error:", error);
+    return {
+      success: false,
+      error: error?.message || "An unexpected error occurred while deleting the invoice.",
+    };
+  }
 }
 
 export async function updateSalesInvoice(data: {

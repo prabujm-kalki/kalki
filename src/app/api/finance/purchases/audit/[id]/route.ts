@@ -178,7 +178,7 @@ export async function POST(
         })
         .where(eq(purchaseOrders.id, id));
 
-      // 2. Update lines
+      // 2. Update lines and catalog tier prices if provided
       for (const line of lines) {
         if (line.id) {
           await tx.update(purchaseOrderLines)
@@ -187,6 +187,26 @@ export async function POST(
               unitRate: line.unitRate !== undefined ? String(line.unitRate) : undefined,
             })
             .where(eq(purchaseOrderLines.id, line.id));
+        }
+
+        // If auditor updated selling tiers for the item, persist to master catalog
+        if (line.itemId && line.tierPrices && typeof line.tierPrices === 'object') {
+          const { items } = await import('@/db/schema');
+          const cleanTiers: any = {};
+          if (line.tierPrices.tier1 !== undefined && line.tierPrices.tier1 !== "") cleanTiers.tier1 = Number(line.tierPrices.tier1);
+          if (line.tierPrices.tier2 !== undefined && line.tierPrices.tier2 !== "") cleanTiers.tier2 = Number(line.tierPrices.tier2);
+          if (line.tierPrices.tier3 !== undefined && line.tierPrices.tier3 !== "") cleanTiers.tier3 = Number(line.tierPrices.tier3);
+          if (line.tierPrices.tier4 !== undefined && line.tierPrices.tier4 !== "") cleanTiers.tier4 = Number(line.tierPrices.tier4);
+
+          if (Object.keys(cleanTiers).length > 0) {
+            await tx.update(items)
+              .set({
+                tierPrices: cleanTiers,
+                ...(cleanTiers.tier1 !== undefined ? { currentPrice: String(cleanTiers.tier1) } : {}),
+                updatedAt: new Date(),
+              })
+              .where(eq(items.id, line.itemId));
+          }
         }
       }
 

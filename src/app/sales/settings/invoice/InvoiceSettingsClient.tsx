@@ -4,7 +4,8 @@ import React, { useState, useTransition } from "react";
 import { updateInvoiceSettings } from "./actions";
 import { InvoiceSettingsConfig, InvoiceTemplateKey } from "./constants";
 import { InvoiceRenderer } from "@/components/sales/InvoiceRenderer";
-import { Check, Sparkles, Building, Layers, Receipt, Save, Palette, Sliders, Landmark, QrCode } from "lucide-react";
+import { Check, Sparkles, Building, Layers, Receipt, Save, Palette, Sliders, Landmark, QrCode, Building2 } from "lucide-react";
+import { useSessionView } from "@/components/AppShell";
 
 interface Props {
   orgId: string;
@@ -105,19 +106,21 @@ const SAMPLE_INVOICE = {
   ],
 };
 
-const SAMPLE_ORG = {
-  name: "Kalki Business Solutions",
-  address: "Plot 18, Technology Corridor, OMR, Chennai, Tamil Nadu - 600096",
-  phone: "+91 44 2855 0000",
-  gstin: "33AABCK1234D1Z2",
-};
-
 export function InvoiceSettingsClient({ orgId, initialSettings }: Props) {
+  const { selected } = useSessionView();
   const [config, setConfig] = useState<InvoiceSettingsConfig>(initialSettings);
-  const [activeTab, setActiveTab] = useState<"TEMPLATE" | "COLUMNS" | "BANK" | "TERMS">("TEMPLATE");
+  const [activeTab, setActiveTab] = useState<"TEMPLATE" | "COMPANY" | "COLUMNS" | "BANK" | "TERMS">("TEMPLATE");
   const [previewTemplate, setPreviewTemplate] = useState<InvoiceTemplateKey>(initialSettings.defaultTemplate);
   const [isPending, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  const activeOrgPreview = {
+    name: config.companyName || selected?.organizationName || "Kalki Groups",
+    address: config.companyAddress || (selected?.locationName ? `${selected.locationName} Branch` : "Main Branch Office"),
+    phone: config.companyPhone || "+91 98765 43210",
+    gstin: config.companyGstin || "33AAAAA0000A1Z5",
+    logoUrl: selected?.organizationLogoUrl || null,
+  };
 
   const handleSave = () => {
     if (!orgId) {
@@ -150,6 +153,7 @@ export function InvoiceSettingsClient({ orgId, initialSettings }: Props) {
         >
           {[
             { id: "TEMPLATE", label: "Templates & Style", icon: Sparkles },
+            { id: "COMPANY", label: "Company & Header", icon: Building2 },
             { id: "COLUMNS", label: "Fields & Columns", icon: Sliders },
             { id: "BANK", label: "Bank & UPI", icon: Landmark },
             { id: "TERMS", label: "Terms & Signature", icon: Check },
@@ -350,6 +354,117 @@ export function InvoiceSettingsClient({ orgId, initialSettings }: Props) {
                       fontSize: "12px",
                       border: "1px solid #cbd5e1",
                       borderRadius: "6px",
+                      fontFamily: "monospace",
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 1.5: Company Details & Invoice Header */}
+        {activeTab === "COMPANY" && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "16px",
+              padding: "16px",
+              borderRadius: "10px",
+              border: "1px solid #e2e8f0",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: "14px", fontWeight: "700", color: "#0f172a", marginBottom: "4px" }}>
+                Company Details & Invoice Header
+              </div>
+              <div style={{ fontSize: "12.5px", color: "#64748b" }}>
+                Configure the organization name, branch address, contact phone, and GSTIN printed at the top of your invoices.
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "14px" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#334155", marginBottom: "5px" }}>
+                  Company / Organization Trade Name
+                </label>
+                <input
+                  type="text"
+                  placeholder={selected?.organizationName || "e.g. Kalki Groups"}
+                  value={config.companyName || ""}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, companyName: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                  }}
+                />
+                <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "3px", display: "block" }}>
+                  Leave blank to automatically inherit the active organization name ({selected?.organizationName || "Kalki Groups"}).
+                </span>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#334155", marginBottom: "5px" }}>
+                  Registered / Branch Office Address
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. 124, Gandhi Road, Anakalpalayam, Erode, Tamil Nadu - 638002"
+                  value={config.companyAddress || ""}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, companyAddress: e.target.value }))}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    lineHeight: "1.4",
+                    fontFamily: "inherit",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#334155", marginBottom: "5px" }}>
+                    Official Contact Phone Number
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 94432 10000"
+                    value={config.companyPhone || ""}
+                    onChange={(e) => setConfig((prev) => ({ ...prev, companyPhone: e.target.value }))}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "13px",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: "600", color: "#334155", marginBottom: "5px" }}>
+                    Company GSTIN
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 33AABCK1234D1Z2"
+                    value={config.companyGstin || ""}
+                    onChange={(e) => setConfig((prev) => ({ ...prev, companyGstin: e.target.value }))}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #cbd5e1",
+                      fontSize: "13px",
+                      textTransform: "uppercase",
                       fontFamily: "monospace",
                     }}
                   />
@@ -742,7 +857,7 @@ export function InvoiceSettingsClient({ orgId, initialSettings }: Props) {
           <div style={{ transform: "scale(0.88)", transformOrigin: "top left", width: "113%" }}>
             <InvoiceRenderer
               invoice={SAMPLE_INVOICE}
-              organization={SAMPLE_ORG}
+              organization={activeOrgPreview}
               config={config}
               templateOverride={previewTemplate}
             />

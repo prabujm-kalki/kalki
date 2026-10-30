@@ -6,11 +6,12 @@ import { DepartmentsDashboard } from "./DepartmentsDashboard";
 import { ShiftDefinitionsDashboard } from "./ShiftDefinitionsDashboard";
 import { SalaryComponentsDashboard } from "./SalaryComponentsDashboard";
 import { LocationsDashboard } from "./LocationsDashboard";
-import { Database, MapPin, Users, Clock, Banknote } from "lucide-react";
+import { PricingTiersDashboard } from "./PricingTiersDashboard";
+import { Database, MapPin, Users, Clock, Banknote, Tag } from "lucide-react";
 
 export function MasterDataDashboard() {
   const { selected } = useSessionView();
-  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "shifts" | "salary">("departments");
+  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "shifts" | "salary" | "pricing">("departments");
 
   if (!selected) {
     return <div style={{ padding: "2rem", textAlign: "center" }}>Please select an organization.</div>;
@@ -36,6 +37,7 @@ export function MasterDataDashboard() {
             { id: "departments", label: "Departments", icon: <Users size={16} /> },
             { id: "shifts", label: "Shifts", icon: <Clock size={16} /> },
             { id: "salary", label: "Salary Components", icon: <Banknote size={16} /> },
+            { id: "pricing", label: "Pricing Tiers", icon: <Tag size={16} /> },
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -68,6 +70,7 @@ export function MasterDataDashboard() {
           {activeTab === "departments" && <DepartmentsDashboard />}
           {activeTab === "shifts" && <ShiftDefinitionsDashboard />}
           {activeTab === "salary" && <SalaryComponentsDashboard />}
+          {activeTab === "pricing" && <PricingTiersDashboard orgId={selected.organizationId} />}
         </div>
     </>
   );

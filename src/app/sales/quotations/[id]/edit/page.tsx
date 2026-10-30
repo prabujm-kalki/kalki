@@ -24,6 +24,7 @@ export default function EditQuotationRatesPage({
   const [saving, setSaving] = useState(false);
   const [quotation, setQuotation] = useState<any>(null);
   const [itemList, setItemList] = useState<any[]>([]);
+  const [itemCategoryFilter, setItemCategoryFilter] = useState<"PRODUCT" | "RAW_MATERIAL" | "ALL">("PRODUCT");
 
   // Editable fields
   const [customerName, setCustomerName] = useState("");
@@ -64,14 +65,14 @@ export default function EditQuotationRatesPage({
         );
 
         if (q.organizationId && q.locationId) {
-          const itemsData = await fetchItems(q.organizationId, q.locationId);
+          const itemsData = await fetchItems(q.organizationId, q.locationId, "", itemCategoryFilter);
           setItemList(itemsData || []);
         }
       }
       setLoading(false);
     }
     loadData();
-  }, [quotationId]);
+  }, [quotationId, itemCategoryFilter]);
 
   const handleLineChange = (idx: number, field: string, val: any) => {
     const updated = [...lines];
@@ -254,26 +255,83 @@ export default function EditQuotationRatesPage({
 
         {/* Lines & Rates Table */}
         <div style={{ backgroundColor: "#ffffff", padding: "18px", borderRadius: "10px", border: "1px solid #e2e8f0", marginBottom: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
             <h2 style={{ fontSize: "14px", fontWeight: "700", color: "#0f172a", margin: 0 }}>Editable Line Items</h2>
-            <button
-              type="button"
-              onClick={handleAddLine}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                padding: "6px 12px",
-                borderRadius: "5px",
-                border: "1px solid #cbd5e1",
-                backgroundColor: "#f8fafc",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-              }}
-            >
-              <Plus size={14} /> Add Line
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* Item Category Toggle */}
+              <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", border: "1px solid #cbd5e1", gap: "2px" }}>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("PRODUCT")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "PRODUCT" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "PRODUCT" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "PRODUCT" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "PRODUCT" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  🛍️ Products & Services
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("RAW_MATERIAL")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "RAW_MATERIAL" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "RAW_MATERIAL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "RAW_MATERIAL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "RAW_MATERIAL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  🌾 Raw Materials
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItemCategoryFilter("ALL")}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    fontWeight: itemCategoryFilter === "ALL" ? 600 : 500,
+                    borderRadius: "5px",
+                    border: "none",
+                    cursor: "pointer",
+                    background: itemCategoryFilter === "ALL" ? "#ffffff" : "transparent",
+                    color: itemCategoryFilter === "ALL" ? "#1e293b" : "#64748b",
+                    boxShadow: itemCategoryFilter === "ALL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                  }}
+                >
+                  📦 All Items
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddLine}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "6px 12px",
+                  borderRadius: "5px",
+                  border: "1px solid #cbd5e1",
+                  backgroundColor: "#f8fafc",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <Plus size={14} /> Add Line
+              </button>
+            </div>
           </div>
 
           <div style={{ overflowX: "auto" }}>

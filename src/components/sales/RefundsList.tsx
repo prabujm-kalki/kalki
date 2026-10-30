@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { fetchRefundsByLocation } from "@/app/sales/actions";
 import { Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { KalkiStandardFilterBar } from "@/components/sales/KalkiStandardFilterBar";
 
 interface Refund {
   id: string;
@@ -21,19 +23,24 @@ interface RefundsListProps {
 }
 
 export default function RefundsList({ organizationId, locationId }: RefundsListProps) {
+  const searchParams = useSearchParams();
   const [refunds, setRefunds] = useState<Refund[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
-  }, [organizationId, locationId]);
+  }, [organizationId, locationId, searchParams]);
 
   const loadData = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetchRefundsByLocation(organizationId, locationId);
+      const q = searchParams.get('q') || undefined;
+      const startDate = searchParams.get('from') || searchParams.get('startDate') || undefined;
+      const endDate = searchParams.get('to') || searchParams.get('endDate') || undefined;
+
+      const res = await fetchRefundsByLocation(organizationId, locationId, q, startDate, endDate);
       if (res.success && res.data) {
         setRefunds(res.data);
       } else {
@@ -73,15 +80,28 @@ export default function RefundsList({ organizationId, locationId }: RefundsListP
 
   if (refunds.length === 0) {
     return (
-      <div className="card" style={{ padding: "4rem 2rem", textAlign: "center", color: "#6b7280", margin: "1.5rem" }}>
-        <p style={{ margin: 0, fontSize: "1.125rem", fontWeight: "500" }}>No refunds processed yet</p>
-        <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.875rem" }}>When credit notes are refunded to customers, they will appear here.</p>
+      <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
+        <KalkiStandardFilterBar
+          searchPlaceholder="Search refunds by customer, credit note, mode..."
+          showRangeFilter={true}
+          showStatusFilter={false}
+        />
+        <div className="card" style={{ padding: "4rem 2rem", textAlign: "center", color: "#6b7280" }}>
+          <p style={{ margin: 0, fontSize: "1.125rem", fontWeight: "500" }}>No refunds found</p>
+          <p style={{ margin: "0.5rem 0 0 0", fontSize: "0.875rem" }}>No processed refunds match the selected search or date filters.</p>
+        </div>
       </div>
     );
   }
 
   return (
     <div style={{ padding: "1.5rem", width: "100%", boxSizing: "border-box" }}>
+      <KalkiStandardFilterBar
+        searchPlaceholder="Search refunds by customer, credit note, mode..."
+        showRangeFilter={true}
+        showStatusFilter={false}
+      />
+
       <div className="card" style={{ backgroundColor: "white", borderRadius: "0.75rem", boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)", overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
           <thead style={{ backgroundColor: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#4b5563", fontSize: "0.75rem", textTransform: "uppercase" }}>

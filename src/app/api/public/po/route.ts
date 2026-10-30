@@ -48,6 +48,8 @@ export async function GET(request: Request) {
         purchaseUnit: items.purchaseUnit,
         baseUnit: items.unit,
         lastRate: vendorItems.lastRate,
+        tierPrices: items.tierPrices,
+        currentPrice: items.currentPrice,
       })
       .from(purchaseOrderLines)
       .innerJoin(items, eq(purchaseOrderLines.itemId, items.id))

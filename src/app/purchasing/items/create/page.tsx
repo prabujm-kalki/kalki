@@ -18,7 +18,7 @@ export default function CreateItemPage() {
     nameEn: '',
     nameTa: '',
     nameHi: '',
-    itemType: 'RAW_MATERIAL' as 'RAW_MATERIAL' | 'EXPENSE' | 'MENU_ITEM',
+    itemType: 'PRODUCT' as 'RAW_MATERIAL' | 'EXPENSE' | 'MENU_ITEM' | 'PRODUCT',
     categoryId: '',
     subcategoryId: '',
     isActive: true,
@@ -88,7 +88,7 @@ export default function CreateItemPage() {
 
   useEffect(() => {
     if (!selected) return;
-    const catType = formData.itemType === 'MENU_ITEM' ? 'MENU' : 'PROCUREMENT';
+    const catType = (formData.itemType === 'PRODUCT' || formData.itemType === 'MENU_ITEM') ? 'MENU' : 'PROCUREMENT';
     fetch(`/api/item-categories?organizationId=${selected.organizationId}&categoryType=${catType}`)
       .then(res => res.json())
       .then(data => setCategories(Array.isArray(data) ? data : []))
@@ -239,9 +239,9 @@ export default function CreateItemPage() {
               value={formData.itemType}
               onChange={e => setFormData(p => ({ ...p, itemType: e.target.value as any, categoryId: '', subcategoryId: '' }))}
             >
+              <option value="PRODUCT">Product / Finished Good (Sales & Billing)</option>
               <option value="RAW_MATERIAL">Raw Material / Ingredient</option>
               <option value="EXPENSE">Operating Expense / Consumable</option>
-              <option value="MENU_ITEM">Restaurant Menu Item (POS)</option>
             </KalkiSelect>
             <div />
           </div>

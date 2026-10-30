@@ -68,12 +68,12 @@ export function InvoiceRenderer({
 }: InvoiceRendererProps) {
   const activeTemplate = templateOverride || config.defaultTemplate || "CLASSIC_CORPORATE";
   const primaryColor = config.primaryColor || "#0f172a";
-  const docTitle = documentTitle || "TAX INVOICE";
+  const docTitle = documentTitle !== undefined ? documentTitle : "TAX INVOICE";
 
-  const orgName = organization?.name || "KALKI ENTERPRISES";
-  const orgAddress = organization?.address || "";
-  const orgPhone = organization?.phone || "";
-  const orgGstin = organization?.gstin || "";
+  const orgName = config.companyName?.trim() || organization?.name || "KALKI ENTERPRISES";
+  const orgAddress = config.companyAddress !== undefined && config.companyAddress !== "" ? config.companyAddress : (organization?.address || "");
+  const orgPhone = config.companyPhone !== undefined && config.companyPhone !== "" ? config.companyPhone : (organization?.phone || "");
+  const orgGstin = config.companyGstin !== undefined && config.companyGstin !== "" ? config.companyGstin : (organization?.gstin || "");
 
   const items = invoice.items || [];
   const grandTotalNum = Number(invoice.grandTotal || 0);
@@ -124,9 +124,11 @@ export function InvoiceRenderer({
           </div>
 
           <div style={{ textAlign: "right" }}>
-            <h2 style={{ fontSize: "18px", fontWeight: "800", color: primaryColor, letterSpacing: "1px", margin: "0 0 4px 0" }}>
-              {docTitle}
-            </h2>
+            {docTitle ? (
+              <h2 style={{ fontSize: "18px", fontWeight: "800", color: primaryColor, letterSpacing: "1px", margin: "0 0 4px 0" }}>
+                {docTitle}
+              </h2>
+            ) : null}
             <p style={{ margin: "2px 0", fontSize: "14px", fontWeight: "700", color: "#0f172a" }}>
               #{invoice.invoiceNumber}
             </p>
@@ -321,9 +323,11 @@ export function InvoiceRenderer({
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "40px" }}>
           <div>
-            <div style={{ display: "inline-block", padding: "6px 12px", borderRadius: "6px", backgroundColor: primaryColor, color: "#ffffff", fontSize: "14px", fontWeight: "800", letterSpacing: "1px", marginBottom: "12px" }}>
-              {docTitle}
-            </div>
+            {docTitle ? (
+              <div style={{ display: "inline-block", padding: "6px 12px", borderRadius: "6px", backgroundColor: primaryColor, color: "#ffffff", fontSize: "14px", fontWeight: "800", letterSpacing: "1px", marginBottom: "12px" }}>
+                {docTitle}
+              </div>
+            ) : null}
             <h1 style={{ fontSize: "24px", fontWeight: "800", color: "#0f172a", margin: "0 0 4px 0" }}>
               {orgName}
             </h1>

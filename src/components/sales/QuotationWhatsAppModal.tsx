@@ -33,7 +33,8 @@ export function QuotationWhatsAppModal({
 }: QuotationWhatsAppModalProps) {
   if (!isOpen) return null;
 
-  const docLabel = docType === "PROFORMA" ? "Proforma Invoice" : "Quotation";
+  const docLabel =
+    docType === "DUMMY" ? "Dummy Bill" : docType === "PROFORMA" ? "Proforma Invoice" : "Quotation";
 
   const handleSend = async () => {
     if (onConfirmSent) {

@@ -100,6 +100,21 @@ export async function submitCreditNote(input: any) {
   }
 }
 
+export async function fetchInvoiceById(invoiceId: string) {
+  const reqHeaders = await headers();
+  const session = await auth.api.getSession({ headers: reqHeaders });
+  if (!session?.user) return { success: false, error: "Unauthorized" };
+
+  try {
+    const { getInvoiceById } = await import("@/domains/finance/receivables-service");
+    const data = await getInvoiceById(invoiceId);
+    if (!data) return { success: false, error: "Invoice not found" };
+    return { success: true, data };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function fetchOpenInvoices(customerId: string) {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });

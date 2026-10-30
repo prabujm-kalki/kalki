@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { customers, salesInvoices, salesReceipts, salesCreditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations } from "@/db/schema";
+import { customers, salesInvoices, salesReceipts, salesCreditNotes, journalEntries, journalLineItems, accounts, salesReceiptAllocations, creditNoteApplications } from "@/db/schema";
 import { eq, sql, and, gte, lte, ilike, or } from "drizzle-orm";
 
 export async function getCustomerBalances(organizationId: string, searchQuery?: string, page: number = 1, limit: number = 10) {
@@ -60,7 +60,7 @@ export async function getAgeingReport(organizationId: string, searchQuery?: stri
 
   const baseWhere = [
     eq(customers.organizationId, organizationId), 
-    eq(salesInvoices.status, 'open')
+    sql`(${salesInvoices.paymentStatus} != 'PAID' AND ${salesInvoices.status} != 'CANCELLED')`
   ];
   if (searchQuery) {
     baseWhere.push(ilike(customers.name, `%${searchQuery}%`));
@@ -68,14 +68,16 @@ export async function getAgeingReport(organizationId: string, searchQuery?: stri
   const whereClause = and(...baseWhere);
 
   // Ageing buckets based on remaining amount (Total - Allocated Receipts)
+  // Note: In PostgreSQL, (CURRENT_DATE - timestamp) yields an `interval`, so we cast dueDate to date: CURRENT_DATE - (due_date::date)
+  const daysPastDue = sql`COALESCE(CURRENT_DATE - CAST(${salesInvoices.dueDate} AS DATE), 0)`;
   const query = await db
     .select({
       customerId: customers.id,
       customerName: customers.name,
-      current: sql<number>`SUM(CASE WHEN CURRENT_DATE - ${salesInvoices.dueDate} <= 30 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
-      days31to60: sql<number>`SUM(CASE WHEN CURRENT_DATE - ${salesInvoices.dueDate} > 30 AND CURRENT_DATE - ${salesInvoices.dueDate} <= 60 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
-      days61to90: sql<number>`SUM(CASE WHEN CURRENT_DATE - ${salesInvoices.dueDate} > 60 AND CURRENT_DATE - ${salesInvoices.dueDate} <= 90 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
-      over90: sql<number>`SUM(CASE WHEN CURRENT_DATE - ${salesInvoices.dueDate} > 90 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`
+      current: sql<number>`SUM(CASE WHEN ${daysPastDue} <= 30 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
+      days31to60: sql<number>`SUM(CASE WHEN ${daysPastDue} > 30 AND ${daysPastDue} <= 60 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
+      days61to90: sql<number>`SUM(CASE WHEN ${daysPastDue} > 60 AND ${daysPastDue} <= 90 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
+      over90: sql<number>`SUM(CASE WHEN ${daysPastDue} > 90 THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`
     })
     .from(customers)
     .innerJoin(salesInvoices, eq(customers.id, salesInvoices.customerId))
@@ -199,12 +201,32 @@ export async function createReceipt(input: {
     // 5. Update Invoice Status
     if (input.allocations && input.allocations.length > 0) {
       for (const alloc of input.allocations) {
-        // Get total allocations for this invoice
-        const [inv] = await tx.select({ totalAmount: salesInvoices.totalAmount }).from(salesInvoices).where(eq(salesInvoices.id, alloc.invoiceId));
+        // Get total invoice amount
+        const [inv] = await tx.select({ 
+          totalAmount: salesInvoices.totalAmount 
+        }).from(salesInvoices).where(eq(salesInvoices.id, alloc.invoiceId));
+        
         if (inv) {
-          const [sumRes] = await tx.select({ totalAllocated: sql<number>`SUM(CAST(amount_applied AS NUMERIC))` }).from(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, alloc.invoiceId));
-          if (sumRes && Number(sumRes.totalAllocated) >= Number(inv.totalAmount)) {
-            await tx.update(salesInvoices).set({ status: 'paid' }).where(eq(salesInvoices.id, alloc.invoiceId));
+          const [sumRes] = await tx.select({ 
+            totalAllocated: sql<number>`COALESCE(SUM(CAST(amount_applied AS NUMERIC)), 0)` 
+          }).from(salesReceiptAllocations).where(eq(salesReceiptAllocations.invoiceId, alloc.invoiceId));
+          
+          const [cnRes] = await tx.select({
+            totalCreditApplied: sql<number>`COALESCE(SUM(CAST(applied_amount AS NUMERIC)), 0)`
+          }).from(creditNoteApplications).where(eq(creditNoteApplications.appliedToInvoiceId, alloc.invoiceId));
+
+          const totalPaidOrCredited = Number(sumRes?.totalAllocated || 0) + Number(cnRes?.totalCreditApplied || 0);
+          const totalInvAmount = Number(inv.totalAmount || 0);
+
+          if (totalPaidOrCredited >= totalInvAmount) {
+            await tx.update(salesInvoices).set({ 
+              status: 'PAID',
+              paymentStatus: 'PAID'
+            }).where(eq(salesInvoices.id, alloc.invoiceId));
+          } else if (totalPaidOrCredited > 0) {
+            await tx.update(salesInvoices).set({ 
+              paymentStatus: 'PARTIAL'
+            }).where(eq(salesInvoices.id, alloc.invoiceId));
           }
         }
       }
@@ -442,6 +464,42 @@ export async function createCreditNote(input: {
   });
 }
 
+export async function getInvoiceById(invoiceId: string) {
+  const [inv] = await db
+    .select({
+      id: salesInvoices.id,
+      invoiceNumber: salesInvoices.invoiceNumber,
+      invoiceDate: salesInvoices.invoiceDate,
+      dueDate: salesInvoices.dueDate,
+      totalAmount: salesInvoices.totalAmount,
+      status: salesInvoices.status,
+      paymentStatus: salesInvoices.paymentStatus,
+      customerId: salesInvoices.customerId,
+      customerName: customers.name,
+      locationId: salesInvoices.locationId,
+      paidAmount: sql<number>`COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)`,
+      creditApplied: sql<number>`COALESCE((SELECT SUM(CAST(applied_amount AS NUMERIC)) FROM credit_note_applications WHERE applied_to_invoice_id = ${salesInvoices.id}), 0)`
+    })
+    .from(salesInvoices)
+    .leftJoin(customers, eq(salesInvoices.customerId, customers.id))
+    .where(eq(salesInvoices.id, invoiceId));
+
+  if (!inv) return null;
+
+  const total = Number(inv.totalAmount || 0);
+  const paid = Number(inv.paidAmount || 0);
+  const credited = Number(inv.creditApplied || 0);
+  const balanceDue = Math.max(0, total - paid - credited);
+
+  return {
+    ...inv,
+    totalAmount: total,
+    paidAmount: paid,
+    creditApplied: credited,
+    balanceDue
+  };
+}
+
 export async function getOpenInvoicesForCustomer(customerId: string) {
   const query = await db
     .select({
@@ -452,7 +510,7 @@ export async function getOpenInvoicesForCustomer(customerId: string) {
       status: salesInvoices.status
     })
     .from(salesInvoices)
-    .where(and(eq(salesInvoices.customerId, customerId), eq(salesInvoices.status, 'open')))
+    .where(and(eq(salesInvoices.customerId, customerId), sql`(${salesInvoices.paymentStatus} != 'PAID' AND ${salesInvoices.status} != 'CANCELLED')`))
     .orderBy(sql`${salesInvoices.invoiceDate} ASC`);
     
   return query;
@@ -480,7 +538,7 @@ export async function getReceivablesSummary(organizationId: string) {
     current: sql<number>`SUM(CASE WHEN CURRENT_DATE <= ${salesInvoices.dueDate} THEN (${salesInvoices.totalAmount} - COALESCE((SELECT SUM(CAST(amount_applied AS NUMERIC)) FROM sales_receipt_allocations WHERE invoice_id = ${salesInvoices.id}), 0)) ELSE 0 END)`,
   }).from(salesInvoices).where(and(
     eq(salesInvoices.organizationId, organizationId), 
-    eq(salesInvoices.status, 'open')
+    sql`(${salesInvoices.paymentStatus} != 'PAID' AND ${salesInvoices.status} != 'CANCELLED')`
   ));
 
   return {

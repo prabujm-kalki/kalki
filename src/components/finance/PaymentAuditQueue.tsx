@@ -15,6 +15,8 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
   const [cashierPaymentMethod, setCashierPaymentMethod] = useState<string>("cash");
   const [auditNotes, setauditNotes] = useState<string>("");
   const [billFile, setBillFile] = useState<File | null>(null);
+  const [showSellingTiers, setShowSellingTiers] = useState<boolean>(false);
+  const [pricingConfig, setPricingConfig] = useState<any>(null);
 
   const [errorMsg, setErrorMsg] = useState<string>("");
 
@@ -28,14 +30,34 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
     setLoadingLines(true);
     setverifiedBillAmount(po.verifiedBillAmount || po.totalAmount || "");
     try {
+      // Fetch pricing config if available
+      try {
+        const { getPricingTierSettings } = await import("@/app/settings/master-data/pricing-actions");
+        if (po.organizationId) {
+          const cfg = await getPricingTierSettings(po.organizationId);
+          setPricingConfig(cfg);
+        }
+      } catch (e) {
+        console.error("Pricing settings load failed", e);
+      }
+
       const res = await fetch(`/api/public/po?token=${po.publicToken}`);
       if (res.ok) {
         const data = await res.json();
-        // Default unitRate to lastRate if it is 0 or missing
-        const mappedLines = (data.lines || []).map((l: any) => ({
-          ...l,
-          unitRate: l.unitRate ? l.unitRate : (l.lastRate || 0)
-        }));
+        // Default unitRate to lastRate if it is 0 or missing, initialize tierPrices
+        const mappedLines = (data.lines || []).map((l: any) => {
+          const tiers = l.tierPrices || {};
+          return {
+            ...l,
+            unitRate: l.unitRate ? l.unitRate : (l.lastRate || 0),
+            tierPrices: {
+              tier1: tiers.tier1 !== undefined ? tiers.tier1 : (l.currentPrice || ""),
+              tier2: tiers.tier2 !== undefined ? tiers.tier2 : "",
+              tier3: tiers.tier3 !== undefined ? tiers.tier3 : "",
+              tier4: tiers.tier4 !== undefined ? tiers.tier4 : "",
+            }
+          };
+        });
         setAuditLines(mappedLines);
       } else {
         setErrorMsg("Failed to load PO details");
@@ -144,11 +166,25 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>Loading line details...</div>
               ) : (
                 <>
-                  <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '2rem' }}>
+                  <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
                       <p className="muted" style={{ margin: '0 0 0.25rem 0' }}>Vendor</p>
                       <p style={{ margin: 0, fontWeight: 'bold' }}>{auditingPo.vendorName}</p>
                     </div>
+
+                    {(pricingConfig?.multiPricingEnabled ?? true) && (
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer', background: showSellingTiers ? '#eff6ff' : '#f8fafc', padding: '6px 12px', borderRadius: '6px', border: `1px solid ${showSellingTiers ? '#93c5fd' : '#cbd5e1'}` }}>
+                        <input 
+                          type="checkbox" 
+                          checked={showSellingTiers} 
+                          onChange={(e) => setShowSellingTiers(e.target.checked)}
+                          style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: showSellingTiers ? '#1d4ed8' : '#475569' }}>
+                          🏷️ Update Selling Prices (Multi-Tier)
+                        </span>
+                      </label>
+                    )}
                   </div>
 
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
@@ -157,8 +193,16 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                         <th style={{ padding: '0.5rem' }}>Item</th>
                         <th style={{ padding: '0.5rem', textAlign: 'right' }}>Ordered</th>
                         <th style={{ padding: '0.5rem', textAlign: 'right' }}>Received</th>
-                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Unit Rate</th>
+                        <th style={{ padding: '0.5rem', textAlign: 'right' }}>Unit Rate (Cost)</th>
                         <th style={{ padding: '0.5rem', textAlign: 'right' }}>Total</th>
+                        {showSellingTiers && (
+                          <>
+                            <th style={{ padding: '0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>{pricingConfig?.pricingTiers?.tier1 || 'Retail'} (₹)</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>{pricingConfig?.pricingTiers?.tier2 || 'Wholesale'} (₹)</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>{pricingConfig?.pricingTiers?.tier3 || 'Dealers'} (₹)</th>
+                            <th style={{ padding: '0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>{pricingConfig?.pricingTiers?.tier4 || 'Tier 4'} (₹)</th>
+                          </>
+                        )}
                       </tr>
                     </thead>
                     <tbody>
@@ -188,6 +232,62 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                               </div>
                             </td>
                             <td style={{ padding: '0.5rem', textAlign: 'right' }}>{formatCurrency(lineTotal)}</td>
+                            {showSellingTiers && (
+                              <>
+                                <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={line.tierPrices?.tier1 ?? ''}
+                                    onChange={(e) => {
+                                      const newLines = [...auditLines];
+                                      newLines[idx].tierPrices = { ...(newLines[idx].tierPrices || {}), tier1: e.target.value };
+                                      setAuditLines(newLines);
+                                    }}
+                                    style={{ width: '70px', textAlign: 'right', padding: '0.2rem', border: '1px solid #86efac', borderRadius: '0.25rem', fontSize: '12px' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={line.tierPrices?.tier2 ?? ''}
+                                    onChange={(e) => {
+                                      const newLines = [...auditLines];
+                                      newLines[idx].tierPrices = { ...(newLines[idx].tierPrices || {}), tier2: e.target.value };
+                                      setAuditLines(newLines);
+                                    }}
+                                    style={{ width: '70px', textAlign: 'right', padding: '0.2rem', border: '1px solid #86efac', borderRadius: '0.25rem', fontSize: '12px' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={line.tierPrices?.tier3 ?? ''}
+                                    onChange={(e) => {
+                                      const newLines = [...auditLines];
+                                      newLines[idx].tierPrices = { ...(newLines[idx].tierPrices || {}), tier3: e.target.value };
+                                      setAuditLines(newLines);
+                                    }}
+                                    style={{ width: '70px', textAlign: 'right', padding: '0.2rem', border: '1px solid #86efac', borderRadius: '0.25rem', fontSize: '12px' }}
+                                  />
+                                </td>
+                                <td style={{ padding: '0.35rem 0.5rem', textAlign: 'right', backgroundColor: '#f0fdf4' }}>
+                                  <input 
+                                    type="number" 
+                                    placeholder="0"
+                                    value={line.tierPrices?.tier4 ?? ''}
+                                    onChange={(e) => {
+                                      const newLines = [...auditLines];
+                                      newLines[idx].tierPrices = { ...(newLines[idx].tierPrices || {}), tier4: e.target.value };
+                                      setAuditLines(newLines);
+                                    }}
+                                    style={{ width: '70px', textAlign: 'right', padding: '0.2rem', border: '1px solid #86efac', borderRadius: '0.25rem', fontSize: '12px' }}
+                                  />
+                                </td>
+                              </>
+                            )}
                           </tr>
                         );
                       })}
@@ -196,6 +296,7 @@ export function PaymentAuditQueue({ initialPos }: { initialPos: any[] }) {
                       <tr>
                         <td colSpan={4} style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold' }}>Calculated Total:</td>
                         <td style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: 'bold', fontSize: '1.1rem' }}>{formatCurrency(calculatedTotal)}</td>
+                        {showSellingTiers && <td colSpan={4} style={{ backgroundColor: '#f0fdf4' }}></td>}
                       </tr>
                     </tfoot>
                   </table>

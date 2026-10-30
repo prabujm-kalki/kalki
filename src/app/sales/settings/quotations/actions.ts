@@ -11,6 +11,14 @@ export interface QuotationSettingsConfig {
   defaultNotes: string;
   defaultTermsAndConditions: string;
   whatsappDispatchMode?: "NO_WHATSAPP" | "API_AUTOMATED" | "WEB_LINK_POPUP";
+  multiPricingEnabled?: boolean;
+  pricingTiers?: {
+    tier1: string; // Customer / Retail
+    tier2: string; // Wholesale Supplies
+    tier3: string; // Dealers
+    tier4: string; // Custom / VIP
+  };
+  defaultPricingTier?: "tier1" | "tier2" | "tier3" | "tier4";
 }
 
 const DEFAULT_CONFIG: QuotationSettingsConfig = {
@@ -19,6 +27,14 @@ const DEFAULT_CONFIG: QuotationSettingsConfig = {
   defaultNotes: "Thank you for your business inquiry!",
   defaultTermsAndConditions: "1. Goods once sold will be accepted under warranty policy.\n2. Rates quoted are valid until the validity date specified.\n3. Taxes as applicable at time of invoicing.",
   whatsappDispatchMode: "WEB_LINK_POPUP",
+  multiPricingEnabled: true,
+  pricingTiers: {
+    tier1: "Customer / Retail",
+    tier2: "Wholesale Supplies",
+    tier3: "Dealers",
+    tier4: "Special / Institutional",
+  },
+  defaultPricingTier: "tier1",
 };
 
 export async function getQuotationSettings(orgId: string): Promise<QuotationSettingsConfig> {

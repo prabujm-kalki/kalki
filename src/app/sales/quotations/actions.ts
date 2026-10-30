@@ -37,7 +37,7 @@ export interface QuotationLineInput {
 export interface CreateQuotationInput {
   organizationId: string;
   locationId: string;
-  docType?: "QUOTATION" | "PROFORMA";
+  docType?: "QUOTATION" | "PROFORMA" | "DUMMY";
   customerId: string;
   customerName: string;
   customerPhone?: string;
@@ -56,14 +56,14 @@ export interface UpdateQuotationInput extends CreateQuotationInput {
 }
 
 /**
- * Generate next quotation or proforma number
- * e.g. QT-2026-0001 or PI-2026-0001
+ * Generate next quotation, proforma or dummy bill number
+ * e.g. QT-2026-0001, PI-2026-0001, DB-2026-0001
  */
 async function generateQuotationNumber(
   organizationId: string,
-  docType: "QUOTATION" | "PROFORMA"
+  docType: "QUOTATION" | "PROFORMA" | "DUMMY"
 ): Promise<string> {
-  const prefix = docType === "PROFORMA" ? "PI" : "QT";
+  const prefix = docType === "PROFORMA" ? "PI" : docType === "DUMMY" ? "DB" : "QT";
   const year = new Date().getFullYear();
   const searchPattern = `${prefix}-${year}-%`;
 

@@ -39,7 +39,7 @@ const itemSchema = z.object({
   vendorIds: z.array(z.string().uuid()).min(1, 'At least one vendor is required'),
   organizationId: z.string().uuid(),
   locationId: z.string().uuid(),
-  itemType: z.enum(['RAW_MATERIAL', 'EXPENSE', 'MENU_ITEM']).optional().default('RAW_MATERIAL'),
+  itemType: z.enum(['RAW_MATERIAL', 'EXPENSE', 'MENU_ITEM', 'PRODUCT']).optional().default('PRODUCT'),
   categoryId: z.string().uuid().optional().nullable(),
   subcategoryId: z.string().uuid().optional().nullable(),
 });

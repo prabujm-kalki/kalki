@@ -16,7 +16,7 @@ type PurchasingNavLink = {
 
 const NAV_LINKS: PurchasingNavLink[] = [
   { name: "Dashboard", href: `/purchasing/dashboard`, exact: false, icon: LayoutDashboard, perm: "purchasing.dashboard:read" },
-  { name: "Create PO", href: `/purchasing/purchase-orders/create`, exact: false, icon: ShoppingCart, perm: "purchasing.create_po:create" },
+  { name: "Purchase Orders", href: `/purchasing/purchase-orders/create`, exact: false, icon: ShoppingCart, perm: "purchasing.create_po:create" },
   { name: "Items", href: `/purchasing/items`, exact: false, icon: Box, perm: "purchasing.items:read" },
   { name: "Vendors", href: `/purchasing/vendors`, exact: false, icon: Store, perm: "purchasing.vendors:read" },
   { name: "Reports", href: `/purchasing/reports`, exact: false, icon: BarChart2, perm: "purchasing.reports:read" },
