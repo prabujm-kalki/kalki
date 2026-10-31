@@ -514,6 +514,8 @@ export async function fetchGlobalPendingTasks(params?: {
     }
 
     // 7. Fetch Task Engine: Active Routine/Assigned Tasks (status in ('pending', 'in_progress'))
+    // Best Practice (Industry Standard): When a task is escalated, it remains visible and actionable
+    // to the original assignee / operational role, while simultaneously notifying supervisor and management roles.
     const activeRoutineConditions = [
       eq(taskInstances.organizationId, organizationId),
       inArray(taskInstances.status, ["pending", "in_progress"]),
@@ -524,7 +526,14 @@ export async function fetchGlobalPendingTasks(params?: {
         activeRoutineConditions.push(
           or(
             eq(taskInstances.assignedUserId, userId),
-            inArray(taskInstances.assignedRoleId, userRoleIds)
+            inArray(taskInstances.assignedRoleId, userRoleIds),
+            // Match if user's role was the initial responsible role (stored in contextData)
+            sql`(${taskInstances.contextData}->>'initialRoleId') IN (${sql.join(userRoleIds.map(r => sql`${r}`), sql`, `)})`,
+            // Match if user's role is in the escalation role history
+            sql`EXISTS (
+              SELECT 1 FROM jsonb_array_elements_text(COALESCE(${taskInstances.contextData}->'escalationRoleHistory', '[]'::jsonb)) AS elem
+              WHERE elem IN (${sql.join(userRoleIds.map(r => sql`${r}`), sql`, `)})
+            )`
           )!
         );
       } else {
@@ -552,12 +561,20 @@ export async function fetchGlobalPendingTasks(params?: {
       const isPurchasingRoutine = Boolean(ctx.scheduleId || ctx.vendorId || ctx.actionUrl?.includes("stock-assessment"));
       
       // If this is an operational purchasing routine task (e.g. Daily Stock Assessment),
-      // it must strictly target the designated operational role (e.g. Head Chef).
-      // It should NOT show on the System Owner's pending banner unless the user actually holds that role or is directly assigned.
-      if (isPurchasingRoutine) {
+      // allow:
+      // 1. Directly assigned user
+      // 2. User holding current assignedRoleId
+      // 3. User holding initial responsible role (e.g. Tandoori Chef / Raju)
+      // 4. User holding any intermediate escalation role (e.g. Head Chef)
+      // 5. System Owner / Executive Director
+      if (isPurchasingRoutine && !isOwner) {
         const isDirectlyAssigned = instance.assignedUserId === userId;
-        const hasAssignedRole = Boolean(instance.assignedRoleId && userRoleIds.includes(instance.assignedRoleId));
-        if (!isDirectlyAssigned && !hasAssignedRole) {
+        const hasCurrentAssignedRole = Boolean(instance.assignedRoleId && userRoleIds.includes(instance.assignedRoleId));
+        const hasInitialRole = Boolean(ctx.initialRoleId && userRoleIds.includes(ctx.initialRoleId));
+        const hasHistoryRole = Array.isArray(ctx.escalationRoleHistory) 
+          && ctx.escalationRoleHistory.some((rid: string) => userRoleIds.includes(rid));
+
+        if (!isDirectlyAssigned && !hasCurrentAssignedRole && !hasInitialRole && !hasHistoryRole) {
           continue;
         }
       }

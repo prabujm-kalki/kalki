@@ -152,6 +152,7 @@ export async function generateRoutinePurchaseTasks() {
           scheduleId: schedule.id,
           vendorId: schedule.vendorId,
           vendorName: schedule.vendorName,
+          initialRoleId: schedule.responsibleRoleId,
           locationId: schedule.locationId,
           locationName: schedule.locationName,
           title: `${schedule.vendorName}_${schedule.frequencyRule.charAt(0) + schedule.frequencyRule.slice(1).toLowerCase()}_${schedule.reminderTime}`,

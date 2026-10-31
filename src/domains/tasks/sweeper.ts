@@ -138,6 +138,15 @@ export async function runEscalationSweeper() {
       const ctx: any = task.contextData || {};
       ctx.escalated = true;
       ctx.escalationReason = `Escalated to Level ${nextLevel}`;
+      if (!ctx.initialRoleId) {
+        ctx.initialRoleId = task.assignedRoleId;
+      }
+      if (!Array.isArray(ctx.escalationRoleHistory)) {
+        ctx.escalationRoleHistory = task.assignedRoleId ? [task.assignedRoleId] : [];
+      }
+      if (finalRoleId && !ctx.escalationRoleHistory.includes(finalRoleId)) {
+        ctx.escalationRoleHistory.push(finalRoleId);
+      }
 
       // Update the task to the next level
       await db.update(taskInstances)
@@ -166,14 +175,36 @@ export async function runEscalationSweeper() {
       });
 
       // Dispatch Native Push with matched sound for this escalation level
+      const targetUserIdsToSend = new Set<string>();
       if (finalUserId) {
+        targetUserIdsToSend.add(finalUserId);
+      } else if (finalRoleId) {
+        // Look up all active employees assigned to this role in the organization
+        const { employeeRoleAssignments, employees } = await import("@/db/schema");
+        const roleUsers = await db.select({ userId: employees.userId })
+          .from(employeeRoleAssignments)
+          .innerJoin(employees, eq(employeeRoleAssignments.employeeId, employees.id))
+          .where(and(
+            eq(employeeRoleAssignments.organizationId, task.organizationId),
+            eq(employeeRoleAssignments.roleId, finalRoleId),
+            eq(employeeRoleAssignments.isActive, true)
+          ));
+
+        for (const u of roleUsers) {
+          if (u.userId) targetUserIdsToSend.add(u.userId);
+        }
+      }
+
+      if (targetUserIdsToSend.size > 0) {
         import("@/lib/pushNotificationSender").then(({ sendNativePushNotification }) => {
-          sendNativePushNotification(finalUserId, {
-            title: `⚠️ Task Escalated: Level ${nextLevel}`,
-            body: `A task has breached deadline and escalated to Level ${nextLevel}. Immediate attention required.`,
-            level: `level-${Math.min(nextLevel + 1, 5)}`,
-            data: { taskId: task.id },
-          }).catch(() => {});
+          for (const uid of targetUserIdsToSend) {
+            sendNativePushNotification(uid, {
+              title: `⚠️ Task Escalated: Level ${nextLevel}`,
+              body: `Task "${ctx.title || task.id.slice(0, 8)}" breached SLA and escalated to your role (Level ${nextLevel}). Immediate attention required.`,
+              level: `level-${Math.min(nextLevel + 1, 5)}`,
+              data: { taskId: task.id },
+            }).catch(() => {});
+          }
         });
       }
     } else {
