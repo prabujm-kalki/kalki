@@ -9,6 +9,17 @@ import autoTable from "jspdf-autotable";
 
 type ReportType = "RAW" | "DETAILED" | "SUMMARY";
 
+function isEmployeeAttendanceExempt(emp: any): boolean {
+  const code = (emp.code || "").toUpperCase();
+  const title = (emp.jobTitle || "").toLowerCase();
+  const name = (emp.name || "").toLowerCase();
+  // System owner and corporate executive/owner roles are exempt from shift punch attendance calculations
+  if (code.includes("OWNER") || code === "KAL-EMP-0002") return true;
+  if (title.includes("owner") || title.includes("director") || title.includes("executive")) return true;
+  if (name.includes("owner") || name.includes("prabha")) return true;
+  return false;
+}
+
 export default function ReportsClient({ 
   departments, 
   roles, 
@@ -105,7 +116,10 @@ export default function ReportsClient({
       ].join("\n");
     } else if (reportType === "DETAILED" || reportType === "SUMMARY") {
       const dates = getDatesInRange(startDate, endDate);
-      const filteredEmployees = employees.filter(e => { if (e.organizationId && e.organizationId !== selected?.organizationId) return false; if (e.locationId && e.locationId !== selected?.locationId) return false;
+      const filteredEmployees = employees.filter(e => {
+        if (isEmployeeAttendanceExempt(e)) return false;
+        if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
+        if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
         return true;
@@ -391,6 +405,7 @@ export default function ReportsClient({
     } else if (reportType === "DETAILED") {
       const dates = getDatesInRange(startDate, endDate);
       const filteredEmployees = employees.filter((e) => {
+        if (isEmployeeAttendanceExempt(e)) return false;
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
         if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
@@ -635,6 +650,7 @@ export default function ReportsClient({
     } else if (reportType === "SUMMARY") {
       const dates = getDatesInRange(startDate, endDate);
       const filteredEmployees = employees.filter((e) => {
+        if (isEmployeeAttendanceExempt(e)) return false;
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
         if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
@@ -844,7 +860,10 @@ export default function ReportsClient({
 
     if (reportType === "DETAILED" || reportType === "SUMMARY") {
       const dates = getDatesInRange(startDate, endDate);
-      const filteredEmployees = employees.filter(e => { if (e.organizationId && e.organizationId !== selected?.organizationId) return false; if (e.locationId && e.locationId !== selected?.locationId) return false;
+      const filteredEmployees = employees.filter(e => {
+        if (isEmployeeAttendanceExempt(e)) return false;
+        if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
+        if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
         return true;

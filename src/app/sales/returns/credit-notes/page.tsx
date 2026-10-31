@@ -30,7 +30,7 @@ function CreditNotesContent() {
   return (
     <div style={{ width: "100%", padding: "1.25rem 1.5rem" }}>
       <KalkiStandardFilterBar
-        searchPlaceholder="Search credit notes by #..."
+        searchPlaceholder="Search by Credit Note #, Invoice #, or Customer..."
         showRangeFilter={true}
         showStatusFilter={true}
         statusOptions={[

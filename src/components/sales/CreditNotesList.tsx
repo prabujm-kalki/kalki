@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { fetchCreditNotesByLocation } from "@/app/sales/actions"; 
-import { MoreVertical, Loader2, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { MoreVertical, Loader2, AlertCircle, ChevronDown, ChevronRight, FileText, ArrowRight } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 import SearchFilterBar from "@/components/sales/SearchFilterBar";
 import Pagination from "@/components/sales/Pagination";
 import ApplyCreditModal from "./ApplyCreditModal";
@@ -17,6 +17,9 @@ interface CreditNote {
   status: string;
   issueDate: string | Date;
   customerId: string;
+  customerName?: string | null;
+  sourceInvoiceId?: string | null;
+  sourceInvoiceNumber?: string | null;
   applications?: any[];
 }
 
@@ -26,6 +29,7 @@ interface CreditNotesListProps {
 }
 
 export default function CreditNotesList({ locationId, organizationId }: CreditNotesListProps) {
+  const router = useRouter();
   const [creditNotes, setCreditNotes] = useState<CreditNote[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -161,6 +165,7 @@ export default function CreditNotesList({ locationId, organizationId }: CreditNo
             <tr>
               <th style={{ padding: "1rem", fontWeight: "600" }}>Date</th>
               <th style={{ padding: "1rem", fontWeight: "600" }}>Credit Note #</th>
+              <th style={{ padding: "1rem", fontWeight: "600" }}>Origin Invoice #</th>
               <th style={{ padding: "1rem", fontWeight: "600" }}>Total Amount</th>
               <th style={{ padding: "1rem", fontWeight: "600" }}>Remaining Balance</th>
               <th style={{ padding: "1rem", fontWeight: "600" }}>Status</th>
@@ -184,6 +189,32 @@ export default function CreditNotesList({ locationId, organizationId }: CreditNo
                   </td>
                   <td style={{ padding: "1rem", fontWeight: "500", color: "#111827" }}>
                     {note.creditNoteNumber}
+                  </td>
+                  <td style={{ padding: "1rem" }}>
+                    {note.sourceInvoiceNumber ? (
+                      <button
+                        onClick={() => router.push(`/sales/invoices/all?q=${encodeURIComponent(note.sourceInvoiceNumber || '')}`)}
+                        style={{
+                          background: "#eff6ff",
+                          border: "1px solid #bfdbfe",
+                          borderRadius: "6px",
+                          padding: "4px 8px",
+                          color: "#1d4ed8",
+                          fontWeight: "600",
+                          fontSize: "0.8125rem",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px"
+                        }}
+                        title="View Original Sales Invoice"
+                      >
+                        <FileText size={13} />
+                        {note.sourceInvoiceNumber}
+                      </button>
+                    ) : (
+                      <span style={{ color: "#9ca3af", fontSize: "0.8125rem", fontStyle: "italic" }}>Direct / None</span>
+                    )}
                   </td>
                   <td style={{ padding: "1rem" }}>
                     {formatCurrency(note.totalAmount)}
@@ -233,14 +264,14 @@ export default function CreditNotesList({ locationId, organizationId }: CreditNo
                 </tr>
                 {expandedNoteId === note.id && (
                   <tr style={{ backgroundColor: "#f9fafb" }}>
-                    <td colSpan={6} style={{ padding: "1.5rem" }}>
+                    <td colSpan={7} style={{ padding: "1.5rem" }}>
                       <h4 style={{ margin: "0 0 1rem 0", fontSize: "0.875rem", fontWeight: "600", color: "#374151" }}>Audit Trail - Applications</h4>
                       {note.applications && note.applications.length > 0 ? (
                         <table style={{ width: "100%", borderCollapse: "collapse", backgroundColor: "white", border: "1px solid #e5e7eb", borderRadius: "0.375rem" }}>
                           <thead style={{ backgroundColor: "#f3f4f6", fontSize: "0.75rem", color: "#4b5563" }}>
                             <tr>
                               <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "500" }}>Date Applied</th>
-                              <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "500" }}>Invoice ID</th>
+                              <th style={{ padding: "0.75rem", textAlign: "left", fontWeight: "500" }}>Applied Invoice #</th>
                               <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "500" }}>Amount Applied</th>
                             </tr>
                           </thead>
@@ -248,7 +279,32 @@ export default function CreditNotesList({ locationId, organizationId }: CreditNo
                             {note.applications.map(app => (
                               <tr key={app.id} style={{ borderTop: "1px solid #e5e7eb", fontSize: "0.875rem", color: "#374151" }}>
                                 <td style={{ padding: "0.75rem" }}>{new Date(app.appliedAt).toLocaleString()}</td>
-                                <td style={{ padding: "0.75rem", fontFamily: "monospace" }}>{app.appliedToInvoiceId}</td>
+                                <td style={{ padding: "0.75rem" }}>
+                                  {app.appliedInvoiceNumber ? (
+                                    <button
+                                      onClick={() => router.push(`/sales/invoices/all?q=${encodeURIComponent(app.appliedInvoiceNumber)}`)}
+                                      style={{
+                                        background: "#eff6ff",
+                                        border: "1px solid #bfdbfe",
+                                        borderRadius: "6px",
+                                        padding: "3px 8px",
+                                        color: "#1d4ed8",
+                                        fontWeight: "600",
+                                        fontSize: "0.8125rem",
+                                        cursor: "pointer",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "4px"
+                                      }}
+                                      title="Open Applied Invoice"
+                                    >
+                                      <FileText size={12} />
+                                      {app.appliedInvoiceNumber}
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontFamily: "monospace", fontSize: "0.8125rem", color: "#6b7280" }}>{app.appliedToInvoiceId}</span>
+                                  )}
+                                </td>
                                 <td style={{ padding: "0.75rem", textAlign: "right", fontWeight: "500" }}>{formatCurrency(app.appliedAmount)}</td>
                               </tr>
                             ))}

@@ -34,6 +34,7 @@ type VendorView = {
 
 type VendorItemView = {
   id: string;
+  itemId?: string;
   itemName: string;
   itemCode: string | null;
   unitOfMeasure: string;
@@ -203,7 +204,8 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
   if (!vendor || vendor.requestKey !== requestKey || !items || !schedules || !roles) return <StatusMessage tone="loading">Loading vendor profile…</StatusMessage>;
 
   const v = vendor.data;
-  const locationParams = `?organizationId=${selected.organizationId}&locationId=${selected.locationId}`;
+  const returnUrl = `/purchasing/vendors/${vendorId}?organizationId=${selected.organizationId}&locationId=${selected.locationId}`;
+  const locationParams = `?organizationId=${selected.organizationId}&locationId=${selected.locationId}&returnUrl=${encodeURIComponent(returnUrl)}`;
 
   return (
     <div className="kalki-main-content">
@@ -532,24 +534,42 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
               No items assigned to this vendor catalogue yet.
             </div>
           ) : (
-            <div className="kalki-table-container">
-              <table className="kalki-table">
-                <thead>
+            <div className="kalki-table-container" style={{ maxHeight: "calc(100vh - 220px)", overflowY: "auto", position: "relative" }}>
+              <table className="kalki-table" style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%" }}>
+                <thead style={{ position: "sticky", top: 0, zIndex: 20 }}>
                   <tr>
-                    <th>Item Name</th>
-                    <th>Code</th>
-                    <th>UoM</th>
-                    <th>Reorder Level (Min)</th>
-                    <th>Usual Qty</th>
-                    <th>Last Rate</th>
-                    <th style={{ textAlign: "right" }}>Actions</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)" }}>Item Name</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)" }}>Code</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)" }}>UoM</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)" }}>Reorder Level (Min)</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)" }}>Usual Qty</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)" }}>Last Rate</th>
+                    <th style={{ position: "sticky", top: 0, backgroundColor: "#f8fafc", zIndex: 20, boxShadow: "0 1px 0 var(--kalki-border)", textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.list.map((item) => (
                     <tr key={item.id}>
                       <td>
-                        <strong>{item.itemName}</strong>
+                        {item.itemId ? (
+                          <Link
+                            href={`/purchasing/items/${item.itemId}${locationParams}`}
+                            style={{
+                              fontWeight: 600,
+                              color: "var(--kalki-primary, #2563eb)",
+                              textDecoration: "none",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px"
+                            }}
+                            className="hover:underline"
+                            title="Edit Item"
+                          >
+                            {item.itemName}
+                          </Link>
+                        ) : (
+                          <strong>{item.itemName}</strong>
+                        )}
                       </td>
                       <td style={{ color: "var(--kalki-text-secondary)" }}>
                         {item.itemCode || "—"}
@@ -564,7 +584,17 @@ export function VendorProfile({ vendorId }: { vendorId: string }) {
                       <td style={{ fontWeight: 600 }}>
                         {item.lastRate ? `₹${item.lastRate}` : "—"}
                       </td>
-                      <td style={{ textAlign: "right" }}>
+                      <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                        {item.itemId && (
+                          <Link
+                            href={`/purchasing/items/${item.itemId}${locationParams}`}
+                            className="kalki-button kalki-button--ghost"
+                            style={{ padding: "4px 8px", fontSize: "12px", marginRight: "6px", display: "inline-flex", alignItems: "center" }}
+                            title="Edit Item"
+                          >
+                            <Edit3 size={14} style={{ marginRight: "4px" }} /> Edit
+                          </Link>
+                        )}
                         <button 
                           type="button" 
                           onClick={() => handleRemoveItem(item.id)} 

@@ -159,7 +159,16 @@ export default function SelfiePunchKiosk() {
           const data = await res.json();
           if (Array.isArray(data.employees)) {
             const mapped: RosterEmployee[] = data.employees
-              .filter((emp: any) => emp.status === "ACTIVE")
+              .filter((emp: any) => {
+                if (emp.status !== "ACTIVE") return false;
+                const code = (emp.employeeCode || "").toUpperCase();
+                const title = (emp.jobTitle || "").toLowerCase();
+                const name = (emp.person?.displayName || "").toLowerCase();
+                if (code.includes("OWNER") || code === "KAL-EMP-0002") return false;
+                if (title.includes("owner") || title.includes("director") || title.includes("executive")) return false;
+                if (name.includes("owner") || name.includes("prabha")) return false;
+                return true;
+              })
               .map((emp: any) => ({
                 id: emp.id,
                 employeeCode: emp.employeeCode,

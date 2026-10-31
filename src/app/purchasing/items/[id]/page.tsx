@@ -22,6 +22,7 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
 
   const orgId = searchParams.get('organizationId') || selected?.organizationId || '';
   const locId = searchParams.get('locationId') || selected?.locationId || '';
+  const returnUrl = searchParams.get('returnUrl') || '';
 
   const [formData, setFormData] = useState({
     nameEn: '',
@@ -209,7 +210,11 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
         organizationId: activeOrgId,
         locationId: activeLocId,
       });
-      router.push(`/purchasing/items?${nextQuery.toString()}`);
+      if (returnUrl) {
+        router.push(returnUrl);
+      } else {
+        router.push(`/purchasing/items?${nextQuery.toString()}`);
+      }
     } catch (err: any) {
       setError(err.message);
       setSaving(false);
@@ -239,11 +244,14 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
     return <div className="app-main"><div className="status-message">Loading...</div></div>;
   }
 
+  const backUrl = returnUrl || `/purchasing/items${selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : ''}`;
+  const backLabel = returnUrl.includes('/vendors/') ? '← Back to Vendor' : '← Back to Items';
+
   return (
     <div className="app-main">
       <KalkiPageHeader 
         title="EDIT ITEM"
-        breadcrumbs={<Link href={`/purchasing/items${selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : ''}`} className="nav-link">&larr; Back to Items</Link>}
+        breadcrumbs={<Link href={backUrl} className="nav-link">{backLabel}</Link>}
         actions={StatusActions}
       />
       
@@ -588,7 +596,7 @@ export default function EditItemPage({ params }: { params: Promise<{ id: string 
       <KalkiActionBar>
         <KalkiButton 
           variant="secondary" 
-          onClick={() => router.push(`/purchasing/items${selected ? `?organizationId=${selected.organizationId}&locationId=${selected.locationId}` : ''}`)}
+          onClick={() => router.push(backUrl)}
         >
           Cancel
         </KalkiButton>

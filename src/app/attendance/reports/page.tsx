@@ -52,6 +52,7 @@ export default async function AttendanceReportsPage() {
     id: employees.id,
     code: employees.employeeCode,
     name: people.displayName,
+    jobTitle: employees.jobTitle,
     organizationId: employees.organizationId,
     locationId: employees.locationId,
     departmentId: employees.departmentId,

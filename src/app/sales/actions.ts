@@ -305,10 +305,40 @@ export async function fetchInvoiceDetails(invoiceId: string, enforcePolicy: bool
     });
   }
 
+  // Fetch Originating Credit Notes (generated from returns on this invoice)
+  const originatingCreditNotes = await db
+    .select({
+      id: creditNotes.id,
+      creditNoteNumber: creditNotes.creditNoteNumber,
+      totalAmount: creditNotes.totalAmount,
+      remainingBalance: creditNotes.remainingBalance,
+      status: creditNotes.status,
+      issueDate: creditNotes.issueDate,
+      returnNumber: salesReturns.returnNumber,
+    })
+    .from(creditNotes)
+    .innerJoin(salesReturns, eq(creditNotes.sourceReturnId, salesReturns.id))
+    .where(eq(salesReturns.invoiceId, invoiceId));
+
+  // Fetch Applied Credit Notes (credit notes used as payments toward this invoice)
+  const appliedCreditNotes = await db
+    .select({
+      id: creditNoteApplications.id,
+      creditNoteId: creditNotes.id,
+      creditNoteNumber: creditNotes.creditNoteNumber,
+      appliedAmount: creditNoteApplications.appliedAmount,
+      appliedAt: creditNoteApplications.appliedAt,
+    })
+    .from(creditNoteApplications)
+    .innerJoin(creditNotes, eq(creditNoteApplications.creditNoteId, creditNotes.id))
+    .where(eq(creditNoteApplications.appliedToInvoiceId, invoiceId));
+
   return {
     ...invoice,
     policies: returnPolicies,
     canApprove,
+    originatingCreditNotes,
+    appliedCreditNotes,
     items: lines.map(line => {
       const originalQty = parseFloat(line.quantity as any);
       const key = `${line.itemId}_${line.itemDescription || ''}`;
@@ -737,19 +767,48 @@ export async function fetchCreditNotesByLocation(
     if (startObj) whereConditions.push(gte(creditNotes.issueDate, startObj));
     if (endObj) whereConditions.push(lte(creditNotes.issueDate, endObj));
     if (status && status !== "ALL") whereConditions.push(eq(creditNotes.status, status as any));
-    if (searchQuery) whereConditions.push(ilike(creditNotes.creditNoteNumber, `%${searchQuery}%`));
+    if (searchQuery) {
+      whereConditions.push(
+        or(
+          ilike(creditNotes.creditNoteNumber, `%${searchQuery}%`),
+          ilike(salesInvoices.invoiceNumber, `%${searchQuery}%`),
+          ilike(customers.name, `%${searchQuery}%`)
+        ) as any
+      );
+    }
 
     const whereClause = and(...whereConditions);
 
     const notes = await db
-      .select()
+      .select({
+        id: creditNotes.id,
+        creditNoteNumber: creditNotes.creditNoteNumber,
+        totalAmount: creditNotes.totalAmount,
+        remainingBalance: creditNotes.remainingBalance,
+        status: creditNotes.status,
+        issueDate: creditNotes.issueDate,
+        customerId: creditNotes.customerId,
+        sourceReturnId: creditNotes.sourceReturnId,
+        customerName: customers.name,
+        sourceInvoiceId: salesInvoices.id,
+        sourceInvoiceNumber: salesInvoices.invoiceNumber,
+      })
       .from(creditNotes)
+      .leftJoin(customers, eq(creditNotes.customerId, customers.id))
+      .leftJoin(salesReturns, eq(creditNotes.sourceReturnId, salesReturns.id))
+      .leftJoin(salesInvoices, eq(salesReturns.invoiceId, salesInvoices.id))
       .where(whereClause)
       .orderBy(desc(creditNotes.issueDate))
       .limit(limit)
       .offset(offset);
       
-    const totalResult = await db.select({ count: sql<number>`count(*)` }).from(creditNotes).where(whereClause);
+    const totalResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(creditNotes)
+      .leftJoin(customers, eq(creditNotes.customerId, customers.id))
+      .leftJoin(salesReturns, eq(creditNotes.sourceReturnId, salesReturns.id))
+      .leftJoin(salesInvoices, eq(salesReturns.invoiceId, salesInvoices.id))
+      .where(whereClause);
     const total = Number(totalResult[0]?.count || 0);
       
     const noteIds = notes.map(n => n.id);
@@ -757,8 +816,16 @@ export async function fetchCreditNotesByLocation(
     let applications: any[] = [];
     if (noteIds.length > 0) {
       applications = await db
-        .select()
+        .select({
+          id: creditNoteApplications.id,
+          creditNoteId: creditNoteApplications.creditNoteId,
+          appliedToInvoiceId: creditNoteApplications.appliedToInvoiceId,
+          appliedAmount: creditNoteApplications.appliedAmount,
+          appliedAt: creditNoteApplications.appliedAt,
+          appliedInvoiceNumber: salesInvoices.invoiceNumber,
+        })
         .from(creditNoteApplications)
+        .leftJoin(salesInvoices, eq(creditNoteApplications.appliedToInvoiceId, salesInvoices.id))
         .where(inArray(creditNoteApplications.creditNoteId, noteIds));
     }
 

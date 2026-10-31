@@ -4301,3 +4301,106 @@ export const spotPurchases = pgTable(
 
 
 // ==========================================
+
+
+export const userManualSections = pgTable(
+  "user_manual_sections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id").references(() => organizations.id),
+    module: varchar("module", { length: 100 }).notNull(),
+    submodule: varchar("submodule", { length: 100 }).notNull(),
+    slug: varchar("slug", { length: 150 }).notNull(),
+    titleEn: varchar("title_en", { length: 255 }).notNull(),
+    titleTa: varchar("title_ta", { length: 255 }).notNull(),
+    titleHi: varchar("title_hi", { length: 255 }).notNull(),
+    summaryEn: text("summary_en").notNull(),
+    summaryTa: text("summary_ta").notNull(),
+    summaryHi: text("summary_hi").notNull(),
+    contentEn: text("content_en").notNull(),
+    contentTa: text("content_ta").notNull(),
+    contentHi: text("content_hi").notNull(),
+    examplesEn: text("examples_en"),
+    examplesTa: text("examples_ta"),
+    examplesHi: text("examples_hi"),
+    faqJson: jsonb("faq_json"),
+    targetRoles: jsonb("target_roles"),
+    isKpiLinked: boolean("is_kpi_linked").notNull().default(true),
+    orderIndex: integer("order_index").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("user_manual_sections_module_idx").on(table.module, table.submodule),
+    unique("user_manual_sections_slug_unique").on(table.module, table.slug),
+  ]
+);
+
+export const employeeManualProgress = pgTable(
+  "employee_manual_progress",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    sectionId: uuid("section_id")
+      .notNull()
+      .references(() => userManualSections.id, { onDelete: "cascade" }),
+    completedAt: timestamp("completed_at", { withTimezone: true }).defaultNow().notNull(),
+    timeSpentSeconds: integer("time_spent_seconds").notNull().default(0),
+    rating: integer("rating"),
+    feedback: text("feedback"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("employee_manual_progress_emp_idx").on(table.employeeId),
+    unique("employee_manual_progress_unique").on(table.employeeId, table.sectionId),
+  ]
+);
+
+export const manualQuestions = pgTable(
+  "manual_questions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    module: varchar("module", { length: 100 }).notNull(),
+    sectionId: uuid("section_id").references(() => userManualSections.id, { onDelete: "cascade" }),
+    questionType: varchar("question_type", { length: 50 }).notNull(), // 'IN_PAGE_CHECK' or 'FINAL_EXAM_POOL'
+    questionEn: text("question_en").notNull(),
+    questionTa: text("question_ta").notNull(),
+    questionHi: text("question_hi").notNull(),
+    optionsJson: jsonb("options_json").notNull(),
+    correctOptionId: varchar("correct_option_id", { length: 10 }).notNull(),
+    explanationEn: text("explanation_en"),
+    explanationTa: text("explanation_ta"),
+    explanationHi: text("explanation_hi"),
+    orderIndex: integer("order_index").default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("manual_questions_mod_type_idx").on(table.module, table.questionType),
+    index("manual_questions_sec_idx").on(table.sectionId),
+  ]
+);
+
+export const employeeAssessmentAttempts = pgTable(
+  "employee_assessment_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    employeeId: uuid("employee_id")
+      .notNull()
+      .references(() => employees.id, { onDelete: "cascade" }),
+    module: varchar("module", { length: 100 }).notNull(),
+    assessmentType: varchar("assessment_type", { length: 50 }).notNull(), // 'PAGE_CHECK' or 'FINAL_CERTIFICATION'
+    sectionId: uuid("section_id").references(() => userManualSections.id, { onDelete: "cascade" }),
+    totalQuestions: integer("total_questions").notNull(),
+    correctCount: integer("correct_count").notNull(),
+    scorePercent: decimal("score_percent", { precision: 5, scale: 2 }).notNull(),
+    passed: boolean("passed").notNull(),
+    submittedAnswers: jsonb("submitted_answers"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("employee_assessment_attempts_emp_idx").on(table.employeeId, table.module),
+  ]
+);

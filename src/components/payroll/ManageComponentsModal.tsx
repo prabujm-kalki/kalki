@@ -77,31 +77,38 @@ export function ManageComponentsModal({
 
   return (
     <div className="kalki-modal-overlay">
-      <div className="kalki-modal" style={{ maxWidth: '600px', width: '100%' }}>
-        <div className="kalki-modal-header">
-          <h2>Manage Salary Components</h2>
-          <button onClick={onClose}><X size={20} /></button>
+      <div className="kalki-modal" style={{ maxWidth: '640px', width: '100%', borderRadius: '12px', background: '#ffffff', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+        <div className="kalki-modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>Manage Salary Components</h2>
+            <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>Define earning allowances and recurring deductions.</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px', borderRadius: '4px' }}>
+            <X size={20} />
+          </button>
         </div>
-        <div className="kalki-modal-body" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+        <div className="kalki-modal-body" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
           {/* List Existing Components */}
           <div>
-            <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Active Components</h3>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.85rem 0', color: '#1e293b' }}>Active Components</h3>
             {loading ? (
-              <div style={{ padding: '1rem', textAlign: 'center' }}><Loader2 className="animate-spin" /></div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}><Loader2 className="animate-spin" /></div>
             ) : components.length === 0 ? (
-              <p style={{ color: 'var(--kalki-text-secondary)', fontSize: '0.9rem' }}>No components found.</p>
+              <div style={{ padding: '1.5rem', textAlign: 'center', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0 }}>No components created yet.</p>
+              </div>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '300px', overflowY: 'auto' }}>
                 {components.map(c => (
-                  <li key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--kalki-bg-secondary)', padding: '0.75rem', borderRadius: '4px' }}>
+                  <li key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: c.type === 'EARNING' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${c.type === 'EARNING' ? '#bbf7d0' : '#fecaca'}`, padding: '0.65rem 0.85rem', borderRadius: '6px' }}>
                     <div>
-                      <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{c.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--kalki-text-secondary)' }}>
-                        {c.type} {c.isTaxable ? '(Taxable)' : '(Non-Taxable)'}
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0f172a' }}>{c.name}</div>
+                      <div style={{ fontSize: '0.75rem', color: c.type === 'EARNING' ? '#166534' : '#991b1b', fontWeight: 500 }}>
+                        {c.type} {c.isTaxable ? '• Taxable' : '• Non-Taxable'}
                       </div>
                     </div>
-                    <button onClick={() => handleDelete(c.id)} style={{ color: 'var(--kalki-error)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      <Trash2 size={16} />
+                    <button onClick={() => handleDelete(c.id)} title="Deactivate component" style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}>
+                      <Trash2 size={15} />
                     </button>
                   </li>
                 ))}
@@ -110,37 +117,48 @@ export function ManageComponentsModal({
           </div>
 
           {/* Add New Form */}
-          <div style={{ borderLeft: '1px solid var(--kalki-border)', paddingLeft: '2rem' }}>
-            <h3 style={{ fontSize: '1rem', marginBottom: '1rem' }}>Add New Component</h3>
-            <div className="kalki-form-group">
-              <label>Component Name</label>
-              <input 
-                type="text" 
-                className="kalki-input" 
-                value={name} 
-                onChange={e => setName(e.target.value)} 
-                placeholder="e.g. Travel Allowance"
-              />
+          <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '1.5rem' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0 0 0.85rem 0', color: '#1e293b' }}>Add New Component</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Component Name</label>
+                <input 
+                  type="text" 
+                  className="kalki-input" 
+                  value={name} 
+                  onChange={e => setName(e.target.value)} 
+                  placeholder="e.g. Basic Pay, HRA, Food"
+                  style={{ height: '36px', fontSize: '0.85rem' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Classification</label>
+                <select className="kalki-input" value={type} onChange={e => setType(e.target.value as any)} style={{ height: '36px', fontSize: '0.85rem' }}>
+                  <option value="EARNING">Earning (Allowance / Base)</option>
+                  <option value="DEDUCTION">Deduction (Recovery / Contribution)</option>
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                <input 
+                  type="checkbox" 
+                  id="taxable-check"
+                  checked={isTaxable} 
+                  onChange={e => setIsTaxable(e.target.checked)} 
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <label htmlFor="taxable-check" style={{ marginBottom: 0, fontSize: '0.85rem', color: '#334155', cursor: 'pointer', fontWeight: 500 }}>
+                  Is Taxable Earning?
+                </label>
+              </div>
+              <button 
+                className="kalki-button kalki-button--primary" 
+                onClick={handleSave} 
+                disabled={saving || !name.trim()} 
+                style={{ width: '100%', marginTop: '0.5rem', height: '38px', fontSize: '0.9rem' }}
+              >
+                {saving ? "Saving..." : "Create Component"}
+              </button>
             </div>
-            <div className="kalki-form-group">
-              <label>Type</label>
-              <select className="kalki-input" value={type} onChange={e => setType(e.target.value as any)}>
-                <option value="EARNING">Earning</option>
-                <option value="DEDUCTION">Deduction</option>
-              </select>
-            </div>
-            <div className="kalki-form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px', display: 'flex' }}>
-              <input 
-                type="checkbox" 
-                id="taxable-check"
-                checked={isTaxable} 
-                onChange={e => setIsTaxable(e.target.checked)} 
-              />
-              <label htmlFor="taxable-check" style={{ marginBottom: 0 }}>Is Taxable?</label>
-            </div>
-            <button className="kalki-btn-primary" onClick={handleSave} disabled={saving || !name.trim()} style={{ width: '100%', marginTop: '1rem' }}>
-              {saving ? "Saving..." : "Add Component"}
-            </button>
           </div>
         </div>
       </div>

@@ -83,6 +83,18 @@ export async function getSelfiePunchRoster(organizationId: string, locationId: s
     }
   }
 
+  // Filter out attendance-exempt executive roles (e.g., Owner, Director) unless it is the user themself
+  const eligibleList = rawList.filter((emp) => {
+    if (currentEmployeeId && emp.id === currentEmployeeId) return true;
+    const code = (emp.employeeCode || "").toUpperCase();
+    const title = (emp.jobTitle || "").toLowerCase();
+    const name = (emp.displayName || "").toLowerCase();
+    if (code.includes("OWNER") || code === "KAL-EMP-0002") return false;
+    if (title.includes("owner") || title.includes("director") || title.includes("executive")) return false;
+    if (name.includes("owner") || name.includes("prabha")) return false;
+    return true;
+  });
+
   // Group:
   // 1. Logged-in employee (self)
   // 2. Direct/indirect reports (subordinates in reporting tree)
@@ -91,7 +103,7 @@ export async function getSelfiePunchRoster(organizationId: string, locationId: s
   const directReports: typeof rawList = [];
   const others: typeof rawList = [];
 
-  for (const emp of rawList) {
+  for (const emp of eligibleList) {
     if (currentEmployeeId && emp.id === currentEmployeeId) {
       selfList.push(emp);
     } else if (currentEmployeeId && reportIdSet.has(emp.id)) {

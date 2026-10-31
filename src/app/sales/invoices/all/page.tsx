@@ -1,10 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, Suspense, useRef } from "react";
-import { Eye, Edit, MoreVertical, FileText, X, Printer, Trash2, AlertTriangle, Check, Loader2 } from "lucide-react";
+import { Eye, Edit, MoreVertical, FileText, X, Printer, Trash2, AlertTriangle, Check, Loader2, ArrowRight, CornerDownRight, CreditCard } from "lucide-react";
 import { useSessionView } from "@/components/AppShell";
 import { fetchAllOrders, fetchInvoiceDetails, deleteSalesInvoice, updateSalesInvoice } from "@/app/sales/actions";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import SearchFilterBar from "@/components/sales/SearchFilterBar";
 import Pagination from "@/components/sales/Pagination";
 import { InvoiceRenderer } from "@/components/sales/InvoiceRenderer";
@@ -12,6 +12,7 @@ import { getInvoiceSettings } from "@/app/sales/settings/invoice/actions";
 import { DEFAULT_INVOICE_CONFIG, InvoiceSettingsConfig, InvoiceTemplateKey } from "@/app/sales/settings/invoice/constants";
 
 function InvoiceHubContent() {
+  const router = useRouter();
   const { selected: scope } = useSessionView();
   const searchParams = useSearchParams();
   
@@ -608,19 +609,118 @@ function InvoiceHubContent() {
               {selectedInvoice.loading ? (
                 <div style={{ padding: '60px', textAlign: 'center', color: '#64748b' }}>Loading invoice details...</div>
               ) : (
-                <div style={{ maxWidth: '800px', margin: '0 auto', boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
-                  <InvoiceRenderer
-                    invoice={selectedInvoice}
-                    organization={{
-                      name: scope?.organizationName || "Kalki Business Solutions",
-                      address: "Registered Office & Branch Address",
-                      phone: "",
-                      gstin: "",
-                    }}
-                    config={invoiceConfig}
-                    templateOverride={templateOverride}
-                    containerId="invoice-print-area"
-                  />
+                <div style={{ maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* Linked Credit Notes Section */}
+                  {((selectedInvoice.originatingCreditNotes && selectedInvoice.originatingCreditNotes.length > 0) ||
+                    (selectedInvoice.appliedCreditNotes && selectedInvoice.appliedCreditNotes.length > 0)) && (
+                    <div style={{ backgroundColor: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "18px 22px", boxShadow: "0 2px 4px rgba(0,0,0,0.04)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", borderBottom: "1px solid #f1f5f9", paddingBottom: "10px" }}>
+                        <CreditCard size={18} color="#2563eb" />
+                        <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "#1e293b" }}>
+                          Linked Returns & Credit Notes
+                        </h4>
+                      </div>
+
+                      {/* Originating Credit Notes (generated from returns on this invoice) */}
+                      {selectedInvoice.originatingCreditNotes && selectedInvoice.originatingCreditNotes.length > 0 && (
+                        <div style={{ marginBottom: selectedInvoice.appliedCreditNotes?.length ? "14px" : "0" }}>
+                          <span style={{ fontSize: "12px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "8px" }}>
+                            Credit Notes Issued from this Invoice:
+                          </span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                            {selectedInvoice.originatingCreditNotes.map((cn: any) => (
+                              <button
+                                key={cn.id}
+                                onClick={() => {
+                                  setSelectedInvoice(null);
+                                  router.push(`/sales/returns/credit-notes?organizationId=${scope?.organizationId}&locationId=${scope?.locationId}&q=${encodeURIComponent(cn.creditNoteNumber)}`);
+                                }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  padding: "8px 12px",
+                                  backgroundColor: "#eff6ff",
+                                  border: "1px solid #bfdbfe",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  textAlign: "left"
+                                }}
+                                title="Click to view this Credit Note in Returns & Credit Notes"
+                              >
+                                <div>
+                                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#1d4ed8" }}>
+                                    {cn.creditNoteNumber}
+                                  </div>
+                                  <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                    ₹{Number(cn.totalAmount).toFixed(2)} • Bal: ₹{Number(cn.remainingBalance).toFixed(2)} • {cn.status}
+                                  </div>
+                                </div>
+                                <ArrowRight size={14} color="#1d4ed8" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Applied Credit Notes (used to pay down this invoice) */}
+                      {selectedInvoice.appliedCreditNotes && selectedInvoice.appliedCreditNotes.length > 0 && (
+                        <div>
+                          <span style={{ fontSize: "12px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", display: "block", marginBottom: "8px" }}>
+                            Credit Notes Applied as Payment:
+                          </span>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                            {selectedInvoice.appliedCreditNotes.map((acn: any) => (
+                              <button
+                                key={acn.id}
+                                onClick={() => {
+                                  setSelectedInvoice(null);
+                                  router.push(`/sales/returns/credit-notes?organizationId=${scope?.organizationId}&locationId=${scope?.locationId}&q=${encodeURIComponent(acn.creditNoteNumber)}`);
+                                }}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "8px",
+                                  padding: "8px 12px",
+                                  backgroundColor: "#f0fdf4",
+                                  border: "1px solid #bbf7d0",
+                                  borderRadius: "8px",
+                                  cursor: "pointer",
+                                  textAlign: "left"
+                                }}
+                                title="Click to view this Credit Note"
+                              >
+                                <div>
+                                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#15803d" }}>
+                                    {acn.creditNoteNumber}
+                                  </div>
+                                  <div style={{ fontSize: "11px", color: "#64748b" }}>
+                                    Applied: ₹{Number(acn.appliedAmount).toFixed(2)}
+                                  </div>
+                                </div>
+                                <ArrowRight size={14} color="#15803d" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.06)' }}>
+                    <InvoiceRenderer
+                      invoice={selectedInvoice}
+                      organization={{
+                        name: scope?.organizationName || "Kalki Business Solutions",
+                        address: "Registered Office & Branch Address",
+                        phone: "",
+                        gstin: "",
+                      }}
+                      config={invoiceConfig}
+                      templateOverride={templateOverride}
+                      containerId="invoice-print-area"
+                    />
+                  </div>
                 </div>
               )}
             </div>
