@@ -20,7 +20,12 @@ export default async function EditSchedulePage({ params }: { params: Promise<{ i
   // Fetch reference data for the configuration form
   const allVendors = await db.select().from(vendors).where(eq(vendors.organizationId, schedule.organizationId));
   const allRoles = await db.select().from(businessRoles).where(eq(businessRoles.organizationId, schedule.organizationId));
-  const allDefs = await db.select({ id: taskDefinitions.id, title: taskDefinitions.title })
+  const allDefs = await db.select({ 
+    id: taskDefinitions.id, 
+    title: taskDefinitions.title,
+    module: taskDefinitions.module,
+    completionTimeMins: taskDefinitions.completionTimeMins,
+  })
     .from(taskDefinitions)
     .where(
       and(
@@ -30,7 +35,7 @@ export default async function EditSchedulePage({ params }: { params: Promise<{ i
     );
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--background-color, #f8fafc)" }}>
       <RoutineConfigForm 
         vendors={allVendors} 
         roles={allRoles} 

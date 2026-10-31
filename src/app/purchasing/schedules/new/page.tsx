@@ -18,12 +18,17 @@ export default async function NewSchedulePage({ searchParams }: { searchParams: 
     defsConditions.push(eq(taskDefinitions.organizationId, orgId));
   }
 
-  const allDefs = await db.select({ id: taskDefinitions.id, title: taskDefinitions.title })
+  const allDefs = await db.select({ 
+    id: taskDefinitions.id, 
+    title: taskDefinitions.title,
+    module: taskDefinitions.module,
+    completionTimeMins: taskDefinitions.completionTimeMins,
+  })
     .from(taskDefinitions)
     .where(and(...defsConditions));
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div style={{ minHeight: "100vh", backgroundColor: "var(--background-color, #f8fafc)" }}>
       <RoutineConfigForm 
         vendors={allVendors} 
         roles={allRoles} 
