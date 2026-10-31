@@ -3,7 +3,7 @@ export const APP_MODULES = [
   { label: "People", path: "/people", module: "employee" },
   { label: "Attendance", path: "/attendance", module: "attendance" },
   { label: "Payroll", path: "/payroll", module: "payroll" },
-  { label: "Purchasing", path: "/purchasing", module: "purchasing" },
+  { label: "Purchasing", path: "/purchasing/dashboard", module: "purchasing" },
   { label: "Inventory", path: "/inventory", module: "inventory" },
   { label: "Sales", path: "/sales", module: "sales" },
   { label: "Marketing", path: "/marketing", module: "marketing" },
