@@ -57,12 +57,14 @@ export default async function SchedulesListPage({ searchParams }: { searchParams
 
   const formatFrequency = (rule: string) => {
     if (rule.startsWith("WEEKLY:")) {
-      const day = rule.split(":")[1];
-      return `Weekly • ${day.charAt(0) + day.slice(1).toLowerCase()}`;
+      const days = rule.split(":")[1] || "";
+      const formatted = days.split(",").map(d => d.trim().slice(0, 3)).join(", ");
+      return `Weekly • ${formatted}`;
     }
     if (rule.startsWith("BIWEEKLY:")) {
-      const day = rule.split(":")[1];
-      return `Bi-Weekly • ${day.charAt(0) + day.slice(1).toLowerCase()}`;
+      const days = rule.split(":")[1] || "";
+      const formatted = days.split(",").map(d => d.trim().slice(0, 3)).join(", ");
+      return `Bi-Weekly • ${formatted}`;
     }
     if (rule.startsWith("MONTHLY:")) {
       const day = rule.split(":")[1];

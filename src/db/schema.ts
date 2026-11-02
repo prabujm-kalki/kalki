@@ -97,6 +97,9 @@ export const locations = pgTable(
     name: text("name").notNull(),
     code: text("code").notNull(),
     isActive: boolean("is_active").notNull().default(true),
+    businessType: varchar("business_type", { length: 50 }).notNull().default("RESTAURANT"), // 'RESTAURANT', 'RETAIL_STORE', 'EVENT_HALL', 'CORPORATE_HQ'
+    operatingProfile: varchar("operating_profile", { length: 50 }).notNull().default("STANDARD"), // 'RURAL', 'URBAN_HIGH_RENT', 'HIGHWAY_EXPRESS', 'RETAIL_SUPERMARKET'
+    isComparisonEnabled: boolean("is_comparison_enabled").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

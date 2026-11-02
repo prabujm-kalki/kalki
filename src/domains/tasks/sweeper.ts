@@ -65,8 +65,8 @@ export async function runEscalationSweeper() {
     const currentLevel = task.escalationLevel || 0;
     const nextLevel = currentLevel + 1;
 
-    // Look for the next escalation rule
-    const [nextMatrix] = await db.select()
+    // Look for the next escalation rule (Check task's direct definition matrix first, or fallback to linked escalation policy)
+    let [nextMatrix] = await db.select()
       .from(taskEscalationMatrices)
       .where(
         and(
@@ -74,6 +74,26 @@ export async function runEscalationSweeper() {
           eq(taskEscalationMatrices.level, nextLevel)
         )
       );
+
+    if (!nextMatrix) {
+      // Check if definition links to an escalation rule policy
+      const [parentDef] = await db.select({ escalationPolicyId: taskDefinitions.escalationPolicyId })
+        .from(taskDefinitions)
+        .where(eq(taskDefinitions.id, task.definitionId))
+        .limit(1);
+
+      if (parentDef?.escalationPolicyId) {
+        const [policyMatrix] = await db.select()
+          .from(taskEscalationMatrices)
+          .where(
+            and(
+              eq(taskEscalationMatrices.definitionId, parentDef.escalationPolicyId),
+              eq(taskEscalationMatrices.level, nextLevel)
+            )
+          );
+        nextMatrix = policyMatrix;
+      }
+    }
 
     if (nextMatrix) {
       let finalRoleId = nextMatrix.roleId;

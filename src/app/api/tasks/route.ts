@@ -86,6 +86,8 @@ export async function GET(req: NextRequest) {
           warningThresholdMins: ctx.warningThresholdMins ?? definition.warningThresholdMins ?? 10,
           allowTimeExtension: ctx.allowTimeExtension ?? definition.allowTimeExtension ?? true,
           maxExtensionMins: ctx.maxExtensionMins ?? definition.maxExtensionMins ?? 15,
+          requiresApproval: definition.requiresApproval ?? false,
+          checklistConfig: definition.checklistConfig ?? [],
           deadline: instance.dueAt, // Maps dueAt to deadline for frontend
           actionUrl: ctx.actionUrl || (definition.contextTemplate as any)?.actionUrl,
           actionLabel: ctx.actionLabel || (definition.contextTemplate as any)?.actionLabel,

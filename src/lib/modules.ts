@@ -10,6 +10,6 @@ export const APP_MODULES = [
   { label: "CRM", path: "/crm", module: "crm" },
   { label: "Events & Catering", path: "/events", module: "events" },
   { label: "Finance", path: "/finance", module: "finance" },
-  { label: "Task Engine", path: "/tasks", module: "tasks" },
+  { label: "Tasks", path: "/tasks", module: "tasks" },
   { label: "Settings", path: "/settings", module: "settings" },
 ];

@@ -90,17 +90,21 @@ export async function PUT(
     // Update definition
     const [updatedDef] = await db.update(taskDefinitions).set({
       title: body.title,
+      description: body.description || null,
       module: body.module || "system",
-      triggerType: body.triggerType,
+      triggerType: body.triggerType || "time",
       triggerConfig: body.triggerConfig || {},
       targetRoleId: body.targetRoleId || null,
       targetUserId: body.targetUserId || null,
+      escalationPolicyId: body.escalationPolicyId || null,
       actionType: body.actionType || "task",
       contextTemplate: body.contextTemplate || {},
       completionTimeMins: body.completionTimeMins || null,
       warningThresholdMins: body.warningThresholdMins || null,
       allowTimeExtension: !!body.allowTimeExtension,
       maxExtensionMins: body.maxExtensionMins || null,
+      requiresApproval: !!body.requiresApproval,
+      checklistConfig: body.checklistConfig || [],
       updatedAt: new Date(),
     }).where(eq(taskDefinitions.id, taskId)).returning();
 

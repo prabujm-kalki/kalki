@@ -19,6 +19,7 @@ export function AccountsNav() {
 
   const allLinks = [
     { href: "/finance", label: "Dashboard", perm: "finance.dashboard:read" },
+    { href: "/finance/branch-analytics", label: "Branch Comparison", perm: "finance.dashboard:read" },
     { href: "/finance/sales-receivables", label: "Sales & Receivables", perm: "finance.sales_&_receivables:read" },
     { href: "/finance/purchases-payables", label: "Purchases & Payables", perm: "finance.purchases_&_payables:read" },
     { href: "/finance/banking", label: "Banking & Cash", perm: "finance.banking_&_cash:read" },

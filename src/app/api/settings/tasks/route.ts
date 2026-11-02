@@ -63,17 +63,20 @@ export async function POST(request: Request) {
       organizationId: orgId,
       module: body.module || "system",
       title: body.title,
-      description: body.description,
-      triggerType: body.triggerType,
+      description: body.description || null,
+      triggerType: body.triggerType || "time",
       triggerConfig: body.triggerConfig || {},
       targetRoleId: body.targetRoleId || null,
       targetUserId: body.targetUserId || null,
+      escalationPolicyId: body.escalationPolicyId || null,
       actionType: body.actionType || "task",
       contextTemplate: body.contextTemplate || {},
       completionTimeMins: body.completionTimeMins || null,
       warningThresholdMins: body.warningThresholdMins || null,
       allowTimeExtension: !!body.allowTimeExtension,
       maxExtensionMins: body.maxExtensionMins || null,
+      requiresApproval: !!body.requiresApproval,
+      checklistConfig: body.checklistConfig || [],
     }).returning();
 
     if (body.escalationLevels && Array.isArray(body.escalationLevels)) {

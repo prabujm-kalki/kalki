@@ -61,20 +61,26 @@ export async function generateRoutinePurchaseTasks() {
     let isDayMatch = false;
     const rule = schedule.frequencyRule.toUpperCase();
 
+    // Helper to check if current day matches a comma-separated list of day names/codes
+    const matchesDayList = (daysStr: string) => {
+      const dayTokens = daysStr.split(",").map(d => d.trim().toUpperCase());
+      const currentShort = currentDayOfWeek.slice(0, 3).toUpperCase(); // e.g. "MON"
+      const currentFull = currentDayOfWeek.toUpperCase();             // e.g. "MONDAY"
+      return dayTokens.some(d => d === currentShort || d === currentFull);
+    };
+
     if (rule === "DAILY") {
       isDayMatch = true;
     } else if (rule.startsWith("WEEKLY:")) {
-      const day = rule.split(":")[1];
-      if (day.toLowerCase() === currentDayOfWeek.toLowerCase()) {
+      const days = rule.split(":")[1] || "";
+      if (matchesDayList(days)) {
         isDayMatch = true;
       }
     } else if (rule.startsWith("BIWEEKLY:")) {
-       // Assuming bi-weekly triggers every week on the correct day for now, 
-       // a real implementation would need to track weeks since inception
-       const day = rule.split(":")[1];
-       if (day.toLowerCase() === currentDayOfWeek.toLowerCase()) {
-         isDayMatch = true;
-       }
+      const days = rule.split(":")[1] || "";
+      if (matchesDayList(days)) {
+        isDayMatch = true;
+      }
     } else if (rule.startsWith("MONTHLY:")) {
       const day = rule.split(":")[1];
       if (day === currentDayOfMonth) {

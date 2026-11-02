@@ -20,6 +20,9 @@ export async function GET(request: Request) {
         name: locations.name,
         code: locations.code,
         isActive: locations.isActive,
+        businessType: locations.businessType,
+        operatingProfile: locations.operatingProfile,
+        isComparisonEnabled: locations.isComparisonEnabled,
       })
       .from(locations)
       .where(eq(locations.organizationId, organizationId));
@@ -35,7 +38,7 @@ export async function POST(request: Request) {
   try {
     await requireAuthenticatedUser(request);
     const body = await request.json();
-    const { organizationId, name, code } = body;
+    const { organizationId, name, code, businessType, operatingProfile, isComparisonEnabled } = body;
 
     if (!organizationId || !name || !code) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -46,6 +49,9 @@ export async function POST(request: Request) {
       name,
       code,
       isActive: true,
+      businessType: businessType || "RESTAURANT",
+      operatingProfile: operatingProfile || "STANDARD",
+      isComparisonEnabled: isComparisonEnabled !== undefined ? isComparisonEnabled : true,
     }).returning();
 
     return NextResponse.json({ location: newLoc });
@@ -72,6 +78,9 @@ export async function PATCH(request: Request) {
         ...(body.name && { name: body.name }),
         ...(body.code && { code: body.code }),
         ...(body.isActive !== undefined && { isActive: body.isActive }),
+        ...(body.businessType && { businessType: body.businessType }),
+        ...(body.operatingProfile && { operatingProfile: body.operatingProfile }),
+        ...(body.isComparisonEnabled !== undefined && { isComparisonEnabled: body.isComparisonEnabled }),
         updatedAt: new Date(),
       })
       .where(eq(locations.id, id))

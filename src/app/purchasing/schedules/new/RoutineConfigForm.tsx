@@ -48,6 +48,31 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
   const isBiweekly = initRule.startsWith("BIWEEKLY:");
   const isMonthly = initRule.startsWith("MONTHLY:");
 
+  // Parse days from rule, supporting comma-separated days: e.g. "WEEKLY:MON,WED,FRI" or legacy "WEEKLY:MONDAY"
+  const parseDaysFromRule = (ruleStr: string): string[] => {
+    if (!ruleStr.includes(":")) return ["MON"];
+    const raw = ruleStr.split(":")[1] || "";
+    const dayMap: Record<string, string> = {
+      MONDAY: "MON",
+      TUESDAY: "TUE",
+      WEDNESDAY: "WED",
+      THURSDAY: "THU",
+      FRIDAY: "FRI",
+      SATURDAY: "SAT",
+      SUNDAY: "SUN",
+      MON: "MON",
+      TUE: "TUE",
+      WED: "WED",
+      THU: "THU",
+      FRI: "FRI",
+      SAT: "SAT",
+      SUN: "SUN",
+    };
+    const parts = raw.split(",").map(p => p.trim().toUpperCase());
+    const mapped = parts.map(p => dayMap[p] || p).filter(Boolean);
+    return mapped.length > 0 ? mapped : ["MON"];
+  };
+
   const [vendorId, setVendorId] = useState(initialData?.vendorId || vendors[0]?.id || "");
   const [roleId, setRoleId] = useState(initialData?.responsibleRoleId || roles[0]?.id || "");
   const [reviewRoleId, setReviewRoleId] = useState(initialData?.reviewRoleId || "");
@@ -56,8 +81,8 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
   const [frequency, setFrequency] = useState(
     isWeekly ? "WEEKLY" : isBiweekly ? "BIWEEKLY" : isMonthly ? "MONTHLY" : "DAILY"
   );
-  const [dayOfWeek, setDayOfWeek] = useState(
-    (isWeekly || isBiweekly) ? initRule.split(":")[1] : "MONDAY"
+  const [selectedDays, setSelectedDays] = useState<string[]>(
+    (isWeekly || isBiweekly) ? parseDaysFromRule(initRule) : ["MON", "WED", "FRI"]
   );
   const [dayOfMonth, setDayOfMonth] = useState(
     isMonthly ? initRule.split(":")[1] : "1"
@@ -73,13 +98,18 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
       return;
     }
 
+    if ((frequency === "WEEKLY" || frequency === "BIWEEKLY") && selectedDays.length === 0) {
+      setError("Please select at least one day of the week.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     // Construct the rule based on frequency
     let finalRule = frequency;
     if (frequency === "WEEKLY" || frequency === "BIWEEKLY") {
-      finalRule = `${frequency}:${dayOfWeek}`;
+      finalRule = `${frequency}:${selectedDays.join(",")}`;
     } else if (frequency === "MONTHLY") {
       finalRule = `MONTHLY:${dayOfMonth}`;
     }
@@ -218,24 +248,64 @@ export default function RoutineConfigForm({ vendors, roles, initialData, taskDef
               </div>
 
               {(frequency === "WEEKLY" || frequency === "BIWEEKLY") && (
-                <div className="kalki-field">
+                <div className="kalki-field" style={{ gridColumn: "1 / -1" }}>
                   <label className="kalki-label" style={{ fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "6px", display: "block" }}>
-                    Day of the Week <span style={{ color: "#ef4444" }}>*</span>
+                    Run on Days of the Week <span style={{ color: "#ef4444" }}>*</span>
+                    <span style={{ fontWeight: 400, color: "#64748b", marginLeft: "6px" }}>
+                      (Select 1, 2, 3 or more days)
+                    </span>
                   </label>
-                  <select 
-                    value={dayOfWeek} 
-                    onChange={(e) => setDayOfWeek(e.target.value)}
-                    className="kalki-select"
-                    style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
-                  >
-                    <option value="MONDAY">Every Monday</option>
-                    <option value="TUESDAY">Every Tuesday</option>
-                    <option value="WEDNESDAY">Every Wednesday</option>
-                    <option value="THURSDAY">Every Thursday</option>
-                    <option value="FRIDAY">Every Friday</option>
-                    <option value="SATURDAY">Every Saturday</option>
-                    <option value="SUNDAY">Every Sunday</option>
-                  </select>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                    {[
+                      { code: "MON", label: "Mon" },
+                      { code: "TUE", label: "Tue" },
+                      { code: "WED", label: "Wed" },
+                      { code: "THU", label: "Thu" },
+                      { code: "FRI", label: "Fri" },
+                      { code: "SAT", label: "Sat" },
+                      { code: "SUN", label: "Sun" },
+                    ].map((d) => {
+                      const isSelected = selectedDays.includes(d.code);
+                      return (
+                        <button
+                          key={d.code}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              if (selectedDays.length > 1) {
+                                setSelectedDays(selectedDays.filter((x) => x !== d.code));
+                              }
+                            } else {
+                              setSelectedDays([...selectedDays, d.code]);
+                            }
+                          }}
+                          className="kalki-button kalki-button--sm"
+                          style={{
+                            padding: "6px 14px",
+                            fontSize: "12px",
+                            borderRadius: "6px",
+                            cursor: "pointer",
+                            background: isSelected ? "#fef3c7" : "#ffffff",
+                            borderColor: isSelected ? "#d97706" : "#cbd5e1",
+                            color: isSelected ? "#b45309" : "#475569",
+                            fontWeight: isSelected ? 600 : 500,
+                            borderWidth: "1px",
+                            borderStyle: "solid",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            transition: "all 0.15s ease",
+                          }}
+                        >
+                          {isSelected && <span>✓</span>}
+                          {d.code} ({d.label})
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p style={{ margin: "6px 0 0 0", fontSize: "11px", color: "#64748b" }}>
+                    Selected: {selectedDays.join(", ") || "None"}
+                  </p>
                 </div>
               )}
 

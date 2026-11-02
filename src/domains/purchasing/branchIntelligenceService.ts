@@ -15,6 +15,8 @@ import { eq, and, gte, lte, desc, sql, inArray } from "drizzle-orm";
 export interface SnapshotComputationResult {
   locationId: string;
   locationName: string;
+  businessType: string;
+  operatingProfile: string;
   totalRevenue: number;
   foodCostCogs: number;
   foodCostPct: number;
@@ -64,6 +66,8 @@ export async function getOrComputeBranchIntelligence(
     startDate?: string;
     endDate?: string;
     forceRefresh?: boolean;
+    businessType?: string; // Optional filter e.g. 'RESTAURANT' or 'ALL'
+    locationIds?: string[]; // Explicit location targeting
   }
 ): Promise<{
   success: boolean;
@@ -77,6 +81,7 @@ export async function getOrComputeBranchIntelligence(
       criticalBranchesCount: number;
     };
     branches: SnapshotComputationResult[];
+    businessTypes: string[];
   };
   error?: string;
 }> {
@@ -98,11 +103,39 @@ export async function getOrComputeBranchIntelligence(
       varianceAlertThresholdPct: "2.50",
     };
 
-    // 2. Query all active locations for this organization
-    const orgLocations = await db
-      .select({ id: locations.id, name: locations.name })
+    // 2. Query active locations eligible for comparison
+    const allOrgLocations = await db
+      .select({ 
+        id: locations.id, 
+        name: locations.name,
+        businessType: locations.businessType,
+        operatingProfile: locations.operatingProfile,
+        isComparisonEnabled: locations.isComparisonEnabled
+      })
       .from(locations)
       .where(eq(locations.organizationId, organizationId));
+
+    // Extract available business types for UI segment tabs
+    const availableBusinessTypes = Array.from(
+      new Set(
+        allOrgLocations
+          .filter((l) => l.isComparisonEnabled)
+          .map((l) => l.businessType)
+      )
+    );
+
+    // Apply filtering based on options
+    let orgLocations = allOrgLocations.filter((l) => l.isComparisonEnabled);
+    if (options?.locationIds && options.locationIds.length > 0) {
+      orgLocations = orgLocations.filter((l) => options.locationIds!.includes(l.id));
+    } else if (options?.businessType && options.businessType !== "ALL") {
+      orgLocations = orgLocations.filter((l) => l.businessType === options.businessType);
+    } else if (!options?.businessType) {
+      // Default to RESTAURANT peer group if available, else first type
+      if (availableBusinessTypes.includes("RESTAURANT")) {
+        orgLocations = orgLocations.filter((l) => l.businessType === "RESTAURANT");
+      }
+    }
 
     if (orgLocations.length === 0) {
       return {
@@ -117,6 +150,7 @@ export async function getOrComputeBranchIntelligence(
             criticalBranchesCount: 0,
           },
           branches: [],
+          businessTypes: availableBusinessTypes,
         },
       };
     }
@@ -139,6 +173,8 @@ export async function getOrComputeBranchIntelligence(
           return {
             locationId: snap.locationId,
             locationName: loc?.name || "Branch",
+            businessType: loc?.businessType || "RESTAURANT",
+            operatingProfile: loc?.operatingProfile || "STANDARD",
             totalRevenue: Number(snap.totalRevenue),
             foodCostCogs: Number(snap.foodCostCogs),
             foodCostPct: Number(snap.foodCostPct),
@@ -173,6 +209,7 @@ export async function getOrComputeBranchIntelligence(
               criticalBranchesCount: branches.filter((b) => b.statusHealth === "CRITICAL").length,
             },
             branches,
+            businessTypes: availableBusinessTypes,
           },
         };
       }
@@ -348,6 +385,8 @@ export async function getOrComputeBranchIntelligence(
       computedBranches.push({
         locationId: loc.id,
         locationName: loc.name,
+        businessType: loc.businessType,
+        operatingProfile: loc.operatingProfile,
         totalRevenue,
         foodCostCogs,
         foodCostPct,
@@ -407,6 +446,7 @@ export async function getOrComputeBranchIntelligence(
           criticalBranchesCount: computedBranches.filter((b) => b.statusHealth === "CRITICAL").length,
         },
         branches: computedBranches,
+        businessTypes: availableBusinessTypes,
       },
     };
   } catch (error: any) {
@@ -423,6 +463,7 @@ export async function getOrComputeBranchIntelligence(
           criticalBranchesCount: 0,
         },
         branches: [],
+        businessTypes: [],
       },
       error: error.message || "Failed to compute branch intelligence",
     };

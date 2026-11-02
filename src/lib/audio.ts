@@ -40,6 +40,12 @@ export function getSoundUrlForTone(toneType: string): string {
  * Falls back to WebAudio oscillator only if HTMLAudioElement fails.
  */
 export function playNotificationTone(toneType: string, customSoundUrl?: string | null) {
+  const normalized = String(toneType || "").toLowerCase().trim();
+  if (normalized === "none" || normalized === "silent" || normalized === "no_sound") {
+    // Explicitly silenced / No notification sound
+    return;
+  }
+
   try {
     stopNotificationTone();
 

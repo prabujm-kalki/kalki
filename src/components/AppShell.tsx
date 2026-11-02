@@ -65,6 +65,34 @@ function AppShellContent({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Global Fallback for Legacy Inline Modals on ESC key
+  useEffect(() => {
+    const handleGlobalEscapeFallback = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Esc") {
+        // Look for any open modal overlay in DOM that has an explicit close button
+        const openOverlays = document.querySelectorAll<HTMLElement>(
+          ".kalki-modal-overlay, .modal-overlay, [role='dialog']"
+        );
+        if (openOverlays.length > 0) {
+          // Find the topmost overlay
+          const topOverlay = openOverlays[openOverlays.length - 1];
+          // Try to click close button or cancel button inside it
+          const closeBtn = topOverlay.querySelector<HTMLElement>(
+            ".kalki-modal-close, button[aria-label='Close modal'], button[title*='Close'], .modal-close, .kalki-button--secondary"
+          );
+          if (closeBtn) {
+            closeBtn.click();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalEscapeFallback);
+    return () => {
+      window.removeEventListener("keydown", handleGlobalEscapeFallback);
+    };
+  }, []);
+
   const selected = useMemo(
     () => session?.scopes.find((scope) => scope.organizationId === organizationId && scope.locationId === locationId) ?? null,
     [locationId, organizationId, session],

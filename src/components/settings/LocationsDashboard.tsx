@@ -10,6 +10,9 @@ type LocationView = {
   name: string;
   code: string;
   isActive: boolean;
+  businessType?: string;
+  operatingProfile?: string;
+  isComparisonEnabled?: boolean;
 };
 
 export function LocationsDashboard() {
@@ -23,6 +26,9 @@ export function LocationsDashboard() {
   const [formName, setFormName] = useState("");
   const [formCode, setFormCode] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
+  const [formBusinessType, setFormBusinessType] = useState("RESTAURANT");
+  const [formOperatingProfile, setFormOperatingProfile] = useState("STANDARD");
+  const [formIsComparisonEnabled, setFormIsComparisonEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +54,9 @@ export function LocationsDashboard() {
     setFormName("");
     setFormCode("");
     setFormIsActive(true);
+    setFormBusinessType("RESTAURANT");
+    setFormOperatingProfile("STANDARD");
+    setFormIsComparisonEnabled(true);
     setError(null);
     setIsModalOpen(true);
   };
@@ -57,6 +66,9 @@ export function LocationsDashboard() {
     setFormName(loc.name);
     setFormCode(loc.code);
     setFormIsActive(loc.isActive ?? true);
+    setFormBusinessType(loc.businessType || "RESTAURANT");
+    setFormOperatingProfile(loc.operatingProfile || "STANDARD");
+    setFormIsComparisonEnabled(loc.isComparisonEnabled ?? true);
     setError(null);
     setIsModalOpen(true);
   };
@@ -72,6 +84,9 @@ export function LocationsDashboard() {
       name: formName.trim(),
       code: formCode.trim().toUpperCase(),
       isActive: formIsActive,
+      businessType: formBusinessType,
+      operatingProfile: formOperatingProfile,
+      isComparisonEnabled: formIsComparisonEnabled,
     };
 
     try {
@@ -149,6 +164,8 @@ export function LocationsDashboard() {
               <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0", textAlign: "left" }}>
                 <th style={{ padding: "14px 20px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Location Name</th>
                 <th style={{ padding: "14px 20px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Branch Code</th>
+                <th style={{ padding: "14px 20px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Business Type</th>
+                <th style={{ padding: "14px 20px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Comparison</th>
                 <th style={{ padding: "14px 20px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
                 <th style={{ padding: "14px 20px", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Actions</th>
               </tr>
@@ -170,6 +187,25 @@ export function LocationsDashboard() {
                     <span style={{ display: "inline-block", backgroundColor: "#f1f5f9", padding: "4px 10px", borderRadius: "6px", fontFamily: "monospace", fontSize: "0.8rem", color: "#475569", fontWeight: 600 }}>
                       {loc.code}
                     </span>
+                  </td>
+                  <td style={{ padding: "16px 20px", verticalAlign: "middle" }}>
+                    <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#1e293b" }}>
+                      {loc.businessType === "RESTAURANT" ? "🍱 Restaurant / Mess" : loc.businessType === "RETAIL_STORE" ? "🛒 Retail Store" : loc.businessType === "CORPORATE_HQ" ? "🏢 Corporate HQ" : loc.businessType || "Standard"}
+                    </span>
+                    <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
+                      Profile: {loc.operatingProfile || "Standard"}
+                    </div>
+                  </td>
+                  <td style={{ padding: "16px 20px", verticalAlign: "middle" }}>
+                    {loc.isComparisonEnabled !== false ? (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#16a34a", fontSize: "0.8rem", fontWeight: 600, backgroundColor: "#f0fdf4", padding: "3px 8px", borderRadius: "6px" }}>
+                        Enabled
+                      </span>
+                    ) : (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "#64748b", fontSize: "0.8rem", fontWeight: 500, backgroundColor: "#f1f5f9", padding: "3px 8px", borderRadius: "6px" }}>
+                        Excluded
+                      </span>
+                    )}
                   </td>
                   <td style={{ padding: "16px 20px", verticalAlign: "middle" }}>
                     {loc.isActive !== false ? (
@@ -263,6 +299,47 @@ export function LocationsDashboard() {
                   <span style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "4px" }}>
                     Unique identifier used across tenant routing, biometric logs, and invoices.
                   </span>
+                </div>
+
+                <div className="kalki-field" style={{ margin: 0 }}>
+                  <label className="kalki-label">Business Line / Model</label>
+                  <select
+                    className="kalki-select"
+                    value={formBusinessType}
+                    onChange={e => setFormBusinessType(e.target.value)}
+                  >
+                    <option value="RESTAURANT">Restaurant &amp; Mess (Food Cost &amp; Kitchen)</option>
+                    <option value="RETAIL_STORE">Retail / Supermarket / Department Store</option>
+                    <option value="EVENT_HALL">Event &amp; Catering Facility</option>
+                    <option value="CORPORATE_HQ">Corporate HQ / Central Warehouse</option>
+                  </select>
+                </div>
+
+                <div className="kalki-field" style={{ margin: 0 }}>
+                  <label className="kalki-label">Operating Profile (Benchmark Context)</label>
+                  <select
+                    className="kalki-select"
+                    value={formOperatingProfile}
+                    onChange={e => setFormOperatingProfile(e.target.value)}
+                  >
+                    <option value="RURAL">Rural / Highway (Lower Rent, Higher Raw Logistics)</option>
+                    <option value="URBAN_HIGH_RENT">Urban / High Rent (High Prime &amp; Occupancy Cost)</option>
+                    <option value="RETAIL_SUPERMARKET">Retail FMCG Supermarket</option>
+                    <option value="STANDARD">Standard Operating Unit</option>
+                    <option value="CORPORATE_HQ">Administrative / Non-Operating</option>
+                  </select>
+                </div>
+
+                <div className="kalki-field" style={{ margin: 0 }}>
+                  <label className="kalki-label">Include in Branch Comparison Analysis?</label>
+                  <select
+                    className="kalki-select"
+                    value={formIsComparisonEnabled ? "true" : "false"}
+                    onChange={e => setFormIsComparisonEnabled(e.target.value === "true")}
+                  >
+                    <option value="true">Yes — Include in Unit Economics &amp; Benchmarks</option>
+                    <option value="false">No — Exclude (e.g. Non-Operating or Head Office)</option>
+                  </select>
                 </div>
 
                 {editingLoc && (

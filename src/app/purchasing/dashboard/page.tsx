@@ -31,7 +31,6 @@ import { TaskTimelineModal } from "@/components/purchasing/TaskTimelineModal";
 import { useSessionView } from "@/components/AppShell";
 import { ActionRequiredBanner } from "@/components/ui/ActionRequiredBanner";
 import { ShiftEndAuditQueue } from "@/components/purchasing/ShiftEndAuditQueue";
-import { BranchComparisonCockpit } from "@/components/purchasing/BranchComparisonCockpit";
 import {
   fetchPurchaseDashboardData,
   PendingTaskItem,
@@ -1227,11 +1226,6 @@ export default function PurchaseDashboardPage() {
               Retry
             </button>
           </div>
-        )}
-
-        {/* Consolidated Multi-Branch Comparison & Diagnostic Cockpit */}
-        {(!selected?.locationId || selected.locationId === "ALL") && selected?.organizationId && (
-          <BranchComparisonCockpit organizationId={selected.organizationId} />
         )}
 
         {/* Pending Tasks Banner */}

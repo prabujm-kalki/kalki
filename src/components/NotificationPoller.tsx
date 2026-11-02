@@ -33,6 +33,8 @@ export function NotificationPoller({
         let maxImportance = 0; // 0=none, 1=default, 2=chime, 3=alert, 4=urgent
 
         const toneMap: Record<string, number> = {
+          "none": 0,
+          "silent": 0,
           "default": 1,
           "level-1": 1,
           "chime": 2,

@@ -15,6 +15,9 @@ export async function GET(req: NextRequest) {
     const startDate = searchParams.get("startDate") || undefined;
     const endDate = searchParams.get("endDate") || undefined;
     const forceRefresh = searchParams.get("forceRefresh") === "true";
+    const businessType = searchParams.get("businessType") || undefined;
+    const locationIdsParam = searchParams.get("locationIds");
+    const locationIds = locationIdsParam ? locationIdsParam.split(",").filter(Boolean) : undefined;
 
     const context = await getSessionContext(session.user);
     const organizationId = orgId || context.scopes[0]?.organizationId;
@@ -27,6 +30,8 @@ export async function GET(req: NextRequest) {
       startDate,
       endDate,
       forceRefresh,
+      businessType,
+      locationIds,
     });
 
     if (!result.success) {

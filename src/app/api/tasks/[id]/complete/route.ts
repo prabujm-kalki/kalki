@@ -13,7 +13,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
     const { id: taskId } = await props.params;
     const body = await req.json();
-    const { completionProofUrl, completionData } = body;
+    const { completionProofUrl, completionData, checklistResponses } = body;
 
     // Fetch the task instance
     const [task] = await db.select().from(taskInstances).where(eq(taskInstances.id, taskId)).limit(1);
@@ -26,13 +26,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       return NextResponse.json({ error: "Task is not pending completion" }, { status: 400 });
     }
 
+    // Fetch task definition if present
+    let taskDef: any = null;
+    if (task.definitionId) {
+      const [def] = await db.select().from(taskDefinitions).where(eq(taskDefinitions.id, task.definitionId)).limit(1);
+      taskDef = def;
+    }
+
     let evidenceRequirementType = (task.contextData as any)?.adHocEvidenceRequirement;
     if (!evidenceRequirementType || evidenceRequirementType === "none") {
-      if (task.definitionId) {
-        // If it comes from a definition, fetch it.
-        const [def] = await db.select().from(taskDefinitions).where(eq(taskDefinitions.id, task.definitionId)).limit(1);
-        if (def) evidenceRequirementType = def.evidenceRequirementType;
-      }
+      if (taskDef) evidenceRequirementType = taskDef.evidenceRequirementType;
     }
     evidenceRequirementType = evidenceRequirementType || "none";
 
@@ -42,21 +45,49 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
         return NextResponse.json({ error: `Completion proof (${evidenceRequirementType}) is required.` }, { status: 400 });
       }
     } else if (evidenceRequirementType === "system_record") {
-      // Placeholder for specific system record checks
       if (!completionData) {
         return NextResponse.json({ error: "System record proof is required." }, { status: 400 });
       }
     }
 
-    // Determine next status (Audit logic)
-    // Very High -> Level 3 audit
-    // High -> Level 2 audit
-    // Medium -> Level 1 audit
-    // Low -> No audit needed
+    // Calculate Checklist Score & SLA performance metrics (KPI/Scorecard wiring)
+    let scoreSnapshot: any = null;
+    if (checklistResponses && Array.isArray(checklistResponses)) {
+      const totalItems = checklistResponses.length;
+      const completedItems = checklistResponses.filter((i: any) => i.checked || (i.value && i.value.toString().trim() !== "")).length;
+      const scorePercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 100;
+      
+      const isOverdue = task.dueAt ? new Date() > new Date(task.dueAt) : false;
+      const slaStatus = task.escalationLevel > 0 
+        ? "ESCALATED" 
+        : isOverdue 
+        ? "BREACHED" 
+        : task.extensionRequestedMins > 0 
+        ? "EXTENDED" 
+        : "ON_TIME";
+
+      scoreSnapshot = {
+        totalItems,
+        completedItems,
+        scorePercent,
+        slaStatus,
+        escalationLevel: task.escalationLevel,
+        extensionRequestedMins: task.extensionRequestedMins,
+        evaluatedAt: new Date().toISOString(),
+      };
+    }
+
+    // Determine next status:
+    // If task definition explicitly defines requiresApproval:
+    //   - true => audit_pending (routes to supervisor)
+    //   - false => completed
+    // Otherwise fallback to priority-based audit logic
     let nextStatus: "completed" | "audit_pending" = "completed";
     let nextAssignedRoleId = task.assignedRoleId;
 
-    if (task.priority === "medium" || task.priority === "high" || task.priority === "very_high") {
+    const requiresApproval = taskDef ? !!taskDef.requiresApproval : (task.priority === "medium" || task.priority === "high" || task.priority === "very_high");
+
+    if (requiresApproval) {
       nextStatus = "audit_pending";
       
       if (task.assignedRoleId) {
@@ -81,6 +112,8 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       assignedUserId: null, // Clear user assignment so it goes to the manager's role queue
       completionProofUrl,
       completionData,
+      checklistResponses: checklistResponses || null,
+      scoreSnapshot: scoreSnapshot || null,
       completedAt: new Date(),
       updatedAt: new Date(),
     }).where(eq(taskInstances.id, taskId)).returning();

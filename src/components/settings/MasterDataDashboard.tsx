@@ -11,7 +11,7 @@ import { Database, MapPin, Users, Clock, Banknote, Tag } from "lucide-react";
 
 export function MasterDataDashboard() {
   const { selected } = useSessionView();
-  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "shifts" | "salary" | "pricing">("departments");
+  const [activeTab, setActiveTab] = useState<"locations" | "departments" | "shifts" | "salary" | "pricing">("locations");
 
   if (!selected) {
     return <div style={{ padding: "2rem", textAlign: "center" }}>Please select an organization.</div>;
@@ -34,6 +34,7 @@ export function MasterDataDashboard() {
         {/* Kalki Standard Sub-Navigation Tabs */}
         <div style={{ display: "flex", gap: "0.5rem", borderBottom: "1px solid #e2e8f0", marginBottom: "1.75rem", paddingBottom: "2px" }}>
           {[
+            { id: "locations", label: "Locations & Branches", icon: <MapPin size={16} /> },
             { id: "departments", label: "Departments", icon: <Users size={16} /> },
             { id: "shifts", label: "Shifts", icon: <Clock size={16} /> },
             { id: "salary", label: "Salary Components", icon: <Banknote size={16} /> },
@@ -67,6 +68,7 @@ export function MasterDataDashboard() {
         </div>
 
         <div>
+          {activeTab === "locations" && <LocationsDashboard />}
           {activeTab === "departments" && <DepartmentsDashboard />}
           {activeTab === "shifts" && <ShiftDefinitionsDashboard />}
           {activeTab === "salary" && <SalaryComponentsDashboard />}

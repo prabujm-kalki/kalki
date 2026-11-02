@@ -30,18 +30,26 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string>("RESTAURANT");
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const fetchIntelligence = async (force: boolean = false) => {
+  const fetchIntelligence = async (force: boolean = false, businessType: string = selectedBusinessType) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/purchasing/branch-intelligence?organizationId=${organizationId}${force ? "&forceRefresh=true" : ""}`);
+      const typeQuery = businessType ? `&businessType=${businessType}` : "";
+      const res = await fetch(`/api/purchasing/branch-intelligence?organizationId=${organizationId}${typeQuery}${force ? "&forceRefresh=true" : ""}`);
       if (!res.ok) throw new Error("Failed to load intelligence metrics");
       const json = await res.json();
       setData(json);
-      if (json.branches && json.branches.length > 0 && !selectedBranchId) {
-        setSelectedBranchId(json.branches[0].locationId);
+      if (json.branches && json.branches.length > 0) {
+        // Pick first branch of current view if current selected isn't in branch list
+        const exists = json.branches.some((b: any) => b.locationId === selectedBranchId);
+        if (!exists) {
+          setSelectedBranchId(json.branches[0].locationId);
+        }
+      } else {
+        setSelectedBranchId(null);
       }
     } catch (err: any) {
       setError(err.message || "Failed to fetch data");
@@ -52,9 +60,9 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
 
   useEffect(() => {
     if (organizationId) {
-      fetchIntelligence();
+      fetchIntelligence(false, selectedBusinessType);
     }
-  }, [organizationId]);
+  }, [organizationId, selectedBusinessType]);
 
   const handleExecuteAction = async (action: any) => {
     setActionSuccess(`Action initiated: ${action.title}. Task pushed to task engine.`);
@@ -70,8 +78,26 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
     );
   }
 
-  if (error || !data) {
-    return null; // Graceful degrade if data isn't initialized
+  if (error) {
+    return (
+      <div style={{ padding: "20px", background: "#fef2f2", borderRadius: "10px", border: "1px solid #fecaca", color: "#b91c1c" }}>
+        <strong>Error loading branch comparison:</strong> {error}
+        <button
+          onClick={() => fetchIntelligence(true)}
+          style={{ marginLeft: "12px", padding: "4px 8px", background: "#dc2626", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div style={{ padding: "24px", background: "#f8fafc", borderRadius: "12px", border: "1px solid #e2e8f0", textAlign: "center", color: "#64748b" }}>
+        No branch intelligence snapshot data found for this organization.
+      </div>
+    );
   }
 
   const { summary, branches } = data;
@@ -171,6 +197,67 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
           {actionSuccess}
         </div>
       )}
+
+      {/* Business Model / Peer Group Tabs */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", marginRight: "4px" }}>
+            Comparison Group:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedBusinessType("RESTAURANT")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedBusinessType === "RESTAURANT" ? "1.5px solid #2563eb" : "1px solid #cbd5e1",
+              backgroundColor: selectedBusinessType === "RESTAURANT" ? "#eff6ff" : "#ffffff",
+              color: selectedBusinessType === "RESTAURANT" ? "#1e40af" : "#475569",
+            }}
+          >
+            🍱 Restaurants & Mess ({branches?.filter((b: any) => b.businessType === "RESTAURANT").length || 0})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedBusinessType("RETAIL_STORE")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedBusinessType === "RETAIL_STORE" ? "1.5px solid #2563eb" : "1px solid #cbd5e1",
+              backgroundColor: selectedBusinessType === "RETAIL_STORE" ? "#eff6ff" : "#ffffff",
+              color: selectedBusinessType === "RETAIL_STORE" ? "#1e40af" : "#475569",
+            }}
+          >
+            🛒 Department Stores & Retail
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedBusinessType("ALL")}
+            style={{
+              padding: "6px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedBusinessType === "ALL" ? "1.5px solid #2563eb" : "1px solid #cbd5e1",
+              backgroundColor: selectedBusinessType === "ALL" ? "#eff6ff" : "#ffffff",
+              color: selectedBusinessType === "ALL" ? "#1e40af" : "#475569",
+            }}
+          >
+            🌐 All Peer Groups
+          </button>
+        </div>
+
+        <span style={{ fontSize: "11px", color: "#64748b" }}>
+          Showing configured benchmark peer locations only
+        </span>
+      </div>
 
       {/* Branch Selector Tabs */}
       <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px" }}>
