@@ -4,15 +4,29 @@ import { useEffect, useRef } from "react";
 import { playNotificationTone } from "@/lib/audio";
 import { apiGet } from "@/lib/api";
 
-export function NotificationPoller({ organizationId }: { organizationId: string }) {
+export function NotificationPoller({ 
+  organizationId, 
+  locationId 
+}: { 
+  organizationId: string; 
+  locationId?: string | null; 
+}) {
   const lastUpdateRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (!organizationId) return;
 
+    // Reset last update tracker whenever location changes so past tasks from another branch don't chime
+    lastUpdateRef.current = Date.now();
+
     const interval = setInterval(async () => {
       try {
-        const payload = await apiGet<{ tasks: any[] }>(`/api/tasks?organizationId=${organizationId}`);
+        const queryParams = new URLSearchParams({ organizationId });
+        if (locationId && locationId !== "ALL") {
+          queryParams.set("locationId", locationId);
+        }
+
+        const payload = await apiGet<{ tasks: any[] }>(`/api/tasks?${queryParams.toString()}`);
         const tasks = payload.tasks || [];
         
         let shouldPlayTone: string | null = null;
@@ -69,7 +83,7 @@ export function NotificationPoller({ organizationId }: { organizationId: string 
     }, 10000); // Poll every 10 seconds
 
     return () => clearInterval(interval);
-  }, [organizationId]);
+  }, [organizationId, locationId]);
 
   return null; // Silent background component
 }

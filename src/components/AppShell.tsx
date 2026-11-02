@@ -107,7 +107,12 @@ function AppShellContent({ children }: { children: ReactNode }) {
   return (
     <SessionViewContext.Provider value={{ session, selected }}>
       <ToastProvider>
-        {selected && <NotificationPoller organizationId={selected.organizationId} />}
+        {selected && (
+          <NotificationPoller 
+            organizationId={selected.organizationId} 
+            locationId={selected.locationId} 
+          />
+        )}
         <div className="kalki-app-shell">
           
           {/* Mobile Overlay */}
