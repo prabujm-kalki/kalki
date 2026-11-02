@@ -1992,6 +1992,8 @@ export const taskDefinitions = pgTable(
     warningThresholdMins: integer("warning_threshold_mins"),
     allowTimeExtension: boolean("allow_time_extension").notNull().default(false),
     maxExtensionMins: integer("max_extension_mins"),
+    requiresApproval: boolean("requires_approval").notNull().default(false),
+    checklistConfig: jsonb("checklist_config").notNull().default([]),
     actionType: text("action_type", { enum: taskActionTypes })
       .notNull()
       .default("task"),
@@ -2052,6 +2054,8 @@ export const taskInstances = pgTable(
     dueAt: timestamp("due_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     extensionRequestedMins: integer("extension_requested_mins").notNull().default(0),
+    checklistResponses: jsonb("checklist_responses"),
+    scoreSnapshot: jsonb("score_snapshot"),
     completionProofUrl: text("completion_proof_url"),
     completionData: jsonb("completion_data"),
     skippedReason: text("skipped_reason"),
@@ -4402,5 +4406,65 @@ export const employeeAssessmentAttempts = pgTable(
   },
   (table) => [
     index("employee_assessment_attempts_emp_idx").on(table.employeeId, table.module),
+  ]
+);
+
+// -------------------------------------------------------------
+// BRANCH COMPARISON INTELLIGENCE & INDUSTRY BENCHMARK ENGINE
+// -------------------------------------------------------------
+
+export const branchBenchmarkConfigs = pgTable(
+  "branch_benchmark_configs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    branchProfile: varchar("branch_profile", { length: 50 }).notNull().default("STANDARD"), // 'RURAL', 'URBAN_HIGH_RENT', 'HIGHWAY_EXPRESS', 'STANDARD'
+    targetFoodCostPct: decimal("target_food_cost_pct", { precision: 5, scale: 2 }).notNull().default("30.00"),
+    targetLaborCostPct: decimal("target_labor_cost_pct", { precision: 5, scale: 2 }).notNull().default("18.00"),
+    targetOpexCostPct: decimal("target_opex_cost_pct", { precision: 5, scale: 2 }).notNull().default("12.00"),
+    maxPrimeCostPct: decimal("max_prime_cost_pct", { precision: 5, scale: 2 }).notNull().default("55.00"),
+    varianceAlertThresholdPct: decimal("variance_alert_threshold_pct", { precision: 5, scale: 2 }).notNull().default("2.50"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("branch_benchmark_org_idx").on(table.organizationId, table.branchProfile),
+  ]
+);
+
+export const branchIntelligenceSnapshots = pgTable(
+  "branch_intelligence_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => organizations.id, { onDelete: "cascade" }),
+    locationId: uuid("location_id")
+      .notNull()
+      .references(() => locations.id, { onDelete: "cascade" }),
+    snapshotDate: date("snapshot_date").notNull(), // ISO Date YYYY-MM-DD
+    periodType: varchar("period_type", { length: 20 }).notNull().default("DAILY"), // 'DAILY', 'WEEKLY', 'MONTHLY'
+    totalRevenue: decimal("total_revenue", { precision: 14, scale: 2 }).notNull().default("0.00"),
+    foodCostCogs: decimal("food_cost_cogs", { precision: 14, scale: 2 }).notNull().default("0.00"),
+    foodCostPct: decimal("food_cost_pct", { precision: 6, scale: 2 }).notNull().default("0.00"),
+    laborCost: decimal("labor_cost", { precision: 14, scale: 2 }).notNull().default("0.00"),
+    laborCostPct: decimal("labor_cost_pct", { precision: 6, scale: 2 }).notNull().default("0.00"),
+    opexCost: decimal("opex_cost", { precision: 14, scale: 2 }).notNull().default("0.00"),
+    opexCostPct: decimal("opex_cost_pct", { precision: 6, scale: 2 }).notNull().default("0.00"),
+    primeCostPct: decimal("prime_cost_pct", { precision: 6, scale: 2 }).notNull().default("0.00"),
+    benchmarkFoodCostPct: decimal("benchmark_food_cost_pct", { precision: 5, scale: 2 }).default("30.00"),
+    foodCostVariancePct: decimal("food_cost_variance_pct", { precision: 6, scale: 2 }).default("0.00"),
+    statusHealth: varchar("status_health", { length: 30 }).notNull().default("OPTIMAL"), // 'OPTIMAL', 'WARNING', 'CRITICAL'
+    rootCauseDecomposition: jsonb("root_cause_decomposition").notNull().default({}),
+    topItemsVariance: jsonb("top_items_variance").notNull().default([]),
+    recommendedActions: jsonb("recommended_actions").notNull().default([]),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("branch_intel_org_loc_date_idx").on(table.organizationId, table.locationId, table.snapshotDate),
   ]
 );
