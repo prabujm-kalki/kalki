@@ -35,6 +35,7 @@ export default function StockAssessmentPage() {
   const [vendorItems, setVendorItems] = useState<VendorItem[]>([]);
   const [stockInputs, setStockInputs] = useState<Record<string, string>>({});
   const [prepInputs, setPrepInputs] = useState<Record<string, string>>({});
+  const [assignedVendorName, setAssignedVendorName] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -75,7 +76,14 @@ export default function StockAssessmentPage() {
       const res = await fetch(`/api/vendors?organizationId=${org}&locationId=${loc}`);
       if (!res.ok) throw new Error("Failed to load vendors");
       const data = await res.json();
-      setVendors(data.items || []);
+      const list = data.items || [];
+      setVendors(list);
+      if (urlVendorId) {
+        const found = list.find((v: any) => v.id === urlVendorId);
+        if (found) {
+          setAssignedVendorName(found.name);
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     }
@@ -86,10 +94,34 @@ export default function StockAssessmentPage() {
     if (!org) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/vendor-items?organizationId=${org}&locationId=${loc}&vendorId=${vendorId}`);
-      if (!res.ok) throw new Error("Failed to load items");
-      const data = await res.json();
-      const itemsList = data.items || [];
+      let res = await fetch(`/api/vendor-items?organizationId=${org}&locationId=${loc}&vendorId=${vendorId}`);
+      let data = res.ok ? await res.json() : null;
+      let itemsList = data?.items || [];
+
+      // If no items returned for the current session/url location and an assigned vendorId exists,
+      // fallback to querying without the strict location filter or inspect all vendor catalogs
+      if (itemsList.length === 0 && vendorId) {
+        try {
+          const allVendorsRes = await fetch(`/api/vendors?organizationId=${org}`);
+          if (allVendorsRes.ok) {
+            const allVendorsData = await allVendorsRes.json();
+            const targetVendor = (allVendorsData.items || []).find((v: any) => v.id === vendorId);
+            if (targetVendor) {
+              setAssignedVendorName(targetVendor.name);
+              if (targetVendor.locationId && targetVendor.locationId !== loc) {
+                const fallbackRes = await fetch(`/api/vendor-items?organizationId=${org}&locationId=${targetVendor.locationId}&vendorId=${vendorId}`);
+                if (fallbackRes.ok) {
+                  const fallbackData = await fallbackRes.json();
+                  itemsList = fallbackData?.items || [];
+                }
+              }
+            }
+          }
+        } catch {
+          // Keep whatever items were found
+        }
+      }
+
       setVendorItems(itemsList);
       // Initialize inputs
       const initInputs: Record<string, string> = {};
@@ -316,7 +348,7 @@ export default function StockAssessmentPage() {
               alignItems: "center",
               justifyContent: "space-between"
             }}>
-              <span>{vendors.find(v => v.id === selectedVendorId)?.name || "Bhavanitha Broilers"}</span>
+              <span>{assignedVendorName || vendors.find(v => v.id === selectedVendorId)?.name || "Assigned Vendor"}</span>
               <span style={{ fontSize: "0.75rem", backgroundColor: "#e2e8f0", color: "#475569", padding: "2px 8px", borderRadius: "12px", fontWeight: 500 }}>
                 Assigned Task
               </span>
