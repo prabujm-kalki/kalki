@@ -14,6 +14,7 @@ import {
   vendors,
   branchPurchasePolicies,
   items,
+  locations,
 } from "@/db/schema";
 import { eq, desc, and, inArray, or, isNull, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
@@ -32,6 +33,12 @@ export interface GlobalPendingTaskItem {
   createdAt?: string;
   poId?: string;
   publicToken?: string | null;
+  locationId?: string | null;
+  locationName?: string | null;
+  locationCode?: string | null;
+  dueAt?: string | null;
+  dueText?: string | null;
+  dateText?: string | null;
   spotPurchaseId?: string;
   spotPurchase?: {
     id: string;
@@ -128,6 +135,8 @@ export async function fetchGlobalPendingTasks(params?: {
         status: purchaseOrders.status,
         publicToken: purchaseOrders.publicToken,
         createdByUserId: purchaseOrders.createdByUserId,
+        locationId: purchaseOrders.locationId,
+        createdAt: purchaseOrders.createdAt,
       })
       .from(purchaseOrders)
       .where(and(
@@ -146,6 +155,7 @@ export async function fetchGlobalPendingTasks(params?: {
         cashierBillAmount: purchaseOrders.cashierBillAmount,
         billReviewRoleId: purchaseOrders.billReviewRoleId,
         status: purchaseOrders.status,
+        locationId: purchaseOrders.locationId,
         createdAt: purchaseOrders.createdAt,
       })
       .from(purchaseOrders)
@@ -165,6 +175,8 @@ export async function fetchGlobalPendingTasks(params?: {
         cashierBillAmount: purchaseOrders.cashierBillAmount,
         billReviewRoleId: purchaseOrders.billReviewRoleId,
         status: purchaseOrders.status,
+        locationId: purchaseOrders.locationId,
+        createdAt: purchaseOrders.createdAt,
       })
       .from(purchaseOrders)
       .where(and(
@@ -184,6 +196,7 @@ export async function fetchGlobalPendingTasks(params?: {
         processOwnerRoleId: purchaseOrders.processOwnerRoleId,
         reviewRoleId: purchaseOrders.reviewRoleId,
         status: purchaseOrders.status,
+        locationId: purchaseOrders.locationId,
         createdAt: purchaseOrders.createdAt,
       })
       .from(purchaseOrders)
@@ -210,7 +223,7 @@ export async function fetchGlobalPendingTasks(params?: {
     const occupiedRoleIds = new Set<string>();
     const orgRoleMap = new Map<string, string | null>(); // roleId -> reportsToRoleId
 
-    const [allLocAssignments, allOrgAssignments, allEmpAssignments, allOrgRoles, allTaskDefs, branchPolicies] = await Promise.all([
+    const [allLocAssignments, allOrgAssignments, allEmpAssignments, allOrgRoles, allTaskDefs, branchPolicies, allLocations] = await Promise.all([
       db.select({ roleId: locationRoleAssignments.roleId }).from(locationRoleAssignments).where(eq(locationRoleAssignments.organizationId, organizationId)),
       db.select({ roleId: organizationRoleAssignments.roleId }).from(organizationRoleAssignments).where(eq(organizationRoleAssignments.organizationId, organizationId)),
       db.select({ roleId: employeeRoleAssignments.roleId }).from(employeeRoleAssignments).where(and(eq(employeeRoleAssignments.organizationId, organizationId), eq(employeeRoleAssignments.isActive, true))),
@@ -223,7 +236,11 @@ export async function fetchGlobalPendingTasks(params?: {
         completionTimeMins: taskDefinitions.completionTimeMins,
       }).from(taskDefinitions).where(eq(taskDefinitions.organizationId, organizationId)),
       db.select().from(branchPurchasePolicies).where(eq(branchPurchasePolicies.organizationId, organizationId)),
+      db.select({ id: locations.id, name: locations.name, code: locations.code }).from(locations).where(eq(locations.organizationId, organizationId)),
     ]);
+
+    const locationMap = new Map<string, { id: string; name: string; code: string }>();
+    allLocations.forEach(loc => locationMap.set(loc.id, loc));
 
     allLocAssignments.forEach(r => occupiedRoleIds.add(r.roleId));
     allOrgAssignments.forEach(r => occupiedRoleIds.add(r.roleId));
@@ -276,6 +293,11 @@ export async function fetchGlobalPendingTasks(params?: {
       }
 
       if (isAssigned) {
+        const auditLoc = audit.locationId ? locationMap.get(audit.locationId) : null;
+        const taskDate = audit.createdAt ? new Date(audit.createdAt) : new Date();
+        const dateText = taskDate.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+        const timeText = taskDate.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true });
+
         tasks.push({
           id: `audit-${audit.id}`,
           title: `Shift-End Audit Required: ${audit.voucherNumber || audit.id.slice(0, 8)}${isSlaBreached ? " (SLA Overdue)" : ""}`,
@@ -287,6 +309,11 @@ export async function fetchGlobalPendingTasks(params?: {
           actionUrl: `/purchasing/dashboard?view=audit${tenantQs ? `&${tenantQs.slice(1)}` : ""}#shift-end-audit`,
           actionLabel: "Audit Now",
           createdAt: audit.createdAt ? new Date(audit.createdAt).toISOString() : undefined,
+          locationId: audit.locationId || null,
+          locationName: auditLoc?.name || null,
+          locationCode: auditLoc?.code || null,
+          dateText,
+          dueText: `Created: ${timeText} (SLA: ${slaHours}h)`,
           spotPurchaseId: audit.id,
           spotPurchase: {
             id: audit.id,
@@ -338,6 +365,11 @@ export async function fetchGlobalPendingTasks(params?: {
       const isAssigned = isRoleAssigned || (isOwner && isRoleVacant);
 
       if (isAssigned) {
+        const poLoc = po.locationId ? locationMap.get(po.locationId) : null;
+        const taskDate = po.createdAt ? new Date(po.createdAt) : new Date();
+        const dateText = taskDate.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+        const timeText = taskDate.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true });
+
         tasks.push({
           id: `po-approval-${po.id}`,
           title: `PO Approval Pending: ${po.poNumber || po.id.slice(0, 8)}`,
@@ -346,6 +378,11 @@ export async function fetchGlobalPendingTasks(params?: {
           priority: "HIGH",
           actionUrl: `/purchasing/review/${po.id}${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
           actionLabel: "Review & Approve",
+          locationId: po.locationId || null,
+          locationName: poLoc?.name || null,
+          locationCode: poLoc?.code || null,
+          dateText,
+          dueText: `Created: ${timeText}`,
           poId: po.id,
           publicToken: po.publicToken,
         });
@@ -377,6 +414,11 @@ export async function fetchGlobalPendingTasks(params?: {
 
       if (isAssigned) {
         const poNum = po.poNumber || po.id.slice(0, 8).toUpperCase();
+        const poLoc = po.locationId ? locationMap.get(po.locationId) : null;
+        const taskDate = po.createdAt ? new Date(po.createdAt) : new Date();
+        const dateText = taskDate.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+        const timeText = taskDate.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true });
+
         tasks.push({
           id: `goods-receipt-${po.id}`,
           title: `Receive Goods: ${poNum}${isDeliveryOverdue ? " (Delayed Delivery)" : ""}`,
@@ -388,6 +430,11 @@ export async function fetchGlobalPendingTasks(params?: {
           actionUrl: `/purchasing/dashboard?receivePoId=${po.id}${tenantQs ? `&${tenantQs.slice(1)}` : ""}`,
           actionLabel: "Receive Goods",
           createdAt: po.createdAt ? new Date(po.createdAt).toISOString() : undefined,
+          locationId: po.locationId || null,
+          locationName: poLoc?.name || null,
+          locationCode: poLoc?.code || null,
+          dateText,
+          dueText: `Ordered: ${timeText} (SLA: ${goodsReceiptSlaHours}h)`,
           poId: po.id,
         });
       }
@@ -421,6 +468,11 @@ export async function fetchGlobalPendingTasks(params?: {
       const isAssigned = isRoleAssigned || (isSupervisor && isSlaBreached) || (isOwner && (isRoleVacant || hoursSinceReceived > 24));
 
       if (isAssigned) {
+        const poLoc = po.locationId ? locationMap.get(po.locationId) : null;
+        const taskDate = po.createdAt ? new Date(po.createdAt) : new Date();
+        const dateText = taskDate.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+        const timeText = taskDate.toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true });
+
         tasks.push({
           id: `cashier-audit-${po.id}`,
           title: `Cashier Review: ${po.poNumber || po.id.slice(0, 8)}${isSlaBreached ? " (Overdue)" : ""}`,
@@ -431,6 +483,11 @@ export async function fetchGlobalPendingTasks(params?: {
           priority: isSlaBreached ? "HIGH" : "NORMAL",
           actionUrl: `/finance/purchases-payables/audit-queue${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
           actionLabel: "Audit Bill",
+          locationId: po.locationId || null,
+          locationName: poLoc?.name || null,
+          locationCode: poLoc?.code || null,
+          dateText,
+          dueText: `Received: ${timeText} (SLA: ${cashierSlaHours}h)`,
           poId: po.id,
         });
       }
@@ -444,6 +501,10 @@ export async function fetchGlobalPendingTasks(params?: {
 
       if (isAssigned) {
         const amt = Number(po.cashierBillAmount || po.totalAmount || 0);
+        const poLoc = po.locationId ? locationMap.get(po.locationId) : null;
+        const taskDate = po.createdAt ? new Date(po.createdAt) : new Date();
+        const dateText = taskDate.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+
         tasks.push({
           id: `finance-bill-${po.id}`,
           title: `Finance Processing Pending: ${po.poNumber || po.id.slice(0, 8)}`,
@@ -452,6 +513,10 @@ export async function fetchGlobalPendingTasks(params?: {
           priority: "HIGH",
           actionUrl: `/finance/purchases-payables/bills${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
           actionLabel: "Process Bill",
+          locationId: po.locationId || null,
+          locationName: poLoc?.name || null,
+          locationCode: poLoc?.code || null,
+          dateText,
           poId: po.id,
         });
       }
@@ -500,6 +565,14 @@ export async function fetchGlobalPendingTasks(params?: {
         ? `Escalated to management: ${ctx.escalationReason || "Deadline missed by assignee"}. Awaiting your audit / approval.`
         : (ctx.description || definition.description || "Task execution complete. Requires supervisor audit verification.");
 
+      const targetLocId = ctx.locationId || locationId || null;
+      const taskLoc = targetLocId ? locationMap.get(targetLocId) : null;
+      const taskDateObj = instance.dueAt || instance.createdAt ? new Date(instance.dueAt || instance.createdAt!) : new Date();
+      const dateText = taskDateObj.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+      const dueTimeStr = instance.dueAt 
+        ? `Due: ${new Date(instance.dueAt).toLocaleTimeString("en-IN", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true })}`
+        : "";
+
       tasks.push({
         id: `task-engine-audit-${instance.id}`,
         title: `Audit Required: ${taskTitle}`,
@@ -507,9 +580,15 @@ export async function fetchGlobalPendingTasks(params?: {
         type: "AUDIT",
         priority: "HIGH",
         isEscalated,
-        actionUrl: `/tasks?tab=audit${tenantQs}`,
+        actionUrl: `/tasks/audit${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
         actionLabel: "Audit Task",
         createdAt: instance.createdAt ? new Date(instance.createdAt).toISOString() : undefined,
+        locationId: targetLocId,
+        locationName: taskLoc?.name || null,
+        locationCode: taskLoc?.code || null,
+        dueAt: instance.dueAt ? new Date(instance.dueAt).toISOString() : null,
+        dateText,
+        dueText: dueTimeStr || (isEscalated ? "Escalated" : "Audit Pending"),
       });
     }
 
@@ -590,16 +669,34 @@ export async function fetchGlobalPendingTasks(params?: {
 
       const isEscalated = Boolean(ctx.escalated || ctx.escalationReason || (instance.escalationLevel && instance.escalationLevel > 0));
 
+      // Industry Standard: If user is an executive / owner, do not clutter their "Action Required" dashboard
+      // with standard, non-escalated routine operational tasks that are currently assigned to operational staff.
+      // Owners should only see routine tasks if they have been ESCALATED (overdue/breached SLA) or if the user is directly assigned.
+      if (isOwner && !isEscalated && instance.assignedUserId !== userId) {
+        continue;
+      }
+
+      const targetLocId = ctx.locationId || locationId || null;
+      const taskLoc = targetLocId ? locationMap.get(targetLocId) : null;
+      const taskDateObj = instance.dueAt || instance.createdAt ? new Date(instance.dueAt || instance.createdAt!) : new Date();
+      const dateText = taskDateObj.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short" });
+
       tasks.push({
         id: `task-engine-routine-${instance.id}`,
         title: isPurchasingRoutine ? taskTitle : `Task: ${taskTitle}`,
-        description: `${ctx.description || (isPurchasingRoutine ? "Scheduled daily purchasing order cycle started. Stock assessment pending completion." : definition.description) || "Assigned task awaiting completion."}${dueStr ? ` • ${dueStr}` : ""}`,
+        description: `${ctx.description || (isPurchasingRoutine ? "Scheduled daily purchasing order cycle started. Stock assessment pending completion." : definition.description) || "Assigned task awaiting completion."}`,
         type: "ROUTINE",
         priority: isEscalated || instance.priority === "high" || instance.priority === "HIGH" ? "HIGH" : "NORMAL",
         isEscalated,
         actionUrl: ctx.actionUrl ? `${ctx.actionUrl}${tenantQs}` : `/tasks${tenantQs ? `?${tenantQs.slice(1)}` : ""}`,
         actionLabel: ctx.actionLabel || (isPurchasingRoutine ? "Assess Stock" : "Open Task"),
         createdAt: instance.createdAt ? new Date(instance.createdAt).toISOString() : undefined,
+        locationId: targetLocId,
+        locationName: taskLoc?.name || null,
+        locationCode: taskLoc?.code || null,
+        dueAt: instance.dueAt ? new Date(instance.dueAt).toISOString() : null,
+        dateText,
+        dueText: dueStr || undefined,
       });
     }
 

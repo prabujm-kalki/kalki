@@ -20,14 +20,47 @@ function isEmployeeAttendanceExempt(emp: any): boolean {
   return false;
 }
 
+function isEmployeeAtLocationOnDate(
+  emp: any,
+  locationId: string,
+  dateStr: string,
+  branchHistories?: Array<{ employeeId: string; locationId: string; effectiveFrom: string | Date }>
+): boolean {
+  if (!branchHistories || branchHistories.length === 0) {
+    return emp.locationId === locationId;
+  }
+
+  // Filter histories for this employee
+  const histories = branchHistories.filter((h) => h.employeeId === emp.id);
+  if (histories.length === 0) {
+    return emp.locationId === locationId;
+  }
+
+  // The branchHistories are ordered descending by effectiveFrom.
+  // We want the most recent branch assignment whose effectiveFrom <= end of dateStr
+  const targetDateEnd = new Date(`${dateStr}T23:59:59+05:30`);
+  for (const h of histories) {
+    const eff = new Date(h.effectiveFrom);
+    if (eff <= targetDateEnd) {
+      return h.locationId === locationId;
+    }
+  }
+
+  // If all history entries are strictly after this date, check the earliest recorded branch
+  const earliest = histories[histories.length - 1];
+  return earliest.locationId === locationId;
+}
+
 export default function ReportsClient({ 
   departments, 
   roles, 
-  employees 
+  employees,
+  branchHistories = []
 }: { 
   departments: any[], 
   roles: any[], 
-  employees: any[] 
+  employees: any[],
+  branchHistories?: Array<{ employeeId: string; locationId: string; effectiveFrom: string | Date }>
 }) {
   const { selected } = useSessionView();
   
@@ -119,9 +152,14 @@ export default function ReportsClient({
       const filteredEmployees = employees.filter(e => {
         if (isEmployeeAttendanceExempt(e)) return false;
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
-        if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+        if (selected?.locationId) {
+          const wasAtLocationInDateRange = dates.some(d => 
+            isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
+          );
+          if (!wasAtLocationInDateRange) return false;
+        }
         return true;
       });
 
@@ -130,6 +168,10 @@ export default function ReportsClient({
         const rows: string[][] = [];
         filteredEmployees.forEach(emp => {
           dates.forEach(d => {
+            if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+              return;
+            }
+
             const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
             const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
 
@@ -226,6 +268,10 @@ export default function ReportsClient({
           let absentCount = 0;
 
           dates.forEach(d => {
+            if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+              return;
+            }
+
             const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
             if (leave) {
               leaveCount++;
@@ -407,9 +453,14 @@ export default function ReportsClient({
       const filteredEmployees = employees.filter((e) => {
         if (isEmployeeAttendanceExempt(e)) return false;
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
-        if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+        if (selected?.locationId) {
+          const wasAtLocationInDateRange = dates.some(d => 
+            isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
+          );
+          if (!wasAtLocationInDateRange) return false;
+        }
         return true;
       });
 
@@ -424,6 +475,10 @@ export default function ReportsClient({
 
       filteredEmployees.forEach((emp) => {
         dates.forEach((d) => {
+          if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+            return;
+          }
+
           const dayPunches = reportData.filter(
             (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
           );
@@ -652,9 +707,14 @@ export default function ReportsClient({
       const filteredEmployees = employees.filter((e) => {
         if (isEmployeeAttendanceExempt(e)) return false;
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
-        if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+        if (selected?.locationId) {
+          const wasAtLocationInDateRange = dates.some(d => 
+            isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
+          );
+          if (!wasAtLocationInDateRange) return false;
+        }
         return true;
       });
 
@@ -669,6 +729,10 @@ export default function ReportsClient({
         let absentCount = 0;
 
         dates.forEach((d) => {
+          if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+            return;
+          }
+
           const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
           if (leave) {
             leaveCount++;
@@ -863,9 +927,15 @@ export default function ReportsClient({
       const filteredEmployees = employees.filter(e => {
         if (isEmployeeAttendanceExempt(e)) return false;
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
-        if (e.locationId && e.locationId !== selected?.locationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+        // Check if employee was at the selected location on at least one day in the date range
+        if (selected?.locationId) {
+          const wasAtLocationInDateRange = dates.some(d => 
+            isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
+          );
+          if (!wasAtLocationInDateRange) return false;
+        }
         return true;
       });
 
@@ -903,6 +973,10 @@ export default function ReportsClient({
                       </thead>
                       <tbody>
                         {dates.map(d => {
+                          if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+                            return null;
+                          }
+
                           const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
                           if (leave) {
                             return (
@@ -1062,8 +1136,14 @@ export default function ReportsClient({
                   let halfDayCount = 0;
                   let leaveCount = 0;
                   let absentCount = 0;
+                  let daysAtLocation = 0;
 
                   dates.forEach(d => {
+                    if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+                      return;
+                    }
+                    daysAtLocation++;
+
                     const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
                     if (leave) {
                       leaveCount++;
@@ -1115,7 +1195,8 @@ export default function ReportsClient({
                   });
 
                   const attendedEquivalent = presentCount + (halfDayCount * 0.5) + leaveCount;
-                  const pct = dates.length > 0 ? Math.round((attendedEquivalent / dates.length) * 100) : 0;
+                  const totalDaysForEmp = daysAtLocation > 0 ? daysAtLocation : dates.length;
+                  const pct = totalDaysForEmp > 0 ? Math.round((attendedEquivalent / totalDaysForEmp) * 100) : 0;
 
                   return (
                     <tr key={emp.id}>
@@ -1123,7 +1204,7 @@ export default function ReportsClient({
                         <div style={{ fontWeight: 600 }}>{emp.name}</div>
                         <div style={{ color: "var(--att-text-muted)", fontSize: "0.75rem" }}>{emp.code}</div>
                       </td>
-                      <td style={{ textAlign: "center", fontWeight: 500 }}>{dates.length}</td>
+                      <td style={{ textAlign: "center", fontWeight: 500 }}>{totalDaysForEmp}</td>
                       <td style={{ textAlign: "center", color: "var(--att-success)", fontWeight: 600 }}>{presentCount}</td>
                       <td style={{ textAlign: "center", color: "#d97706", fontWeight: 600 }}>{lateCount}</td>
                       <td style={{ textAlign: "center", color: "#0284c7", fontWeight: 600 }}>{halfDayCount}</td>
@@ -1209,7 +1290,22 @@ export default function ReportsClient({
             <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: 500, color: "var(--att-text-muted)" }}>Employee</label>
             <select className="att-input-premium" value={employeeId} onChange={e => setEmployeeId(e.target.value)}>
               <option value="">All Employees</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.name} ({e.code})</option>)}
+              {employees
+                .filter(e => {
+                  if (isEmployeeAttendanceExempt(e)) return false;
+                  if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
+                  // If employee is or was at this location, include them in the dropdown
+                  if (selected?.locationId) {
+                    const hasHistoryAtLocation = branchHistories.some(
+                      h => h.employeeId === e.id && h.locationId === selected.locationId
+                    );
+                    if (e.locationId !== selected.locationId && !hasHistoryAtLocation) {
+                      return false;
+                    }
+                  }
+                  return true;
+                })
+                .map(e => <option key={e.id} value={e.id}>{e.name} ({e.code})</option>)}
             </select>
           </div>
           

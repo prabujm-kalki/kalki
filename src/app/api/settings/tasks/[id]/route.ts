@@ -104,6 +104,8 @@ export async function PUT(
       allowTimeExtension: !!body.allowTimeExtension,
       maxExtensionMins: body.maxExtensionMins || null,
       requiresApproval: !!body.requiresApproval,
+      evidenceRequirementType: body.evidenceRequirementType || "optional",
+      priority: body.priority || "medium",
       checklistConfig: body.checklistConfig || [],
       updatedAt: new Date(),
     }).where(eq(taskDefinitions.id, taskId)).returning();

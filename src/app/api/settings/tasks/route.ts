@@ -21,6 +21,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const orgId = searchParams.get("organizationId") || await getOrganizationForUser(user.id);
+    const locationId = searchParams.get("locationId");
     if (!orgId) return NextResponse.json({ error: "No organization found" }, { status: 400 });
     
     const definitions = await db.select()
@@ -29,18 +30,80 @@ export async function GET(request: Request) {
 
     const defIds = definitions.map(d => d.id);
     let matrices: any[] = [];
+    let instances: any[] = [];
     if (defIds.length > 0) {
       matrices = await db.select()
         .from(taskEscalationMatrices)
         .where(inArray(taskEscalationMatrices.definitionId, defIds));
+
+      // Fetch the latest active/completed instances for runtime pipeline flow tracking
+      const { taskInstances, authUsers } = await import("@/db/schema");
+      instances = await db.select({
+        id: taskInstances.id,
+        definitionId: taskInstances.definitionId,
+        status: taskInstances.status,
+        escalationLevel: taskInstances.escalationLevel,
+        dueAt: taskInstances.dueAt,
+        completedAt: taskInstances.completedAt,
+        createdAt: taskInstances.createdAt,
+        scoreSnapshot: taskInstances.scoreSnapshot,
+        completionProofUrl: taskInstances.completionProofUrl,
+        contextData: taskInstances.contextData,
+        userName: authUsers.name,
+      })
+      .from(taskInstances)
+      .leftJoin(authUsers, eq(taskInstances.assignedUserId, authUsers.id))
+      .where(inArray(taskInstances.definitionId, defIds));
     }
 
-    const result = definitions.map(def => ({
-      ...def,
-      escalationLevels: matrices
-        .filter(m => m.definitionId === def.id)
-        .sort((a, b) => a.level - b.level)
-    }));
+    const result = definitions.map(def => {
+      let defInstances = instances.filter(i => i.definitionId === def.id);
+      
+      // Filter by location if specified
+      if (locationId) {
+        defInstances = defInstances.filter(i => {
+          const ctxLocId = (i.contextData as any)?.locationId;
+          return !ctxLocId || ctxLocId === locationId;
+        });
+      }
+
+      // Sort by creation desc
+      defInstances.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      
+      // Find the last completed cycle
+      const lastCompletedCycle = defInstances.find(i => i.status === "completed") || null;
+      // Find current active instance if any
+      const activeInstance = defInstances.find(i => i.status === "pending" || i.status === "in_progress") || null;
+
+      return {
+        ...def,
+        escalationLevels: matrices
+          .filter(m => m.definitionId === def.id)
+          .sort((a, b) => a.level - b.level),
+        liveInstance: activeInstance ? {
+          id: activeInstance.id,
+          status: activeInstance.status,
+          escalationLevel: activeInstance.escalationLevel,
+          dueAt: activeInstance.dueAt,
+          completedAt: activeInstance.completedAt,
+          createdAt: activeInstance.createdAt,
+          scoreSnapshot: activeInstance.scoreSnapshot,
+          completionProofUrl: activeInstance.completionProofUrl,
+          actorName: activeInstance.userName || "Staff",
+        } : null,
+        lastCycle: lastCompletedCycle ? {
+          id: lastCompletedCycle.id,
+          status: lastCompletedCycle.status,
+          escalationLevel: lastCompletedCycle.escalationLevel,
+          dueAt: lastCompletedCycle.dueAt,
+          completedAt: lastCompletedCycle.completedAt,
+          createdAt: lastCompletedCycle.createdAt,
+          scoreSnapshot: lastCompletedCycle.scoreSnapshot,
+          completionProofUrl: lastCompletedCycle.completionProofUrl,
+          actorName: lastCompletedCycle.userName || "Staff",
+        } : null,
+      };
+    });
 
     return NextResponse.json(result);
   } catch (error) {
@@ -76,6 +139,8 @@ export async function POST(request: Request) {
       allowTimeExtension: !!body.allowTimeExtension,
       maxExtensionMins: body.maxExtensionMins || null,
       requiresApproval: !!body.requiresApproval,
+      evidenceRequirementType: body.evidenceRequirementType || "optional",
+      priority: body.priority || "medium",
       checklistConfig: body.checklistConfig || [],
     }).returning();
 

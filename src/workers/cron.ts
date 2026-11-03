@@ -2,6 +2,7 @@ import cron from "node-cron";
 import { runLeaveAccruals } from "../domains/attendance/accrualEngine";
 import { generateDailyStockTasks } from "../domains/purchasing/stockAssessmentTasks";
 import { generateRoutinePurchaseTasks } from "../domains/purchasing/purchaseScheduleTasks";
+import { generateRoutineJobInstances } from "../domains/tasks/routineGenerator";
 import { runEscalationSweeper } from "../domains/tasks/sweeper";
 
 // Helper for error logging
@@ -22,8 +23,17 @@ cron.schedule("* * * * *", async () => {
   }
 });
 
-// 0.1 Minute-by-Minute Routine Purchase Task Generator
+// 0.1 Minute-by-Minute Routine Task Generators
 cron.schedule("* * * * *", async () => {
+  try {
+    const routineJobResult = await generateRoutineJobInstances();
+    if (routineJobResult.success && routineJobResult.tasksCreated > 0) {
+      console.log(`[CRON] Generated ${routineJobResult.tasksCreated} Routine Checklist Task(s).`);
+    }
+  } catch (error) {
+    logError("Routine Checklist Tasks Generator", error);
+  }
+
   try {
     const result = await generateRoutinePurchaseTasks();
     if (result.success && result.tasksCreated > 0) {

@@ -7,6 +7,8 @@ import { useSessionView } from "@/components/AppShell";
 import { StatusMessage } from "@/components/StatusMessage";
 import { apiGet, apiSend } from "@/lib/api";
 import { EmployeeForm } from "./EmployeeForm";
+import { EmployeeTransferModal } from "./EmployeeTransferModal";
+import { ArrowRightLeft } from "lucide-react";
 
 type EmployeeView = {
   id: string;
@@ -96,6 +98,7 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
   const [isEditing, setIsEditing] = useState(searchParams.get("edit") === "true");
   const [isEditingSalary, setIsEditingSalary] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
   const [isProvisioning, setIsProvisioning] = useState(false);
   const [provisionError, setProvisionError] = useState<string | null>(null);
@@ -391,7 +394,18 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
               </p>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "12px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+            {emp.status === "ACTIVE" && (
+              <button
+                type="button"
+                className="kalki-button kalki-button--secondary"
+                onClick={() => setShowTransferModal(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+              >
+                <ArrowRightLeft size={15} />
+                Transfer Branch
+              </button>
+            )}
             <button className="kalki-button kalki-button--secondary" onClick={() => setIsEditing(true)} disabled={!!pendingProposal}>
               {isProposalRequired ? "Propose Change" : "Edit"}
             </button>
@@ -769,6 +783,22 @@ export function EmployeeProfile({ employeeId }: { employeeId: string }) {
               </div>
             </section>
           </div>
+        )}
+
+        {showTransferModal && (
+          <EmployeeTransferModal
+            isOpen={showTransferModal}
+            employeeId={emp.id}
+            employeeCode={emp.employeeCode}
+            employeeName={emp.person.displayName}
+            currentLocationId={emp.locationId || selected?.locationId || ""}
+            organizationId={selected?.organizationId || ""}
+            onClose={() => setShowTransferModal(false)}
+            onSuccess={() => {
+              setShowTransferModal(false);
+              setRefreshKey((k) => k + 1);
+            }}
+          />
         )}
       </div>
     </div>

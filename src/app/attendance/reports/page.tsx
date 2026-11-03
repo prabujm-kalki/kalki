@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { departments, businessRoles, employees, people, shiftDefinitions } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { departments, businessRoles, employees, people, shiftDefinitions, employeeHistoryBranch } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 import ReportsClient from "@/components/attendance/ReportsClient";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
@@ -69,6 +69,15 @@ export default async function AttendanceReportsPage() {
   .innerJoin(people, eq(employees.personId, people.id))
   .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id));
 
+  const branchHistories = await db
+    .select({
+      employeeId: employeeHistoryBranch.employeeId,
+      locationId: employeeHistoryBranch.locationId,
+      effectiveFrom: employeeHistoryBranch.effectiveFrom,
+    })
+    .from(employeeHistoryBranch)
+    .orderBy(desc(employeeHistoryBranch.effectiveFrom));
+
   return (
     <div>
       <header className="att-header">
@@ -80,6 +89,7 @@ export default async function AttendanceReportsPage() {
         departments={depts}
         roles={rls}
         employees={emps}
+        branchHistories={branchHistories}
       />
     </div>
   );

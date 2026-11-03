@@ -209,20 +209,34 @@ export default function StockAssessmentPage() {
     setSubmitting(true);
     setError("");
     
-    // Prepare payload (accounting for both raw and prep units)
-    const inputs = vendorItems
-      .map(item => {
-        const { total, hasEntered } = computeTotalStock(item);
-        if (!hasEntered) return null;
-        return {
-          itemId: item.itemId,
-          currentStock: total
-        };
-      })
-      .filter((entry): entry is { itemId: string; currentStock: number } => entry !== null);
+    // Validate that ALL items in the assessment list have a value entered
+    const unenteredItems: string[] = [];
+    const inputs = vendorItems.map(item => {
+      const { total, hasEntered } = computeTotalStock(item);
+      if (!hasEntered) {
+        unenteredItems.push(item.itemName);
+        return null;
+      }
+      return {
+        itemId: item.itemId,
+        currentStock: total
+      };
+    });
 
-    if (inputs.length === 0) {
-      setError("Please enter current stock for at least one item.");
+    if (unenteredItems.length > 0) {
+      setError(
+        `All items must be assessed. Please enter the available stock (or 0) for: ${unenteredItems.slice(0, 3).join(", ")}${
+          unenteredItems.length > 3 ? ` and ${unenteredItems.length - 3} more` : ""
+        }.`
+      );
+      setSubmitting(false);
+      return;
+    }
+
+    const validInputs = inputs.filter((entry): entry is { itemId: string; currentStock: number } => entry !== null);
+
+    if (validInputs.length === 0) {
+      setError("No items available to assess for this vendor.");
       setSubmitting(false);
       return;
     }
@@ -238,7 +252,7 @@ export default function StockAssessmentPage() {
           vendorId: selectedVendorId,
           organizationId: activeOrgId,
           locationId: activeLocId,
-          stockInputs: inputs,
+          stockInputs: validInputs,
           taskId: taskId
         }),
       });
@@ -322,31 +336,38 @@ export default function StockAssessmentPage() {
 
   return (
     <>
-      <div style={{ padding: "24px", maxWidth: "800px", margin: "0 auto" }}>
-        <h1 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "16px" }}>Daily Stock Assessment</h1>
-        <p style={{ color: "var(--text-muted)", marginBottom: "24px" }}>
-          Enter the current available stock for items. The system will automatically generate Purchase Orders for items that have reached their reorder levels.
-        </p>
+      <div style={{ padding: "16px", maxWidth: "1100px", margin: "0 auto", width: "100%", boxSizing: "border-box" }}>
+        <div style={{ marginBottom: "16px" }}>
+          <h1 style={{ fontSize: "20px", fontWeight: "bold", margin: "0 0 6px 0", color: "var(--kalki-text-primary, #0f172a)" }}>
+            Daily Stock Assessment
+          </h1>
+          <p style={{ color: "var(--text-muted, #64748b)", margin: 0, fontSize: "13px" }}>
+            Enter current available stock. Purchase Orders are automatically generated for items that reach or fall below reorder levels.
+          </p>
+        </div>
 
         {error && (
-          <div style={{ backgroundColor: "#fee2e2", color: "#b91c1c", padding: "12px", borderRadius: "8px", marginBottom: "16px" }}>
+          <div style={{ backgroundColor: "#fee2e2", color: "#b91c1c", padding: "10px 14px", borderRadius: "8px", marginBottom: "16px", fontSize: "13px" }}>
             {error}
           </div>
         )}
 
-        <div style={{ marginBottom: "24px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: 500 }}>Vendor</label>
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{ display: "block", marginBottom: "6px", fontWeight: 600, fontSize: "13px", color: "var(--kalki-text-secondary, #334155)" }}>
+            Vendor
+          </label>
           {urlVendorId ? (
             <div style={{ 
-              padding: "10px 14px", 
+              padding: "8px 12px", 
               borderRadius: "6px", 
-              border: "1px solid var(--border-color)", 
+              border: "1px solid var(--border-color, #e2e8f0)", 
               backgroundColor: "#f8fafc", 
               color: "#0f172a", 
               fontWeight: "600",
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between"
+              justifyContent: "space-between",
+              fontSize: "14px"
             }}>
               <span>{assignedVendorName || vendors.find(v => v.id === selectedVendorId)?.name || "Assigned Vendor"}</span>
               <span style={{ fontSize: "0.75rem", backgroundColor: "#e2e8f0", color: "#475569", padding: "2px 8px", borderRadius: "12px", fontWeight: 500 }}>
@@ -357,7 +378,7 @@ export default function StockAssessmentPage() {
             <select 
               value={selectedVendorId} 
               onChange={(e) => setSelectedVendorId(e.target.value)}
-              style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid var(--border-color)" }}
+              style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--border-color, #cbd5e1)", fontSize: "14px" }}
             >
               <option value="">-- Choose a vendor --</option>
               {vendors.map(v => (
@@ -368,121 +389,130 @@ export default function StockAssessmentPage() {
         </div>
 
         {loading ? (
-          <p>Loading items...</p>
+          <p style={{ color: "#64748b", fontSize: "14px" }}>Loading items...</p>
         ) : vendorItems.length > 0 ? (
-          <div style={{ backgroundColor: "var(--card-bg)", border: "1px solid var(--border-color)", borderRadius: "8px", overflow: "hidden" }}>
-            <table className="desktop-only" style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ backgroundColor: "var(--background)", borderBottom: "1px solid var(--border-color)" }}>
-                <tr>
-                  <th style={{ padding: "12px", textAlign: "left" }}>Item Name</th>
-                  <th style={{ padding: "12px", textAlign: "left" }}>UoM</th>
-                  <th style={{ padding: "12px", textAlign: "center" }}>Reorder Level (Min)</th>
-                  <th style={{ padding: "12px", textAlign: "center" }}>Target Stock</th>
-                  <th style={{ padding: "12px", textAlign: "center" }}>Current Available Stock</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vendorItems.map((item, idx) => {
-                  const hasPrep = Boolean(item.prepUnit && item.prepUnitConversion && Number(item.prepUnitConversion) > 0);
-                  const { total, hasEntered } = computeTotalStock(item);
-                  const dayOfWeek = new Date().getDay();
-                  const activeSurgePct = dayOfWeek === 5 ? Number(item.fridaySurge || 0) : dayOfWeek === 6 ? Number(item.saturdaySurge || 0) : 0;
-                  const surgeMult = activeSurgePct > 0 ? 1 + (activeSurgePct / 100) : 1;
-                  const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
-                  const min = Number((baseMin * surgeMult).toFixed(2));
-                  const baseTarget = Number(item.normalQuantity || item.targetStock || 0);
-                  const effectiveTarget = Number((baseTarget * surgeMult).toFixed(2));
-                  const isUnder = hasEntered && total < min;
+          <div style={{ backgroundColor: "var(--card-bg, #ffffff)", border: "1px solid var(--border-color, #e2e8f0)", borderRadius: "8px", overflow: "hidden" }}>
+            <div style={{ width: "100%", overflowX: "auto" }}>
+              <table className="desktop-only" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead style={{ backgroundColor: "var(--background, #f8fafc)", borderBottom: "1px solid var(--border-color, #e2e8f0)" }}>
+                  <tr>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 600 }}>Item</th>
+                    <th style={{ padding: "10px 8px", textAlign: "center", width: "90px", fontWeight: 600 }}>Reorder (Min)</th>
+                    <th style={{ padding: "10px 8px", textAlign: "center", width: "90px", fontWeight: 600 }}>Target</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", minWidth: "220px", fontWeight: 600 }}>Available Stock Input</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vendorItems.map((item, idx) => {
+                    const hasPrep = Boolean(item.prepUnit && item.prepUnitConversion && Number(item.prepUnitConversion) > 0);
+                    const { total, hasEntered } = computeTotalStock(item);
+                    const dayOfWeek = new Date().getDay();
+                    const activeSurgePct = dayOfWeek === 5 ? Number(item.fridaySurge || 0) : dayOfWeek === 6 ? Number(item.saturdaySurge || 0) : 0;
+                    const surgeMult = activeSurgePct > 0 ? 1 + (activeSurgePct / 100) : 1;
+                    const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
+                    const min = Number((baseMin * surgeMult).toFixed(2));
+                    const baseTarget = Number(item.normalQuantity || item.targetStock || 0);
+                    const effectiveTarget = Number((baseTarget * surgeMult).toFixed(2));
+                    const isUnder = hasEntered && total < min;
+                    const isMissing = !hasEntered;
 
-                  return (
-                    <tr key={item.id} style={{ borderBottom: idx === vendorItems.length - 1 ? "none" : "1px solid var(--border-color)", backgroundColor: isUnder ? "#fff1f2" : undefined }}>
-                      <td style={{ padding: "12px" }}>
-                        <div style={{ fontWeight: 600, color: "var(--kalki-text-primary)" }}>{item.itemName}</div>
-                        {activeSurgePct > 0 && (
-                          <div style={{ marginTop: "2px" }}>
-                            <span style={{ fontSize: "10px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                              ⚡ +{activeSurgePct}% {dayOfWeek === 5 ? 'Fri' : 'Sat'} Surge Active
+                    return (
+                      <tr key={item.id} style={{ borderBottom: idx === vendorItems.length - 1 ? "none" : "1px solid var(--border-color, #f1f5f9)", backgroundColor: isUnder ? "#fff1f2" : isMissing ? "#fffbeb" : undefined }}>
+                        <td style={{ padding: "10px 12px", verticalAlign: "middle" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 600, color: "var(--kalki-text-primary, #0f172a)" }}>{item.itemName}</span>
+                            <span style={{ fontSize: "11px", color: "#64748b", backgroundColor: "#f1f5f9", padding: "1px 6px", borderRadius: "4px" }}>
+                              {item.unitOfMeasure}
                             </span>
-                          </div>
-                        )}
-                        {hasPrep && (
-                          <div style={{ fontSize: "11px", color: "#0284c7", marginTop: "2px" }}>
-                            1 {item.prepUnit} = {item.prepUnitConversion} {item.unitOfMeasure}
-                          </div>
-                        )}
-                        {item.roundToWhole && (
-                          <div style={{ fontSize: "10px", color: "#7c3aed", fontWeight: 600, marginTop: "2px" }}>
-                            ⚡ Rounds up to full {item.unitOfMeasure}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <div>{item.unitOfMeasure}</div>
-                        {item.roundToWhole && (
-                          <span style={{ fontSize: "10px", background: "#f3e8ff", color: "#7c3aed", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>Whole Only</span>
-                        )}
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "center", color: activeSurgePct > 0 ? "#b45309" : "var(--text-muted)", fontWeight: activeSurgePct > 0 ? 600 : "normal" }}>
-                        {min}
-                        {activeSurgePct > 0 && <div style={{ fontSize: "10px", color: "#94a3b8" }}>(Base {baseMin})</div>}
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "center", color: activeSurgePct > 0 ? "#b45309" : "var(--text-muted)", fontWeight: activeSurgePct > 0 ? 600 : "normal" }}>
-                        {effectiveTarget}
-                        {activeSurgePct > 0 && <div style={{ fontSize: "10px", color: "#94a3b8" }}>(Base {baseTarget})</div>}
-                      </td>
-                      <td style={{ padding: "12px", textAlign: "center" }}>
-                        {hasPrep ? (
-                          <div style={{ display: "inline-flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
-                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                <input 
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={stockInputs[item.itemId] || ""}
-                                  onChange={(e) => handleStockChange(item.itemId, e.target.value)}
-                                  placeholder="0"
-                                  style={{ width: "85px", padding: "6px 8px", borderRadius: "4px", border: "1px solid var(--border-color)", textAlign: "center", fontSize: "13px" }}
-                                />
-                                <span style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>Raw ({item.unitOfMeasure})</span>
-                              </div>
-                              <span style={{ fontWeight: 700, color: "#94a3b8" }}>+</span>
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                <input 
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={prepInputs[item.itemId] || ""}
-                                  onChange={(e) => handlePrepChange(item.itemId, e.target.value)}
-                                  placeholder="0"
-                                  style={{ width: "85px", padding: "6px 8px", borderRadius: "4px", border: "1px solid #38bdf8", backgroundColor: "#f0f9ff", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "#0369a1" }}
-                                />
-                                <span style={{ fontSize: "10px", color: "#0369a1", marginTop: "2px" }}>Prepped ({item.prepUnit})</span>
-                              </div>
-                            </div>
-                            {hasEntered && (
-                              <div style={{ fontSize: "11px", fontWeight: 700, color: isUnder ? "#dc2626" : "#15803d", backgroundColor: isUnder ? "#fee2e2" : "#f0fdf4", padding: "2px 8px", borderRadius: "12px", border: `1px solid ${isUnder ? "#fca5a5" : "#bbf7d0"}` }}>
-                                Total: {total} {item.unitOfMeasure}
-                              </div>
+                            {item.roundToWhole && (
+                              <span style={{ fontSize: "10px", background: "#f3e8ff", color: "#7c3aed", padding: "1px 5px", borderRadius: "4px", fontWeight: 600 }}>
+                                Whole
+                              </span>
+                            )}
+                            {isMissing && (
+                              <span style={{ fontSize: "10px", color: "#b45309", backgroundColor: "#fef3c7", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                Required *
+                              </span>
                             )}
                           </div>
-                        ) : (
-                          <input 
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={stockInputs[item.itemId] || ""}
-                            onChange={(e) => handleStockChange(item.itemId, e.target.value)}
-                            placeholder="Qty"
-                            style={{ width: "120px", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", textAlign: "center" }}
-                          />
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                          {activeSurgePct > 0 && (
+                            <div style={{ marginTop: "2px" }}>
+                              <span style={{ fontSize: "10px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                                ⚡ +{activeSurgePct}% {dayOfWeek === 5 ? 'Fri' : 'Sat'} Surge
+                              </span>
+                            </div>
+                          )}
+                          {hasPrep && (
+                            <div style={{ fontSize: "11px", color: "#0284c7", marginTop: "2px" }}>
+                              1 {item.prepUnit} = {item.prepUnitConversion} {item.unitOfMeasure}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ padding: "10px 8px", textAlign: "center", verticalAlign: "middle", color: activeSurgePct > 0 ? "#b45309" : "var(--text-muted, #64748b)", fontWeight: activeSurgePct > 0 ? 600 : "normal" }}>
+                          {min} {item.unitOfMeasure}
+                          {activeSurgePct > 0 && <div style={{ fontSize: "10px", color: "#94a3b8" }}>(Base {baseMin})</div>}
+                        </td>
+                        <td style={{ padding: "10px 8px", textAlign: "center", verticalAlign: "middle", color: activeSurgePct > 0 ? "#b45309" : "var(--text-muted, #64748b)", fontWeight: activeSurgePct > 0 ? 600 : "normal" }}>
+                          {effectiveTarget} {item.unitOfMeasure}
+                          {activeSurgePct > 0 && <div style={{ fontSize: "10px", color: "#94a3b8" }}>(Base {baseTarget})</div>}
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", verticalAlign: "middle" }}>
+                          {hasPrep ? (
+                            <div style={{ display: "inline-flex", flexDirection: "column", gap: "4px", alignItems: "center" }}>
+                              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={stockInputs[item.itemId] || ""}
+                                    onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                                    placeholder="0"
+                                    style={{ width: "70px", padding: "5px 6px", borderRadius: "4px", border: "1px solid var(--border-color, #cbd5e1)", textAlign: "center", fontSize: "13px" }}
+                                  />
+                                  <span style={{ fontSize: "10px", color: "#64748b", marginTop: "2px" }}>Raw ({item.unitOfMeasure})</span>
+                                </div>
+                                <span style={{ fontWeight: 700, color: "#94a3b8" }}>+</span>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                  <input 
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={prepInputs[item.itemId] || ""}
+                                    onChange={(e) => handlePrepChange(item.itemId, e.target.value)}
+                                    placeholder="0"
+                                    style={{ width: "70px", padding: "5px 6px", borderRadius: "4px", border: "1px solid #38bdf8", backgroundColor: "#f0f9ff", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "#0369a1" }}
+                                  />
+                                  <span style={{ fontSize: "10px", color: "#0369a1", marginTop: "2px" }}>Prep ({item.prepUnit})</span>
+                                </div>
+                              </div>
+                              {hasEntered && (
+                                <div style={{ fontSize: "11px", fontWeight: 700, color: isUnder ? "#dc2626" : "#15803d", backgroundColor: isUnder ? "#fee2e2" : "#f0fdf4", padding: "1px 8px", borderRadius: "10px", border: `1px solid ${isUnder ? "#fca5a5" : "#bbf7d0"}` }}>
+                                  Total: {total} {item.unitOfMeasure}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                              <input 
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={stockInputs[item.itemId] || ""}
+                                onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                                placeholder="0"
+                                style={{ width: "80px", padding: "6px 8px", borderRadius: "4px", border: "1px solid var(--border-color, #cbd5e1)", textAlign: "center", fontSize: "13px", fontWeight: 600 }}
+                              />
+                              <span style={{ fontSize: "12px", color: "#64748b" }}>{item.unitOfMeasure}</span>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
             {/* Mobile Card View (<= 768px) */}
             <div className="mobile-only" style={{ padding: "12px" }}>
@@ -498,20 +528,28 @@ export default function StockAssessmentPage() {
                 const baseTarget = Number(item.normalQuantity || item.targetStock || 0);
                 const target = Number((baseTarget * surgeMult).toFixed(2));
                 const isUnderStock = hasEntered && total < min;
+                const isMissingMobile = !hasEntered;
 
                 return (
                   <div
                     key={item.id}
                     className="kalki-mobile-card"
                     style={{
-                      borderLeft: isUnderStock ? "4px solid #ef4444" : "4px solid #3b82f6",
+                      borderLeft: isUnderStock ? "4px solid #ef4444" : isMissingMobile ? "4px solid #f59e0b" : "4px solid #3b82f6",
                       marginBottom: "10px",
-                      backgroundColor: isUnderStock ? "#fff5f5" : "#ffffff",
+                      backgroundColor: isUnderStock ? "#fff5f5" : isMissingMobile ? "#fffbeb" : "#ffffff",
                     }}
                   >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{item.itemName}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{item.itemName}</div>
+                          {isMissingMobile && (
+                            <span style={{ fontSize: "10px", color: "#b45309", backgroundColor: "#fef3c7", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                              Required *
+                            </span>
+                          )}
+                        </div>
                         {activeSurgePct > 0 && (
                           <div style={{ marginTop: "2px" }}>
                             <span style={{ fontSize: "10px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>

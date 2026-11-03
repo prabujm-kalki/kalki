@@ -118,11 +118,51 @@ export async function POST(req: NextRequest) {
     const [vendorRec] = await db.select().from(vendors).where(eq(vendors.id, vendorId));
     const shortCode = vendorRec?.shortCode || "PO";
 
-    // 2. Format date for PO number
-    const now = new Date();
-    const dd = String(now.getDate()).padStart(2, '0');
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const yyyy = now.getFullYear();
+    // 2. Resolve Effective Cycle Date:
+    // If this PO is generated from an assigned routine task, preserve the actual original job date (e.g. 02_11_2026),
+    // even if completed after midnight or next morning (e.g. 03_11).
+    let effectiveDate = new Date();
+    let taskRec: any = null;
+
+    if (taskId) {
+      const [foundTask] = await db
+        .select({
+          contextData: taskInstances.contextData,
+          assignedRoleId: taskInstances.assignedRoleId,
+          createdAt: taskInstances.createdAt,
+          dueAt: taskInstances.dueAt,
+        })
+        .from(taskInstances)
+        .where(eq(taskInstances.id, taskId))
+        .limit(1);
+
+      if (foundTask) {
+        taskRec = foundTask;
+        const ctx = (foundTask.contextData as any) || {};
+        if (ctx.scheduledDate) {
+          // e.g. "2026-11-02"
+          const [sY, sM, sD] = ctx.scheduledDate.split("-").map(Number);
+          if (sY && sM && sD) {
+            effectiveDate = new Date(sY, sM - 1, sD, 12, 0, 0);
+          }
+        } else if (foundTask.createdAt) {
+          // Fallback to task's initial creation date
+          effectiveDate = new Date(foundTask.createdAt);
+        }
+      }
+    }
+
+    // Format date in Asia/Kolkata (IST) to ensure exact calendar business date
+    const dateParts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    }).formatToParts(effectiveDate);
+
+    const dd = dateParts.find(p => p.type === "day")?.value || String(effectiveDate.getDate()).padStart(2, '0');
+    const mm = dateParts.find(p => p.type === "month")?.value || String(effectiveDate.getMonth() + 1).padStart(2, '0');
+    const yyyy = dateParts.find(p => p.type === "year")?.value || String(effectiveDate.getFullYear());
     const dateString = `${dd}_${mm}_${yyyy}`;
 
     // 3. Get sequence number
@@ -141,16 +181,7 @@ export async function POST(req: NextRequest) {
     let reviewRoleId = null;
     let billReviewRoleId = null;
 
-    if (taskId) {
-      const [taskRec] = await db
-        .select({
-          contextData: taskInstances.contextData,
-          assignedRoleId: taskInstances.assignedRoleId,
-        })
-        .from(taskInstances)
-        .where(eq(taskInstances.id, taskId))
-        .limit(1);
-
+    if (taskRec) {
       const schedId = (taskRec?.contextData as any)?.scheduleId;
       if (schedId) {
         const { purchaseSchedules } = await import('@/db/schema');
@@ -205,6 +236,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Create PO in 'pending_approval' status so reporting manager reviews it
+    // Preserves effective job/cycle date on the PO record for consistent reporting
     const publicToken = crypto.randomBytes(16).toString('hex');
     const [newPo] = await db.insert(purchaseOrders).values({
       organizationId: organizationId,
@@ -218,6 +250,7 @@ export async function POST(req: NextRequest) {
       reviewRoleId: reviewRoleId,
       billReviewRoleId: billReviewRoleId,
       createdByUserId: session.user.id,
+      createdAt: effectiveDate,
     }).returning();
 
     // Insert Lines

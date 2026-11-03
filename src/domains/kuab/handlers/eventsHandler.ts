@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { kuabTasks, events } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { kuabTasks, events, taskDefinitions, taskInstances } from "@/db/schema";
+import { eq, and } from "drizzle-orm";
 
 export interface EventConfirmedPayload {
   organizationId: string;
@@ -11,6 +11,44 @@ export interface EventConfirmedPayload {
   guaranteedPax: number;
   contactName: string;
   contactPhone: string;
+}
+
+/**
+ * Ensures a centralized task definition exists for catering operations
+ */
+async function getOrCreateCateringDefinition(organizationId: string) {
+  let [def] = await db
+    .select()
+    .from(taskDefinitions)
+    .where(
+      and(
+        eq(taskDefinitions.organizationId, organizationId),
+        eq(taskDefinitions.module, "catering"),
+        eq(taskDefinitions.triggerType, "event")
+      )
+    )
+    .limit(1);
+
+  if (!def) {
+    [def] = await db
+      .insert(taskDefinitions)
+      .values({
+        organizationId,
+        module: "catering",
+        title: "Catering Event Milestone",
+        description: "Automated event milestones dispatched via KUAB Event Handshake",
+        triggerType: "event",
+        priority: "high",
+        evidenceRequirementType: "none",
+        checklistConfig: [
+          { id: "1", text: "Verify event pax & client special requirements", isMandatory: true },
+          { id: "2", text: "Quality and readiness sign-off", isMandatory: true }
+        ],
+      })
+      .returning();
+  }
+
+  return def;
 }
 
 /**
@@ -166,6 +204,80 @@ export async function handleEventConfirmed(payload: EventConfirmedPayload) {
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
+
+  // -------------------------------------------------------------
+  // CENTRAL TASK ENGINE INGESTION (task_instances)
+  // Mirror Catering Event milestones into unified operational queue
+  // -------------------------------------------------------------
+  try {
+    const cateringDef = await getOrCreateCateringDefinition(organizationId);
+    const cateringMilestones = [
+      {
+        title: `[Service Staff] Allocate Personnel & Wait Staff - ${eventTitle}`,
+        description: `Roster banquet servers, captains, and cleaners for ${guaranteedPax} Pax. Contact: ${contactName} (${contactPhone})`,
+        dueAt: tMinus7Days,
+        categoryBadge: "CATERING_ROSTER",
+        roleName: "Banquet Captain / HR",
+      },
+      {
+        title: `[Kitchen] Prep: Soak batters, marinate ingredients - ${eventTitle}`,
+        description: `Soak Idli/Dosa batter, prepare spice pastes, marinate for ${guaranteedPax} Pax catering event.`,
+        dueAt: tMinus2Days,
+        categoryBadge: "CATERING_PREP",
+        roleName: "Kitchen In-Charge",
+      },
+      {
+        title: `[Purchasing] Order perishable groceries, Ice Cream, Pan Beeda - ${eventTitle}`,
+        description: `Place and verify vendor POs for vegetables, milk, curds, ice cream, pan beeda and disposables for ${guaranteedPax} Pax.`,
+        dueAt: tMinus1Day,
+        categoryBadge: "CATERING_PURCHASE",
+        roleName: "Purchasing Manager",
+      },
+      {
+        title: `[Floor Operations] Execution, Buffet Setup & Quality Check - ${eventTitle}`,
+        description: `Verify buffet counter display, food temperature, live counters, and dining readiness for ${guaranteedPax} Pax.`,
+        dueAt: t0EventDay,
+        categoryBadge: "CATERING_EXECUTION",
+        roleName: "Floor Manager",
+      },
+      {
+        title: `[Finance] Clear pending billing / settle due balance - ${eventTitle}`,
+        description: `Verify advance adjustments, generate final B2B invoice, collect balance receivable from client ${contactName}.`,
+        dueAt: tPlus1Day,
+        categoryBadge: "CATERING_BILLING",
+        roleName: "Accountant / Cashier",
+      },
+      {
+        title: `[CRM] Send WhatsApp Feedback & Review Request - ${eventTitle}`,
+        description: `Dispatch automated review link & catering satisfaction survey on WhatsApp to ${contactName} (${contactPhone}).`,
+        dueAt: tPlus2Days,
+        categoryBadge: "CATERING_CRM",
+        roleName: "CRM Executive",
+      },
+    ];
+
+    for (const m of cateringMilestones) {
+      await db.insert(taskInstances).values({
+        organizationId,
+        definitionId: cateringDef.id,
+        status: "pending",
+        priority: "high",
+        dueAt: m.dueAt,
+        contextData: {
+          title: m.title,
+          description: m.description,
+          locationId,
+          eventId,
+          categoryBadge: m.categoryBadge,
+          roleName: m.roleName,
+          pax: guaranteedPax,
+          contactPhone,
+        },
+      });
+    }
+  } catch (err) {
+    console.error("Failed to bridge catering milestones to central task_instances:", err);
+  }
 
   return {
     success: true,

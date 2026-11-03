@@ -224,7 +224,7 @@ export async function getOrComputeBranchIntelligence(
     for (const loc of orgLocations) {
       // Fetch Revenue (B2B + POS Transactions)
       const [posSales] = await db
-        .select({ total: sql<string>`COALESCE(SUM(total_amount), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(net_amount), 0)` })
         .from(salesTransactions)
         .where(
           and(
@@ -234,13 +234,13 @@ export async function getOrComputeBranchIntelligence(
         );
 
       const [b2bSales] = await db
-        .select({ total: sql<string>`COALESCE(SUM(total_amount), 0)` })
+        .select({ total: sql<string>`COALESCE(SUM(grand_total), 0)` })
         .from(salesInvoices)
         .where(
           and(
             eq(salesInvoices.organizationId, organizationId),
             eq(salesInvoices.locationId, loc.id),
-            eq(salesInvoices.status, "PAID")
+            eq(salesInvoices.paymentStatus, "PAID")
           )
         );
 

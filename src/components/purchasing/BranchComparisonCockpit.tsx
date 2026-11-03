@@ -39,8 +39,8 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
     try {
       const typeQuery = businessType ? `&businessType=${businessType}` : "";
       const res = await fetch(`/api/purchasing/branch-intelligence?organizationId=${organizationId}${typeQuery}${force ? "&forceRefresh=true" : ""}`);
-      if (!res.ok) throw new Error("Failed to load intelligence metrics");
       const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load intelligence metrics");
       setData(json);
       if (json.branches && json.branches.length > 0) {
         // Pick first branch of current view if current selected isn't in branch list

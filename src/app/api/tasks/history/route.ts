@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
     const organizationId = searchParams.get("organizationId");
     const locationId = searchParams.get("locationId");
     const status = searchParams.get("status"); // optional filter (e.g. "completed")
+    const priority = searchParams.get("priority"); // optional filter (e.g. "high")
+    const moduleFilter = searchParams.get("module"); // optional filter (e.g. "purchase", "catering", etc.)
 
     if (!organizationId) {
       return NextResponse.json({ error: "Organization required" }, { status: 400 });
@@ -24,7 +26,15 @@ export async function GET(req: NextRequest) {
       eq(taskInstances.organizationId, organizationId),
     ];
 
-    if (status) {
+    if (moduleFilter && moduleFilter !== "all") {
+      conditions.push(eq(taskDefinitions.module, moduleFilter as any));
+    }
+
+    if (priority && priority !== "all") {
+      conditions.push(eq(taskInstances.priority, priority as any));
+    }
+
+    if (status && status !== "all") {
       conditions.push(eq(taskInstances.status, status as any));
     } else {
       // Default to finished tasks: completed or audit_pending
@@ -54,9 +64,15 @@ export async function GET(req: NextRequest) {
           locationId: ctx.locationId || null,
           title: ctx.title || definition.title,
           description: ctx.description || definition.description,
+          module: definition.module || "system",
+          categoryBadge: ctx.categoryBadge || (definition.module === "purchase" ? "PURCHASING" : definition.module === "catering" ? "CATERING" : definition.module === "inventory" ? "INVENTORY" : "ROUTINE"),
           assignedRoleName: roleName || "General Staff",
           completedByName: userName || "Staff",
           checklistConfig: definition.checklistConfig,
+          triggerConfig: definition.triggerConfig,
+          escalationPolicyId: definition.escalationPolicyId,
+          requiresApproval: definition.requiresApproval,
+          evidenceRequirementType: definition.evidenceRequirementType,
         };
       })
       .filter(t => !locationId || !t.locationId || t.locationId === locationId);

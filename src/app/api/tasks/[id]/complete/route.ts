@@ -40,9 +40,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     evidenceRequirementType = evidenceRequirementType || "none";
 
     // Validate Evidence
-    if (evidenceRequirementType === "image" || evidenceRequirementType === "document") {
+    if (
+      evidenceRequirementType === "mandatory" ||
+      evidenceRequirementType === "image" ||
+      evidenceRequirementType === "document"
+    ) {
       if (!completionProofUrl) {
-        return NextResponse.json({ error: `Completion proof (${evidenceRequirementType}) is required.` }, { status: 400 });
+        return NextResponse.json({ error: "Attachment / proof of completion is mandatory for this task." }, { status: 400 });
       }
     } else if (evidenceRequirementType === "system_record") {
       if (!completionData) {

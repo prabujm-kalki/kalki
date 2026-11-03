@@ -13,9 +13,13 @@ import {
   AlertTriangle, 
   CheckSquare, 
   ListFilter,
-  Plus
+  Plus,
+  FileText,
+  Paperclip,
+  Upload
 } from "lucide-react";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { KalkiModal } from "@/components/ui/KalkiModal";
 
 export function TasksDashboard() {
   const { selected } = useSessionView();
@@ -27,13 +31,18 @@ export function TasksDashboard() {
 
   // Active Checklist Modal Runner State
   const [activeChecklistTask, setActiveChecklistTask] = useState<any | null>(null);
+  const [viewingTaskDetails, setViewingTaskDetails] = useState<any | null>(null);
   const [checklistValues, setChecklistValues] = useState<Record<string, any>>({});
   const [activeSopHelp, setActiveSopHelp] = useState<{ title: string; text: string } | null>(null);
   const [submittingChecklist, setSubmittingChecklist] = useState(false);
+  const [checklistAttachmentUrl, setChecklistAttachmentUrl] = useState<string>("");
+  const [checklistAttachmentName, setChecklistAttachmentName] = useState<string>("");
+  const [isUploadingChecklistAttachment, setIsUploadingChecklistAttachment] = useState(false);
 
   // Close modals on Escape key press (LIFO stacked)
   useEscapeKey(() => setActiveSopHelp(null), !!activeSopHelp);
-  useEscapeKey(() => setActiveChecklistTask(null), !!activeChecklistTask && !activeSopHelp);
+  useEscapeKey(() => setViewingTaskDetails(null), !!viewingTaskDetails && !activeSopHelp);
+  useEscapeKey(() => setActiveChecklistTask(null), !!activeChecklistTask && !activeSopHelp && !viewingTaskDetails);
 
   const fetchTasks = () => {
     if (!selected) {
@@ -87,6 +96,8 @@ export function TasksDashboard() {
   // Open Checklist modal
   const handleOpenChecklistModal = (task: any) => {
     setActiveChecklistTask(task);
+    setChecklistAttachmentUrl(task.completionProofUrl || "");
+    setChecklistAttachmentName("");
     const initialValues: Record<string, any> = {};
     if (Array.isArray(task.checklistConfig)) {
       task.checklistConfig.forEach((item: any) => {
@@ -105,6 +116,18 @@ export function TasksDashboard() {
   // Submit Checklist
   const handleSubmitChecklist = async () => {
     if (!activeChecklistTask || !selected) return;
+
+    // Check mandatory attachment requirement
+    const isMandatory = 
+      activeChecklistTask.evidenceRequirementType === "mandatory" || 
+      activeChecklistTask.evidenceRequirementType === "image" || 
+      activeChecklistTask.evidenceRequirementType === "document";
+
+    if (isMandatory && !checklistAttachmentUrl) {
+      alert("An attachment (photo or document) is mandatory to submit this task. Please upload proof.");
+      return;
+    }
+
     setSubmittingChecklist(true);
     try {
       const items = Array.isArray(activeChecklistTask.checklistConfig) ? activeChecklistTask.checklistConfig : [];
@@ -119,12 +142,17 @@ export function TasksDashboard() {
       const res = await fetch(`/api/tasks/${activeChecklistTask.id}/complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checklistResponses: responses }),
+        body: JSON.stringify({ 
+          checklistResponses: responses,
+          completionProofUrl: checklistAttachmentUrl || undefined
+        }),
       });
 
       if (res.ok) {
         setActiveChecklistTask(null);
         setChecklistValues({});
+        setChecklistAttachmentUrl("");
+        setChecklistAttachmentName("");
         fetchTasks();
       } else {
         const error = await res.json();
@@ -135,6 +163,31 @@ export function TasksDashboard() {
       alert("Error submitting checklist");
     } finally {
       setSubmittingChecklist(false);
+    }
+  };
+
+  // Upload proof for checklist modal
+  const handleChecklistUpload = async (file: File) => {
+    setIsUploadingChecklistAttachment(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const uploadRes = await fetch("/api/tasks/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (uploadRes.ok) {
+        const data = await uploadRes.json();
+        setChecklistAttachmentUrl(data.url);
+        setChecklistAttachmentName(file.name);
+      } else {
+        alert("Failed to upload attachment");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Upload failed");
+    } finally {
+      setIsUploadingChecklistAttachment(false);
     }
   };
 
@@ -361,7 +414,29 @@ export function TasksDashboard() {
                     <tr>
                       <td style={{ fontWeight: 500 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <span>{t.title}</span>
+                          <button
+                            type="button"
+                            onClick={() => setViewingTaskDetails(t)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              padding: 0,
+                              margin: 0,
+                              textAlign: "left",
+                              cursor: "pointer",
+                              display: "inline-block",
+                              color: "#2563eb",
+                              fontWeight: 600,
+                              fontSize: "14px",
+                              textDecoration: "none",
+                            }}
+                            className="hover:text-blue-700 transition-colors"
+                            title="Click to view full job description, checklist, and SOP"
+                          >
+                            <span style={{ borderBottom: "1px dashed #3b82f6", display: "inline-block" }}>
+                              {t.title}
+                            </span>
+                          </button>
                           {t.escalationLevel > 0 && (
                             <span style={{ fontSize: "11px", color: "#e11d48", background: "#ffe4e6", padding: "2px 6px", borderRadius: "999px", fontWeight: 600 }}>
                               Escalated (L{t.escalationLevel})
@@ -400,11 +475,22 @@ export function TasksDashboard() {
                       </td>
                       <td>
                         {hasChecklist ? (
-                          <span className="pill" data-state="INFO">
-                            {t.checklistConfig.length} Checklist Points
-                          </span>
-                        ) : t.evidenceRequirementType === "image" ? (
-                          <span className="pill" data-state="WARNING">Photo Proof Req</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", alignItems: "flex-start" }}>
+                            <span className="pill" data-state="INFO">
+                              {t.checklistConfig.length} Checklist Points
+                            </span>
+                            {t.evidenceRequirementType === "mandatory" || t.evidenceRequirementType === "image" || t.evidenceRequirementType === "document" ? (
+                              <span style={{ fontSize: "10px", color: "#b91c1c", fontWeight: 600 }}>
+                                📸 Mandatory Attachment
+                              </span>
+                            ) : t.evidenceRequirementType === "none" ? null : (
+                              <span style={{ fontSize: "10px", color: "#64748b" }}>
+                                📎 Optional Attachment
+                              </span>
+                            )}
+                          </div>
+                        ) : t.evidenceRequirementType === "mandatory" || t.evidenceRequirementType === "image" || t.evidenceRequirementType === "document" ? (
+                          <span className="pill" data-state="WARNING">Mandatory Proof</span>
                         ) : (
                           <span style={{ fontSize: "12px", color: "#94a3b8" }}>Standard Tick</span>
                         )}
@@ -583,6 +669,47 @@ export function TasksDashboard() {
                     </label>
                   )}
 
+                  {item.inputType === "multi_checkbox" && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+                      {(item.options || ["Pass", "Fail"]).map((opt: string) => {
+                        const selectedList: string[] = Array.isArray(checklistValues[item.id]) ? checklistValues[item.id] : [];
+                        const isChecked = selectedList.includes(opt);
+                        return (
+                          <label
+                            key={opt}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              fontSize: "13px",
+                              color: isChecked ? "#166534" : "#334155",
+                              cursor: "pointer",
+                              background: isChecked ? "#f0fdf4" : "#f8fafc",
+                              padding: "8px 12px",
+                              borderRadius: "6px",
+                              border: isChecked ? "1px solid #86efac" : "1px solid #e2e8f0",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const current: string[] = Array.isArray(checklistValues[item.id]) ? checklistValues[item.id] : [];
+                                const updated = e.target.checked
+                                  ? [...current, opt]
+                                  : current.filter((x: string) => x !== opt);
+                                setChecklistValues({ ...checklistValues, [item.id]: updated });
+                              }}
+                              style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "var(--kalki-primary)" }}
+                            />
+                            <span style={{ fontWeight: isChecked ? 600 : 400 }}>{opt}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {item.inputType === "radio" && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "6px" }}>
                       {(item.options || ["Pass", "Fail"]).map((opt: string) => (
@@ -624,6 +751,79 @@ export function TasksDashboard() {
                   )}
                 </div>
               ))}
+
+              {/* Attachment / Completion Proof Upload Section */}
+              {activeChecklistTask.evidenceRequirementType !== "none" && (
+                <div style={{ marginTop: "6px", padding: "14px", borderRadius: "8px", border: activeChecklistTask.evidenceRequirementType === "mandatory" ? "1px solid #fecaca" : "1px solid #e2e8f0", backgroundColor: activeChecklistTask.evidenceRequirementType === "mandatory" ? "#fff5f5" : "#f8fafc" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <Paperclip className="h-4 w-4" style={{ color: activeChecklistTask.evidenceRequirementType === "mandatory" ? "#dc2626" : "#2563eb" }} />
+                      <span style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>
+                        Task Attachment / Completion Proof
+                      </span>
+                      {activeChecklistTask.evidenceRequirementType === "mandatory" ? (
+                        <span style={{ fontSize: "10px", backgroundColor: "#fee2e2", color: "#991b1b", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                          Mandatory *
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "10px", backgroundColor: "#e2e8f0", color: "#475569", padding: "1px 6px", borderRadius: "4px", fontWeight: 500 }}>
+                          Optional
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p style={{ margin: "0 0 10px 0", fontSize: "12px", color: "#64748b" }}>
+                    {activeChecklistTask.evidenceRequirementType === "mandatory"
+                      ? "You must upload a photo or document proof before submitting this routine job."
+                      : "You can optionally upload a photo or document proof for audit records."}
+                  </p>
+
+                  {checklistAttachmentUrl ? (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#ffffff", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
+                        <CheckCircle2 className="h-4 w-4" style={{ color: "#16a34a", flexShrink: 0 }} />
+                        <a href={checklistAttachmentUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: "13px", color: "#2563eb", textDecoration: "underline", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {checklistAttachmentName || "Attached Proof Document / Photo"}
+                        </a>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChecklistAttachmentUrl("");
+                          setChecklistAttachmentName("");
+                        }}
+                        style={{ background: "transparent", border: "none", color: "#ef4444", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ position: "relative", display: "inline-block" }}>
+                      <button
+                        type="button"
+                        disabled={isUploadingChecklistAttachment}
+                        className="kalki-button kalki-button--sm"
+                        style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#ffffff" }}
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        {isUploadingChecklistAttachment ? "Uploading..." : "Upload Photo / File"}
+                      </button>
+                      <input
+                        type="file"
+                        title="Upload proof attachment"
+                        disabled={isUploadingChecklistAttachment}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) {
+                            handleChecklistUpload(e.target.files[0]);
+                          }
+                        }}
+                        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer" }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div style={{ padding: "16px 20px", borderTop: "1px solid #e2e8f0", background: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottomLeftRadius: "12px", borderBottomRightRadius: "12px" }}>
@@ -679,6 +879,149 @@ export function TasksDashboard() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Routine Job Details & SOP Modal */}
+      {viewingTaskDetails && (
+        <KalkiModal
+          isOpen={!!viewingTaskDetails}
+          onClose={() => setViewingTaskDetails(null)}
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <FileText className="h-5 w-5" style={{ color: "#2563eb" }} />
+              <span>{viewingTaskDetails.title}</span>
+            </div>
+          }
+          subtitle={`Routine Task Details • Assigned to ${viewingTaskDetails.processOwnerName || "Staff"}`}
+          maxWidth="680px"
+          footer={
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+              <div>
+                {Array.isArray(viewingTaskDetails.checklistConfig) && viewingTaskDetails.checklistConfig.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const t = viewingTaskDetails;
+                      setViewingTaskDetails(null);
+                      handleOpenChecklistModal(t);
+                    }}
+                    className="kalki-button kalki-button--primary"
+                    style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                  >
+                    <CheckSquare className="h-4 w-4" /> Open Checklist ({viewingTaskDetails.checklistConfig.length})
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingTaskDetails(null)}
+                className="kalki-button kalki-button--secondary"
+              >
+                Close
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+            {/* Description / SOP Statement */}
+            <div style={{ backgroundColor: "#f8fafc", padding: "14px 16px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "6px" }}>
+                Job Description &amp; Standard Operating Procedure (SOP)
+              </div>
+              <div style={{ fontSize: "14px", color: viewingTaskDetails.description ? "#1e293b" : "#94a3b8", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                {viewingTaskDetails.description || "No detailed description or SOP was provided for this job."}
+              </div>
+            </div>
+
+            {/* Quick Metadata Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "12px" }}>
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#ffffff" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Responsible Role / Assignee</span>
+                <p style={{ margin: "4px 0 0 0", fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>
+                  {viewingTaskDetails.processOwnerName || "General Staff"}
+                </p>
+              </div>
+
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#ffffff" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Priority</span>
+                <p style={{ margin: "4px 0 0 0", fontWeight: 600, fontSize: "13px", textTransform: "capitalize" }}>
+                  <span className="pill" data-state={viewingTaskDetails.priority === "high" || viewingTaskDetails.priority === "very_high" ? "DANGER" : "NEUTRAL"}>
+                    {viewingTaskDetails.priority}
+                  </span>
+                </p>
+              </div>
+
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#ffffff" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Deadline / Cutoff</span>
+                <p style={{ margin: "4px 0 0 0", fontWeight: 600, color: "#0f172a", fontSize: "13px" }}>
+                  {viewingTaskDetails.dueAt ? new Date(viewingTaskDetails.dueAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "No Cutoff"}
+                </p>
+              </div>
+
+              <div style={{ border: "1px solid #e2e8f0", borderRadius: "8px", padding: "12px", backgroundColor: "#ffffff" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b", textTransform: "uppercase" }}>Supervisor Sign-off</span>
+                <p style={{ margin: "4px 0 0 0", fontWeight: 600, fontSize: "13px" }}>
+                  {viewingTaskDetails.requiresApproval ? (
+                    <span style={{ color: "#d97706" }}>⚠️ Requires Review</span>
+                  ) : (
+                    <span style={{ color: "#16a34a" }}>✓ Auto-Complete</span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            {/* Checklist items list preview */}
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <h4 style={{ margin: 0, fontSize: "13px", fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                  Checklist Inspection Points ({Array.isArray(viewingTaskDetails.checklistConfig) ? viewingTaskDetails.checklistConfig.length : 0})
+                </h4>
+              </div>
+
+              {Array.isArray(viewingTaskDetails.checklistConfig) && viewingTaskDetails.checklistConfig.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {viewingTaskDetails.checklistConfig.map((item: any, idx: number) => (
+                    <div
+                      key={item.id || idx}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: "8px",
+                        border: "1px solid #e2e8f0",
+                        backgroundColor: "#ffffff",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ width: "20px", height: "20px", borderRadius: "50%", backgroundColor: "#e2e8f0", color: "#475569", fontSize: "11px", fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                            {idx + 1}
+                          </span>
+                          <span style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>
+                            {item.title || "Untitled Checkpoint"}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "11px", color: "#64748b", textTransform: "capitalize", backgroundColor: "#f1f5f9", padding: "2px 8px", borderRadius: "4px" }}>
+                          {item.inputType || "checkbox"}
+                        </span>
+                      </div>
+                      {item.helpDescription && (
+                        <div style={{ marginLeft: "28px", fontSize: "12px", color: "#475569", backgroundColor: "#eff6ff", padding: "4px 8px", borderRadius: "4px", borderLeft: "3px solid #3b82f6" }}>
+                          <strong style={{ color: "#1d4ed8" }}>SOP Guidance: </strong>{item.helpDescription}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ padding: "20px", textAlign: "center", backgroundColor: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", color: "#64748b", fontSize: "13px" }}>
+                  This routine is configured as a single operational sign-off without individual checkpoints.
+                </div>
+              )}
+            </div>
+          </div>
+        </KalkiModal>
       )}
     </div>
   );

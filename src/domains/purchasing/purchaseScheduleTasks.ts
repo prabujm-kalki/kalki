@@ -47,6 +47,14 @@ export async function generateRoutinePurchaseTasks() {
     day: "numeric"
   }).format(now);
 
+  // Format current date in Asia/Kolkata (YYYY-MM-DD) representing the actual business cycle date
+  const scheduledDateStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(now); // e.g. "2026-11-02"
+
   let tasksCreated = 0;
 
   for (const schedule of allSchedules) {
@@ -161,6 +169,7 @@ export async function generateRoutinePurchaseTasks() {
           initialRoleId: schedule.responsibleRoleId,
           locationId: schedule.locationId,
           locationName: schedule.locationName,
+          scheduledDate: scheduledDateStr,
           title: `${schedule.vendorName}_${schedule.frequencyRule.charAt(0) + schedule.frequencyRule.slice(1).toLowerCase()}_${schedule.reminderTime}`,
           actionUrl: `/purchasing/stock-assessment?vendorId=${schedule.vendorId}&taskId=${taskId}`
         }

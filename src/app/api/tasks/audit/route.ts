@@ -24,42 +24,26 @@ export async function GET(req: NextRequest) {
       eq(taskInstances.status, "audit_pending")
     ];
 
-    const { employees, employeeRoleAssignments } = await import("@/db/schema");
-
-    // Fetch user's business roles via employee mapping
-    const employeeRows = await db
-      .select({ id: employees.id })
-      .from(employees)
-      .where(and(
-        eq(employees.userId, session.user.id),
-        eq(employees.organizationId, organizationId)
-      ));
-
-    let userRoleIds: string[] = [];
+    const { getSessionContext } = await import("@/domains/session/service");
+    const { getEffectiveUserAuthority } = await import("@/domains/session/delegationAuthority");
     
-    if (employeeRows.length > 0) {
-      const employeeIds = employeeRows.map(e => e.id);
-      
-      const roleAssignmentRows = await db
-        .select({ roleId: employeeRoleAssignments.roleId })
-        .from(employeeRoleAssignments)
-        .where(and(
-          inArray(employeeRoleAssignments.employeeId, employeeIds),
-          eq(employeeRoleAssignments.isActive, true)
-        ));
-        
-      userRoleIds = [...new Set(roleAssignmentRows.map(r => r.roleId))];
-    }
+    const context = await getSessionContext(session.user);
+    const isOwner = context.isOwner || false;
 
-    if (userRoleIds.length > 0) {
-      conditions.push(
-        or(
-          eq(taskInstances.assignedUserId, session.user.id),
-          inArray(taskInstances.assignedRoleId, userRoleIds)
-        )!
-      );
-    } else {
-      conditions.push(eq(taskInstances.assignedUserId, session.user.id));
+    if (!isOwner) {
+      const authority = await getEffectiveUserAuthority(session.user.id, organizationId);
+      const userRoleIds: string[] = authority.effectiveRoleIds;
+
+      if (userRoleIds.length > 0) {
+        conditions.push(
+          or(
+            eq(taskInstances.assignedUserId, session.user.id),
+            inArray(taskInstances.assignedRoleId, userRoleIds)
+          )!
+        );
+      } else {
+        conditions.push(eq(taskInstances.assignedUserId, session.user.id));
+      }
     }
 
     const results = await db

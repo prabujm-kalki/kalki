@@ -614,6 +614,7 @@ export const roles = pgTable("roles", {
 export const systemModules = [
   "inventory",
   "purchase",
+  "catering",
   "sales",
   "finance",
   "hr",

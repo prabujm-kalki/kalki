@@ -2,10 +2,71 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Bell, ChevronRight, Check, X, RefreshCw, AlertCircle, FileCheck, AlertTriangle, MessageCircle } from "lucide-react";
+import { Bell, ChevronRight, Check, X, RefreshCw, AlertCircle, FileCheck, AlertTriangle, MessageCircle, MapPin, Calendar, Clock } from "lucide-react";
 import type { GlobalPendingTaskItem } from "@/app/actions/pending-tasks";
 import { auditSpotPurchase } from "@/app/purchasing/actions";
 import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
+
+// Deterministic palette for different locations to easily differentiate visually
+// Deterministic palette for different locations to easily differentiate visually
+function getLocationTheme(locationNameOrId?: string | null) {
+  if (!locationNameOrId) {
+    return {
+      bg: "#f1f5f9",
+      text: "#475569",
+      border: "#cbd5e1",
+      leftBorder: "#94a3b8",
+      softTint: "rgba(148, 163, 184, 0.08)",
+    };
+  }
+
+  // Predefined recognizable branch themes
+  const lower = locationNameOrId.toLowerCase();
+  if (lower.includes("anakal") || lower.includes("branch 1") || lower.includes("main")) {
+    return {
+      bg: "#ede9fe",
+      text: "#6d28d9",
+      border: "#ddd6fe",
+      leftBorder: "#8b5cf6",
+      softTint: "rgba(139, 92, 246, 0.08)",
+    };
+  }
+  if (lower.includes("kangeyam") || lower.includes("branch 2")) {
+    return {
+      bg: "#ecfdf5",
+      text: "#047857",
+      border: "#a7f3d0",
+      leftBorder: "#10b981",
+      softTint: "rgba(16, 185, 129, 0.08)",
+    };
+  }
+  if (lower.includes("fresh") || lower.includes("retail") || lower.includes("mart")) {
+    return {
+      bg: "#e0f2fe",
+      text: "#0369a1",
+      border: "#bae6fd",
+      leftBorder: "#0284c7",
+      softTint: "rgba(2, 132, 199, 0.08)",
+    };
+  }
+
+  // Consistent hash for any other location
+  const colors = [
+    { bg: "#ede9fe", text: "#6d28d9", border: "#ddd6fe", leftBorder: "#8b5cf6", softTint: "rgba(139, 92, 246, 0.08)" },
+    { bg: "#e0f2fe", text: "#0369a1", border: "#bae6fd", leftBorder: "#0284c7", softTint: "rgba(2, 132, 199, 0.08)" },
+    { bg: "#ecfdf5", text: "#047857", border: "#a7f3d0", leftBorder: "#10b981", softTint: "rgba(16, 185, 129, 0.08)" },
+    { bg: "#fef3c7", text: "#b45309", border: "#fde68a", leftBorder: "#f59e0b", softTint: "rgba(245, 158, 11, 0.08)" },
+    { bg: "#fce7f3", text: "#be185d", border: "#fbcfe8", leftBorder: "#ec4899", softTint: "rgba(236, 72, 153, 0.08)" },
+    { bg: "#ffedd5", text: "#c2410c", border: "#fed7aa", leftBorder: "#f97316", softTint: "rgba(249, 115, 22, 0.08)" },
+  ];
+  let hash = 0;
+  for (let i = 0; i < locationNameOrId.length; i++) {
+    hash = (hash << 5) - hash + locationNameOrId.charCodeAt(i);
+    hash |= 0;
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+}
 
 interface ActionRequiredBannerProps {
   initialTasks?: GlobalPendingTaskItem[];
@@ -226,6 +287,7 @@ export function ActionRequiredBanner({
           const isTaskEscalated = Boolean(task.isEscalated || (task.type === "ROUTINE" && task.priority === "HIGH"));
           const isHigh = task.priority === "HIGH" || isTaskEscalated;
           const displayType = isTaskEscalated ? "ESCALATED" : task.type;
+          const locTheme = getLocationTheme(task.locationName || task.locationId);
 
           return (
             <div
@@ -233,7 +295,7 @@ export function ActionRequiredBanner({
               style={{
                 backgroundColor: isHigh ? "#fef2f2" : "#fffbeb",
                 border: `1px solid ${isHigh ? "#fecaca" : "#fde68a"}`,
-                borderLeft: `4px solid ${isHigh ? "#dc2626" : "#d97706"}`,
+                borderLeft: `4px solid ${isHigh ? "#dc2626" : locTheme.leftBorder}`,
                 padding: "14px 18px",
                 borderRadius: "10px",
                 display: "flex",
@@ -242,6 +304,7 @@ export function ActionRequiredBanner({
                 gap: "16px",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)",
                 flexWrap: "wrap",
+                position: "relative",
               }}
             >
               <div style={{ flex: 1, minWidth: "240px" }}>
@@ -249,6 +312,8 @@ export function ActionRequiredBanner({
                   <h3 style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
                     {task.title}
                   </h3>
+
+                  {/* Status / Escalation Badge */}
                   <span
                     style={{
                       fontSize: "10px",
@@ -267,10 +332,62 @@ export function ActionRequiredBanner({
                     {isTaskEscalated && <AlertTriangle size={11} style={{ color: "#dc2626" }} />}
                     {displayType}
                   </span>
+
+                  {/* Location Badge (Differentiates branches with clear location color coding) */}
+                  {task.locationName && (
+                    <span
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: 600,
+                        padding: "2px 8px",
+                        borderRadius: "6px",
+                        backgroundColor: locTheme.bg,
+                        color: locTheme.text,
+                        border: `1px solid ${locTheme.border}`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                      }}
+                      title={`Location: ${task.locationName}${task.locationCode ? ` (${task.locationCode})` : ""}`}
+                    >
+                      <MapPin size={11} style={{ flexShrink: 0 }} />
+                      <span>{task.locationName}</span>
+                    </span>
+                  )}
                 </div>
+
                 <p style={{ fontSize: "12px", color: isHigh ? "#7f1d1d" : "#475569", margin: "4px 0 0 0" }}>
                   {task.description}
                 </p>
+
+                {/* Structured Metadata Row: Date & Timing underneath the description */}
+                {(task.dateText || task.dueText || task.createdAt) && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginTop: "6px",
+                      fontSize: "11px",
+                      color: isHigh ? "#991b1b" : "#64748b",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    {task.dateText && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 500 }}>
+                        <Calendar size={12} style={{ opacity: 0.8 }} />
+                        <span>{task.dateText}</span>
+                      </span>
+                    )}
+
+                    {task.dueText && (
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontWeight: 600 }}>
+                        <Clock size={12} style={{ opacity: 0.8 }} />
+                        <span>{task.dueText}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               {task.type === "APPROVAL" && task.poId ? (
