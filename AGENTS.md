@@ -32,6 +32,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 ## 4. Batched Deployment & Explicit Production Push Authorization
 - **Do NOT push to production automatically**: All fixes, enhancements, and tasks must be developed, tested, and verified **locally** first.
-- **Explicit Instruction Required**: NEVER push commits to `origin/main` or trigger a production server deployment (`git pull`, `npm run build`, `pm2 restart`) unless the user **explicitly commands** to push to production (e.g., *"push this to production"*, *"deploy to server"*).
+- **Explicit Instruction Required**: NEVER push commits to `origin/main` or trigger a production server deployment unless the user **explicitly commands** to push to production (e.g., *"push this to production"*, *"deploy to server"*).
+- **Mandatory End-to-End Execution**: When the user explicitly commands to push to production, the agent MUST NOT stop at `git push origin main` or print manual server commands for the user. The agent MUST execute Tier 3 automatically in the same turn via SSH:
+  ```bash
+  ssh -i "$HOME/.ssh/oracle_kalki.key" -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@140.245.253.187 "cd /home/ubuntu/kalki && git pull origin main && npm run build && pm2 restart all"
+  ```
 - **Batching Workflow**: Work accumulates locally across tasks. Multiple fixes will be verified locally and then deployed together in a single batch when requested.
 

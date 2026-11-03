@@ -32,19 +32,11 @@ All changes must strictly follow the Three-Tier Deployment Pipeline:
 
 ### Tier 3: Production Pull & Reload (ONLY on Explicit User Command)
 > **MANDATORY**: Never push to `origin/main` or trigger a production server deployment automatically. Work locally, batch changes, and deploy to production **only when the user explicitly instructs** (e.g. *"push to production"*).
-
-1. Pull the pushed changes from GitHub onto the production server:
-   ```bash
-   ssh -i "$HOME/.ssh/oracle_kalki.key" ubuntu@140.245.253.187 "cd /home/ubuntu/kalki && git pull origin main && pm2 restart all"
-   ```
-2. If dependencies changed:
-   ```bash
-   npm install --legacy-peer-deps
-   ```
-3. If Next.js code changed:
-   ```bash
-   npm run build && pm2 restart all
-   ```
+> 
+> **CRITICAL EXECUTION RULE**: When the user gives the explicit command to deploy/push to production, the AI agent **MUST NOT** just push to Git and output bash instructions for the user to execute manually. The agent has direct SSH access and **MUST execute the full Tier 3 deployment itself** end-to-end via:
+> ```bash
+> ssh -i "$HOME/.ssh/oracle_kalki.key" -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@140.245.253.187 "cd /home/ubuntu/kalki && git pull origin main && npm run build && pm2 restart all"
+> ```
 
 ---
 
