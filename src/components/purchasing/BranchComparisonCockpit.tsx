@@ -324,24 +324,48 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
                 <h3 style={{ fontSize: "16px", fontWeight: 700, color: "#0f172a", margin: 0 }}>
                   {activeBranch.locationName} Diagnostic Report
                 </h3>
-                <span
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    padding: "2px 8px",
-                    borderRadius: "4px",
-                    backgroundColor: activeBranch.statusHealth === "CRITICAL" ? "#fee2e2" : activeBranch.statusHealth === "WARNING" ? "#fef3c7" : "#dcfce7",
-                    color: activeBranch.statusHealth === "CRITICAL" ? "#dc2626" : activeBranch.statusHealth === "WARNING" ? "#b45309" : "#15803d",
-                  }}
-                >
-                  {activeBranch.statusHealth === "CRITICAL" ? "Alert: High Food Cost" : activeBranch.statusHealth === "WARNING" ? "Watch: Moderate Variance" : "Health: On Benchmark"}
-                </span>
+                {activeBranch.totalRevenue > 0 && activeBranch.foodCostCogs === 0 ? (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      backgroundColor: "#fef3c7",
+                      color: "#b45309",
+                      border: "1px solid #fde68a",
+                    }}
+                  >
+                    ⚠️ Data Incomplete: Pending Invoices / GRN
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      backgroundColor: activeBranch.statusHealth === "CRITICAL" ? "#fee2e2" : activeBranch.statusHealth === "WARNING" ? "#fef3c7" : "#dcfce7",
+                      color: activeBranch.statusHealth === "CRITICAL" ? "#dc2626" : activeBranch.statusHealth === "WARNING" ? "#b45309" : "#15803d",
+                    }}
+                  >
+                    {activeBranch.statusHealth === "CRITICAL" ? "Alert: High Food Cost" : activeBranch.statusHealth === "WARNING" ? "Watch: Moderate Variance" : "Health: On Benchmark"}
+                  </span>
+                )}
               </div>
               <p style={{ fontSize: "12px", color: "#64748b", margin: "4px 0 0 0" }}>
-                Variance vs Industry Benchmark ({activeBranch.benchmarkFoodCostPct}%):{" "}
-                <strong style={{ color: activeBranch.foodCostVariancePct > 0 ? "#dc2626" : "#16a34a" }}>
-                  {activeBranch.foodCostVariancePct > 0 ? `+${activeBranch.foodCostVariancePct}% Over Target` : `${activeBranch.foodCostVariancePct}% Under Target`}
-                </strong>
+                {activeBranch.totalRevenue > 0 && activeBranch.foodCostCogs === 0 ? (
+                  <span style={{ color: "#b45309" }}>
+                    Notice: Zero food purchases entered for this location. Real food cost cannot be computed until purchase bills or stock assessments are registered.
+                  </span>
+                ) : (
+                  <>
+                    Variance vs Industry Benchmark ({activeBranch.benchmarkFoodCostPct}%):{" "}
+                    <strong style={{ color: activeBranch.foodCostVariancePct > 0 ? "#dc2626" : "#16a34a" }}>
+                      {activeBranch.foodCostVariancePct > 0 ? `+${activeBranch.foodCostVariancePct}% Over Target` : `${activeBranch.foodCostVariancePct}% Under Target`}
+                    </strong>
+                  </>
+                )}
               </p>
             </div>
 
@@ -413,6 +437,7 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
                         <th style={{ padding: "6px 8px", textAlign: "right" }}>Actual Rate</th>
                         <th style={{ padding: "6px 8px", textAlign: "right" }}>Target Rate</th>
                         <th style={{ padding: "6px 8px", textAlign: "right" }}>Variance</th>
+                        <th style={{ padding: "6px 8px", textAlign: "center" }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -422,6 +447,28 @@ export function BranchComparisonCockpit({ organizationId }: BranchComparisonCock
                           <td style={{ padding: "6px 8px", textAlign: "right", color: "#dc2626" }}>₹{item.realizedRate}/{item.unit}</td>
                           <td style={{ padding: "6px 8px", textAlign: "right", color: "#16a34a" }}>₹{item.benchmarkRate}/{item.unit}</td>
                           <td style={{ padding: "6px 8px", textAlign: "right", fontWeight: 700, color: "#b91c1c" }}>+{item.rateVariancePct}%</td>
+                          <td style={{ padding: "6px 8px", textAlign: "center" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleExecuteAction({
+                                  title: `Raise Vendor Rate Dispute for ${item.itemName}`,
+                                });
+                              }}
+                              style={{
+                                padding: "2px 8px",
+                                fontSize: "10.5px",
+                                fontWeight: 700,
+                                background: "#eff6ff",
+                                color: "#1d4ed8",
+                                border: "1px solid #bfdbfe",
+                                borderRadius: "4px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              Dispute Rate
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

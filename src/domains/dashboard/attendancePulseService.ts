@@ -6,11 +6,22 @@ import {
   employees, 
   people, 
   leaveTypes,
-  locations 
+  locations,
+  shiftDefinitions
 } from "@/db/schema";
-import { eq, and, sql, gte, lte } from "drizzle-orm";
+import { eq, and, sql, gte, lte, inArray } from "drizzle-orm";
 import { DashboardScopeContext, AttendancePulseData, LeaveRequestItem } from "./types";
 import { resolveDateRange } from "./dateRangeResolver";
+
+function isEmployeeAttendanceExempt(emp: { employeeCode?: string | null; jobTitle?: string | null; displayName?: string | null }): boolean {
+  const code = (emp.employeeCode || "").toUpperCase();
+  const title = (emp.jobTitle || "").toLowerCase();
+  const name = (emp.displayName || "").toLowerCase();
+  if (code.includes("OWNER") || code === "KAL-EMP-0002") return true;
+  if (title.includes("owner") || title.includes("director") || title.includes("executive")) return true;
+  if (name.includes("owner") || name.includes("prabha")) return true;
+  return false;
+}
 
 export async function getAttendancePulse(context: DashboardScopeContext): Promise<AttendancePulseData> {
   const { organizationId, locationId, dateRangePreset, fromDate, toDate } = context;
@@ -28,7 +39,84 @@ export async function getAttendancePulse(context: DashboardScopeContext): Promis
 
   try {
     const range = resolveDateRange(dateRangePreset, fromDate, toDate);
+    const isToday = !dateRangePreset || dateRangePreset === "today";
 
+    // 1. Fetch active employees in scope (with shift information)
+    const empFilters = [
+      eq(employees.organizationId, organizationId),
+      eq(employees.status, "ACTIVE"),
+    ];
+    if (locationId && locationId !== "ALL") {
+      empFilters.push(eq(employees.locationId, locationId));
+    }
+
+    const activeEmployees = await db
+      .select({
+        id: employees.id,
+        employeeCode: employees.employeeCode,
+        jobTitle: employees.jobTitle,
+        displayName: people.displayName,
+        locationId: employees.locationId,
+        defaultShiftId: employees.defaultShiftId,
+        shiftStartTime: shiftDefinitions.startTime,
+        shiftGracePeriod: shiftDefinitions.gracePeriodMinutes,
+      })
+      .from(employees)
+      .innerJoin(people, eq(employees.personId, people.id))
+      .leftJoin(shiftDefinitions, eq(employees.defaultShiftId, shiftDefinitions.id))
+      .where(and(...empFilters));
+
+    // Filter out exempt owners/executives who do not punch shift attendance
+    const scheduledEmployees = activeEmployees.filter((e) => !isEmployeeAttendanceExempt(e));
+    const scheduledEmpIds = new Set(scheduledEmployees.map((e) => e.id));
+    const totalScheduled = scheduledEmployees.length;
+
+    // Fallback location shifts map for employees without explicit defaultShiftId
+    const locationShifts = await db
+      .select({
+        locationId: shiftDefinitions.locationId,
+        startTime: shiftDefinitions.startTime,
+        gracePeriodMinutes: shiftDefinitions.gracePeriodMinutes,
+      })
+      .from(shiftDefinitions)
+      .where(
+        and(
+          eq(shiftDefinitions.organizationId, organizationId),
+          eq(shiftDefinitions.isActive, true)
+        )
+      );
+    const locationShiftMap = new Map(locationShifts.map((s) => [s.locationId, s]));
+
+    // 2. Fetch live punches for the date range
+    const punchFilters = [
+      eq(rawBiometricPunches.organizationId, organizationId),
+      gte(rawBiometricPunches.punchTimestamp, range.fromDateTime),
+      lte(rawBiometricPunches.punchTimestamp, range.toDateTime),
+    ];
+    if (locationId && locationId !== "ALL") {
+      punchFilters.push(eq(rawBiometricPunches.locationId, locationId));
+    }
+
+    const livePunches = await db
+      .select({
+        employeeId: rawBiometricPunches.employeeId,
+        punchTimestamp: rawBiometricPunches.punchTimestamp,
+      })
+      .from(rawBiometricPunches)
+      .where(and(...punchFilters));
+
+    // Map earliest punch of the day per employee
+    const firstPunchMap = new Map<string, Date>();
+    for (const p of livePunches) {
+      if (!p.employeeId || !scheduledEmpIds.has(p.employeeId)) continue;
+      const punchTime = new Date(p.punchTimestamp);
+      const existing = firstPunchMap.get(p.employeeId);
+      if (!existing || punchTime < existing) {
+        firstPunchMap.set(p.employeeId, punchTime);
+      }
+    }
+
+    // 3. Query attendance summaries as well (for historical or end-of-day compiled status)
     const attFilters = [
       eq(attendanceSummaries.organizationId, organizationId),
       gte(attendanceSummaries.attendanceDate, range.fromDate),
@@ -38,70 +126,49 @@ export async function getAttendancePulse(context: DashboardScopeContext): Promis
       attFilters.push(eq(attendanceSummaries.locationId, locationId));
     }
 
-    // 1. Query attendance summaries for the selected range
     const summaries = await db
       .select({
+        employeeId: attendanceSummaries.employeeId,
         status: attendanceSummaries.status,
         firstPunchIn: attendanceSummaries.firstPunchIn,
       })
       .from(attendanceSummaries)
       .where(and(...attFilters));
 
-    let clockedIn = 0;
-    let lateArrivals = 0;
-    let absentCount = 0;
-    let totalScheduled = summaries.length;
-
     for (const s of summaries) {
-      const st = (s.status || "").toUpperCase();
-      if (st === "PRESENT" || st === "HALF_DAY" || s.firstPunchIn) {
-        clockedIn++;
-      } else if (st === "ABSENT") {
-        absentCount++;
-      }
-      if (st.includes("LATE")) {
-        lateArrivals++;
+      if (!s.employeeId || !scheduledEmpIds.has(s.employeeId)) continue;
+      if (s.firstPunchIn) {
+        const punchTime = new Date(s.firstPunchIn);
+        const existing = firstPunchMap.get(s.employeeId);
+        if (!existing || punchTime < existing) {
+          firstPunchMap.set(s.employeeId, punchTime);
+        }
       }
     }
 
-    // Fallback: If attendance summaries haven't been compiled yet today, count punches
-    if (totalScheduled === 0) {
-      const punchFilters = [
-        eq(rawBiometricPunches.organizationId, organizationId),
-        gte(rawBiometricPunches.punchTimestamp, range.fromDateTime),
-        lte(rawBiometricPunches.punchTimestamp, range.toDateTime),
-      ];
-      if (locationId && locationId !== "ALL") {
-        punchFilters.push(eq(rawBiometricPunches.locationId, locationId));
+    // Calculate Clocked In and Late Arrivals
+    let clockedIn = firstPunchMap.size;
+    let lateArrivals = 0;
+
+    for (const [empId, punchTime] of firstPunchMap.entries()) {
+      const emp = scheduledEmployees.find((e) => e.id === empId);
+      const shiftStart = emp?.shiftStartTime || (emp?.locationId ? locationShiftMap.get(emp.locationId)?.startTime : null);
+      const grace = Number(emp?.shiftGracePeriod ?? (emp?.locationId ? locationShiftMap.get(emp.locationId)?.gracePeriodMinutes : 15)) || 15;
+
+      if (shiftStart) {
+        const [sh, sm, ss] = shiftStart.split(":");
+        const expected = new Date(`${range.fromDate}T${String(sh).padStart(2, "0")}:${String(sm || "00").padStart(2, "0")}:${String(ss || "00").padStart(2, "0")}+05:30`);
+        if (grace > 0) {
+          expected.setMinutes(expected.getMinutes() + grace);
+        }
+        if (punchTime.getTime() > expected.getTime()) {
+          lateArrivals++;
+        }
       }
-
-      const punches = await db
-        .select({
-          employeeId: rawBiometricPunches.employeeId,
-        })
-        .from(rawBiometricPunches)
-        .where(and(...punchFilters));
-
-      const uniquePunchedEmployees = new Set(punches.map((p) => p.employeeId).filter(Boolean));
-      clockedIn = uniquePunchedEmployees.size;
-
-      const empFilters = [
-        eq(employees.organizationId, organizationId),
-        eq(employees.status, "ACTIVE"),
-      ];
-      if (locationId && locationId !== "ALL") {
-        empFilters.push(eq(employees.locationId, locationId));
-      }
-
-      const activeEmployees = await db
-        .select({ id: employees.id })
-        .from(employees)
-        .where(and(...empFilters));
-
-      totalScheduled = activeEmployees.length;
-      absentCount = Math.max(0, totalScheduled - clockedIn);
     }
 
+    // Calculate absent employees (scheduled minus clocked in)
+    const absentCount = Math.max(0, totalScheduled - clockedIn);
     const presentRate = totalScheduled > 0 ? Math.round((clockedIn / totalScheduled) * 100) : 100;
 
     // 2. Fetch pending leave requests

@@ -50,9 +50,13 @@ export async function getBranchComparisonMatrix(context: DashboardScopeContext):
 
       const scheduled = empRes?.count || 0;
 
-      // 3. Attendance summaries for today
+      // 3. Attendance for today (counts unique employees who have punched in or have attendance summaries)
       const attSummaries = await db
-        .select({ status: attendanceSummaries.status })
+        .select({ 
+          employeeId: attendanceSummaries.employeeId,
+          status: attendanceSummaries.status,
+          firstPunchIn: attendanceSummaries.firstPunchIn,
+        })
         .from(attendanceSummaries)
         .where(
           and(
@@ -62,7 +66,10 @@ export async function getBranchComparisonMatrix(context: DashboardScopeContext):
           )
         );
 
-      const present = attSummaries.filter((s) => (s.status || "").toUpperCase() === "PRESENT").length;
+      const present = attSummaries.filter((s) => {
+        const st = (s.status || "").toUpperCase();
+        return st === "PRESENT" || st === "HALF_DAY" || st === "PRESENT_LATE" || Boolean(s.firstPunchIn);
+      }).length;
       const attRate = scheduled > 0 ? Math.round((present / scheduled) * 100) : 100;
 
       // 4. Tasks for this location

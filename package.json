@@ -15,6 +15,7 @@
     "cron": "tsx --env-file=.env src/workers/cron.ts",
     "db:sync-perms": "tsx --env-file=.env scripts/sync-permissions.ts",
     "build": "npm run db:sync-perms && next build",
+    "deploy:prod": "powershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1",
     "mobile:build": "npm run db:sync-perms && cross-env NEXT_EXPORT=true next build && npx cap sync android",
     "mobile:sync": "npx cap sync android",
     "mobile:open": "npx cap open android",

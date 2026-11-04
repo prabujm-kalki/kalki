@@ -60,7 +60,7 @@ export function ReportsClient() {
             value={filters.locationId} 
             onChange={e => setFilters({...filters, locationId: e.target.value})}
             className="kalki-select"
-            style={{ height: "36px" }}
+            style={{ height: "36px", padding: "6px 12px", minWidth: "220px", width: "auto" }}
           >
             <option value="ALL">All Branches (Consolidated)</option>
             {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -70,7 +70,7 @@ export function ReportsClient() {
             value={filters.startDate} 
             onChange={e => setFilters({...filters, startDate: e.target.value})}
             className="kalki-input"
-            style={{ height: "36px" }}
+            style={{ height: "36px", padding: "6px 12px", width: "auto" }}
           />
           <span style={{ fontSize: "14px", color: "var(--kalki-text-secondary)", fontWeight: 500 }}>to</span>
           <input 
@@ -78,7 +78,7 @@ export function ReportsClient() {
             value={filters.endDate} 
             onChange={e => setFilters({...filters, endDate: e.target.value})}
             className="kalki-input"
-            style={{ height: "36px" }}
+            style={{ height: "36px", padding: "6px 12px", width: "auto" }}
           />
           <button className="kalki-button" style={{ height: "36px", background: "var(--kalki-text-primary)", color: "white", border: "none", display: "flex", alignItems: "center", gap: "8px" }}>
             <Download size={16} /> Export

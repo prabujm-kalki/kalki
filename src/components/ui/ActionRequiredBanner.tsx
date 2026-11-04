@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Bell, ChevronRight, Check, X, RefreshCw, AlertCircle, FileCheck, AlertTriangle, MessageCircle, MapPin, Calendar, Clock } from "lucide-react";
+import { Bell, ChevronRight, ChevronDown, Check, X, RefreshCw, AlertCircle, FileCheck, AlertTriangle, MessageCircle, MapPin, Calendar, Clock } from "lucide-react";
 import type { GlobalPendingTaskItem } from "@/app/actions/pending-tasks";
 import { auditSpotPurchase } from "@/app/purchasing/actions";
 import { buildPoWhatsappMessage, formatIndianCurrency, openWhatsAppUrl, resolveWhatsappPreferences } from "@/lib/whatsapp-po";
@@ -82,6 +82,7 @@ export function ActionRequiredBanner({
   style,
 }: ActionRequiredBannerProps) {
   const [localTasks, setLocalTasks] = useState<GlobalPendingTaskItem[]>(initialTasks || []);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [reviewingPo, setReviewingPo] = useState<{ id: string; poNumber?: string; publicToken?: string | null; vendorName?: string } | null>(null);
   const [reviewLines, setReviewLines] = useState<any[]>([]);
   const [loadingLines, setLoadingLines] = useState<boolean>(false);
@@ -258,32 +259,104 @@ export function ActionRequiredBanner({
     setWhatsAppModal(null);
   };
 
+  const escalatedCount = tasks.filter(t => Boolean(t.isEscalated || (t.type === "ROUTINE" && t.priority === "HIGH"))).length;
+
   return (
-    <div style={{ marginBottom: "24px", display: "flex", flexDirection: "column", gap: "10px", ...style }}>
-      {/* Header bar */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: 700, color: "#991b1b" }}>
-          <Bell size={16} />
-          <span>Action Required / Pending Tasks</span>
+    <div style={{ marginBottom: "20px", display: "flex", flexDirection: "column", gap: "10px", ...style }}>
+      {/* Compact Collapsible Summary Bar */}
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "10px 16px",
+          background: "linear-gradient(90deg, #fef2f2 0%, #fff 100%)",
+          border: "1px solid #fecaca",
+          borderLeft: "4px solid #dc2626",
+          borderRadius: "10px",
+          cursor: "pointer",
+          boxShadow: "0 1px 3px rgba(220, 38, 38, 0.06)",
+          transition: "background 0.15s ease",
+          userSelect: "none",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div
+            style={{
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              background: "#fee2e2",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#dc2626",
+              flexShrink: 0,
+            }}
+          >
+            <Bell size={15} />
+          </div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>
+              Action Required / Urgent Tasks
+            </span>
+            <span style={{ fontSize: "12px", color: "#64748b" }}>
+              ({escalatedCount > 0 ? `${escalatedCount} escalated · ` : ""}{tasks.length} pending review)
+            </span>
+          </div>
         </div>
-        <span
-          style={{
-            fontSize: "11px",
-            fontWeight: 700,
-            backgroundColor: "#fef2f2",
-            color: "#b91c1c",
-            border: "1px solid #fecaca",
-            padding: "2px 8px",
-            borderRadius: "99px",
-          }}
-        >
-          {tasks.length} {tasks.length === 1 ? "Action" : "Actions"}
-        </span>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              backgroundColor: "#fee2e2",
+              color: "#b91c1c",
+              border: "1px solid #fca5a5",
+              padding: "2px 8px",
+              borderRadius: "99px",
+            }}
+          >
+            {tasks.length} {tasks.length === 1 ? "Action" : "Actions"}
+          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsExpanded(!isExpanded);
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "4px",
+              background: "#ffffff",
+              border: "1px solid #fecaca",
+              color: "#991b1b",
+              borderRadius: "6px",
+              padding: "4px 10px",
+              fontSize: "12px",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <span>{isExpanded ? "Hide Details" : "Review Tasks"}</span>
+            <ChevronDown
+              size={14}
+              style={{
+                transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                transition: "transform 0.2s ease",
+              }}
+            />
+          </button>
+        </div>
       </div>
 
-      {/* Task cards list */}
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-        {tasks.map((task) => {
+      {/* Task cards list (Collapsible) */}
+      {isExpanded && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", animation: "fadeIn 0.2s ease" }}>
+          {tasks.map((task) => {
           const isTaskEscalated = Boolean(task.isEscalated || (task.type === "ROUTINE" && task.priority === "HIGH"));
           const isHigh = task.priority === "HIGH" || isTaskEscalated;
           const displayType = isTaskEscalated ? "ESCALATED" : task.type;
@@ -439,7 +512,8 @@ export function ActionRequiredBanner({
             </div>
           );
         })}
-      </div>
+        </div>
+      )}
 
       {/* In-Modal Review & Approval Flow */}
       {reviewingPo && (

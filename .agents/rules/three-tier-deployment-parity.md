@@ -31,12 +31,24 @@ All changes must strictly follow the Three-Tier Deployment Pipeline:
 2. Verify that GitHub `origin main` is up to date.
 
 ### Tier 3: Production Pull & Reload (ONLY on Explicit User Command)
-> **MANDATORY**: Never push to `origin/main` or trigger a production server deployment automatically. Work locally, batch changes, and deploy to production **only when the user explicitly instructs** (e.g. *"push to production"*).
+> **MANDATORY**: Never push to `origin/main` or trigger a production server deployment automatically. Work locally, batch changes, and deploy to production **only when the user explicitly instructs** (e.g. *"push to production"*, *"deploy to server"*).
 > 
-> **CRITICAL EXECUTION RULE**: When the user gives the explicit command to deploy/push to production, the AI agent **MUST NOT** just push to Git and output bash instructions for the user to execute manually. The agent has direct SSH access and **MUST execute the full Tier 3 deployment itself** end-to-end via:
-> ```bash
-> ssh -i "$HOME/.ssh/oracle_kalki.key" -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@140.245.253.187 "cd /home/ubuntu/kalki && git pull origin main && npm run build && pm2 restart all"
+> **CRITICAL EXECUTION RULE (Fast Artifact Pipeline)**:
+> When the user gives the explicit command to deploy/push to production, the AI agent **MUST NOT** trigger `npm run build` on the remote production server (the VM has < 1GB RAM and will freeze from swap memory thrashing).
+>
+> The agent **MUST execute the automated fast deployment pipeline locally in the same turn**:
+> ```powershell
+> powershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1
 > ```
+> *(or `npm run deploy:prod`)*.
+> 
+> This script executes the complete sequence end-to-end:
+> 1. Pushes latest Git commits to `origin main`
+> 2. Compiles Next.js locally in ~9 seconds (`npx next build`)
+> 3. Creates a lightweight bundle `next_build_prod.tar.gz` (~22MB)
+> 4. SCPs the bundle to `140.245.253.187:/home/ubuntu/kalki/`
+> 5. Runs remote SSH to pull Git (`git pull origin main`), unpacks the `.next` bundle, and restarts `kalki-web` cleanly via PM2.
+> 6. Cleans up temporary artifacts. Total execution time: **< 60 seconds**.
 
 ---
 

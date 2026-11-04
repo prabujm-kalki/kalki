@@ -24,18 +24,19 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - **Kalki Premium UI**: Look at existing modules (like `SalesOverview.tsx`) for reference. Use inline styles with clean, professional, premium UI layouts.
 - **Standard Classes**: Use the global CSS classes like `.card`, `.kalki-module-topbar`, `.kalki-login-wrapper` instead of Tailwind.
 
-## 3. Strict Three-Tier Deployment Rule (100% Code Parity)
+## 3. Strict Three-Tier Deployment Rule (100% Code Parity & Fast Local Build Artifacts)
 - **Zero Direct Server Edits**: Under NO circumstances should any AI agent or tool edit code directly on the remote production server.
 - **Mandatory Flow**: All code changes MUST follow:
-  $$\text{Local Workspace} \longrightarrow \text{GitHub (origin/main)} \longrightarrow \text{Production Server (git pull)}$$
+  $$\text{Local Workspace} \longrightarrow \text{GitHub (origin/main)} \longrightarrow \text{Production Server (git pull + artifact ship)}$$
 - **100% Parity**: Local code, GitHub main, and Production Server code must be strictly identical at all times. No drifts, no untracked server patches.
 
 ## 4. Batched Deployment & Explicit Production Push Authorization
 - **Do NOT push to production automatically**: All fixes, enhancements, and tasks must be developed, tested, and verified **locally** first.
 - **Explicit Instruction Required**: NEVER push commits to `origin/main` or trigger a production server deployment unless the user **explicitly commands** to push to production (e.g., *"push this to production"*, *"deploy to server"*).
-- **Mandatory End-to-End Execution**: When the user explicitly commands to push to production, the agent MUST NOT stop at `git push origin main` or print manual server commands for the user. The agent MUST execute Tier 3 automatically in the same turn via SSH:
-  ```bash
-  ssh -i "$HOME/.ssh/oracle_kalki.key" -o BatchMode=yes -o StrictHostKeyChecking=no ubuntu@140.245.253.187 "cd /home/ubuntu/kalki && git pull origin main && npm run build && pm2 restart all"
+- **Mandatory End-to-End Execution (Fast Artifact Pipeline)**: When the user explicitly commands to push to production, the agent MUST NOT trigger `npm run build` on the remote server (which has limited RAM and freezes). Instead, the agent MUST execute the automated fast deployment pipeline locally in the same turn:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File scripts/deploy-production.ps1
   ```
+  *(or via `npm run deploy:prod`)*. This builds the bundle locally in ~9s, pushes to Git, SCPs the ~22 MB pre-built `.next` bundle to production, pulls git, and restarts `kalki-web` via PM2 in under 60 seconds.
 - **Batching Workflow**: Work accumulates locally across tasks. Multiple fixes will be verified locally and then deployed together in a single batch when requested.
 

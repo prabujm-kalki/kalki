@@ -8,7 +8,8 @@ import {
   purchaseOrders, 
   purchaseOrderLines, 
   items, 
-  rawBiometricPunches 
+  rawBiometricPunches,
+  employees
 } from "@/db/schema";
 import { eq, and, gte, lte, desc, sql, inArray } from "drizzle-orm";
 
@@ -246,7 +247,7 @@ export async function getOrComputeBranchIntelligence(
 
       const totalRevenue = Number(posSales?.total || 0) + Number(b2bSales?.total || 0);
 
-      // Fetch Food Cost (Approved & Received POs)
+      // Fetch Food Cost (Approved, Ordered, Received, or Audited POs - including uppercase/lowercase)
       const [poSpend] = await db
         .select({ total: sql<string>`COALESCE(SUM(total_amount), 0)` })
         .from(purchaseOrders)
@@ -254,25 +255,57 @@ export async function getOrComputeBranchIntelligence(
           and(
             eq(purchaseOrders.organizationId, organizationId),
             eq(purchaseOrders.locationId, loc.id),
-            inArray(purchaseOrders.status, ["approved", "ordered", "sent_to_vendor", "received", "audited", "paid"])
+            inArray(sql`LOWER(${purchaseOrders.status})`, [
+              "approved",
+              "ordered",
+              "sent_to_vendor",
+              "received",
+              "audited",
+              "paid",
+              "completed",
+              "pending_receipt",
+              "pending",
+            ])
           )
         );
 
       const foodCostCogs = Number(poSpend?.total || 0);
-      const foodCostPct = totalRevenue > 0 ? Number(((foodCostCogs / totalRevenue) * 100).toFixed(2)) : (foodCostCogs > 0 ? 32.5 : 0);
 
-      // Fetch Labor Cost approximation (Active employees * standard daily wage or biometric hours)
-      const [laborEmpCount] = await db
+      // Data Completeness Check:
+      // In professional F&B ERPs, if Revenue > 0 but CoGS == 0, that means ingredient consumption/invoices
+      // have not been registered yet. It must NOT be flagged as 'OPTIMAL' or 0% food cost.
+      const isCoGsMissing = totalRevenue > 0 && foodCostCogs === 0;
+
+      let foodCostPct = 0;
+      if (totalRevenue > 0 && foodCostCogs > 0) {
+        foodCostPct = Number(((foodCostCogs / totalRevenue) * 100).toFixed(2));
+      } else if (foodCostCogs > 0 && totalRevenue === 0) {
+        foodCostPct = 32.5;
+      }
+
+      // Fetch Labor Cost:
+      // Pull actual active employee count and calculate daily prorated wage
+      const [activeEmpRes] = await db
         .select({ count: sql<number>`count(*)` })
-        .from(rawBiometricPunches)
+        .from(employees)
         .where(
           and(
-            eq(rawBiometricPunches.organizationId, organizationId),
-            eq(rawBiometricPunches.locationId, loc.id)
+            eq(employees.organizationId, organizationId),
+            eq(employees.locationId, loc.id),
+            eq(employees.status, "ACTIVE")
           )
         );
 
-      const laborCost = Number(laborEmpCount?.count || 0) > 0 ? Number(laborEmpCount.count) * 650 : (totalRevenue * 0.18);
+      const activeStaffCount = Number(activeEmpRes?.count || 0);
+
+      // Real labor cost computation:
+      // If active staff exists, calculate realistic monthly labor prorated or standard shift wage (~₹550/day)
+      // Otherwise fallback to industry norm 18% of revenue
+      const estimatedStaffLabor = activeStaffCount > 0 
+        ? Math.max(activeStaffCount * 550 * 30, totalRevenue * 0.16)
+        : (totalRevenue * 0.18);
+
+      const laborCost = totalRevenue > 0 ? estimatedStaffLabor : (activeStaffCount * 550 * 30);
       const laborCostPct = totalRevenue > 0 ? Number(((laborCost / totalRevenue) * 100).toFixed(2)) : 18.0;
 
       // OpEx Burden (Normalized location-specific burden: Urban vs Rural rent structure)
@@ -281,10 +314,12 @@ export async function getOrComputeBranchIntelligence(
       const opexCostPct = totalRevenue > 0 ? Number(((opexCost / totalRevenue) * 100).toFixed(2)) : (isUrban ? 15.0 : 9.5);
 
       const primeCostPct = Number((foodCostPct + laborCostPct + opexCostPct).toFixed(2));
-      const foodCostVariancePct = Number((foodCostPct - targetBenchmarkFoodPct).toFixed(2));
+      const foodCostVariancePct = isCoGsMissing ? 0 : Number((foodCostPct - targetBenchmarkFoodPct).toFixed(2));
 
       let statusHealth: "OPTIMAL" | "WARNING" | "CRITICAL" = "OPTIMAL";
-      if (foodCostVariancePct > alertThreshold * 1.5) {
+      if (isCoGsMissing) {
+        statusHealth = "WARNING"; // Missing data must not be green OPTIMAL
+      } else if (foodCostVariancePct > alertThreshold * 1.5) {
         statusHealth = "CRITICAL";
       } else if (foodCostVariancePct > alertThreshold) {
         statusHealth = "WARNING";
@@ -294,6 +329,23 @@ export async function getOrComputeBranchIntelligence(
       const rootCauses: SnapshotComputationResult["rootCauses"] = [];
       const topItemsVariance: SnapshotComputationResult["topItemsVariance"] = [];
       const recommendedActions: SnapshotComputationResult["recommendedActions"] = [];
+
+      if (isCoGsMissing) {
+        rootCauses.push({
+          category: "YIELD_PORTION_DRIFT",
+          title: "Missing Invoices & Stock Intake",
+          impactPct: targetBenchmarkFoodPct,
+          description: "Revenue is being recorded, but zero purchase orders or goods receipt notes (GRN) have been entered for this branch. Stock intake or stock assessment required to compute accurate unit economics.",
+        });
+
+        recommendedActions.push({
+          id: `intake-${loc.id}`,
+          title: "Record Purchase / Stock Assessment",
+          actionType: "ASSIGN_AUDIT_TASK",
+          buttonLabel: "Create Stock Intake PO",
+          payload: { locationId: loc.id, action: "OPEN_PURCHASE" },
+        });
+      }
 
       // Query raw material item price variations for this branch
       const recentPoLines = await db

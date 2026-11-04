@@ -153,12 +153,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       }
 
-      // 3. Update existing retained vendor items with latest name and unit
+      // 3. Update existing retained vendor items with latest name, unit, and item isActive status
       await tx.update(vendorItems)
         .set({
           itemName: parsed.nameEn,
           unitOfMeasure: parsed.unit,
-          isActive: true,
+          isActive: parsed.isActive,
           updatedAt: new Date(),
         })
         .where(eq(vendorItems.itemId, itemId));

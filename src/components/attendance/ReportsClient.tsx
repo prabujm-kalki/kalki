@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { generateAttendanceReport } from "@/domains/attendance/reportActions";
 import { useSessionView } from "@/components/AppShell";
-import { Download, Filter, Search, Table2, CalendarDays, PieChart, FileText } from "lucide-react";
+import { Download, Filter, Search, Table2, CalendarDays, PieChart, FileText, CheckCircle2, Clock, XCircle, Users } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
 type ReportType = "RAW" | "DETAILED" | "SUMMARY";
+type StatusFilterType = "ALL" | "PRESENT" | "LATE" | "ABSENT";
 
 function isEmployeeAttendanceExempt(emp: any): boolean {
   const code = (emp.code || "").toUpperCase();
@@ -63,12 +65,14 @@ export default function ReportsClient({
   branchHistories?: Array<{ employeeId: string; locationId: string; effectiveFrom: string | Date }>
 }) {
   const { selected } = useSessionView();
+  const searchParams = useSearchParams();
   
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [roleId, setRoleId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilterType>("ALL");
   
   const [reportType, setReportType] = useState<ReportType>("RAW");
   const [reportData, setReportData] = useState<any[] | null>(null);
@@ -78,29 +82,28 @@ export default function ReportsClient({
 
   const [isMounted, setIsMounted] = useState(false);
 
-  useEffect(() => {
-    setIsMounted(true);
-    const today = new Date().toISOString().split("T")[0];
-    setStartDate(today);
-    setEndDate(today);
-  }, []);
-
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selected) return;
-    
+  // Auto-fetch data helper
+  const fetchData = useCallback(async (opts: {
+    start: string;
+    end: string;
+    dept?: string;
+    role?: string;
+    emp?: string;
+    orgId?: string;
+    locId?: string;
+  }) => {
+    if (!opts.orgId || !opts.locId) return;
     setLoading(true);
     setError("");
-    
     try {
       const data = await generateAttendanceReport({
-        startDate,
-        endDate,
-        departmentId: departmentId || undefined,
-        roleId: roleId || undefined,
-        employeeId: employeeId || undefined,
-        organizationId: selected?.organizationId,
-        locationId: selected?.locationId
+        startDate: opts.start,
+        endDate: opts.end,
+        departmentId: opts.dept || undefined,
+        roleId: opts.role || undefined,
+        employeeId: opts.emp || undefined,
+        organizationId: opts.orgId,
+        locationId: opts.locId
       });
       if (data && typeof data === "object" && "punches" in data) {
         setReportData(data.punches);
@@ -114,6 +117,64 @@ export default function ReportsClient({
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const today = new Date().toISOString().split("T")[0];
+    
+    // Parse URL query params if present (Drill-down from Dashboard)
+    const paramFrom = searchParams.get("from");
+    const paramTo = searchParams.get("to");
+    const paramStatus = searchParams.get("status")?.toUpperCase();
+    const paramDept = searchParams.get("departmentId") || "";
+    const paramRole = searchParams.get("roleId") || "";
+    const paramEmp = searchParams.get("employeeId") || "";
+    const paramType = searchParams.get("reportType")?.toUpperCase();
+
+    const effStart = paramFrom || today;
+    const effEnd = paramTo || today;
+    setStartDate(effStart);
+    setEndDate(effEnd);
+
+    if (paramDept) setDepartmentId(paramDept);
+    if (paramRole) setRoleId(paramRole);
+    if (paramEmp) setEmployeeId(paramEmp);
+
+    if (paramStatus === "PRESENT" || paramStatus === "LATE" || paramStatus === "ABSENT") {
+      setStatusFilter(paramStatus as StatusFilterType);
+      // Auto switch to DETAILED report type for status drill-down
+      setReportType("DETAILED");
+    } else if (paramType === "DETAILED" || paramType === "SUMMARY") {
+      setReportType(paramType as ReportType);
+    }
+
+    // Auto-trigger if arriving with drill-down query params or initial load with active session
+    if (selected?.organizationId && selected?.locationId) {
+      fetchData({
+        start: effStart,
+        end: effEnd,
+        dept: paramDept,
+        role: paramRole,
+        emp: paramEmp,
+        orgId: selected.organizationId,
+        locId: selected.locationId
+      });
+    }
+  }, [searchParams, selected?.organizationId, selected?.locationId, fetchData]);
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected) return;
+    fetchData({
+      start: startDate,
+      end: endDate,
+      dept: departmentId,
+      role: roleId,
+      emp: employeeId,
+      orgId: selected.organizationId,
+      locId: selected.locationId
+    });
   };
 
   const getDatesInRange = (start: string, end: string) => {
@@ -944,10 +1005,170 @@ export default function ReportsClient({
       }
 
       if (reportType === "DETAILED") {
+        // Calculate status counts across all filtered employees for the active date range
+        let allCount = 0;
+        let presentCount = 0;
+        let lateCount = 0;
+        let absentCount = 0;
+
+        // Evaluate employee status helper
+        const evaluateEmployeeStatus = (emp: any) => {
+          let hasPresent = false;
+          let hasLate = false;
+          let hasAbsent = false;
+
+          dates.forEach(d => {
+            if (selected?.locationId && !isEmployeeAtLocationOnDate(emp, selected.locationId, d, branchHistories)) {
+              return;
+            }
+            const leave = approvedLeaves.find(l => l.employeeId === emp.id && l.startDate <= d && l.endDate >= d);
+            if (leave) {
+              // Approved leave is not unexcused absent
+              return;
+            }
+            const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
+            if (dayPunches.length === 0) {
+              hasAbsent = true;
+              return;
+            }
+            const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
+            const shiftStartTime = pi?.shiftStartTime || emp.shiftStartTime;
+            const shiftGrace = pi?.shiftGracePeriod ?? emp.shiftGracePeriod ?? 15;
+            if (pi && shiftStartTime) {
+              const punchTime = new Date(pi.punchTimestamp);
+              const shiftStartParts = shiftStartTime.split(":");
+              const expectedStart = new Date(punchTime);
+              expectedStart.setHours(parseInt(shiftStartParts[0]), parseInt(shiftStartParts[1]), parseInt(shiftStartParts[2] || "0"), 0);
+              const graceMs = shiftGrace * 60 * 1000;
+              const isLate = punchTime.getTime() > expectedStart.getTime() + graceMs;
+              if (isLate) {
+                hasLate = true;
+              } else {
+                hasPresent = true;
+              }
+            } else if (pi) {
+              hasPresent = true;
+            } else {
+              hasAbsent = true;
+            }
+          });
+
+          return { hasPresent, hasLate, hasAbsent };
+        };
+
+        filteredEmployees.forEach(emp => {
+          allCount++;
+          const evalRes = evaluateEmployeeStatus(emp);
+          if (evalRes.hasPresent) presentCount++;
+          if (evalRes.hasLate) lateCount++;
+          if (evalRes.hasAbsent) absentCount++;
+        });
+
+        // Apply statusFilter to employee list
+        const displayedEmployees = filteredEmployees.filter(emp => {
+          if (statusFilter === "ALL") return true;
+          const evalRes = evaluateEmployeeStatus(emp);
+          if (statusFilter === "PRESENT") return evalRes.hasPresent;
+          if (statusFilter === "LATE") return evalRes.hasLate;
+          if (statusFilter === "ABSENT") return evalRes.hasAbsent;
+          return true;
+        });
+
         return (
-          <div style={{ display: "flex", flexDirection: "column", gap: "2rem" }}>
-            {filteredEmployees.map(emp => {
-              return (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            {/* Status Filter Tab Pills */}
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", padding: "4px 0" }}>
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ALL")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  fontSize: "0.825rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: statusFilter === "ALL" ? "2px solid #0f172a" : "1px solid #cbd5e1",
+                  background: statusFilter === "ALL" ? "#0f172a" : "#ffffff",
+                  color: statusFilter === "ALL" ? "#ffffff" : "#475569",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <Users size={14} /> All Workforce ({allCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("PRESENT")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  fontSize: "0.825rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: statusFilter === "PRESENT" ? "2px solid #059669" : "1px solid #a7f3d0",
+                  background: statusFilter === "PRESENT" ? "#059669" : "#ecfdf5",
+                  color: statusFilter === "PRESENT" ? "#ffffff" : "#047857",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <CheckCircle2 size={14} /> On Duty / Present ({presentCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("LATE")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  fontSize: "0.825rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: statusFilter === "LATE" ? "2px solid #d97706" : "1px solid #fde68a",
+                  background: statusFilter === "LATE" ? "#d97706" : "#fffbeb",
+                  color: statusFilter === "LATE" ? "#ffffff" : "#b45309",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <Clock size={14} /> Late Arrivals ({lateCount})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setStatusFilter("ABSENT")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "20px",
+                  fontSize: "0.825rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: statusFilter === "ABSENT" ? "2px solid #dc2626" : "1px solid #fecaca",
+                  background: statusFilter === "ABSENT" ? "#dc2626" : "#fef2f2",
+                  color: statusFilter === "ABSENT" ? "#ffffff" : "#b91c1c",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <XCircle size={14} /> Unexcused / Absent ({absentCount})
+              </button>
+            </div>
+
+            {displayedEmployees.length === 0 ? (
+              <div style={{ padding: "3rem", textAlign: "center", background: "#f8fafc", borderRadius: "8px", color: "var(--att-text-muted)" }}>
+                No employees matching filter <strong>{statusFilter}</strong> for this period.
+              </div>
+            ) : (
+              displayedEmployees.map(emp => (
                 <div key={emp.id} style={{ border: "1px solid var(--att-border)", borderRadius: "8px", overflow: "hidden" }}>
                   <div style={{ padding: "0.85rem 1rem", backgroundColor: "var(--att-secondary)", borderBottom: "1px solid var(--att-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <div style={{ fontWeight: 600 }}>
@@ -1107,8 +1328,8 @@ export default function ReportsClient({
                     </table>
                   </div>
                 </div>
-              );
-            })}
+              ))
+            )}
           </div>
         );
       }

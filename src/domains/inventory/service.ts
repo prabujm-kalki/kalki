@@ -247,7 +247,8 @@ export async function listVendorItems(actor: Actor, scope: z.infer<typeof scopeS
     eq(vendorItems.organizationId, scope.organizationId),
     eq(vendorItems.locationId, scope.locationId),
     eq(vendorItems.vendorId, vendorId),
-    eq(vendorItems.isActive, true)
+    eq(vendorItems.isActive, true),
+    eq(items.isActive, true)
   ));
 
   return res.map(r => ({
@@ -508,7 +509,7 @@ export async function getInventoryDashboard(actor: Actor, scope: z.infer<typeof 
   }
   await requireScopeAccess(actor, scope, inventoryPermissions.read);
 
-  const items = await db.select({
+  const activeVendorItems = await db.select({
     id: vendorItems.id,
     itemName: vendorItems.itemName,
     vendorName: vendors.name,
@@ -517,10 +518,12 @@ export async function getInventoryDashboard(actor: Actor, scope: z.infer<typeof 
   })
   .from(vendorItems)
   .innerJoin(vendors, eq(vendorItems.vendorId, vendors.id))
+  .leftJoin(items, eq(vendorItems.itemId, items.id))
   .where(and(
     eq(vendorItems.organizationId, scope.organizationId),
     eq(vendorItems.locationId, scope.locationId),
-    eq(vendorItems.isActive, true)
+    eq(vendorItems.isActive, true),
+    sql`(${items.isActive} IS NULL OR ${items.isActive} = true)`
   ));
 
   const balancesResult = await db.execute<{ vendorItemId: string, balanceAfter: string }>(sql`
@@ -539,7 +542,7 @@ export async function getInventoryDashboard(actor: Actor, scope: z.infer<typeof 
       : (balancesResult as any).map((r: any) => [r.vendorItemId, parseFloat(r.balanceAfter)])
   );
 
-  return items.map(item => ({
+  return activeVendorItems.map(item => ({
     ...item,
     currentBalance: balancesMap.get(item.id) || 0
   }));

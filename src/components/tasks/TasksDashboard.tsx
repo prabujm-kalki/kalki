@@ -623,17 +623,20 @@ export function TasksDashboard() {
                 )}
               </div>
 
-              {Array.isArray(activeChecklistTask.checklistConfig) && activeChecklistTask.checklistConfig.map((item: any, idx: number) => (
-                <div key={item.id} style={{ padding: "12px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#ffffff" }}>
+              {Array.isArray(activeChecklistTask.checklistConfig) && activeChecklistTask.checklistConfig.map((item: any, idx: number) => {
+                const itemTitle = item.title || item.text || `Checkpoint #${idx + 1}`;
+                const itemInputType = item.inputType || "checkbox";
+                return (
+                <div key={item.id || idx} style={{ padding: "12px 14px", borderRadius: "8px", border: "1px solid #e2e8f0", background: "#ffffff" }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "10px", marginBottom: "8px" }}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
                       <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>{idx + 1}.</span>
-                      <span style={{ fontSize: "14px", fontWeight: 500, color: "#1e293b" }}>{item.title}</span>
+                      <span style={{ fontSize: "14px", fontWeight: 500, color: "#1e293b" }}>{itemTitle}</span>
                     </div>
                     {item.helpDescription && (
                       <button
                         type="button"
-                        onClick={() => setActiveSopHelp({ title: item.title, text: item.helpDescription })}
+                        onClick={() => setActiveSopHelp({ title: itemTitle, text: item.helpDescription })}
                         title="Click to view detailed SOP instructions"
                         style={{
                           background: "#eff6ff",
@@ -655,7 +658,7 @@ export function TasksDashboard() {
                     )}
                   </div>
 
-                  {item.inputType === "checkbox" && (
+                  {itemInputType === "checkbox" && (
                     <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "6px", cursor: "pointer", userSelect: "none" }}>
                       <input
                         type="checkbox"
@@ -669,7 +672,7 @@ export function TasksDashboard() {
                     </label>
                   )}
 
-                  {item.inputType === "multi_checkbox" && (
+                  {itemInputType === "multi_checkbox" && (
                     <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                       {(item.options || ["Pass", "Fail"]).map((opt: string) => {
                         const selectedList: string[] = Array.isArray(checklistValues[item.id]) ? checklistValues[item.id] : [];
@@ -710,7 +713,7 @@ export function TasksDashboard() {
                     </div>
                   )}
 
-                  {item.inputType === "radio" && (
+                  {itemInputType === "radio" && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginTop: "6px" }}>
                       {(item.options || ["Pass", "Fail"]).map((opt: string) => (
                         <label key={opt} style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#334155", cursor: "pointer", background: checklistValues[item.id] === opt ? "#f0fdf4" : "#f8fafc", padding: "6px 12px", borderRadius: "6px", border: checklistValues[item.id] === opt ? "1px solid #86efac" : "1px solid #e2e8f0" }}>
@@ -728,7 +731,7 @@ export function TasksDashboard() {
                     </div>
                   )}
 
-                  {item.inputType === "text" && (
+                  {itemInputType === "text" && (
                     <input
                       type="text"
                       placeholder="Enter verification notes..."
@@ -739,7 +742,7 @@ export function TasksDashboard() {
                     />
                   )}
 
-                  {item.inputType === "number" && (
+                  {itemInputType === "number" && (
                     <input
                       type="number"
                       placeholder="e.g. Temperature reading"
@@ -750,7 +753,8 @@ export function TasksDashboard() {
                     />
                   )}
                 </div>
-              ))}
+              );
+            })}
 
               {/* Attachment / Completion Proof Upload Section */}
               {activeChecklistTask.evidenceRequirementType !== "none" && (
@@ -999,7 +1003,7 @@ export function TasksDashboard() {
                             {idx + 1}
                           </span>
                           <span style={{ fontWeight: 600, fontSize: "13px", color: "#0f172a" }}>
-                            {item.title || "Untitled Checkpoint"}
+                            {item.title || item.text || `Checkpoint #${idx + 1}`}
                           </span>
                         </div>
                         <span style={{ fontSize: "11px", color: "#64748b", textTransform: "capitalize", backgroundColor: "#f1f5f9", padding: "2px 8px", borderRadius: "4px" }}>

@@ -41,8 +41,20 @@ async function getOrCreateCateringDefinition(organizationId: string) {
         priority: "high",
         evidenceRequirementType: "none",
         checklistConfig: [
-          { id: "1", text: "Verify event pax & client special requirements", isMandatory: true },
-          { id: "2", text: "Quality and readiness sign-off", isMandatory: true }
+          {
+            id: "chk-1",
+            title: "Verify event pax & client special requirements",
+            helpDescription: "Ensure client specifications, guest count and special dietary requests are confirmed.",
+            inputType: "checkbox",
+            isRequired: true,
+          },
+          {
+            id: "chk-2",
+            title: "Quality and operational readiness sign-off",
+            helpDescription: "Inspect operational execution and sign off readiness before proceeding.",
+            inputType: "checkbox",
+            isRequired: true,
+          },
         ],
       })
       .returning();

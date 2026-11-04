@@ -98,7 +98,18 @@ export async function processAccountingEvent(payload: AccountingEventPayload) {
 
         let autoAccount: { id: string } | undefined;
 
-        if (line.sourceReferenceId === "BANK_CASH" || line.mappingType === "PAYMENT_METHOD") {
+        if (line.mappingType === "PAYMENT_METHOD") {
+          const methodUpper = (line.sourceReferenceId || "").toUpperCase();
+          if (methodUpper === "UPI" || methodUpper === "BANK" || methodUpper === "ONLINE") {
+            autoAccount = orgAccounts.find(a => a.code === "1130" || a.code === "BANK-001" || a.name.toLowerCase().includes("bank") || a.name.toLowerCase().includes("upi"))
+              || orgAccounts.find(a => a.category === "ASSET");
+          } else {
+            // Default CASH and other physical counter tenders to Cash in Hand
+            autoAccount = orgAccounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("cash in hand"))
+              || orgAccounts.find(a => a.code === "1120" || a.code === "CASH-001" || a.name.toLowerCase().includes("petty cash"))
+              || orgAccounts.find(a => a.category === "ASSET");
+          }
+        } else if (line.sourceReferenceId === "BANK_CASH") {
           autoAccount = orgAccounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("cash in hand"))
             || orgAccounts.find(a => a.code === "1120" || a.code === "CASH-001" || a.name.toLowerCase().includes("petty cash"))
             || orgAccounts.find(a => a.code === "1130" || a.code === "BANK-001" || a.name.toLowerCase().includes("bank"))

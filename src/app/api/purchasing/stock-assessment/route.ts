@@ -31,7 +31,8 @@ export async function POST(req: NextRequest) {
         and(
           eq(vendorItems.vendorId, vendorId),
           inArray(vendorItems.itemId, itemIds),
-          eq(vendorItems.isActive, true)
+          eq(vendorItems.isActive, true),
+          eq(items.isActive, true)
         )
       );
 

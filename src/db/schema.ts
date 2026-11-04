@@ -3294,6 +3294,14 @@ export const dayCloseRecords = pgTable("day_close_records", {
   status: text("status", { enum: ["CLOSED"] }).notNull().default("CLOSED"),
   closedByUserId: text("closed_by_user_id").notNull().references(() => authUsers.id),
   closedAt: timestamp("closed_at", { withTimezone: true }).notNull().defaultNow(),
+  openingCashBalance: numeric("opening_cash_balance").default("0"),
+  closingCashInHand: numeric("closing_cash_in_hand").default("0"),
+  declaredUpiAmount: numeric("declared_upi_amount").default("0"),
+  cashExpenses: numeric("cash_expenses").default("0"),
+  upiExpenses: numeric("upi_expenses").default("0"),
+  netCalculatedSales: numeric("net_calculated_sales").default("0"),
+  systemSales: numeric("system_sales").default("0"),
+  overallVariance: numeric("overall_variance").default("0"),
 }, (table) => [
   unique("day_close_org_loc_date_unique").on(table.organizationId, table.locationId, table.date)
 ]);
