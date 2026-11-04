@@ -17,13 +17,16 @@ export default async function AttendancePage({
   
   // Checking isOwner from user metadata or role if available, but checking the specific permission is safer.
   const isOwner = (session.user as any).isOwner || (session.user as any).role === "owner" || (session.user as any).role === "admin";
+  const canSelfiePunch = isOwner || permissions.includes("attendance.selfie_punch:execute") || permissions.includes("attendance.selfie_punch:create");
   const canViewRecords = isOwner || permissions.includes("attendance.records:read") || permissions.includes("attendance.overview:read");
 
   const params = await searchParams;
   const qs = new URLSearchParams(params).toString();
   const queryString = qs ? `?${qs}` : "";
 
-  if (canViewRecords) {
+  if (canSelfiePunch) {
+    redirect(`/attendance/selfie-punch${queryString}`);
+  } else if (canViewRecords) {
     redirect(`/attendance/overview${queryString}`);
   } else {
     redirect(`/attendance/my-time${queryString}`);

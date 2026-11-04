@@ -1,5 +1,5 @@
 import { db } from "@/db";
-import { departments, businessRoles, employees, people, shiftDefinitions, employeeHistoryBranch } from "@/db/schema";
+import { departments, businessRoles, employees, people, shiftDefinitions, employeeHistoryBranch, employeeHistoryStatus } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import ReportsClient from "@/components/attendance/ReportsClient";
 import { auth } from "@/lib/auth";
@@ -53,6 +53,9 @@ export default async function AttendanceReportsPage() {
     code: employees.employeeCode,
     name: people.displayName,
     jobTitle: employees.jobTitle,
+    status: employees.status,
+    employmentStartDate: employees.employmentStartDate,
+    employmentEndDate: employees.employmentEndDate,
     organizationId: employees.organizationId,
     locationId: employees.locationId,
     departmentId: employees.departmentId,
@@ -78,6 +81,15 @@ export default async function AttendanceReportsPage() {
     .from(employeeHistoryBranch)
     .orderBy(desc(employeeHistoryBranch.effectiveFrom));
 
+  const statusHistories = await db
+    .select({
+      employeeId: employeeHistoryStatus.employeeId,
+      status: employeeHistoryStatus.status,
+      effectiveFrom: employeeHistoryStatus.effectiveFrom,
+    })
+    .from(employeeHistoryStatus)
+    .orderBy(desc(employeeHistoryStatus.effectiveFrom));
+
   return (
     <div>
       <header className="att-header">
@@ -90,6 +102,7 @@ export default async function AttendanceReportsPage() {
         roles={rls}
         employees={emps}
         branchHistories={branchHistories}
+        statusHistories={statusHistories}
       />
     </div>
   );

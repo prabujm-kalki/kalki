@@ -993,19 +993,100 @@ export default function PurchaseDashboardPage() {
           display: block;
         }
 
-        /* Strict Mobile Collapse */
+        /* Responsive Mobile & APK Viewport Optimizations */
         @media (max-width: 768px) {
-          .dashboard-root { padding: 12px; }
-          .dashboard-header { flex-direction: column; align-items: stretch; }
-          .kpi-grid { grid-template-columns: 1fr 1fr; }
-          .kpi-grid > div:last-child { grid-column: span 2; }
-          .analytics-grid { display: none !important; }
-          .tables-grid { grid-template-columns: 1fr; }
+          .dashboard-root { 
+            padding: 12px 12px 80px 12px; 
+            max-width: 100vw;
+            overflow-x: hidden;
+          }
+          .dashboard-header { 
+            flex-direction: column; 
+            align-items: stretch; 
+            gap: 12px;
+          }
+          .dashboard-header > div:first-child h1 {
+            font-size: 20px !important;
+          }
+          .dashboard-header-actions {
+            display: grid !important;
+            grid-template-columns: 1fr auto auto;
+            width: 100%;
+            gap: 8px;
+          }
+          .dashboard-header-actions .date-trigger-btn {
+            width: 100%;
+            justify-content: space-between;
+            min-height: 42px;
+          }
+          .dashboard-header-actions .quick-po-btn {
+            min-height: 42px;
+            padding: 8px 12px !important;
+            white-space: nowrap;
+          }
+          .dashboard-header-actions .refresh-btn {
+            min-height: 42px;
+            min-width: 42px;
+          }
+
+          /* KPI Horizontal Snap-Scroll Strip for mobile touch */
+          .kpi-grid { 
+            display: flex !important;
+            overflow-x: auto !important;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            gap: 10px !important;
+            padding-bottom: 8px;
+            margin-bottom: 14px !important;
+          }
+          .kpi-grid::-webkit-scrollbar {
+            display: none;
+          }
+          .kpi-grid > .kpi-card-clickable {
+            flex: 0 0 78% !important;
+            min-width: 240px;
+            scroll-snap-align: start;
+            padding: 14px 16px !important;
+          }
+
+          /* Mobile Analytics: Clean Vertical Stack */
+          .analytics-grid { 
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 12px !important;
+            margin-bottom: 14px !important;
+          }
+          .analytics-grid > div {
+            width: 100% !important;
+          }
+
+          .tables-grid { 
+            grid-template-columns: 1fr !important; 
+            gap: 14px !important;
+          }
           .desktop-only-feed { display: none !important; }
-          .mobile-only-feed { display: flex !important; flex-direction: column; gap: 12px; }
-          .performance-grid { grid-template-columns: 1fr; }
+          .mobile-only-feed { display: flex !important; flex-direction: column; gap: 10px; }
+          
+          .performance-grid { 
+            grid-template-columns: 1fr !important; 
+            gap: 14px !important;
+          }
           .performance-grid > div:nth-child(1),
-          .performance-grid > div:nth-child(2) { display: none !important; }
+          .performance-grid > div:nth-child(2) { 
+            display: flex !important; 
+          }
+
+          /* Mobile Card Action Buttons with Large Touch Area */
+          .mobile-action-btn {
+            min-height: 38px !important;
+            padding: 6px 12px !important;
+            font-size: 12px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+          }
         }
       `}</style>
 
@@ -1022,11 +1103,12 @@ export default function PurchaseDashboardPage() {
             </p>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          <div className="dashboard-header-actions" style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
             {/* Date Range Selector Dropdown */}
             <div style={{ position: "relative" }}>
               <button
                 type="button"
+                className="date-trigger-btn"
                 onClick={() => setIsDateMenuOpen((prev) => !prev)}
                 style={{
                   display: "inline-flex",
@@ -1059,6 +1141,7 @@ export default function PurchaseDashboardPage() {
                   borderRadius: "8px",
                   boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
                   width: "240px",
+                  maxWidth: "90vw",
                   zIndex: 50,
                   padding: "8px"
                 }}>
@@ -1091,8 +1174,8 @@ export default function PurchaseDashboardPage() {
                         alignItems: "center",
                         justifyContent: "space-between",
                         width: "100%",
-                        padding: "6px 10px",
-                        fontSize: "12px",
+                        padding: "8px 10px",
+                        fontSize: "13px",
                         textAlign: "left",
                         borderRadius: "5px",
                         border: "none",
@@ -1115,7 +1198,7 @@ export default function PurchaseDashboardPage() {
                           type="date"
                           value={customFrom}
                           onChange={(e) => setCustomFrom(e.target.value)}
-                          style={{ padding: "4px 6px", fontSize: "11px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                          style={{ padding: "6px 8px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
                         />
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
@@ -1124,7 +1207,7 @@ export default function PurchaseDashboardPage() {
                           type="date"
                           value={customTo}
                           onChange={(e) => setCustomTo(e.target.value)}
-                          style={{ padding: "4px 6px", fontSize: "11px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
+                          style={{ padding: "6px 8px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "4px" }}
                         />
                       </div>
                       <button
@@ -1136,8 +1219,8 @@ export default function PurchaseDashboardPage() {
                           color: "#ffffff",
                           border: "none",
                           borderRadius: "4px",
-                          padding: "5px",
-                          fontSize: "11px",
+                          padding: "8px",
+                          fontSize: "12px",
                           fontWeight: 600,
                           cursor: "pointer"
                         }}
@@ -1153,6 +1236,7 @@ export default function PurchaseDashboardPage() {
             {/* Refresh Button */}
             <button
               type="button"
+              className="refresh-btn"
               onClick={loadData}
               title="Refresh Data"
               style={{
@@ -1175,6 +1259,7 @@ export default function PurchaseDashboardPage() {
             {(session?.isOwner || selected?.permissions?.includes("purchasing.create_po:create")) && (
               <button
                 type="button"
+                className="quick-po-btn"
                 onClick={() => {
                   if (!selected?.organizationId || !selected?.locationId || selected.locationId === "ALL") {
                     alert("Please select an active branch context first.");
@@ -1199,7 +1284,7 @@ export default function PurchaseDashboardPage() {
                 }}
               >
                 <Zap size={14} />
-                <span>Quick Purchase ⚡</span>
+                <span>Quick PO ⚡</span>
               </button>
             )}
           </div>
@@ -1781,7 +1866,7 @@ export default function PurchaseDashboardPage() {
             {/* Mobile Fallback Cards */}
             <div className="mobile-only-feed">
               {purchases.map((po) => (
-                <div key={po.id} style={{ border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div key={po.id} style={{ border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px", display: "flex", flexDirection: "column", gap: "10px", backgroundColor: "#ffffff" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     {po.publicToken ? (
                       <button
@@ -1793,7 +1878,7 @@ export default function PurchaseDashboardPage() {
                           padding: 0,
                           cursor: "pointer",
                           fontFamily: "monospace",
-                          fontSize: "12px",
+                          fontSize: "13px",
                           fontWeight: 700,
                           color: "#2563eb",
                           textDecoration: "underline"
@@ -1802,34 +1887,29 @@ export default function PurchaseDashboardPage() {
                         {po.poNumber}
                       </button>
                     ) : (
-                      <span style={{ fontFamily: "monospace", fontSize: "12px", fontWeight: 700, color: "#1e293b" }}>{po.poNumber}</span>
+                      <span style={{ fontFamily: "monospace", fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>{po.poNumber}</span>
                     )}
-                    <span style={{ fontSize: "11px", color: "#64748b" }}>{po.date}</span>
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>{po.date}</span>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#334155" }}>{po.vendorName}</span>
+                    <span style={{ fontSize: "14px", fontWeight: 600, color: "#1e293b" }}>{po.vendorName}</span>
                     <div>{getStatusCapsule(po.status)}</div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "6px", paddingTop: "4px", borderTop: "1px dashed #f1f5f9" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: "8px", paddingTop: "8px", borderTop: "1px dashed #f1f5f9" }}>
                     {/* Routine Task Assess Button */}
                     {po.isRoutineTask && po.actionUrl && (
                       <Link
                         href={po.actionUrl}
+                        className="mobile-action-btn"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "3px",
+                          gap: "5px",
                           backgroundColor: "#7c3a27",
                           color: "#ffffff",
                           textDecoration: "none",
-                          borderRadius: "4px",
-                          padding: "3px 8px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer"
+                          boxShadow: "0 1px 2px rgba(124, 58, 39, 0.25)"
                         }}
                       >
-                        <Zap size={11} />
+                        <Zap size={13} />
                         <span>Assess Stock</span>
                       </Link>
                     )}
@@ -1838,23 +1918,18 @@ export default function PurchaseDashboardPage() {
                     {!po.isRoutineTask && (po.rawStatus === "pending_approval" || po.rawStatus === "pending_review") && (
                       <button
                         type="button"
+                        className="mobile-action-btn"
                         onClick={() => openApprovalModal(po.id, po.poNumber, po.publicToken)}
                         title="Review and Approve PO"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "3px",
+                          gap: "5px",
                           backgroundColor: "#059669",
                           color: "#ffffff",
                           border: "none",
-                          borderRadius: "4px",
-                          padding: "3px 8px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer"
+                          boxShadow: "0 1px 2px rgba(5, 150, 105, 0.25)"
                         }}
                       >
-                        <CheckCircle2 size={11} />
+                        <CheckCircle2 size={13} />
                         <span>Review</span>
                       </button>
                     )}
@@ -1863,24 +1938,18 @@ export default function PurchaseDashboardPage() {
                     {!po.isRoutineTask && po.rawStatus !== "pending_approval" && po.rawStatus !== "pending_review" && (
                       <button
                         type="button"
+                        className="mobile-action-btn"
                         onClick={() => handleSendWhatsApp(po)}
                         title={po.isSentToVendor ? "Already sent to vendor (Click to re-send)" : (po.vendorPhone ? `Send WhatsApp to ${po.vendorPhone}` : "Share PO on WhatsApp")}
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "3px",
+                          gap: "5px",
                           backgroundColor: po.isSentToVendor ? "#94a3b8" : "#25D366",
                           color: "#ffffff",
                           border: "none",
-                          borderRadius: "4px",
-                          padding: "3px 7px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer",
                           opacity: po.isSentToVendor ? 0.85 : 1
                         }}
                       >
-                        <MessageCircle size={11} />
+                        <MessageCircle size={13} />
                         <span>{po.isSentToVendor ? "Sent" : "WhatsApp"}</span>
                       </button>
                     )}
@@ -1889,23 +1958,17 @@ export default function PurchaseDashboardPage() {
                     {!po.isRoutineTask && !po.receivedByUserId && !po.cashierBillAmount && po.rawStatus !== "received" && po.rawStatus !== "completed" && po.rawStatus !== "audited" && (po.rawStatus === "approved" || po.rawStatus === "sent_to_vendor" || po.rawStatus === "pending_receipt" || po.rawStatus === "in_transit" || po.rawStatus === "ordered") && (
                       <button
                         type="button"
+                        className="mobile-action-btn"
                         onClick={() => openReceiveModal(po)}
                         title="Quick Receive into inventory"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "3px",
+                          gap: "5px",
                           backgroundColor: "#2563eb",
                           color: "#ffffff",
-                          border: "none",
-                          borderRadius: "4px",
-                          padding: "3px 7px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer"
+                          border: "none"
                         }}
                       >
-                        <PackageCheck size={11} />
+                        <PackageCheck size={13} />
                         <span>Receive</span>
                       </button>
                     )}
@@ -1914,6 +1977,7 @@ export default function PurchaseDashboardPage() {
                     {!po.isRoutineTask && po.rawStatus !== "completed" && po.rawStatus !== "cancelled" && po.rawStatus !== "rejected" && (
                       <button
                         type="button"
+                        className="mobile-action-btn"
                         onClick={async () => {
                           const confirmCancel = window.confirm(`Are you sure you want to cancel Purchase Order #${po.poNumber}?`);
                           if (!confirmCancel) return;
@@ -1936,20 +2000,13 @@ export default function PurchaseDashboardPage() {
                         }}
                         title="Cancel Purchase Order"
                         style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "3px",
+                          gap: "4px",
                           backgroundColor: "#fef2f2",
                           color: "#dc2626",
-                          border: "1px solid #fecaca",
-                          borderRadius: "4px",
-                          padding: "3px 7px",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer"
+                          border: "1px solid #fecaca"
                         }}
                       >
-                        <X size={11} />
+                        <X size={13} />
                         <span>Cancel</span>
                       </button>
                     )}
@@ -1958,38 +2015,32 @@ export default function PurchaseDashboardPage() {
                     {po.isRoutineTask ? (
                       <button
                         type="button"
+                        className="mobile-action-btn"
                         onClick={() => setTimelineTaskId(po.id)}
                         title="View Task Lifecycle & Audit Timeline"
                         style={{
                           color: "#475569",
-                          padding: "4px",
+                          padding: "6px 10px",
                           background: "#f1f5f9",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center"
+                          border: "1px solid #cbd5e1"
                         }}
                       >
-                        <Eye size={13} />
+                        <Eye size={14} />
                       </button>
                     ) : (
                       <button
                         type="button"
+                        className="mobile-action-btn"
                         onClick={() => setTimelinePoId(po.id)}
                         title="View PO Audit Timeline"
                         style={{
                           color: "#475569",
-                          padding: "4px",
+                          padding: "6px 10px",
                           background: "#f1f5f9",
-                          border: "1px solid #cbd5e1",
-                          borderRadius: "4px",
-                          cursor: "pointer",
-                          display: "inline-flex",
-                          alignItems: "center"
+                          border: "1px solid #cbd5e1"
                         }}
                       >
-                        <Eye size={13} />
+                        <Eye size={14} />
                       </button>
                     )}
                   </div>

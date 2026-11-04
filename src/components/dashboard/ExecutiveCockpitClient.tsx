@@ -372,27 +372,52 @@ export function ExecutiveCockpitClient({ pulse }: ExecutiveCockpitClientProps) {
         </Link>
 
         {/* 48h Catering Orders Card */}
-        <Link
-          href={buildFilteredUrl("/events", { timeframe: "48h" }, currentScope)}
-          style={{ textDecoration: "none", color: "inherit" }}
-        >
-          <div className="card" style={{ padding: "16px", borderTop: "3px solid #8b5cf6", transition: "transform 0.15s, box-shadow 0.15s", cursor: "pointer" }}>
-            <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
-              Events (Next 48 Hours)
+        <div className="card" style={{ padding: "16px", borderTop: "3px solid #8b5cf6", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Link
+                href={buildFilteredUrl("/events", { timeframe: "48h" }, currentScope)}
+                style={{ textDecoration: "none", fontSize: "0.75rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}
+              >
+                Events (Next 48 Hours)
+              </Link>
             </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", margin: "6px 0" }}>
-              <span style={{ fontSize: "1.6rem", fontWeight: 800, color: "#6b21a8" }}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: "8px", margin: "6px 0", flexWrap: "wrap" }}>
+              <Link
+                href={buildFilteredUrl("/events", { timeframe: "48h" }, currentScope)}
+                style={{ textDecoration: "none", fontSize: "1.6rem", fontWeight: 800, color: "#6b21a8" }}
+              >
                 {events.upcoming48hCount}
-              </span>
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, padding: "2px 8px", borderRadius: "12px", background: "#f3e8ff", color: "#6b21a8" }}>
-                {events.openEnquiriesCount} Open Enquiries
-              </span>
-            </div>
-            <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
-              Upcoming Banquets & Catering
+              </Link>
+              <Link
+                href={buildFilteredUrl("/crm/leads", { stage: "NEW_ENQUIRY" }, currentScope)}
+                style={{
+                  textDecoration: "none",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: "12px",
+                  background: "#f3e8ff",
+                  color: "#6b21a8",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px"
+                }}
+                title="View Open Enquiries in CRM Leads"
+              >
+                {events.openEnquiriesCount} Open Enquiries →
+              </Link>
             </div>
           </div>
-        </Link>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "0.75rem", color: "#64748b", marginTop: "4px" }}>
+            <Link
+              href={buildFilteredUrl("/events", { timeframe: "48h" }, currentScope)}
+              style={{ textDecoration: "none", color: "#64748b" }}
+            >
+              Upcoming Banquets & Catering
+            </Link>
+          </div>
+        </div>
       </div>
 
       {/* 3. Main 2x2 Segment Grid */}

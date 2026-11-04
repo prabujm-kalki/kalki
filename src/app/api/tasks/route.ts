@@ -30,31 +30,31 @@ export async function GET(req: NextRequest) {
     const context = await getSessionContext(session.user);
     const isOwner = context.isOwner || false;
 
-    if (!isOwner) {
-      const authority = await getEffectiveUserAuthority(session.user.id, organizationId);
-      let userRoleIds: string[] = authority.effectiveRoleIds || [];
+    const authority = await getEffectiveUserAuthority(session.user.id, organizationId);
+    let userRoleIds: string[] = authority.effectiveRoleIds || [];
 
-      // Also check direct employee role assignments
-      const employeeRows = await db
-        .select({ id: employees.id })
-        .from(employees)
+    // Also check direct employee role assignments
+    const employeeRows = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(and(
+        eq(employees.userId, session.user.id),
+        eq(employees.organizationId, organizationId)
+      ));
+
+    if (employeeRows.length > 0) {
+      const employeeIds = employeeRows.map(e => e.id);
+      const roleAssignmentRows = await db
+        .select({ roleId: employeeRoleAssignments.roleId })
+        .from(employeeRoleAssignments)
         .where(and(
-          eq(employees.userId, session.user.id),
-          eq(employees.organizationId, organizationId)
+          inArray(employeeRoleAssignments.employeeId, employeeIds),
+          eq(employeeRoleAssignments.isActive, true)
         ));
+      userRoleIds = [...new Set([...userRoleIds, ...roleAssignmentRows.map(r => r.roleId)])];
+    }
 
-      if (employeeRows.length > 0) {
-        const employeeIds = employeeRows.map(e => e.id);
-        const roleAssignmentRows = await db
-          .select({ roleId: employeeRoleAssignments.roleId })
-          .from(employeeRoleAssignments)
-          .where(and(
-            inArray(employeeRoleAssignments.employeeId, employeeIds),
-            eq(employeeRoleAssignments.isActive, true)
-          ));
-        userRoleIds = [...new Set([...userRoleIds, ...roleAssignmentRows.map(r => r.roleId)])];
-      }
-
+    if (!isOwner) {
       if (userRoleIds.length > 0) {
         conditions.push(
           or(
@@ -83,6 +83,11 @@ export async function GET(req: NextRequest) {
     const activeTasks = results
       .map(({ instance, definition, userName, roleName }) => {
         const ctx: any = instance.contextData || {};
+        const isAssignedToCurrentUser = Boolean(
+          (instance.assignedUserId && instance.assignedUserId === session.user.id) ||
+          (instance.assignedRoleId && userRoleIds.includes(instance.assignedRoleId))
+        );
+
         return {
           ...instance,
           locationId: ctx.locationId || null,
@@ -99,6 +104,7 @@ export async function GET(req: NextRequest) {
           actionLabel: ctx.actionLabel || (definition.contextTemplate as any)?.actionLabel,
           processOwnerName: userName || roleName || "Unassigned",
           triggerConfig: definition.triggerConfig,
+          isAssignedToCurrentUser,
         };
       })
       .filter(t => !locationId || t.locationId === locationId); // Filter in memory for ad-hoc locationId

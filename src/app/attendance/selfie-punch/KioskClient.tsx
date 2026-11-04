@@ -146,6 +146,12 @@ export default function SelfiePunchKiosk() {
         const roster = await getSelfiePunchRoster(organizationId, locationId);
         if (roster && roster.length > 0) {
           setEmployees(roster);
+          
+          // Auto-select logged-in user if available (Fast mobile punch)
+          const selfEmp = roster.find(e => e.isSelf);
+          if (selfEmp) {
+            setSelectedEmployee(selfEmp);
+          }
           return;
         }
       } catch (err) {
@@ -472,7 +478,7 @@ export default function SelfiePunchKiosk() {
       color: "#0f172a"
     }}>
       {/* Kiosk Top Bar */}
-      <div style={{
+      <div className="kiosk-top-bar" style={{
         background: "#0f172a",
         color: "#ffffff",
         padding: "0.85rem 1.5rem",
@@ -493,13 +499,14 @@ export default function SelfiePunchKiosk() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#fff"
+            color: "#fff",
+            flexShrink: 0
           }}>
             <Camera size={20} />
           </div>
           <div>
             <div style={{ fontWeight: 700, fontSize: "1.05rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              Kalki Selfie Attendance Kiosk
+              <span>Selfie Punch</span>
               <span style={{
                 background: "#10b981",
                 fontSize: "0.7rem",
@@ -511,16 +518,17 @@ export default function SelfiePunchKiosk() {
                 LIVE
               </span>
             </div>
-            <div style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
+            <div className="kiosk-subtext" style={{ fontSize: "0.75rem", color: "#94a3b8" }}>
               {requireWallMarker ? "Visual Marker Verification • Fast Hierarchy Roster" : "Direct Selfie Verification • Fast Hierarchy Roster"}
             </div>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           {requireWallMarker && (
             <button
               onClick={() => setShowMarkerDialog(true)}
+              className="kiosk-marker-btn"
               style={{
                 background: "rgba(255,255,255,0.08)",
                 border: "1px solid rgba(255,255,255,0.15)",
@@ -536,12 +544,12 @@ export default function SelfiePunchKiosk() {
               }}
             >
               <QrCode size={16} />
-              Show Anti-Spoof Marker
+              <span className="kiosk-subtext">Wall Marker</span>
             </button>
           )}
 
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.95rem", fontWeight: 600, color: "#38bdf8" }}>
-            <Clock size={18} />
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.95rem", fontWeight: 600, color: "#38bdf8" }}>
+            <Clock size={16} />
             <span>{currentTime}</span>
           </div>
         </div>
@@ -702,7 +710,7 @@ export default function SelfiePunchKiosk() {
                   <p style={{ margin: 0, fontWeight: 500 }}>No matching staff members found.</p>
                 </div>
               ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                <div className="kiosk-roster-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                   {filteredEmployees.map((emp) => (
                     <div
                       key={emp.id}
@@ -798,7 +806,7 @@ export default function SelfiePunchKiosk() {
 
         {/* Live Camera & Punch Mode */}
         {selectedEmployee && (status === "ready" || status === "verifying") && (
-          <div style={{
+          <div className="kiosk-camera-card" style={{
             background: "#ffffff",
             borderRadius: "16px",
             boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
@@ -810,7 +818,7 @@ export default function SelfiePunchKiosk() {
             flexDirection: "column",
             alignItems: "center"
           }}>
-            {/* Top employee badge */}
+            {/* Top employee badge with switch profile button */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -841,46 +849,65 @@ export default function SelfiePunchKiosk() {
                   )}
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>
+                  <h3 style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700 }}>
                     {selectedEmployee.person.displayName}
                   </h3>
-                  <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                  <div style={{ fontSize: "0.75rem", color: "#64748b" }}>
                     ID: {selectedEmployee.employeeCode}
                   </div>
                 </div>
               </div>
 
-              {/* Visual Marker Status Indicator (Only if required) */}
-              {requireWallMarker && (
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.35rem 0.75rem",
-                  borderRadius: "20px",
-                  fontSize: "0.75rem",
-                  fontWeight: 600,
-                  background: isMarkerDetected ? "#ecfdf5" : "#fffbeb",
-                  color: isMarkerDetected ? "#047857" : "#b45309",
-                  border: `1px solid ${isMarkerDetected ? "#a7f3d0" : "#fde68a"}`
-                }}>
-                  {isMarkerDetected ? (
-                    <>
-                      <ShieldCheck size={14} />
-                      <span>Marker Verified</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldAlert size={14} />
-                      <span>Align with Wall Marker</span>
-                    </>
-                  )}
-                </div>
-              )}
+              {/* Visual Marker Status Indicator (Only if required) or Switch Profile Button */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {requireWallMarker && (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.35rem 0.65rem",
+                    borderRadius: "20px",
+                    fontSize: "0.72rem",
+                    fontWeight: 600,
+                    background: isMarkerDetected ? "#ecfdf5" : "#fffbeb",
+                    color: isMarkerDetected ? "#047857" : "#b45309",
+                    border: `1px solid ${isMarkerDetected ? "#a7f3d0" : "#fde68a"}`
+                  }}>
+                    {isMarkerDetected ? (
+                      <>
+                        <ShieldCheck size={13} />
+                        <span>Marker Verified</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldAlert size={13} />
+                        <span>Wall Marker</span>
+                      </>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => setSelectedEmployee(null)}
+                  disabled={status === "verifying"}
+                  style={{
+                    padding: "0.35rem 0.65rem",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: "#f8fafc",
+                    color: "#475569",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Switch
+                </button>
+              </div>
             </div>
 
             {/* Video Viewport with Alignment Oval */}
-            <div style={{
+            <div className="kiosk-camera-viewport" style={{
               position: "relative",
               width: "320px",
               height: "380px",

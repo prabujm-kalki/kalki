@@ -160,10 +160,7 @@ export default async function MyTimePage({
         locationId={locationId}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "2rem" }}>
-        <RegularizationRequestForm />
-        <LeaveHistoryTable requests={mergedHistory as any} />
-      </div>
+      <LeaveHistoryTable requests={mergedHistory as any} />
     </div>
   );
 }

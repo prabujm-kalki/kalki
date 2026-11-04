@@ -62,7 +62,10 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "finance", submodule: "settings", actions: ["read", "create", "update"] },
   
   // Task Engine
-  { module: "tasks", submodule: "tasks", actions: ["read", "create", "update", "delete"] },
+  { module: "tasks", submodule: "routines_&_queue", actions: ["read", "create", "update", "delete"] },
+  { module: "tasks", submodule: "supervisor_audit", actions: ["read", "update", "approve"] },
+  { module: "tasks", submodule: "history_&_compliance", actions: ["read"] },
+  { module: "tasks", submodule: "configuration", actions: ["read", "create", "update", "delete"] },
   
   // Settings
   { module: "settings", submodule: "organization_chart", actions: ["read", "update"] },

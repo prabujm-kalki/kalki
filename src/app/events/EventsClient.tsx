@@ -44,6 +44,9 @@ export interface EventItemData {
   customerId?: string | null;
   hallName?: string | null;
   comboName?: string | null;
+  invoiceNumber?: string | null;
+  receiptNumber?: string | null;
+  advancePaymentMethod?: string | null;
   financials?: {
     id: string;
     totalFoodCost: string | number;
@@ -61,6 +64,8 @@ interface Props {
   initialEvents: EventItemData[];
   halls: HallConfig[];
   combos: CateringComboConfig[];
+  initialTimeframe?: string;
+  openEnquiriesCount?: number;
 }
 
 // 7 STRICT COLOR CODES
@@ -121,12 +126,15 @@ const STATUS_COLORS: Record<
   },
 };
 
-export default function EventsClient({ initialEvents, halls, combos }: Props) {
+export default function EventsClient({ initialEvents, halls, combos, initialTimeframe, openEnquiriesCount = 0 }: Props) {
   const { selected, session } = useSessionView();
   const [eventList, setEventList] = useState<EventItemData[]>(initialEvents);
 
   // Month navigation (Defaults to current calendar month)
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
+
+  // 48 Hours Banner Visibility
+  const [show48hBanner, setShow48hBanner] = useState<boolean>(initialTimeframe === "48h");
 
   // View state
   const [selectedEventDetail, setSelectedEventDetail] = useState<EventItemData | null>(null);
@@ -182,6 +190,7 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
   const [formPricePerPax, setFormPricePerPax] = useState<number>(0);
   const [formHallRent, setFormHallRent] = useState<number>(0);
   const [formAdvance, setFormAdvance] = useState<number>(0);
+  const [formAdvancePaymentMethod, setFormAdvancePaymentMethod] = useState<"CASH" | "UPI">("CASH");
   const [formStatus, setFormStatus] = useState<string>("ENQUIRY");
   const [formContactName, setFormContactName] = useState("");
   const [formContactPhone, setFormContactPhone] = useState("");
@@ -295,6 +304,7 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
     setFormPricePerPax(combos[0] ? Number(combos[0].basePricePerPax) : 350);
     setFormHallRent(halls[0] ? Number(halls[0].baseRent) : 15000);
     setFormAdvance(0);
+    setFormAdvancePaymentMethod("CASH");
     setFormStatus("ENQUIRY");
     setFormContactName("");
     setFormContactPhone("");
@@ -316,6 +326,7 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
     setFormPricePerPax(Number(ev.pricePerPax));
     setFormHallRent(Number(ev.hallRent));
     setFormAdvance(ev.financials ? Number(ev.financials.advancePaid) : 0);
+    setFormAdvancePaymentMethod((ev.advancePaymentMethod?.toUpperCase() === "UPI" ? "UPI" : "CASH") as "CASH" | "UPI");
     setFormStatus(ev.status);
     setFormContactName(ev.contactName);
     setFormContactPhone(ev.contactPhone);
@@ -328,6 +339,11 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
     e.preventDefault();
     if (!selected?.organizationId || !selected?.locationId) {
       alert("Please select organization & location");
+      return;
+    }
+
+    if (formStatus === "BOOKED_PAID" && (!formAdvance || formAdvance <= 0)) {
+      alert("Advance Paid amount is mandatory when booking status is 'Booked (Paid / Advance)'. Please enter the advance amount.");
       return;
     }
 
@@ -347,7 +363,8 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
         comboId: formComboId || null,
         pricePerPax: Number(formPricePerPax),
         hallRent: Number(formHallRent),
-        advancePaid: Number(formAdvance),
+        advancePaid: formStatus === "BOOKED_PAID" ? Number(formAdvance) : 0,
+        advancePaymentMethod: formStatus === "BOOKED_PAID" ? formAdvancePaymentMethod : undefined,
         status: formStatus,
         contactName: formContactName,
         contactPhone: formContactPhone,
@@ -423,6 +440,74 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* 48-Hour Order & Open Inquiries Info Banner */}
+      {show48hBanner && (
+        <div
+          style={{
+            padding: "1rem 1.25rem",
+            borderRadius: "10px",
+            backgroundColor: "#faf5ff",
+            border: "1px solid #e9d5ff",
+            color: "#581c87",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "1rem",
+            boxShadow: "0 2px 8px rgba(139, 92, 246, 0.08)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <span style={{ fontSize: "1.25rem" }}>📅</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#6b21a8" }}>
+                Next 48 Hours: No Catering Orders Scheduled
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "#7e22ce" }}>
+                There are no confirmed banquets or catering deliveries in the next 48 hours for this location.
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {openEnquiriesCount > 0 && selected && (
+              <a
+                href={`/crm/leads?organizationId=${selected.organizationId}&locationId=${selected.locationId}&stage=NEW_ENQUIRY`}
+                style={{
+                  background: "#166534",
+                  color: "#ffffff",
+                  padding: "0.45rem 0.9rem",
+                  borderRadius: "6px",
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                }}
+              >
+                <span>📢</span>
+                Review {openEnquiriesCount} Open Enquiries
+              </a>
+            )}
+            <button
+              onClick={() => setShow48hBanner(false)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#9333ea",
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "0.3rem 0.5rem",
+              }}
+            >
+              Dismiss ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Action Notification Banner */}
       {actionNotice && (
         <div
@@ -1016,7 +1101,7 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
               {selectedEventDetail.financials?.invoiceId ? (
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   <a
-                    href={`/sales/invoices?q=${encodeURIComponent(selectedEventDetail.title)}`}
+                    href={`/sales/invoices/all?organizationId=${selected?.organizationId || ""}&locationId=${selected?.locationId || ""}&q=${encodeURIComponent(selectedEventDetail.invoiceNumber || selectedEventDetail.title || "")}`}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -1031,10 +1116,10 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
                     }}
                   >
                     <FileText size={15} />
-                    View B2B Invoice
+                    View Invoice
                   </a>
                   <a
-                    href={`/finance/sales-receivables/receipts?q=${encodeURIComponent(selectedEventDetail.contactName)}`}
+                    href={`/finance/sales-receivables/receipts?organizationId=${selected?.organizationId || ""}&locationId=${selected?.locationId || ""}&q=${encodeURIComponent(selectedEventDetail.receiptNumber || selectedEventDetail.invoiceNumber || selectedEventDetail.contactName || "")}`}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -1287,41 +1372,6 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
                 <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#3f3f46" }}>Price / Pax (₹)</label>
-                  <input
-                    type="number"
-                    value={formPricePerPax}
-                    onChange={(e) => setFormPricePerPax(Number(e.target.value))}
-                    style={{
-                      width: "100%",
-                      padding: "0.6rem",
-                      borderRadius: "6px",
-                      border: "1px solid #d4d4d8",
-                      marginTop: "0.25rem",
-                      fontSize: "0.9rem",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#3f3f46" }}>Advance Paid (₹)</label>
-                  <input
-                    type="number"
-                    value={formAdvance}
-                    onChange={(e) => setFormAdvance(Number(e.target.value))}
-                    style={{
-                      width: "100%",
-                      padding: "0.6rem",
-                      borderRadius: "6px",
-                      border: "1px solid #d4d4d8",
-                      marginTop: "0.25rem",
-                      fontSize: "0.9rem",
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                <div>
                   <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#3f3f46" }}>Contact Name *</label>
                   <input
                     type="text"
@@ -1360,10 +1410,16 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
               </div>
 
               <div>
-                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#3f3f46" }}>Initial Status</label>
+                <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#3f3f46" }}>Booking Status *</label>
                 <select
                   value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value)}
+                  onChange={(e) => {
+                    const nextStatus = e.target.value;
+                    setFormStatus(nextStatus);
+                    if (nextStatus !== "BOOKED_PAID") {
+                      setFormAdvance(0);
+                    }
+                  }}
                   style={{
                     width: "100%",
                     padding: "0.6rem",
@@ -1371,6 +1427,7 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
                     border: "1px solid #d4d4d8",
                     marginTop: "0.25rem",
                     fontSize: "0.9rem",
+                    fontWeight: 600,
                   }}
                 >
                   {Object.entries(STATUS_COLORS).map(([stKey, stObj]) => (
@@ -1380,6 +1437,130 @@ export default function EventsClient({ initialEvents, halls, combos }: Props) {
                   ))}
                 </select>
               </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: "#3f3f46" }}>Price / Pax (₹)</label>
+                  <input
+                    type="number"
+                    value={formPricePerPax}
+                    onChange={(e) => setFormPricePerPax(Number(e.target.value))}
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem",
+                      borderRadius: "6px",
+                      border: "1px solid #d4d4d8",
+                      marginTop: "0.25rem",
+                      fontSize: "0.9rem",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: "0.85rem", fontWeight: 600, color: formStatus === "BOOKED_PAID" ? "#047857" : "#71717a" }}>
+                    Advance Paid (₹) {formStatus === "BOOKED_PAID" ? "*" : "(Only enabled on Booked Paid Advance)"}
+                  </label>
+                  <input
+                    type="number"
+                    min={formStatus === "BOOKED_PAID" ? "1" : "0"}
+                    required={formStatus === "BOOKED_PAID"}
+                    disabled={formStatus !== "BOOKED_PAID"}
+                    value={formAdvance}
+                    onChange={(e) => setFormAdvance(Number(e.target.value))}
+                    placeholder={formStatus === "BOOKED_PAID" ? "Enter advance amount" : "0 (Disabled)"}
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem",
+                      borderRadius: "6px",
+                      border: formStatus === "BOOKED_PAID" ? "2px solid #059669" : "1px solid #e4e4e7",
+                      backgroundColor: formStatus === "BOOKED_PAID" ? "#ffffff" : "#f4f4f5",
+                      color: formStatus === "BOOKED_PAID" ? "#0f172a" : "#a1a1aa",
+                      marginTop: "0.25rem",
+                      fontSize: "0.9rem",
+                      fontWeight: formStatus === "BOOKED_PAID" ? 700 : 400,
+                      cursor: formStatus === "BOOKED_PAID" ? "text" : "not-allowed",
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Advance Payment Mode Selector (Only shown & active when status is BOOKED_PAID) */}
+              {formStatus === "BOOKED_PAID" && (
+                <div
+                  style={{
+                    padding: "0.9rem 1rem",
+                    borderRadius: "8px",
+                    backgroundColor: "#f0fdf4",
+                    border: "1px solid #86efac",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: "#166534" }}>
+                    Advance Payment Mode & Account Routing *
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+                    <label
+                      onClick={() => setFormAdvancePaymentMethod("CASH")}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.65rem 0.85rem",
+                        borderRadius: "6px",
+                        border: formAdvancePaymentMethod === "CASH" ? "2px solid #16a34a" : "1px solid #cbd5e1",
+                        backgroundColor: formAdvancePaymentMethod === "CASH" ? "#dcfce7" : "#ffffff",
+                        cursor: "pointer",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: formAdvancePaymentMethod === "CASH" ? "#14532d" : "#475569",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="advancePaymentMethod"
+                        checked={formAdvancePaymentMethod === "CASH"}
+                        onChange={() => setFormAdvancePaymentMethod("CASH")}
+                        style={{ cursor: "pointer", accentColor: "#16a34a" }}
+                      />
+                      <span>💵 Cash (Cash in Hand - 1110)</span>
+                    </label>
+
+                    <label
+                      onClick={() => setFormAdvancePaymentMethod("UPI")}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.65rem 0.85rem",
+                        borderRadius: "6px",
+                        border: formAdvancePaymentMethod === "UPI" ? "2px solid #2563eb" : "1px solid #cbd5e1",
+                        backgroundColor: formAdvancePaymentMethod === "UPI" ? "#dbeafe" : "#ffffff",
+                        cursor: "pointer",
+                        fontSize: "0.85rem",
+                        fontWeight: 600,
+                        color: formAdvancePaymentMethod === "UPI" ? "#1e40af" : "#475569",
+                        transition: "all 0.15s ease",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="advancePaymentMethod"
+                        checked={formAdvancePaymentMethod === "UPI"}
+                        onChange={() => setFormAdvancePaymentMethod("UPI")}
+                        style={{ cursor: "pointer", accentColor: "#2563eb" }}
+                      />
+                      <span>📱 UPI (Bank Account - 1130)</span>
+                    </label>
+                  </div>
+                  <div style={{ fontSize: "0.75rem", color: "#15803d" }}>
+                    ✓ Double-entry GL journal entry will automatically debit{" "}
+                    <strong>{formAdvancePaymentMethod === "UPI" ? "1130 / Main Bank Account" : "1110 / Cash in Hand"}</strong>{" "}
+                    and credit <strong>1210 / Accounts Receivable</strong>.
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
                 <button

@@ -39,6 +39,8 @@ export default function StockAssessmentPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [mobileFilter, setMobileFilter] = useState<"ALL" | "REORDER" | "PENDING">("ALL");
+  const [searchTerm, setSearchTerm] = useState<string>("");
 
   useEffect(() => {
     if (urlVendorId) {
@@ -530,9 +532,98 @@ export default function StockAssessmentPage() {
               </table>
             </div>
 
-            {/* Mobile Card View (<= 768px) */}
-            <div className="mobile-only" style={{ padding: "12px" }}>
-              {vendorItems.map((item) => {
+            {/* Mobile Kitchen-Floor Controls & Card View (<= 768px) */}
+            <div className="mobile-only" style={{ padding: "12px 12px 100px 12px" }}>
+              {/* Quick Search & Category Filter Chips */}
+              <div style={{ marginBottom: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search item name..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #cbd5e1",
+                    fontSize: "13px",
+                    backgroundColor: "#f8fafc",
+                    boxSizing: "border-box"
+                  }}
+                />
+                
+                {/* Filter Chips */}
+                <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFilter("ALL")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "16px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      border: "none",
+                      backgroundColor: mobileFilter === "ALL" ? "#0f172a" : "#e2e8f0",
+                      color: mobileFilter === "ALL" ? "#ffffff" : "#475569",
+                      whiteSpace: "nowrap",
+                      cursor: "pointer"
+                    }}
+                  >
+                    All ({vendorItems.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFilter("REORDER")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "16px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      border: "none",
+                      backgroundColor: mobileFilter === "REORDER" ? "#dc2626" : "#fee2e2",
+                      color: mobileFilter === "REORDER" ? "#ffffff" : "#991b1b",
+                      whiteSpace: "nowrap",
+                      cursor: "pointer"
+                    }}
+                  >
+                    ⚡ Needs Reorder ({vendorItems.filter(i => {
+                      const { total, hasEntered } = computeTotalStock(i);
+                      const baseMin = Number(i.minimumStock || i.baseMinStock || 0);
+                      return hasEntered && total < baseMin;
+                    }).length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileFilter("PENDING")}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "16px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      border: "none",
+                      backgroundColor: mobileFilter === "PENDING" ? "#d97706" : "#fef3c7",
+                      color: mobileFilter === "PENDING" ? "#ffffff" : "#92400e",
+                      whiteSpace: "nowrap",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Uncounted ({vendorItems.filter(i => !computeTotalStock(i).hasEntered).length})
+                  </button>
+                </div>
+              </div>
+
+              {vendorItems
+                .filter((item) => {
+                  if (searchTerm && !item.itemName.toLowerCase().includes(searchTerm.toLowerCase())) {
+                    return false;
+                  }
+                  const { total, hasEntered } = computeTotalStock(item);
+                  const baseMin = Number(item.minimumStock || item.baseMinStock || 0);
+                  if (mobileFilter === "REORDER") return hasEntered && total < baseMin;
+                  if (mobileFilter === "PENDING") return !hasEntered;
+                  return true;
+                })
+                .map((item) => {
                 const hasPrep = Boolean(item.prepUnit && item.prepUnitConversion && Number(item.prepUnitConversion) > 0);
                 const { total, hasEntered } = computeTotalStock(item);
                 const rawVal = parseFloat(stockInputs[item.itemId] || "0") || 0;
@@ -551,63 +642,69 @@ export default function StockAssessmentPage() {
                     key={item.id}
                     className="kalki-mobile-card"
                     style={{
-                      borderLeft: isUnderStock ? "4px solid #ef4444" : isMissingMobile ? "4px solid #f59e0b" : "4px solid #3b82f6",
-                      marginBottom: "10px",
+                      borderLeft: isUnderStock ? "5px solid #ef4444" : isMissingMobile ? "5px solid #f59e0b" : "5px solid #16a34a",
+                      marginBottom: "12px",
                       backgroundColor: isUnderStock ? "#fff5f5" : isMissingMobile ? "#fffbeb" : "#ffffff",
+                      borderRadius: "10px",
+                      padding: "14px",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                      borderTop: "1px solid #f1f5f9",
+                      borderRight: "1px solid #f1f5f9",
+                      borderBottom: "1px solid #f1f5f9",
                     }}
                   >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                          <div style={{ fontWeight: 700, fontSize: "14px", color: "#0f172a" }}>{item.itemName}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <div style={{ fontWeight: 700, fontSize: "15px", color: "#0f172a" }}>{item.itemName}</div>
                           {isMissingMobile && (
-                            <span style={{ fontSize: "10px", color: "#b45309", backgroundColor: "#fef3c7", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                              Required *
+                            <span style={{ fontSize: "10px", color: "#b45309", backgroundColor: "#fef3c7", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                              Count Needed *
                             </span>
                           )}
                         </div>
                         {activeSurgePct > 0 && (
-                          <div style={{ marginTop: "2px" }}>
-                            <span style={{ fontSize: "10px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
-                              ⚡ +{activeSurgePct}% {dayOfWeek === 5 ? 'Fri' : 'Sat'} Surge
+                          <div style={{ marginTop: "3px" }}>
+                            <span style={{ fontSize: "11px", backgroundColor: "#fef3c7", color: "#92400e", padding: "1px 6px", borderRadius: "4px", fontWeight: 600 }}>
+                              ⚡ +{activeSurgePct}% Weekend Surge
                             </span>
                           </div>
                         )}
-                        <div style={{ fontSize: "12px", color: "#64748b" }}>
-                          Unit: {item.unitOfMeasure}
+                        <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
+                          Base Unit: <strong>{item.unitOfMeasure}</strong>
                           {hasPrep && ` • 1 ${item.prepUnit} = ${item.prepUnitConversion} ${item.unitOfMeasure}`}
-                          {item.roundToWhole && ` • Full ${item.unitOfMeasure} only`}
+                          {item.roundToWhole && ` • Whole units`}
                         </div>
                       </div>
                       <span
                         style={{
                           fontSize: "11px",
                           fontWeight: 700,
-                          padding: "2px 8px",
+                          padding: "3px 8px",
                           borderRadius: "12px",
-                          backgroundColor: isUnderStock ? "#fee2e2" : "#f1f5f9",
-                          color: isUnderStock ? "#b91c1c" : "#475569",
+                          backgroundColor: isUnderStock ? "#fee2e2" : isMissingMobile ? "#f1f5f9" : "#dcfce7",
+                          color: isUnderStock ? "#b91c1c" : isMissingMobile ? "#475569" : "#15803d",
                         }}
                       >
-                        {isUnderStock ? "Reorder Triggered" : "Active"}
+                        {isUnderStock ? "Reorder Triggered" : isMissingMobile ? "Pending" : "Sufficient"}
                       </span>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#f8fafc", padding: "6px 10px", borderRadius: "6px", fontSize: "12px", marginBottom: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", background: "#f8fafc", padding: "8px 10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px" }}>
                       <div>
                         <span style={{ color: "#64748b" }}>Min Reorder: </span>
-                        <strong>{min}</strong> {activeSurgePct > 0 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>(Base {baseMin})</span>}
+                        <strong>{min} {item.unitOfMeasure}</strong>
                       </div>
                       <div>
                         <span style={{ color: "#64748b" }}>Target Stock: </span>
-                        <strong>{target}</strong> {activeSurgePct > 0 && <span style={{ fontSize: '10px', color: '#94a3b8' }}>(Base {baseTarget})</span>}
+                        <strong>{target} {item.unitOfMeasure}</strong>
                       </div>
                     </div>
 
                     {hasPrep ? (
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px", backgroundColor: "#f8fafc", padding: "10px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Raw Meat ({item.unitOfMeasure}):</span>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#334155" }}>Raw ({item.unitOfMeasure}):</span>
                           <input
                             type="number"
                             min="0"
@@ -616,20 +713,20 @@ export default function StockAssessmentPage() {
                             onChange={(e) => handleStockChange(item.itemId, e.target.value)}
                             placeholder="0"
                             style={{
-                              width: "90px",
-                              height: "32px",
-                              padding: "4px 8px",
+                              width: "100px",
+                              height: "40px",
+                              padding: "6px 8px",
                               borderRadius: "6px",
-                              border: "1px solid var(--border-color)",
+                              border: "1px solid #cbd5e1",
                               textAlign: "center",
-                              fontSize: "13px",
+                              fontSize: "15px",
                               fontWeight: 700,
                               backgroundColor: "#ffffff",
                             }}
                           />
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#0369a1" }}>Prepped / Half-boiled ({item.prepUnit}):</span>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#0369a1" }}>Prepped ({item.prepUnit}):</span>
                           <input
                             type="number"
                             min="0"
@@ -638,13 +735,13 @@ export default function StockAssessmentPage() {
                             onChange={(e) => handlePrepChange(item.itemId, e.target.value)}
                             placeholder="0"
                             style={{
-                              width: "90px",
-                              height: "32px",
-                              padding: "4px 8px",
+                              width: "100px",
+                              height: "40px",
+                              padding: "6px 8px",
                               borderRadius: "6px",
                               border: "1px solid #38bdf8",
                               textAlign: "center",
-                              fontSize: "13px",
+                              fontSize: "15px",
                               fontWeight: 700,
                               backgroundColor: "#f0f9ff",
                               color: "#0369a1",
@@ -652,71 +749,118 @@ export default function StockAssessmentPage() {
                           />
                         </div>
                         {hasEntered && (
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "6px", borderTop: "1px dashed #cbd5e1" }}>
-                            <span style={{ fontSize: "11px", color: "#64748b" }}>Total Equivalent Stock:</span>
-                            <span style={{ fontSize: "13px", fontWeight: 800, color: isUnderStock ? "#dc2626" : "#15803d" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "8px", borderTop: "1px dashed #cbd5e1" }}>
+                            <span style={{ fontSize: "12px", color: "#64748b" }}>Total Equivalent Stock:</span>
+                            <span style={{ fontSize: "14px", fontWeight: 800, color: isUnderStock ? "#dc2626" : "#15803d" }}>
                               {total} {item.unitOfMeasure}
                             </span>
                           </div>
                         )}
                       </div>
                     ) : (
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Counted Stock:</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#334155" }}>Counted Quantity:</span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = Math.max(0, rawVal - 1);
+                                handleStockChange(item.itemId, next.toString());
+                              }}
+                              style={{
+                                width: "42px",
+                                height: "42px",
+                                border: "1px solid #cbd5e1",
+                                background: "#ffffff",
+                                borderRadius: "8px",
+                                fontSize: "18px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center"
+                              }}
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="0"
+                              step={item.roundToWhole ? "1" : "0.01"}
+                              value={stockInputs[item.itemId] || ""}
+                              onChange={(e) => handleStockChange(item.itemId, e.target.value)}
+                              placeholder="0"
+                              style={{
+                                width: "80px",
+                                height: "42px",
+                                padding: "4px 8px",
+                                borderRadius: "8px",
+                                border: "1px solid #cbd5e1",
+                                textAlign: "center",
+                                fontSize: "16px",
+                                fontWeight: 700,
+                                backgroundColor: "#ffffff"
+                              }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const next = rawVal + 1;
+                                handleStockChange(item.itemId, next.toString());
+                              }}
+                              style={{
+                                width: "42px",
+                                height: "42px",
+                                border: "1px solid #cbd5e1",
+                                background: "#ffffff",
+                                borderRadius: "8px",
+                                fontSize: "18px",
+                                fontWeight: 700,
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center"
+                              }}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Quick Preset Buttons (0, Target) */}
+                        <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
                           <button
                             type="button"
-                            onClick={() => {
-                              const next = Math.max(0, rawVal - 1);
-                              handleStockChange(item.itemId, next.toString());
-                            }}
+                            onClick={() => handleStockChange(item.itemId, "0")}
                             style={{
-                              width: "32px",
-                              height: "32px",
-                              border: "1px solid #cbd5e1",
-                              background: "#ffffff",
-                              borderRadius: "6px",
-                              fontWeight: 700,
-                              cursor: "pointer",
+                              padding: "4px 10px",
+                              fontSize: "11px",
+                              borderRadius: "4px",
+                              border: "1px solid #fecaca",
+                              backgroundColor: "#fef2f2",
+                              color: "#dc2626",
+                              fontWeight: 600,
+                              cursor: "pointer"
                             }}
                           >
-                            -
+                            Out of Stock (0)
                           </button>
-                          <input
-                            type="number"
-                            min="0"
-                            step={item.roundToWhole ? "1" : "0.01"}
-                            value={stockInputs[item.itemId] || ""}
-                            onChange={(e) => handleStockChange(item.itemId, e.target.value)}
-                            placeholder="0"
-                            style={{
-                              width: "70px",
-                              height: "32px",
-                              padding: "4px 8px",
-                              borderRadius: "6px",
-                              border: "1px solid var(--border-color)",
-                              textAlign: "center",
-                              fontSize: "14px",
-                              fontWeight: 700,
-                            }}
-                          />
                           <button
                             type="button"
-                            onClick={() => {
-                              const next = rawVal + 1;
-                              handleStockChange(item.itemId, next.toString());
-                            }}
+                            onClick={() => handleStockChange(item.itemId, target.toString())}
                             style={{
-                              width: "32px",
-                              height: "32px",
-                              border: "1px solid #cbd5e1",
-                              background: "#ffffff",
-                              borderRadius: "6px",
-                              fontWeight: 700,
-                              cursor: "pointer",
+                              padding: "4px 10px",
+                              fontSize: "11px",
+                              borderRadius: "4px",
+                              border: "1px solid #bbf7d0",
+                              backgroundColor: "#f0fdf4",
+                              color: "#16a34a",
+                              fontWeight: 600,
+                              cursor: "pointer"
                             }}
                           >
-                            +
+                            Full Target ({target})
                           </button>
                         </div>
                       </div>
@@ -724,9 +868,50 @@ export default function StockAssessmentPage() {
                   </div>
                 );
               })}
+
+              {/* Floating Bottom Kitchen Action Bar */}
+              <div style={{
+                position: "fixed",
+                bottom: 0,
+                left: 0,
+                right: 0,
+                backgroundColor: "#ffffff",
+                borderTop: "1px solid #e2e8f0",
+                boxShadow: "0 -4px 12px rgba(0,0,0,0.08)",
+                padding: "10px 16px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                zIndex: 999
+              }}>
+                <div>
+                  <div style={{ fontSize: "11px", color: "#64748b" }}>Assessment Progress</div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                    {vendorItems.filter(i => computeTotalStock(i).hasEntered).length} / {vendorItems.length} Counted
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  style={{
+                    backgroundColor: "#2563eb",
+                    color: "#ffffff",
+                    padding: "12px 22px",
+                    borderRadius: "8px",
+                    border: "none",
+                    fontWeight: 700,
+                    fontSize: "14px",
+                    cursor: submitting ? "not-allowed" : "pointer",
+                    boxShadow: "0 2px 4px rgba(37, 99, 235, 0.3)"
+                  }}
+                >
+                  {submitting ? "Submitting..." : "Submit Assessment"}
+                </button>
+              </div>
             </div>
             
-            <div style={{ padding: "16px", borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end" }}>
+            <div className="desktop-only" style={{ padding: "16px", borderTop: "1px solid var(--border-color)", display: "flex", justifyContent: "flex-end" }}>
               <button 
                 onClick={handleSubmit}
                 disabled={submitting}

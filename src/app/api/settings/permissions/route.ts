@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
-import { permissions } from "@/db/schema";
+import { permissions, rolePermissions } from "@/db/schema";
 import { requireAuthenticatedUser } from "@/lib/authorization";
-import { asc, notInArray } from "drizzle-orm";
+import { asc, notInArray, eq } from "drizzle-orm";
 import { SYSTEM_PERMISSIONS } from "@/lib/permissions.config";
 
 export async function GET(request: Request) {
@@ -33,6 +33,63 @@ export async function GET(request: Request) {
 
     if (toInsert.length > 0) {
       await db.insert(permissions).values(toInsert).onConflictDoNothing();
+    }
+
+    // Auto-migrate role assignments from legacy tasks.tasks permissions to new task submodules
+    const legacyTaskPerms = existing.filter((p) => p.code.startsWith("tasks.tasks:"));
+    if (legacyTaskPerms.length > 0) {
+      const allActivePerms = await db.select().from(permissions);
+      const permMap = new Map(allActivePerms.map((p) => [p.code, p.id]));
+
+      for (const legacyPerm of legacyTaskPerms) {
+        const action = legacyPerm.code.split(":")[1];
+        const assignedRoles = await db
+          .select()
+          .from(rolePermissions)
+          .where(eq(rolePermissions.permissionId, legacyPerm.id));
+
+        for (const roleAssignment of assignedRoles) {
+          const targetCodes: string[] = [];
+          if (action === "read") {
+            targetCodes.push(
+              "tasks.routines_&_queue:read",
+              "tasks.supervisor_audit:read",
+              "tasks.history_&_compliance:read",
+              "tasks.configuration:read"
+            );
+          } else if (action === "create") {
+            targetCodes.push(
+              "tasks.routines_&_queue:create",
+              "tasks.configuration:create"
+            );
+          } else if (action === "update") {
+            targetCodes.push(
+              "tasks.routines_&_queue:update",
+              "tasks.supervisor_audit:update",
+              "tasks.supervisor_audit:approve",
+              "tasks.configuration:update"
+            );
+          } else if (action === "delete") {
+            targetCodes.push(
+              "tasks.routines_&_queue:delete",
+              "tasks.configuration:delete"
+            );
+          }
+
+          for (const targetCode of targetCodes) {
+            const targetId = permMap.get(targetCode);
+            if (targetId) {
+              await db
+                .insert(rolePermissions)
+                .values({
+                  roleId: roleAssignment.roleId,
+                  permissionId: targetId,
+                })
+                .onConflictDoNothing();
+            }
+          }
+        }
+      }
     }
 
     // Delete obsolete ones

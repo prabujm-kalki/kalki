@@ -404,12 +404,17 @@ export async function getEvents(organizationId: string, locationId: string) {
       combo: cateringCombos,
       financials: eventFinancials,
       customer: customers,
+      invoice: salesInvoices,
+      receipt: salesReceipts,
     })
     .from(events)
     .leftJoin(eventConfigurations, eq(events.hallId, eventConfigurations.id))
     .leftJoin(cateringCombos, eq(events.comboId, cateringCombos.id))
     .leftJoin(eventFinancials, eq(events.id, eventFinancials.eventId))
     .leftJoin(customers, eq(events.customerId, customers.id))
+    .leftJoin(salesInvoices, eq(eventFinancials.invoiceId, salesInvoices.id))
+    .leftJoin(salesReceiptAllocations, eq(salesInvoices.id, salesReceiptAllocations.invoiceId))
+    .leftJoin(salesReceipts, eq(salesReceiptAllocations.receiptId, salesReceipts.id))
     .where(
       and(
         eq(events.organizationId, organizationId),
@@ -445,6 +450,7 @@ export async function upsertEvent(params: {
   status?: string;
   // Financial inputs
   advancePaid?: number;
+  advancePaymentMethod?: "CASH" | "UPI";
   discountAmount?: number;
 }) {
   const pax = params.guaranteedPax || 50;
@@ -700,6 +706,7 @@ export async function upsertEvent(params: {
         organizationId: params.organizationId,
         locationId: params.locationId,
         userId: "00000000-0000-0000-0000-000000000000",
+        paymentMethod: params.advancePaymentMethod || "CASH",
       });
     } catch (genErr) {
       console.error("[upsertEvent Auto-Invoice Error]:", genErr);
@@ -826,8 +833,9 @@ export async function generateEventSalesInvoice(params: {
   organizationId: string;
   locationId: string;
   userId: string;
+  paymentMethod?: "CASH" | "UPI" | string;
 }) {
-  const { eventId, organizationId, locationId, userId } = params;
+  const { eventId, organizationId, locationId, userId, paymentMethod = "CASH" } = params;
 
   // 1. Fetch Event & Financials
   const [event] = await db
@@ -946,6 +954,8 @@ export async function generateEventSalesInvoice(params: {
   let receiptId: string | null = null;
   if (advancePaid > 0) {
     try {
+      const isUpi = String(paymentMethod).toUpperCase() === "UPI";
+      const normalizedPaymentMethod = isUpi ? "UPI" : "CASH";
       const receiptNumber = `REC-EVT-${Date.now().toString().slice(-6)}`;
       const [receipt] = await db
         .insert(salesReceipts)
@@ -956,9 +966,9 @@ export async function generateEventSalesInvoice(params: {
           receiptNumber,
           receiptDate: new Date(),
           amount: advancePaid.toFixed(2),
-          paymentMethod: "ADVANCE_PAYMENT",
+          paymentMethod: normalizedPaymentMethod,
           referenceNumber: invoiceNumber,
-          notes: `Advance payment for Booking: ${event.title} (${invoiceNumber})`,
+          notes: `Advance payment (${normalizedPaymentMethod}) for Booking: ${event.title} (${invoiceNumber})`,
         })
         .returning();
       receiptId = receipt.id;
@@ -985,19 +995,27 @@ export async function generateEventSalesInvoice(params: {
           a.name.toLowerCase().includes("accounts receivable")
       );
 
-      const cashAccount = allAccounts.find(
-        (a) =>
-          a.controlAccountType === "CASH_AND_BANK" ||
-          a.controlAccountType === "CASH" ||
-          a.code === "1110" ||
-          a.code === "1130" ||
-          a.code === "CASH-001" ||
-          a.code === "BANK-001" ||
-          a.name.toLowerCase().includes("cash in hand") ||
-          a.name.toLowerCase().includes("bank")
-      );
+      // Debit account routes strictly to UPI/Bank or Cash in Hand based on cashier selection
+      const debitAccount = isUpi
+        ? allAccounts.find(
+            (a) =>
+              a.code === "1130" ||
+              a.code === "BANK-001" ||
+              a.name.toLowerCase().includes("bank") ||
+              a.name.toLowerCase().includes("upi")
+          ) ||
+          allAccounts.find((a) => a.controlAccountType === "CASH_AND_BANK")
+        : allAccounts.find(
+            (a) =>
+              a.code === "1110" ||
+              a.code === "CASH-001" ||
+              a.name.toLowerCase().includes("cash in hand") ||
+              a.controlAccountType === "CASH"
+          ) ||
+          allAccounts.find((a) => a.code === "1120" || a.name.toLowerCase().includes("petty cash")) ||
+          allAccounts.find((a) => a.controlAccountType === "CASH_AND_BANK");
 
-      if (arAccount && cashAccount) {
+      if (arAccount && debitAccount) {
         const entryNumber = `JE-REC-${Date.now().toString().slice(-6)}`;
         const [je] = await db
           .insert(journalEntries)
@@ -1005,7 +1023,7 @@ export async function generateEventSalesInvoice(params: {
             organizationId,
             entryNumber,
             entryDate: new Date().toISOString().split("T")[0],
-            narration: `Event Advance Receipt: ${event.title} (Ref: ${invoiceNumber})`,
+            narration: `Event Advance Receipt (${normalizedPaymentMethod}): ${event.title} (Ref: ${invoiceNumber})`,
             sourceModule: "RECEIVABLES",
             sourceReferenceId: receipt.id,
             totalAmount: advancePaid.toFixed(2),
@@ -1017,13 +1035,13 @@ export async function generateEventSalesInvoice(params: {
         await db.insert(journalLineItems).values([
           {
             journalEntryId: je.id,
-            accountId: cashAccount.id,
+            accountId: debitAccount.id,
             locationId,
             partyId: customerId,
             partyType: "CUSTOMER",
             debit: advancePaid.toFixed(2),
             credit: "0",
-            narration: `Advance received for ${event.title}`,
+            narration: `Advance received via ${normalizedPaymentMethod} for ${event.title}`,
           },
           {
             journalEntryId: je.id,

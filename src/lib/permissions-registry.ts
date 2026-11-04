@@ -41,9 +41,19 @@ export const PERMISSIONS_REGISTRY: PermissionDefinition[] = [
   { code: "inventory.items:read", name: "View Inventory Items" },
   { code: "inventory.items:write", name: "Manage Inventory Items" },
 
-  // Work Module
-  { code: "work.tasks:read", name: "View Tasks" },
-  { code: "work.tasks:write", name: "Manage Tasks" },
+  // Tasks Module
+  { code: "tasks.routines_&_queue:read", name: "View Routines & Queue" },
+  { code: "tasks.routines_&_queue:create", name: "Create Ad-Hoc Tasks" },
+  { code: "tasks.routines_&_queue:update", name: "Update & Complete Tasks" },
+  { code: "tasks.routines_&_queue:delete", name: "Delete Tasks" },
+  { code: "tasks.supervisor_audit:read", name: "View Supervisor Audit Queue" },
+  { code: "tasks.supervisor_audit:update", name: "Update Audit Notes" },
+  { code: "tasks.supervisor_audit:approve", name: "Approve & Reject Audits" },
+  { code: "tasks.history_&_compliance:read", name: "View Tasks History & Compliance" },
+  { code: "tasks.configuration:read", name: "View Task Configurations" },
+  { code: "tasks.configuration:create", name: "Create Task Configurations" },
+  { code: "tasks.configuration:update", name: "Update Task Configurations" },
+  { code: "tasks.configuration:delete", name: "Delete Task Configurations" },
 
   // Purchasing Module
   { code: "purchasing.orders:read", name: "View Purchase Orders" },

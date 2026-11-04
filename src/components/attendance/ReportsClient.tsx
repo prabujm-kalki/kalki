@@ -53,16 +53,54 @@ function isEmployeeAtLocationOnDate(
   return earliest.locationId === locationId;
 }
 
+function isEmployeeActiveOnDate(
+  emp: any,
+  dateStr: string,
+  statusHistories?: Array<{ employeeId: string; status: string; effectiveFrom: string | Date }>
+): boolean {
+  // If employee has a formal employment start date and the target date is before it
+  if (emp.employmentStartDate && dateStr < emp.employmentStartDate) {
+    return false;
+  }
+
+  // If statusHistories are available, check historical status
+  if (statusHistories && statusHistories.length > 0) {
+    const histories = statusHistories.filter((h) => h.employeeId === emp.id);
+    if (histories.length > 0) {
+      // statusHistories are ordered descending by effectiveFrom
+      const targetDateEnd = new Date(`${dateStr}T23:59:59+05:30`);
+      for (const h of histories) {
+        const eff = new Date(h.effectiveFrom);
+        if (eff <= targetDateEnd) {
+          return h.status === "ACTIVE";
+        }
+      }
+      // If all recorded history events are after targetDateEnd, check earliest status
+      const earliest = histories[histories.length - 1];
+      return earliest.status === "ACTIVE";
+    }
+  }
+
+  // Fallback to employee's current status and employmentEndDate if no status history
+  if (emp.employmentEndDate && dateStr > emp.employmentEndDate) {
+    return false;
+  }
+
+  return emp.status === "ACTIVE" || !emp.status;
+}
+
 export default function ReportsClient({ 
   departments, 
   roles, 
   employees,
-  branchHistories = []
+  branchHistories = [],
+  statusHistories = []
 }: { 
   departments: any[], 
   roles: any[], 
   employees: any[],
-  branchHistories?: Array<{ employeeId: string; locationId: string; effectiveFrom: string | Date }>
+  branchHistories?: Array<{ employeeId: string; locationId: string; effectiveFrom: string | Date }>,
+  statusHistories?: Array<{ employeeId: string; status: string; effectiveFrom: string | Date }>
 }) {
   const { selected } = useSessionView();
   const searchParams = useSearchParams();
@@ -215,6 +253,18 @@ export default function ReportsClient({
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+        
+        // Check if employee has punch data in range or was active at the location during this range
+        const hasPunchesInRange = reportData.some(r => r.employeeId === e.id);
+        const wasActiveAtLocationInRange = dates.some(d => 
+          isEmployeeActiveOnDate(e, d, statusHistories) &&
+          (!selected?.locationId || isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories))
+        );
+
+        if (!hasPunchesInRange && !wasActiveAtLocationInRange) {
+          return false;
+        }
+
         if (selected?.locationId) {
           const wasAtLocationInDateRange = dates.some(d => 
             isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
@@ -242,6 +292,9 @@ export default function ReportsClient({
             }
 
             if (dayPunches.length === 0) {
+              if (!isEmployeeActiveOnDate(emp, d, statusHistories)) {
+                return;
+              }
               rows.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT", "No Punch Recorded"]);
               return;
             }
@@ -341,6 +394,9 @@ export default function ReportsClient({
 
             const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
             if (dayPunches.length === 0) {
+              if (!isEmployeeActiveOnDate(emp, d, statusHistories)) {
+                return;
+              }
               absentCount++;
               return;
             }
@@ -516,6 +572,18 @@ export default function ReportsClient({
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+
+        // Check if employee has punch data in range or was active at the location during this range
+        const hasPunchesInRange = reportData.some(r => r.employeeId === e.id);
+        const wasActiveAtLocationInRange = dates.some(d => 
+          isEmployeeActiveOnDate(e, d, statusHistories) &&
+          (!selected?.locationId || isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories))
+        );
+
+        if (!hasPunchesInRange && !wasActiveAtLocationInRange) {
+          return false;
+        }
+
         if (selected?.locationId) {
           const wasAtLocationInDateRange = dates.some(d => 
             isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
@@ -552,6 +620,9 @@ export default function ReportsClient({
           }
 
           if (dayPunches.length === 0) {
+            if (!isEmployeeActiveOnDate(emp, d, statusHistories)) {
+              return;
+            }
             countAbsent++;
             body.push([emp.code, emp.name, d, "-", "-", "-", "-", "ABSENT", "No Punch Recorded"]);
             return;
@@ -770,6 +841,18 @@ export default function ReportsClient({
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+
+        // Check if employee has punch data in range or was active at the location during this range
+        const hasPunchesInRange = reportData.some(r => r.employeeId === e.id);
+        const wasActiveAtLocationInRange = dates.some(d => 
+          isEmployeeActiveOnDate(e, d, statusHistories) &&
+          (!selected?.locationId || isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories))
+        );
+
+        if (!hasPunchesInRange && !wasActiveAtLocationInRange) {
+          return false;
+        }
+
         if (selected?.locationId) {
           const wasAtLocationInDateRange = dates.some(d => 
             isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories)
@@ -804,6 +887,9 @@ export default function ReportsClient({
             (r) => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d
           );
           if (dayPunches.length === 0) {
+            if (!isEmployeeActiveOnDate(emp, d, statusHistories)) {
+              return;
+            }
             absentCount++;
             return;
           }
@@ -990,6 +1076,18 @@ export default function ReportsClient({
         if (e.organizationId && e.organizationId !== selected?.organizationId) return false;
         if (employeeId && e.id !== employeeId) return false;
         if (departmentId && e.departmentId !== departmentId) return false;
+
+        // Check if employee has punch data in range or was active at the location during this range
+        const hasPunchesInRange = reportData.some(r => r.employeeId === e.id);
+        const wasActiveAtLocationInRange = dates.some(d => 
+          isEmployeeActiveOnDate(e, d, statusHistories) &&
+          (!selected?.locationId || isEmployeeAtLocationOnDate(e, selected.locationId, d, branchHistories))
+        );
+
+        if (!hasPunchesInRange && !wasActiveAtLocationInRange) {
+          return false;
+        }
+
         // Check if employee was at the selected location on at least one day in the date range
         if (selected?.locationId) {
           const wasAtLocationInDateRange = dates.some(d => 
@@ -1028,7 +1126,9 @@ export default function ReportsClient({
             }
             const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
             if (dayPunches.length === 0) {
-              hasAbsent = true;
+              if (isEmployeeActiveOnDate(emp, d, statusHistories)) {
+                hasAbsent = true;
+              }
               return;
             }
             const pi = [...dayPunches].reverse().find(p => p.punchType === "PUNCH_IN");
@@ -1373,6 +1473,9 @@ export default function ReportsClient({
 
                     const dayPunches = reportData.filter(r => r.employeeId === emp.id && new Date(r.punchTimestamp).toISOString().split("T")[0] === d);
                     if (dayPunches.length === 0) {
+                      if (!isEmployeeActiveOnDate(emp, d, statusHistories)) {
+                        return;
+                      }
                       absentCount++;
                       return;
                     }
@@ -1523,6 +1626,11 @@ export default function ReportsClient({
                     if (e.locationId !== selected.locationId && !hasHistoryAtLocation) {
                       return false;
                     }
+                  }
+                  // Hide employees that are deactivated/inactive unless explicitly selected or has punch data
+                  const hasPunches = reportData ? reportData.some(r => r.employeeId === e.id) : false;
+                  if (e.status && e.status !== "ACTIVE" && !hasPunches && employeeId !== e.id) {
+                    return false;
                   }
                   return true;
                 })

@@ -258,3 +258,130 @@
     padding: 1.25rem;
   }
 }
+
+/* -------------------------------------------------------------
+   Mobile & APK Responsive Enhancements (Selfie Punch & My Time)
+   ------------------------------------------------------------- */
+
+/* Compact 2-Column Summary Grid for Leave Balances */
+.leave-balances-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .leave-balances-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  .leave-balance-card {
+    padding: 0.75rem !important;
+    gap: 0.5rem !important;
+  }
+
+  .leave-balance-card .leave-balance-icon {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .leave-balance-card .leave-balance-icon svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+
+  .leave-balance-card .leave-balance-name {
+    font-size: 0.82rem !important;
+  }
+
+  .leave-balance-card .leave-balance-num {
+    font-size: 1.25rem !important;
+  }
+
+  .leave-balance-card .leave-balance-sub {
+    font-size: 0.7rem !important;
+  }
+
+  .leave-balance-card .leave-breakdown {
+    display: none !important; /* Hide verbose desktop details in compact grid */
+  }
+}
+
+/* Quick Action Bar for My Time */
+.mytime-action-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 520px) {
+  .mytime-action-btn {
+    padding: 0.6rem 0.35rem !important;
+    font-size: 0.75rem !important;
+    flex-direction: column !important;
+    gap: 0.25rem !important;
+  }
+  .mytime-action-btn svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+}
+
+/* Responsive Table & Cards for Leave History */
+.leave-history-mobile-cards {
+  display: none;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.leave-history-desktop-table {
+  display: block;
+}
+
+@media (max-width: 640px) {
+  .leave-history-desktop-table {
+    display: none;
+  }
+  .leave-history-mobile-cards {
+    display: flex;
+  }
+}
+
+/* Selfie Punch Mobile Optimizations */
+@media (max-width: 640px) {
+  .kiosk-top-bar {
+    padding: 0.65rem 0.85rem !important;
+    border-radius: 8px !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .kiosk-subtext {
+    display: none !important;
+  }
+
+  .kiosk-marker-btn {
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.75rem !important;
+  }
+
+  .kiosk-camera-card {
+    padding: 1rem !important;
+    border-radius: 12px !important;
+  }
+
+  .kiosk-camera-viewport {
+    width: 100% !important;
+    max-width: 300px !important;
+    height: 340px !important;
+    border-radius: 18px !important;
+    margin-bottom: 1rem !important;
+  }
+
+  .kiosk-roster-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

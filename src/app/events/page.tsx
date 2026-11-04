@@ -2,19 +2,23 @@ import React from "react";
 import { getEvents, getEventConfigurations } from "./actions";
 import EventsClient, { EventItemData } from "./EventsClient";
 import { HallConfig, CateringComboConfig } from "@/app/settings/events/EventsSettingsClient";
+import { db } from "@/db";
+import { crmLeads } from "@/db/schema";
+import { eq, and, sql } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ organizationId?: string; locationId?: string }>;
+  searchParams: Promise<{ organizationId?: string; locationId?: string; timeframe?: string }>;
 }) {
-  const { organizationId, locationId } = await searchParams;
+  const { organizationId, locationId, timeframe } = await searchParams;
 
   let eventList: EventItemData[] = [];
   let halls: HallConfig[] = [];
   let combos: CateringComboConfig[] = [];
+  let openEnquiriesCount = 0;
 
   if (organizationId && locationId) {
     const rawEvents = await getEvents(organizationId, locationId);
@@ -39,6 +43,9 @@ export default async function EventsPage({
       customerId: r.event.customerId,
       hallName: r.hall?.hallName || null,
       comboName: r.combo?.name || null,
+      invoiceNumber: r.invoice?.invoiceNumber || null,
+      receiptNumber: r.receipt?.receiptNumber || null,
+      advancePaymentMethod: r.receipt?.paymentMethod || null,
       financials: r.financials
         ? {
             id: r.financials.id,
@@ -74,6 +81,22 @@ export default async function EventsPage({
       menuItems: Array.isArray(c.menuItems) ? (c.menuItems as string[]) : [],
       basePricePerPax: c.basePricePerPax,
     }));
+
+    // Fetch open CRM leads / enquiries count for this location
+    try {
+      const [leadRes] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(crmLeads)
+        .where(
+          and(
+            eq(crmLeads.organizationId, organizationId),
+            eq(crmLeads.stage, "NEW_ENQUIRY")
+          )
+        );
+      openEnquiriesCount = leadRes?.count || 0;
+    } catch {
+      openEnquiriesCount = 0;
+    }
   }
 
   return (
@@ -82,6 +105,8 @@ export default async function EventsPage({
         initialEvents={eventList}
         halls={halls}
         combos={combos}
+        initialTimeframe={timeframe}
+        openEnquiriesCount={openEnquiriesCount}
       />
     </div>
   );

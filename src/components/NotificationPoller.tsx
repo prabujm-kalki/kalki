@@ -47,17 +47,26 @@ export function NotificationPoller({
         };
 
         for (const task of tasks) {
-          
           if (!task || task.status !== "pending") continue;
+
+          // Routine/Task initial alerts (level 0) should only sound for the direct assignee
+          const isAssignedToUser = Boolean(task.isAssignedToCurrentUser);
+          const level = task.escalationLevel || 0;
+
+          // If the task is at Level 0 (normal trigger/start) and NOT assigned to the logged-in user, skip audio tone
+          if (level === 0 && !task.contextData?.isWarning && !isAssignedToUser) {
+            continue;
+          }
 
           const taskUpdatedTime = new Date(task.updatedAt || task.createdAt).getTime();
           if (taskUpdatedTime > lastUpdateRef.current) {
             // This task was just created or updated (escalated)
-            const level = task.escalationLevel || 0;
             const config = task.triggerConfig || {};
             
             let tone = "default";
             if (task.contextData?.isWarning) {
+              // Warning only plays for assignee
+              if (!isAssignedToUser) continue;
               tone = "chime"; // Play a chime for warnings
             } else if (level === 0) {
               tone = config.reminderTone || "default";
