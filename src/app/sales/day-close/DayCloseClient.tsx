@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useSessionView } from "@/components/AppShell";
 import { fetchDayCloseContext, submitDayClose, reopenDayClose, syncTMBillForDayClose } from "@/domains/sales/eod-actions";
+import { QuickPurchaseModal } from "@/components/purchasing/QuickPurchaseModal";
 import { 
   Banknote, 
   Smartphone, 
@@ -14,9 +15,14 @@ import {
   Loader2, 
   Calculator, 
   ArrowRight, 
+  ArrowLeft,
   Lock,
   RotateCcw,
-  RefreshCw
+  RefreshCw,
+  PlusCircle,
+  FileCheck2,
+  ExternalLink,
+  Eye
 } from "lucide-react";
 
 const STANDARD_DENOMINATIONS = [
@@ -38,6 +44,7 @@ export function DayCloseClient() {
   const [reopening, setReopening] = useState(false);
   const [syncingTMBill, setSyncingTMBill] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [contextData, setContextData] = useState<{
     isClosed: boolean;
     closedRecord: any | null;
@@ -48,6 +55,8 @@ export function DayCloseClient() {
     systemSales: { cash: number; upi: number; other: number; total: number };
   } | null>(null);
 
+  const [step, setStep] = useState<"ENTRY" | "PREVIEW">("ENTRY");
+  const [isQuickPurchaseOpen, setIsQuickPurchaseOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<any | null>(null);
@@ -68,14 +77,36 @@ export function DayCloseClient() {
   // Sync TMBill data on demand or automatically
   const handleSyncTMBill = useCallback(async (silent = false) => {
     if (!selected) return;
-    if (!silent) setSyncingTMBill(true);
+    if (!silent) {
+      setSyncingTMBill(true);
+      setSyncFeedback(null);
+    }
     try {
       const syncRes = await syncTMBillForDayClose(selected.organizationId, selected.locationId, date);
       if (syncRes.success && syncRes.data) {
         setLastSyncedAt(syncRes.data.syncedAt);
+        if (!silent) {
+          const processed = syncRes.data.totalProcessed || 0;
+          const pushed = syncRes.data.pushedCount || 0;
+          setSyncFeedback({
+            type: "success",
+            message: `Synced ${processed} bill${processed === 1 ? "" : "s"} (${pushed} updated) at ${syncRes.data.syncedAt}`
+          });
+        }
+      } else if (!silent) {
+        setSyncFeedback({
+          type: "error",
+          message: syncRes.error || "Failed to sync with POS."
+        });
       }
     } catch (e: any) {
       console.warn("TMBill background sync warning:", e);
+      if (!silent) {
+        setSyncFeedback({
+          type: "error",
+          message: e?.message || "Error connecting to POS sync service."
+        });
+      }
     } finally {
       // Re-fetch context to reflect latest synced orders
       await loadContext(selected.organizationId, selected.locationId, date);
@@ -153,6 +184,298 @@ export function DayCloseClient() {
 
   if (!selected) {
     return <div className="p-8 text-center">Please select a location from the sidebar.</div>;
+  }
+
+  // Preview Step View
+  if (step === "PREVIEW") {
+    const systemTotal = contextData?.systemSales?.total || 0;
+    const variance = netCalculatedSales - systemTotal;
+    const isShortage = variance < -0.01;
+    const isOverage = variance > 0.01;
+    const isBalanced = !isShortage && !isOverage;
+
+    return (
+      <div style={{ maxWidth: "1000px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+        {/* Top Header Card */}
+        <div className="kalki-card" style={{ padding: "1.5rem", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+              <FileCheck2 size={24} color="var(--kalki-primary)" />
+              <h2 style={{ margin: 0, fontSize: "1.35rem", color: "var(--kalki-text-primary)" }}>Day Close Audit Preview</h2>
+            </div>
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--kalki-text-secondary)" }}>
+              Carefully verify all figures, vouchers, and reconciliations before locking the day in the permanent ledger.
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Date: <strong>{date}</strong></span>
+            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>|</span>
+            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Branch: <strong>{selected.locationName}</strong></span>
+          </div>
+        </div>
+
+        {/* Master Reconciliation Summary Banner */}
+        <div className="kalki-card" style={{
+          padding: "1.5rem",
+          border: `1.5px solid ${isBalanced ? "#86efac" : isShortage ? "#fca5a5" : "#fde68a"}`,
+          background: isBalanced ? "#f0fdf4" : isShortage ? "#fef2f2" : "#fffbeb"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem" }}>
+            <div>
+              <div style={{ fontSize: "0.85rem", fontWeight: 600, color: isBalanced ? "#166534" : isShortage ? "#991b1b" : "#92400e", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                {isBalanced ? "✓ Perfectly Reconciled" : isShortage ? "⚠️ Discrepancy Alert: Cash/Digital Shortage" : "ℹ️ Discrepancy Notice: Cash/Digital Overage"}
+              </div>
+              <div style={{ fontSize: "1.6rem", fontWeight: 800, color: isBalanced ? "#15803d" : isShortage ? "#dc2626" : "#b45309", marginTop: "4px" }}>
+                {isBalanced ? "₹0.00 Variance" : `${variance < 0 ? "-" : "+"}₹${Math.abs(variance).toLocaleString(undefined, { minimumFractionDigits: 2 })} Variance`}
+              </div>
+              <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: "4px" }}>
+                Net Calculated Sales (₹{netCalculatedSales.toLocaleString(undefined, { minimumFractionDigits: 2 })}) vs TMBill POS Sales (₹{systemTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })})
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <div style={{ padding: "10px 16px", background: "white", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.08)" }}>
+                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>POS System Cash</div>
+                <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>₹{(contextData?.systemSales?.cash || 0).toFixed(2)}</div>
+              </div>
+              <div style={{ padding: "10px 16px", background: "white", borderRadius: "8px", border: "1px solid rgba(0,0,0,0.08)" }}>
+                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>POS System UPI</div>
+                <div style={{ fontSize: "1.1rem", fontWeight: 700, color: "#1e293b" }}>₹{(contextData?.systemSales?.upi || 0).toFixed(2)}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2-Column Audit Breakdown */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+          {/* Cash Audit Card */}
+          <div className="kalki-card" style={{ padding: "1.5rem" }}>
+            <h3 style={{ margin: "0 0 1rem 0", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.05rem" }}>
+              <Banknote size={20} color="var(--kalki-primary)" />
+              Cash Drawer Audit Breakdown
+            </h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.9rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#64748b" }}>Cash in Hand (Physical Notes & Coins):</span>
+                <strong>+ ₹{cashInHand.toFixed(2)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#b45309" }}>
+                <span>(+) Cash Expenses / Spot Purchases:</span>
+                <strong>+ ₹{cashExpenses.toFixed(2)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#b91c1c" }}>
+                <span>(-) Yesterday's Opening Float (Carried):</span>
+                <strong>- ₹{effectiveOpeningCash.toFixed(2)}</strong>
+              </div>
+              <div style={{ height: "1px", background: "#e2e8f0", margin: "4px 0" }}></div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "1rem" }}>
+                <span>Net Cash Generated from Sales:</span>
+                <span style={{ color: "var(--kalki-primary)" }}>₹{netCashSales.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Denomination chips */}
+            <div style={{ marginTop: "1.2rem", paddingTop: "1rem", borderTop: "1px dashed #e2e8f0" }}>
+              <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", textTransform: "uppercase", marginBottom: "8px" }}>
+                Counted Denominations
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {STANDARD_DENOMINATIONS.map((den) => {
+                  const count = counts[den] || 0;
+                  if (count === 0) return null;
+                  return (
+                    <span key={den} style={{ padding: "4px 8px", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", fontSize: "0.8rem", color: "#334155" }}>
+                      ₹{den} × <strong>{count}</strong> = ₹{(den * count).toLocaleString()}
+                    </span>
+                  );
+                })}
+                {cashInHand === 0 && <span style={{ fontSize: "0.8rem", color: "#94a3b8" }}>No physical denominations entered.</span>}
+              </div>
+            </div>
+          </div>
+
+          {/* Digital / UPI Audit Card */}
+          <div className="kalki-card" style={{ padding: "1.5rem" }}>
+            <h3 style={{ margin: "0 0 1rem 0", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.05rem" }}>
+              <Smartphone size={20} color="#0284c7" />
+              Digital & UPI Audit Breakdown
+            </h3>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "0.9rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "#64748b" }}>Declared Settlement / Soundbox Total:</span>
+                <strong>+ ₹{parsedUpi.toFixed(2)}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#2563eb" }}>
+                <span>(+) Digital / UPI Expenses Paid:</span>
+                <strong>+ ₹{upiExpenses.toFixed(2)}</strong>
+              </div>
+              <div style={{ height: "1px", background: "#e2e8f0", margin: "4px 0" }}></div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "1rem" }}>
+                <span>Net Digital Generated from Sales:</span>
+                <span style={{ color: "#0284c7" }}>₹{netUpiSales.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "1.2rem", paddingTop: "1rem", borderTop: "1px dashed #e2e8f0", fontSize: "0.85rem", color: "#64748b" }}>
+              Batch slip / EDC terminal collection matches total digital receipts processed through branch QR accounts.
+            </div>
+          </div>
+        </div>
+
+        {/* Expenses List Card with Add Button */}
+        <div className="kalki-card" style={{ padding: "1.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem", flexWrap: "wrap", gap: "10px" }}>
+            <div>
+              <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.05rem" }}>
+                <Receipt size={20} color="#b45309" />
+                Deducted Petty Expenses & Spot Purchases ({contextData?.expensesList?.length || 0})
+              </h3>
+              <p style={{ margin: "4px 0 0 0", fontSize: "0.8rem", color: "#64748b" }}>
+                Verify that no expenses from today are missing before locking.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsQuickPurchaseOpen(true)}
+              className="kalki-button"
+              style={{
+                height: "34px",
+                padding: "6px 14px",
+                fontSize: "13px",
+                fontWeight: 600,
+                background: "#fef3c7",
+                color: "#92400e",
+                border: "1px solid #fde68a",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              <PlusCircle size={15} />
+              + Add Missing Expense
+            </button>
+          </div>
+
+          {(!contextData?.expensesList || contextData.expensesList.length === 0) ? (
+            <div style={{ padding: "1.5rem", textAlign: "center", background: "#f8fafc", borderRadius: "8px", border: "1px dashed #cbd5e1", color: "#64748b", fontSize: "0.85rem" }}>
+              No spot purchases or petty expense vouchers recorded for today. If staff paid any cash or online expenses from the counter, click <strong>+ Add Missing Expense</strong> above.
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem", textAlign: "left" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1.5px solid #e2e8f0", color: "#475569" }}>
+                    <th style={{ padding: "8px 12px" }}>Voucher #</th>
+                    <th style={{ padding: "8px 12px" }}>Vendor / Description</th>
+                    <th style={{ padding: "8px 12px" }}>Payment Mode</th>
+                    <th style={{ padding: "8px 12px" }}>Audit Status</th>
+                    <th style={{ padding: "8px 12px", textAlign: "right" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {contextData.expensesList.map((exp: any) => {
+                    const isUpi = (exp.paymentSource || "").toUpperCase().includes("UPI") || (exp.paymentSource || "").toUpperCase().includes("ONLINE");
+                    return (
+                      <tr key={exp.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                        <td style={{ padding: "8px 12px", fontWeight: 600, color: "#1e293b" }}>{exp.voucherNumber || "VCH-SPOT"}</td>
+                        <td style={{ padding: "8px 12px", color: "#334155" }}>{exp.vendorName || "Spot Vendor"}</td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <span style={{
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            background: isUpi ? "#eff6ff" : "#fefce8",
+                            color: isUpi ? "#1d4ed8" : "#854d0e"
+                          }}>
+                            {exp.paymentSource || "PETTY_CASH"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "8px 12px" }}>
+                          <span style={{ fontSize: "0.75rem", color: "#64748b" }}>{exp.auditStatus || "RECORDED"}</span>
+                        </td>
+                        <td style={{ padding: "8px 12px", textAlign: "right", fontWeight: 700, color: "#0f172a" }}>
+                          ₹{parseFloat(exp.totalAmount || "0").toFixed(2)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: "2px solid #e2e8f0", fontWeight: 700 }}>
+                    <td colSpan={4} style={{ padding: "10px 12px" }}>Total Deducted Expenses (Cash: ₹{cashExpenses.toFixed(2)} | UPI: ₹{upiExpenses.toFixed(2)})</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", color: "#b45309" }}>₹{(cashExpenses + upiExpenses).toFixed(2)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div style={{ padding: "1rem", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: "8px", color: "var(--kalki-danger)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <AlertCircle size={18} />
+            {error}
+          </div>
+        )}
+
+        {/* Bottom Actions: Back to Edit vs Confirm & Lock */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "1rem", padding: "1rem 0" }}>
+          <button
+            type="button"
+            onClick={() => setStep("ENTRY")}
+            disabled={loading}
+            className="kalki-button kalki-button--secondary"
+            style={{ height: "44px", padding: "0 20px", display: "inline-flex", alignItems: "center", gap: "8px" }}
+          >
+            <ArrowLeft size={16} />
+            Back to Edit Denominations & Figures
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={loading || contextData?.isClosed}
+            className="kalki-button kalki-button--primary"
+            style={{
+              height: "44px",
+              padding: "0 28px",
+              fontSize: "15px",
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px"
+            }}
+          >
+            {loading ? <Loader2 size={18} className="lucide-spin" style={{ animation: "spin 2s linear infinite" }} /> : (
+              <>
+                <Lock size={16} />
+                Confirm & Lock Day Close
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Quick Purchase Modal for Adding Missing Expenses */}
+        {isQuickPurchaseOpen && selected?.organizationId && selected?.locationId && (
+          <QuickPurchaseModal
+            isOpen={isQuickPurchaseOpen}
+            onClose={() => setIsQuickPurchaseOpen(false)}
+            organizationId={selected.organizationId}
+            locationId={selected.locationId}
+            currentUserId={session?.user?.id || ""}
+            onSuccess={async () => {
+              setIsQuickPurchaseOpen(false);
+              await loadContext(selected.organizationId, selected.locationId, date);
+            }}
+          />
+        )}
+      </div>
+    );
   }
 
   // Success State
@@ -378,14 +701,38 @@ export function DayCloseClient() {
 
         {/* Section 3: Today's Deducted Expenses Summary */}
         <div className="kalki-card" style={{ padding: "1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.8rem", flexWrap: "wrap", gap: "8px" }}>
             <h3 style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "1.05rem" }}>
               <Receipt size={20} color="#b45309" />
               Step 3: Today's Spot Purchases & Petty Expenses
             </h3>
-            <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-              {contextData?.expensesList?.length || 0} Vouchers Recorded
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                {contextData?.expensesList?.length || 0} Vouchers Recorded
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsQuickPurchaseOpen(true)}
+                className="kalki-button"
+                style={{
+                  height: "30px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  background: "#fef3c7",
+                  color: "#92400e",
+                  border: "1px solid #fde68a",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px"
+                }}
+              >
+                <PlusCircle size={14} />
+                + Add Expense Voucher
+              </button>
+            </div>
           </div>
           
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginBottom: "1rem" }}>
@@ -404,7 +751,7 @@ export function DayCloseClient() {
           </div>
 
           <p style={{ margin: 0, fontSize: "0.8rem", color: "#64748b" }}>
-            * These are automatically fetched from spot purchases and petty vouchers logged by the branch today.
+            * Automatically fetched from spot purchases and petty vouchers logged for today. You can add any missing expense voucher directly using the button above.
           </p>
         </div>
 
@@ -418,11 +765,13 @@ export function DayCloseClient() {
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button 
             className="kalki-button kalki-button--primary" 
-            onClick={handleSubmit}
+            onClick={() => setStep("PREVIEW")}
             disabled={loading || contextData?.isClosed}
-            style={{ minWidth: "180px", height: "42px", fontSize: "15px" }}
+            style={{ minWidth: "220px", height: "44px", fontSize: "15px", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
           >
-            {loading ? <Loader2 size={18} className="lucide-spin" style={{ animation: "spin 2s linear infinite" }} /> : "Submit & Lock Day Close"}
+            <Eye size={18} />
+            Review & Preview Summary
+            <ArrowRight size={16} />
           </button>
         </div>
       </div>
@@ -535,7 +884,26 @@ export function DayCloseClient() {
             </strong>
           </div>
 
-          {lastSyncedAt && (
+          {syncFeedback && (
+            <div style={{
+              marginTop: "8px",
+              padding: "6px 10px",
+              borderRadius: "6px",
+              fontSize: "0.75rem",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: syncFeedback.type === "success" ? "#ecfdf5" : syncFeedback.type === "error" ? "#fef2f2" : "#eff6ff",
+              color: syncFeedback.type === "success" ? "#065f46" : syncFeedback.type === "error" ? "#991b1b" : "#1d4ed8",
+              border: `1px solid ${syncFeedback.type === "success" ? "#a7f3d0" : syncFeedback.type === "error" ? "#fca5a5" : "#bfdbfe"}`
+            }}>
+              {syncFeedback.type === "success" ? <CheckCircle2 size={13} /> : <AlertCircle size={13} />}
+              <span>{syncFeedback.message}</span>
+            </div>
+          )}
+
+          {lastSyncedAt && !syncFeedback && (
             <div style={{ fontSize: "0.7rem", color: "#94a3b8", textAlign: "right", marginTop: "4px" }}>
               Synced with TMBill at {lastSyncedAt}
             </div>
@@ -546,6 +914,21 @@ export function DayCloseClient() {
           💡 <strong>Zero-Trust Rule:</strong> The system automatically records physical notes, UPI tenders, and petty expenses into the permanent audit ledger upon confirmation.
         </div>
       </div>
+
+      {/* Quick Purchase Modal for Adding Missing Expenses from Step 1 */}
+      {isQuickPurchaseOpen && selected?.organizationId && selected?.locationId && (
+        <QuickPurchaseModal
+          isOpen={isQuickPurchaseOpen}
+          onClose={() => setIsQuickPurchaseOpen(false)}
+          organizationId={selected.organizationId}
+          locationId={selected.locationId}
+          currentUserId={session?.user?.id || ""}
+          onSuccess={async () => {
+            setIsQuickPurchaseOpen(false);
+            await loadContext(selected.organizationId, selected.locationId, date);
+          }}
+        />
+      )}
     </div>
   );
 }

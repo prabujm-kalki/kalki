@@ -526,31 +526,26 @@ export function GeneralSettings() {
         .gs-banner-header {
           background: linear-gradient(135deg, #fdfbf7 0%, #f3ede2 100%);
           border: 1px solid #e2dcd0;
-          border-radius: 1rem;
-          padding: 2rem;
-          margin-bottom: 1.5rem;
+          border-radius: 0.75rem;
+          padding: 1rem 1.25rem;
+          margin-bottom: 1.25rem;
           position: relative;
           overflow: hidden;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02);
-        }
-        .gs-banner-header::after {
-          content: '';
-          position: absolute;
-          right: -20px;
-          top: -20px;
-          width: 300px;
-          height: 300px;
-          background-image: radial-gradient(circle, rgba(212,175,55,0.1) 0%, rgba(255,255,255,0) 70%);
-          pointer-events: none;
+          box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 1rem;
         }
         .gs-banner-title {
-          font-size: 1.75rem;
+          font-size: 1.2rem;
           font-weight: 700;
           color: #2c241b;
-          margin: 0 0 0.5rem 0;
+          margin: 0 0 0.2rem 0;
         }
         .gs-banner-desc {
-          font-size: 1rem;
+          font-size: 0.85rem;
           color: #645a4f;
           margin: 0;
         }
@@ -733,16 +728,15 @@ export function GeneralSettings() {
         }
       `}</style>
       
-      <div style={{ width: '100%', padding: '0' }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
+      <div style={{ width: '100%', padding: '0', position: 'relative', paddingBottom: '4.5rem' }}>
+        <div className="gs-banner-header">
+          <div>
+            <h1 className="gs-banner-title">General Settings</h1>
+            <p className="gs-banner-desc">Configure global organization preferences and defaults.</p>
+          </div>
           <KalkiButton onClick={handleSave} disabled={saving || loading} variant="primary">
             {saving ? "Saving..." : "Save Settings"}
           </KalkiButton>
-        </div>
-        
-        <div className="gs-banner-header">
-          <h1 className="gs-banner-title">General Settings</h1>
-          <p className="gs-banner-desc">Configure global organization preferences and defaults.</p>
         </div>
 
         {message && (
@@ -1617,6 +1611,47 @@ export function GeneralSettings() {
             </div>
           </div>
 
+        </div>
+
+        {/* Sticky Bottom Floating Save Bar */}
+        <div
+          style={{
+            position: "sticky",
+            bottom: "0px",
+            zIndex: 40,
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            backdropFilter: "blur(8px)",
+            borderTop: "1px solid #e2e8f0",
+            boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.05)",
+            padding: "0.75rem 1.25rem",
+            margin: "1.5rem -1rem -1rem -1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderRadius: "0 0 0.5rem 0.5rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#64748b" }}>
+            <Settings size={16} style={{ color: "#d97706" }} />
+            <span>Organization settings are applied globally across all modules.</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {message && (
+              <span
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  color: message.type === "success" ? "#047857" : "#b91c1c",
+                }}
+              >
+                {message.text}
+              </span>
+            )}
+            <KalkiButton onClick={handleSave} disabled={saving || loading} variant="primary">
+              <Save size={16} style={{ marginRight: "6px" }} />
+              {saving ? "Saving Changes..." : "Save Settings"}
+            </KalkiButton>
+          </div>
         </div>
       </div>
 

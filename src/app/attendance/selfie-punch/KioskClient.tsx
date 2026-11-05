@@ -219,7 +219,8 @@ export default function SelfiePunchKiosk() {
             else if (last === "BREAK_OUT")
               setAvailableOptions(["PUNCH_OUT"]);
             else if (last === "PUNCH_OUT")
-              setAvailableOptions([]);
+              // Allow re-punching OUT (or resuming shift) in case employee accidentally punched out instead of break out
+              setAvailableOptions(["PUNCH_OUT", "BREAK_OUT"]);
           }
         } catch (e) {
           console.error(e);

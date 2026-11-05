@@ -12,11 +12,19 @@ const nextConfig = {
   allowedDevOrigins: [
     '192.168.31.96',
     '192.168.31.96:3001',
-    'detached-manned-shining.ngrok-free.dev'
+    'detached-manned-shining.ngrok-free.dev',
+    '140.245.253.187.nip.io',
+    '*.nip.io'
   ],
   experimental: {
     serverActions: {
-      allowedOrigins: ['192.168.31.96:3001', 'detached-manned-shining.ngrok-free.dev'],
+      allowedOrigins: [
+        '192.168.31.96:3001',
+        'detached-manned-shining.ngrok-free.dev',
+        '140.245.253.187.nip.io',
+        '*.nip.io',
+        '140.245.253.187'
+      ],
     },
   },
   async headers() {

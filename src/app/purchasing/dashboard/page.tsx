@@ -941,8 +941,8 @@ export default function PurchaseDashboardPage() {
         }
         .tables-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 14px;
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 600px), 1fr));
+          gap: 16px;
           margin-bottom: 20px;
           width: 100%;
         }
@@ -969,7 +969,7 @@ export default function PurchaseDashboardPage() {
         }
         .table-header {
           background-color: #f8fafc;
-          padding: 10px 14px;
+          padding: 8px 10px;
           font-size: 11px;
           font-weight: 600;
           color: #64748b;
@@ -980,17 +980,42 @@ export default function PurchaseDashboardPage() {
           white-space: nowrap;
         }
         .table-cell {
-          padding: 10px 14px;
+          padding: 8px 10px;
           border-bottom: 1px solid #f1f5f9;
           color: #1e293b;
           font-size: 13px;
           vertical-align: middle;
+        }
+        .desktop-only-feed::-webkit-scrollbar,
+        .table-scroll-container::-webkit-scrollbar {
+          height: 6px;
+        }
+        .desktop-only-feed::-webkit-scrollbar-thumb,
+        .table-scroll-container::-webkit-scrollbar-thumb {
+          background-color: #cbd5e1;
+          border-radius: 3px;
         }
         .mobile-only-feed {
           display: none;
         }
         .desktop-only-feed {
           display: block;
+        }
+
+        /* Medium screens & laptops (1024px - 1366px): stack gracefully at 100% zoom */
+        @media (max-width: 1366px) {
+          .analytics-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
+          .tables-grid {
+            grid-template-columns: 1fr !important;
+            gap: 16px !important;
+          }
+          .performance-grid {
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+            gap: 14px !important;
+          }
         }
 
         /* Responsive Mobile & APK Viewport Optimizations */
@@ -2058,7 +2083,7 @@ export default function PurchaseDashboardPage() {
               </Link>
             </div>
 
-            <div style={{ overflowX: "auto" }}>
+            <div className="table-scroll-container" style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
                 <thead>
                   <tr>

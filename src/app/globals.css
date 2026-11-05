@@ -902,6 +902,19 @@ input {
   }
 }
 
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.kalki-spin {
+  animation: spin 1s linear infinite;
+}
+
 
 /* Kalki Card */
 .kalki-card {
