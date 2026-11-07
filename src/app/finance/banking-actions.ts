@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { db } from "@/db";
 import { accounts, accountGroups, journalLineItems, journalEntries } from "@/db/schema";
-import { eq, and, sql, sum } from "drizzle-orm";
+import { eq, and, sql, sum, inArray } from "drizzle-orm";
 import { postManualJournal } from "./actions";
 
 async function getAuthSession() {
@@ -32,7 +32,7 @@ export async function fetchBankAccounts(organizationId: string, locationId: stri
       bankAccounts = await db.select().from(accounts).where(
         and(
           eq(accounts.organizationId, organizationId),
-          sql`${accounts.accountGroupId} = ANY(${groupIds})`
+          inArray(accounts.accountGroupId, groupIds)
         )
       );
     } else {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AppShell, useSessionView } from "@/components/AppShell";
-import { ChevronLeft, Shield, Calendar, BarChart2, Users, UserCircle, DollarSign, Package, FileSpreadsheet, ShoppingCart, Tag, Settings, PlusSquare, FileText, Edit, Trash2, CheckSquare } from "lucide-react";
+import { ChevronLeft, Shield, Calendar, BarChart2, Users, UserCircle, DollarSign, Package, FileSpreadsheet, ShoppingCart, Tag, Settings, PlusSquare, FileText, Edit, Trash2, CheckSquare, Megaphone, PartyPopper } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { apiGet } from "@/lib/api";
@@ -166,6 +166,8 @@ function RolePermissionMatrixContent() {
       case "payroll": return <FileSpreadsheet size={18} className="text-amber-600" />;
       case "purchasing": return <ShoppingCart size={18} className="text-purple-600" />;
       case "sales": return <Tag size={18} className="text-blue-600" />;
+      case "marketing": return <Megaphone size={18} className="text-pink-600" />;
+      case "events": return <PartyPopper size={18} className="text-purple-600" />;
       case "tasks": return <CheckSquare size={18} className="text-indigo-600" />;
       case "settings": return <Settings size={18} className="text-gray-600" />;
       default: return <div style={{ height: '8px', width: '8px', borderRadius: '50%', backgroundColor: '#94a3b8' }} />;

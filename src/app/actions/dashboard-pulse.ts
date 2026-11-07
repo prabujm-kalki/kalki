@@ -42,6 +42,22 @@ export async function fetchExecutiveCockpitPulse(params?: {
       return { success: false, error: "No organization context available." };
     }
 
+    // Permission check: User must be owner or have executive cockpit read permission
+    const activeScope = context.scopes.find(
+      s => s.organizationId === organizationId && (!rawLocationId || s.locationId === rawLocationId)
+    ) || primaryScope;
+
+    const permissions = activeScope?.permissions || [];
+    const hasExecutiveAccess = Boolean(
+      context.isOwner ||
+      permissions.includes("command-center.executive_cockpit:read") ||
+      permissions.includes("dashboard.executive:view")
+    );
+
+    if (!hasExecutiveAccess) {
+      return { success: false, error: "Forbidden: Executive Cockpit access required." };
+    }
+
     let locationName: string | undefined;
     if (locationId) {
       const [loc] = await db

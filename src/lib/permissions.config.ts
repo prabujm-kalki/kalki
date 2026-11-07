@@ -7,6 +7,7 @@ export type PermissionConfig = {
 export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   // Dashboard / Command Center
   { module: "command-center", submodule: "overview", actions: ["read"] },
+  { module: "command-center", submodule: "executive_cockpit", actions: ["read"] },
   
   // People
   { module: "employee", submodule: "my_profile", actions: ["read"] },
@@ -34,6 +35,9 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "purchasing", submodule: "create_po", actions: ["read", "create", "update", "delete", "approve"] },
   { module: "purchasing", submodule: "items", actions: ["read", "create", "update", "delete"] },
   { module: "purchasing", submodule: "vendors", actions: ["read", "create", "update", "delete"] },
+  { module: "purchasing", submodule: "schedules", actions: ["read", "create", "update", "delete"] },
+  { module: "purchasing", submodule: "receive_grn", actions: ["read", "create", "update"] },
+  { module: "purchasing", submodule: "stock_assessment", actions: ["read", "create", "update"] },
   { module: "purchasing", submodule: "reports", actions: ["read"] },
   { module: "purchasing", submodule: "configuration", actions: ["read", "create", "update"] },
   { module: "purchasing", submodule: "manual", actions: ["read"] },
@@ -45,12 +49,33 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "sales", submodule: "overview", actions: ["read"] },
   { module: "sales", submodule: "orders", actions: ["read", "create", "update", "delete", "approve"] },
   { module: "sales", submodule: "invoices", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "sales", submodule: "quotations", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "sales", submodule: "day_close", actions: ["read", "create", "update", "approve"] },
+  { module: "sales", submodule: "import_data", actions: ["read", "create"] },
   { module: "sales", submodule: "returns_&_credit_notes", actions: ["read", "create", "update", "delete", "approve"] },
   { module: "sales", submodule: "reports", actions: ["read"] },
   { module: "sales", submodule: "settings", actions: ["read", "update"] },
   
+  // Marketing
+  { module: "marketing", submodule: "dashboard", actions: ["read"] },
+  { module: "marketing", submodule: "campaigns", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "marketing", submodule: "audiences", actions: ["read", "create", "update", "delete"] },
+  { module: "marketing", submodule: "automations", actions: ["read", "create", "update", "delete"] },
+  { module: "marketing", submodule: "analytics", actions: ["read"] },
+  { module: "marketing", submodule: "inbox", actions: ["read", "create", "update"] },
+  { module: "marketing", submodule: "templates", actions: ["read", "create", "update", "delete"] },
+  
   // CRM
   { module: "crm", submodule: "customers", actions: ["read", "create", "update", "delete"] },
+  { module: "crm", submodule: "leads", actions: ["read", "create", "update", "delete"] },
+  { module: "crm", submodule: "intelligence_&_scoring", actions: ["read", "create", "update"] },
+  { module: "crm", submodule: "service_&_tickets", actions: ["read", "create", "update", "delete"] },
+  { module: "crm", submodule: "compliance", actions: ["read", "update"] },
+  { module: "crm", submodule: "templates", actions: ["read", "create", "update", "delete"] },
+
+  // Events & Catering
+  { module: "events", submodule: "bookings", actions: ["read", "create", "update", "delete", "approve"] },
+  { module: "events", submodule: "settings", actions: ["read", "update"] },
   
   // Finance
   { module: "finance", submodule: "dashboard", actions: ["read"] },
@@ -58,6 +83,8 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   { module: "finance", submodule: "purchases_&_payables", actions: ["read", "create", "update", "delete", "approve"] },
   { module: "finance", submodule: "banking_&_cash", actions: ["read", "create", "update", "delete", "approve"] },
   { module: "finance", submodule: "accounting", actions: ["read", "create", "update", "delete"] },
+  { module: "finance", submodule: "branch_analytics", actions: ["read"] },
+  { module: "finance", submodule: "tax", actions: ["read", "create", "update"] },
   { module: "finance", submodule: "reports", actions: ["read"] },
   { module: "finance", submodule: "settings", actions: ["read", "create", "update"] },
   
@@ -70,7 +97,9 @@ export const SYSTEM_PERMISSIONS: PermissionConfig[] = [
   // Settings
   { module: "settings", submodule: "organization_chart", actions: ["read", "update"] },
   { module: "settings", submodule: "data_master", actions: ["read", "create", "update", "delete"] },
+  { module: "settings", submodule: "approval_limits", actions: ["read", "create", "update"] },
   { module: "settings", submodule: "roles", actions: ["read", "create", "update", "delete"] },
   { module: "settings", submodule: "users", actions: ["read", "create", "update", "delete"] },
+  { module: "settings", submodule: "general_settings", actions: ["read", "update"] },
   { module: "settings", submodule: "statutory_settings", actions: ["read", "update"] }
 ];

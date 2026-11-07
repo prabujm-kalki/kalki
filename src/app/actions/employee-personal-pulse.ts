@@ -76,7 +76,7 @@ export async function fetchEmployeePersonalPulse(params?: {
     }
 
     // Check if user has executive perimeter privileges:
-    // isOwner OR has branch executive / overview / reports / financial management permissions
+    // Only organization owners or roles explicitly granted executive cockpit read permission
     const activeScope = context.scopes.find(
       s => s.organizationId === organizationId && (!locationId || s.locationId === locationId)
     ) || primaryScope;
@@ -84,11 +84,8 @@ export async function fetchEmployeePersonalPulse(params?: {
     const permissions = activeScope?.permissions || [];
     const isExecutive = Boolean(
       context.isOwner ||
-      permissions.includes("dashboard.executive:view") ||
-      permissions.includes("purchasing.po:authorize") ||
-      permissions.includes("finance.audit:execute") ||
-      permissions.includes("attendance.reports:view") ||
-      permissions.includes("attendance.overview:read")
+      permissions.includes("command-center.executive_cockpit:read") ||
+      permissions.includes("dashboard.executive:view")
     );
 
     // 1. Fetch employee record for current user
