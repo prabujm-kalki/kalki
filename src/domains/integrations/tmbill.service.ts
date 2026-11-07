@@ -202,18 +202,65 @@ export class TMBillService {
       .limit(1);
 
     if (existingOrder.length > 0) {
-      // Order exists, maybe update it?
-      // In POS context, orders are usually immutable once fulfilled, but we update just in case.
+      // Order exists, check if its settlement or state was updated in TMBill
+      const newPaymentMode = order.order_payments?.[0]?.payment_option || null;
+      const newOrderState = order.order_state;
+      const isSettled = (newOrderState === "fulfilled" || Boolean(newPaymentMode));
+
       await db.update(tmbillOrders)
         .set({
-          orderState: order.order_state,
+          orderState: newOrderState,
           orderSubtotal: String(order.order_subtotal || 0),
           orderTotal: String(order.order_total || 0),
-          paymentMode: order.order_payments?.[0]?.payment_option || null,
+          paymentMode: newPaymentMode,
           rawData: order,
           updatedAt: new Date()
         })
         .where(eq(tmbillOrders.id, existingOrder[0].id));
+
+      // Back-propagate to salesInvoices if it was previously created as PENDING/CREDIT and is now settled
+      if (isSettled) {
+        const invNumber = "TM-" + String(order.order_id);
+        const [existingInvoice] = await db.select().from(salesInvoices)
+          .where(and(
+            eq(salesInvoices.organizationId, this.organizationId),
+            eq(salesInvoices.invoiceNumber, invNumber)
+          ))
+          .limit(1);
+
+        if (existingInvoice && existingInvoice.paymentStatus !== "PAID") {
+          const resolvedMode = newPaymentMode || "PAID";
+          await db.update(salesInvoices)
+            .set({
+              paymentStatus: "PAID",
+              paymentMode: resolvedMode,
+              tmbillRawData: order
+            })
+            .where(eq(salesInvoices.id, existingInvoice.id));
+
+          // Ensure corresponding salesReceipt is generated
+          const receiptNum = "REC-TM-" + String(order.order_id);
+          const [existingReceipt] = await db.select().from(salesReceipts)
+            .where(and(
+              eq(salesReceipts.organizationId, this.organizationId),
+              eq(salesReceipts.receiptNumber, receiptNum)
+            ))
+            .limit(1);
+
+          if (!existingReceipt) {
+            await db.insert(salesReceipts).values({
+              organizationId: this.organizationId,
+              locationId: existingInvoice.locationId,
+              customerId: existingInvoice.customerId,
+              receiptNumber: receiptNum,
+              receiptDate: existingInvoice.invoiceDate || new Date(),
+              amount: String(order.order_total || existingInvoice.grandTotal || 0),
+              paymentMethod: resolvedMode
+            });
+          }
+        }
+      }
+
       return;
     }
 
@@ -304,7 +351,10 @@ export class TMBillService {
 
         // Step 2: Insert into salesInvoices
         const invoiceId = randomUUID();
-        const paymentStatus = (!order.paymentMode || order.paymentMode.toLowerCase() === "credit" || order.paymentMode.toLowerCase() === "unpaid") ? "PENDING" : "PAID";
+        const hasPayment = Boolean(order.paymentMode && order.paymentMode.toLowerCase() !== "credit" && order.paymentMode.toLowerCase() !== "unpaid");
+        const isOrderFulfilled = (order.orderState === "fulfilled");
+        const paymentStatus = (hasPayment || isOrderFulfilled) ? "PAID" : "PENDING";
+        const paymentModeResolved = order.paymentMode || (isOrderFulfilled ? "PAID" : "CREDIT");
         
         // Find channel mapping
         
@@ -368,7 +418,7 @@ export class TMBillService {
           grandTotal: String(order.orderTotal || 0),
           totalAmount: String(order.orderTotal || 0),
           paymentStatus: paymentStatus,
-          paymentMode: order.paymentMode || "CREDIT",
+          paymentMode: paymentModeResolved,
           tmbillRawData: order.rawData,
           createdUserId: userId
         });
@@ -382,7 +432,7 @@ export class TMBillService {
             receiptNumber: "REC-TM-" + String(order.tmbillOrderId),
             receiptDate: order.orderDateTime || new Date(),
             amount: String(order.orderTotal || 0),
-            paymentMethod: order.paymentMode || "SYSTEM_SYNC"
+            paymentMethod: paymentModeResolved
           });
         }
         

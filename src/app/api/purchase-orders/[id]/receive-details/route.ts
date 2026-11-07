@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { purchaseOrders, purchaseOrderLines, items, vendors } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import { getSessionContext } from "@/domains/session/service";
-import { eq } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -46,7 +46,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       })
       .from(purchaseOrderLines)
       .innerJoin(items, eq(purchaseOrderLines.itemId, items.id))
-      .where(eq(purchaseOrderLines.poId, id));
+      .where(
+        and(
+          eq(purchaseOrderLines.poId, id),
+          sql`CAST(${purchaseOrderLines.orderedQuantity} AS NUMERIC) > 0`
+        )
+      );
 
     return NextResponse.json({
       po: po,

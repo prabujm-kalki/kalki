@@ -120,8 +120,8 @@ export async function reopenDayClose(organizationId: string, locationId: string,
       return { error: "Permission Denied: Only Super Admin / Owners can reopen and edit a closed date." };
     }
 
-    await unlockDayClose(organizationId, locationId, date, session.user.id);
-    return { success: true };
+    const unlockResult = await unlockDayClose(organizationId, locationId, date, session.user.id);
+    return { success: true, preservedSnapshot: unlockResult.preservedSnapshot };
   } catch (error: any) {
     console.error("reopenDayClose Error:", error);
     return { error: error.message || "Failed to reopen day close" };

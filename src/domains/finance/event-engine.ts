@@ -56,6 +56,27 @@ export async function processAccountingEvent(payload: AccountingEventPayload) {
     const branchImbalances: Record<string, number> = {};
 
     for (const line of payload.lines) {
+      if (line.accountId) {
+        const lineLocationId = line.locationId || payload.locationId;
+        if (!branchImbalances[lineLocationId]) branchImbalances[lineLocationId] = 0;
+        if (line.isDebit) {
+          branchImbalances[lineLocationId] -= line.amount;
+        } else {
+          branchImbalances[lineLocationId] += line.amount;
+        }
+
+        await tx.insert(journalLineItems).values({
+          id: randomUUID(),
+          journalEntryId: entryId,
+          accountId: line.accountId,
+          locationId: lineLocationId,
+          debit: line.isDebit ? line.amount.toString() : "0",
+          credit: !line.isDebit ? line.amount.toString() : "0",
+          narration: line.narration || null,
+        });
+        continue;
+      }
+
       // Find the mapped account for this operational item
       let mappings = await tx.select().from(accountingMappings).where(
         and(

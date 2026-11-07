@@ -296,14 +296,16 @@ export default function PurchaseDashboardPage() {
       }
 
       setReceiveLines(
-        linesData.map((l: any) => ({
-          ...l,
-          orderedQuantity: l.orderedQuantity,
-          receivedQuantity: l.orderedQuantity,
-          acknowledged: false,
-          actionTaken: null as "OK" | "ZERO" | "MODIFIED" | null,
-          isZero: false,
-        }))
+        linesData
+          .filter((l: any) => Number(l.orderedQuantity || 0) > 0)
+          .map((l: any) => ({
+            ...l,
+            orderedQuantity: l.orderedQuantity,
+            receivedQuantity: l.orderedQuantity,
+            acknowledged: false,
+            actionTaken: null as "OK" | "ZERO" | "MODIFIED" | null,
+            isZero: false,
+          }))
       );
     } catch (err) {
       console.error("Error loading lines for receive modal:", err);

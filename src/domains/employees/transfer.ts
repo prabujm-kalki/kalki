@@ -163,7 +163,7 @@ export async function transferEmployeeBranch(
 
     // 4. Update Role Assignment if targetRoleId is provided
     if (payload.targetRoleId) {
-      // Deactivate active roles from source branch
+      // Deactivate other active roles for this employee in the organization
       await tx
         .update(employeeRoleAssignments)
         .set({ isActive: false, updatedAt: now })
@@ -174,15 +174,27 @@ export async function transferEmployeeBranch(
           )
         );
 
-      // Assign new role at target branch
-      await tx.insert(employeeRoleAssignments).values({
-        organizationId: currentEmp.organizationId,
-        employeeId: currentEmp.id,
-        roleId: payload.targetRoleId,
-        isActive: true,
-        createdAt: now,
-        updatedAt: now,
-      });
+      // Assign or reactivate target role
+      await tx
+        .insert(employeeRoleAssignments)
+        .values({
+          organizationId: currentEmp.organizationId,
+          employeeId: currentEmp.id,
+          roleId: payload.targetRoleId,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [
+            employeeRoleAssignments.employeeId,
+            employeeRoleAssignments.roleId,
+          ],
+          set: {
+            isActive: true,
+            updatedAt: now,
+          },
+        });
     }
 
     // 5. Immutable Audit Event

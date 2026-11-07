@@ -14,6 +14,7 @@ export interface AccountingEventPayload {
   lines: {
     mappingType: MappingType;
     sourceReferenceId: string; // The ID of the item category, component, etc.
+    accountId?: string; // Direct override to debit/credit a specific GL account
     amount: number;
     isDebit: boolean;
     locationId?: string; // Branch specific tagging for Inter-Branch clearing

@@ -51,16 +51,19 @@ export default function POReceivePage() {
       setVendorName(data.vendorName || "Direct Vendor");
       
       // Initialize items as UNACKNOWLEDGED by default so employees must verify each item
-      const initializedLines: ReceiveLineItem[] = (data.lines || []).map((l: any) => ({
-        id: l.id,
-        itemId: l.itemId,
-        itemName: l.itemName,
-        orderedQuantity: l.orderedQuantity,
-        receivedQuantity: l.orderedQuantity,
-        isZero: false,
-        acknowledged: false,
-        actionTaken: null,
-      }));
+      // Only display items that were actually ordered (orderedQuantity > 0)
+      const initializedLines: ReceiveLineItem[] = (data.lines || [])
+        .filter((l: any) => Number(l.orderedQuantity || 0) > 0)
+        .map((l: any) => ({
+          id: l.id,
+          itemId: l.itemId,
+          itemName: l.itemName,
+          orderedQuantity: l.orderedQuantity,
+          receivedQuantity: l.orderedQuantity,
+          isZero: false,
+          acknowledged: false,
+          actionTaken: null,
+        }));
       setLines(initializedLines);
     } catch (err: any) {
       setError(err.message || "Failed to load PO details");

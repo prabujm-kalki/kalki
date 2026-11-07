@@ -48,6 +48,7 @@ export function DayCloseClient() {
   const [contextData, setContextData] = useState<{
     isClosed: boolean;
     closedRecord: any | null;
+    existingDenominations?: { denomination: number; count: number }[];
     openingCash: number;
     cashExpenses: number;
     upiExpenses: number;
@@ -68,6 +69,19 @@ export function DayCloseClient() {
     const res = await fetchDayCloseContext(orgId, locId, targetDate);
     if (res.success && res.data) {
       setContextData(res.data);
+      // Pre-populate denominations and UPI declaration if the day has existing closed/saved records
+      if (res.data.isClosed && res.data.closedRecord) {
+        if (res.data.existingDenominations && res.data.existingDenominations.length > 0) {
+          const loadedCounts: Record<number, number> = STANDARD_DENOMINATIONS.reduce((acc, den) => ({ ...acc, [den]: 0 }), {});
+          for (const d of res.data.existingDenominations) {
+            loadedCounts[d.denomination] = d.count;
+          }
+          setCounts(loadedCounts);
+        }
+        if (res.data.closedRecord.declaredUpiAmount) {
+          setDeclaredUpi(res.data.closedRecord.declaredUpiAmount);
+        }
+      }
     } else {
       setError(res.error || "Failed to load day context.");
     }
@@ -612,6 +626,20 @@ export function DayCloseClient() {
                     setReopening(true);
                     const res = await reopenDayClose(selected.organizationId, selected.locationId, date);
                     if (res.success) {
+                      // Pre-populate restored snapshot if returned
+                      if (res.preservedSnapshot) {
+                        const snap = res.preservedSnapshot;
+                        if (snap.denominations && snap.denominations.length > 0) {
+                          const restoredCounts: Record<number, number> = STANDARD_DENOMINATIONS.reduce((acc, den) => ({ ...acc, [den]: 0 }), {});
+                          for (const d of snap.denominations) {
+                            restoredCounts[d.denomination] = d.count;
+                          }
+                          setCounts(restoredCounts);
+                        }
+                        if (snap.declaredUpi !== undefined && snap.declaredUpi !== null) {
+                          setDeclaredUpi(snap.declaredUpi.toString());
+                        }
+                      }
                       // Reload context
                       const ctxRes = await fetchDayCloseContext(selected.organizationId, selected.locationId, date);
                       if (ctxRes.success) setContextData(ctxRes.data as any);

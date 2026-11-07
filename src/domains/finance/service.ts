@@ -8,6 +8,10 @@ import {
   vendorLedger,
   vendors,
   employees,
+  accounts,
+  accountGroups,
+  journalEntries,
+  journalLineItems,
 } from "@/db/schema";
 import { authorizeEmployeeOperation } from "@/lib/authorization";
 import { employeePermissions, type EmployeePermission } from "@/lib/authorization-policy";
@@ -24,6 +28,7 @@ export class FinanceServiceError extends Error {
       | "INVALID_INPUT"
       | "NOT_FOUND"
       | "DUPLICATE_RECORD"
+      | "INSUFFICIENT_FUNDS"
   ) {
     super(message);
     this.name = "FinanceServiceError";
@@ -171,6 +176,7 @@ const recordPaymentSchema = scopeSchema.extend({
   amount: z.number().positive(),
   paymentDate: z.string().datetime(),
   paymentMode: z.enum(["CASH", "BANK_TRANSFER", "CHEQUE", "UPI"]),
+  sourceAccountId: z.string().uuid().optional(),
   referenceDetails: z.string().nullable().optional(),
   attachmentUrl: z.string().optional(),
   recordedByEmployeeId: z.string(),
@@ -238,7 +244,79 @@ export async function recordPaymentAndAllocate(actor: Actor, input: RecordPaymen
       }
     }
 
-    // 3. Create Payment
+    // 3. Resolve and Verify Source Account (Strict Cash Blocking)
+    let sourceAccount: { id: string; name: string; code: string } | undefined;
+
+    if (parsed.data.sourceAccountId) {
+      const [acc] = await tx
+        .select({ id: accounts.id, name: accounts.name, code: accounts.code })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.id, parsed.data.sourceAccountId),
+            eq(accounts.organizationId, parsed.data.organizationId),
+            eq(accounts.isActive, true)
+          )
+        );
+      if (!acc) throw new FinanceServiceError("Specified payment source account not found or inactive.", "NOT_FOUND");
+      sourceAccount = acc;
+    } else {
+      // Default auto-resolve for CASH: Prioritize Cash in Hand / Drawer (1110)
+      const orgAccounts = await tx
+        .select({ id: accounts.id, name: accounts.name, code: accounts.code })
+        .from(accounts)
+        .where(
+          and(
+            eq(accounts.organizationId, parsed.data.organizationId),
+            eq(accounts.isActive, true)
+          )
+        );
+      if (parsed.data.paymentMode === "CASH") {
+        sourceAccount = orgAccounts.find(a => a.code === "1110" || a.name.toLowerCase().includes("cash in hand") || a.name.toLowerCase().includes("drawer"))
+          || orgAccounts.find(a => a.code === "1120" || a.name.toLowerCase().includes("petty cash"));
+      } else {
+        sourceAccount = orgAccounts.find(a => a.code === "1130" || a.name.toLowerCase().includes("bank"))
+          || orgAccounts.find(a => a.code === "1110");
+      }
+    }
+
+    if (!sourceAccount) {
+      throw new FinanceServiceError("Could not resolve an active Bank/Cash account for disbursement.", "NOT_FOUND");
+    }
+
+    // 4. Strict Balance Enforcement (Zero-Trust Overdraft Block)
+    // If Cash or specific account selected, calculate available balance for this location
+    const balanceResult = await tx
+      .select({
+        totalDebit: sum(journalLineItems.debit),
+        totalCredit: sum(journalLineItems.credit),
+      })
+      .from(journalLineItems)
+      .innerJoin(journalEntries, eq(journalEntries.id, journalLineItems.journalEntryId))
+      .where(
+        and(
+          eq(journalEntries.organizationId, parsed.data.organizationId),
+          eq(journalEntries.status, "POSTED"),
+          eq(journalLineItems.accountId, sourceAccount.id),
+          eq(journalLineItems.locationId, parsed.data.locationId)
+        )
+      );
+
+    const availableDebit = parseFloat((balanceResult[0]?.totalDebit as string) || "0");
+    const availableCredit = parseFloat((balanceResult[0]?.totalCredit as string) || "0");
+    const currentAccountBalance = availableDebit - availableCredit;
+
+    // Strict block for CASH transactions if insufficient funds in drawer/account
+    if (parsed.data.paymentMode === "CASH" || parsed.data.sourceAccountId) {
+      if (currentAccountBalance < parsed.data.amount) {
+        throw new FinanceServiceError(
+          `Strict Payment Block: Insufficient funds in ${sourceAccount.name} (${sourceAccount.code}). Available balance is ₹${currentAccountBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}, but payment amount is ₹${parsed.data.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}.`,
+          "INSUFFICIENT_FUNDS"
+        );
+      }
+    }
+
+    // 5. Create Payment
     const [payment] = await tx
       .insert(payments)
       .values({
@@ -320,7 +398,7 @@ export async function recordPaymentAndAllocate(actor: Actor, input: RecordPaymen
       sourceModule: "PURCHASE",
       sourceReferenceId: payment.id,
       entryDate: new Date(parsed.data.paymentDate),
-      narration: `Vendor Payment via ${parsed.data.paymentMode}`,
+      narration: `Vendor Payment via ${sourceAccount.name} (${parsed.data.paymentMode})`,
       lines: [
         {
           mappingType: "SYSTEM_DEFAULT",
@@ -332,9 +410,10 @@ export async function recordPaymentAndAllocate(actor: Actor, input: RecordPaymen
         {
           mappingType: "SYSTEM_DEFAULT",
           sourceReferenceId: "BANK_CASH",
+          accountId: sourceAccount.id, // Explicitly credit the exact verified cash/bank account
           amount: parsed.data.amount,
           isDebit: false,
-          narration: `Payment out (${parsed.data.paymentMode})`
+          narration: `Payment out (${sourceAccount.name})`
         }
       ]
     });

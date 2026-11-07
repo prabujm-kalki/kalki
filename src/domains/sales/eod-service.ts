@@ -186,9 +186,22 @@ export async function getDayCloseContext(
     )
     .limit(1);
 
+  let existingDenominations: { denomination: number; count: number }[] = [];
+  if (alreadyClosed) {
+    const rawDenoms = await db
+      .select({
+        denomination: dayCloseCashDenominations.denomination,
+        count: dayCloseCashDenominations.count,
+      })
+      .from(dayCloseCashDenominations)
+      .where(eq(dayCloseCashDenominations.dayCloseId, alreadyClosed.id));
+    existingDenominations = rawDenoms;
+  }
+
   return {
     isClosed: !!alreadyClosed,
     closedRecord: alreadyClosed || null,
+    existingDenominations,
     openingCash,
     cashExpenses,
     upiExpenses,
@@ -226,6 +239,21 @@ export async function unlockDayClose(
       throw new Error(`No day close record found for date ${date}.`);
     }
 
+    // Capture previous denominations and declared figures before removing the lock
+    const existingDenoms = await tx
+      .select({
+        denomination: dayCloseCashDenominations.denomination,
+        count: dayCloseCashDenominations.count,
+      })
+      .from(dayCloseCashDenominations)
+      .where(eq(dayCloseCashDenominations.dayCloseId, existing.id));
+
+    const preservedSnapshot = {
+      closingCashInHand: parseFloat(existing.closingCashInHand || "0"),
+      declaredUpi: parseFloat(existing.declaredUpiAmount || "0"),
+      denominations: existingDenoms,
+    };
+
     // 2. Cascade delete linked journal entries posted by this day close
     // In event-engine, dayClose.id is passed as sourceReferenceId with sourceModule = 'SALES'
     const linkedJournals = await tx
@@ -246,7 +274,10 @@ export async function unlockDayClose(
     // 3. Delete the day close record (cascades to cash denominations & financial summaries)
     await tx.delete(dayCloseRecords).where(eq(dayCloseRecords.id, existing.id));
 
-    return { success: true };
+    return { 
+      success: true,
+      preservedSnapshot
+    };
   });
 }
 
